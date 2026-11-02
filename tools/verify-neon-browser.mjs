@@ -43,6 +43,11 @@ try{
   await page.waitForTimeout(350);
   assert.equal(await page.locator('#v20Nav button').count(),8,'8 real UI categories');
   assert.equal(await page.locator('#n20Stage .n20-tile').count(),8,'8 dashboard tiles');
+  assert.equal(await page.locator('#n20MenuDialog .n20-menu-items button').count(),8,'hamburger drawer contains every category');
+  await page.evaluate(()=>document.querySelector('.n20-menu-button').click());
+  assert.equal(await page.locator('#n20MenuDialog').evaluate(el=>el.open),true,'hamburger opens real dialog');
+  await page.evaluate(()=>document.querySelector('.n20-menu-close').click());
+  assert.equal(await page.locator('#n20MenuDialog').evaluate(el=>el.open),false,'close button closes drawer');
   const overflowing=async label=>{
    const x=await page.evaluate(()=>({scroll:document.documentElement.scrollWidth,
     viewport:innerWidth,body:document.body.scrollWidth}));
