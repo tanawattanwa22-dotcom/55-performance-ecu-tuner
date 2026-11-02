@@ -53,7 +53,7 @@ pre{background:#0b1827;border-radius:10px;padding:12px;font:12px ui-monospace,mo
 <small>เมื่อลบแฟลชแล้ว ห้ามตัดไฟหรือถอดสายกลางคัน การรายงาน 100% หมายถึง ACK ของโปรโตคอล C# ไม่ใช่ Verify Memory อ่านกลับ</small>
 </div>
 <div class="card"><h2>Flash TX/RX Log</h2>
-<div class="row"><button class="secondary" id="copy">คัดลอก Log</button></div><pre id="log">ยังไม่มี Log</pre></div>
+<div class="row"><button class="secondary" id="copy">คัดลอก Log</button><button class="secondary" id="saveLog">บันทึก Log TXT ลงมือถือ</button></div><pre id="log">ยังไม่มี Log</pre></div>
 </main>
 <script src="../license-config.js"></script><script src="../license-client.js"></script>
 <script type="module">
@@ -195,6 +195,20 @@ $('postCheck').onclick=async()=>{
   }finally{busy=false;refreshButtons()}
 };
 $('copy').onclick=()=>navigator.clipboard.writeText(logs.join('\n')).catch(e=>push('Clipboard failed '+e.message));
+$('saveLog').onclick=()=>{
+ const safeId=identity?.ecuId?.replace(/[^0-9A-F]/g,'')||'NO_ID';
+ const timestamp=new Date().toISOString().replace(/[:.]/g,'-');
+ const report=['55 PERFORMANCE ECU FLASH BENCH V16','Source: C# FormMain.cs SHA256 50e13192164e25493fffb1babd5baa580902d0a14a09452a3279cf75157594f1',
+  'ECU ID: '+safeId,'ECU family: '+(identity?.family||'UNKNOWN'),
+  'ECU Part: '+(identity?.sourcePart||'UNKNOWN'),
+  'Plan: '+(plan?JSON.stringify({profile:plan.profile,part:plan.part,binBytes:plan.size,startOffset:plan.startOffset,checksumOffset:plan.checksumOffset}):'none'),
+  'NOTE: Final ACK is not firmware readback verification.','',...logs].join('\n');
+ const url=URL.createObjectURL(new Blob([report],{type:'text/plain;charset=utf-8'}));
+ const a=document.createElement('a');a.href=url;a.download='55_ECU_FLASH_LOG_'+safeId+'_'+timestamp+'.txt';a.click();
+ setTimeout(()=>URL.revokeObjectURL(url),1500);
+ push('Flash log downloaded to phone');
+};
+
 window.addEventListener('beforeunload',e=>{if(flashing){e.preventDefault();e.returnValue='ECU FLASH IN PROGRESS'}});
 license();
 </script></body></html>
