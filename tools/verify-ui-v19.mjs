@@ -1,6 +1,5 @@
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
-import vm from 'node:vm';
 import {execFileSync} from 'node:child_process';
 const root=new URL('../',import.meta.url);
 const read=path=>fs.readFileSync(new URL(path,root),'utf8');
@@ -28,7 +27,7 @@ for(const file of [
 for(const file of ['main-source-live.html','main-source-dtc.html','main-source-converter.html','main-source-offset-lab.html']){
  const page=read('flash_port/'+file);
  for(const [,source] of page.matchAll(/<script type="module">([\s\S]*?)<\/script>/gi)){
-  new vm.SourceTextModule(source,{identifier:file});
+  execFileSync(process.execPath,['--check','--input-type=module'],{input:source});
  }
 }
 console.log('PASS V19 dashboard pages, navigation, original license/flash controls, JS syntax and source labs');
