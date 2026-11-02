@@ -113,6 +113,12 @@ export class HondaFlashEngine {
     if(r[3]===15)fail('FALLBACK_REJECTED','Keihin fallback returned locked session');
     handshake='KEIHIN_POLL';
    }
+   // Original FormMain.cs WorkerThread() first probes a handshake,
+   // then calls SendCommand(array8, array8[1]) AGAIN to confirm session
+   // BEFORE requesting the physical ECU ID (lines 963–989).
+   const sessionFrame=handshake==='KEIHIN_POLL'?CMD.khPoll:READ_ONLY_COMMANDS.HELLO;
+   await this.x('CONFIRM_WORKER_SESSION',sessionFrame,{timeoutMs:1700});
+   this.emit('C_SHARP_WORKER_SESSION_CONFIRMED',{handshake});
    const idReply=await this.x('READ_ECU_ID',READ_ONLY_COMMANDS.ID,{timeoutMs:1700});
    if(idReply.length<11)fail('NO_ECU_ID','ECU ID reply สั้นเกินไป');
    const ecuId=toHex(idReply.slice(5,10)).replaceAll(' ','');
