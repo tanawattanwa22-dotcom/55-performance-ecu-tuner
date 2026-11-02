@@ -1,0 +1,53 @@
+<!doctype html><html lang="th"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0f1724"><title>55 PERFORMANCE · Flash Engine Tests V13</title>
+<style>body{background:#0f1724;color:#f1f6ff;font:16px system-ui;padding:18px;max-width:740px;margin:auto}h1{font-size:25px}main{background:#203048;padding:18px;border-radius:16px}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#101c2c;padding:15px;border-radius:9px;line-height:1.6}a{color:#ffaf60}.note{color:#bcd0e5}</style></head><body>
+<a href="./bench.html">← กลับ FTDI/ECU Lab</a>
+<h1>55 ECU Flash Engine — Automated Checks V13</h1>
+<p class="note">การทดสอบสูตร Checksum, FTDI divisor, USB status header และแพ็กเก็ตเขียนจาก C# โดยไม่ต่อสายหรือ ECU และไม่มีคำสั่ง ERASE/WRITE</p>
+<main><strong id="summary">กำลังทดสอบ...</strong><pre id="results"></pre></main>
+<script type="module">
+import {baudDivisor,stripFtdiStatus,hondaChecksum,checkedHondaReply,READ_ONLY_COMMANDS,Ft232rWebUsb} from './ftdi-webusb.js';
+import {checksum8BitCSharp,createWriteFrame,auditWriteFrames} from './flash-frames.js';
+const tests=[];
+const eq=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+function test(name,fn){
+ let ok=false,reason='';
+ try{ok=!!fn();if(!ok)reason='ไม่ตรง'}catch(e){reason=e.message}
+ tests.push({name,ok,reason});
+}
+test('Checksum Honda 0x72 05 00 F0 → 0x99',()=>hondaChecksum([0x72,0x05,0,0xf0])===0x99);
+test('Checksum rejects corrupted reply',()=>{try{checkedHondaReply([0x02,0x04,0x01,0x00]);return false}catch{return true}});
+test('Checksum accepts valid reply',()=>eq(Array.from(checkedHondaReply([0x02,0x04,0x01,0xf9])),[2,4,1,249]));
+test('FTDI Baud 10400 near target',()=>Math.abs(baudDivisor(10400).actual-10400)<25);
+test('FTDI Baud 921600 near target',()=>Math.abs(baudDivisor(921600).actual-921600)<5000);
+test('FTDI 9600 divisor 0x4138',()=>baudDivisor(9600).value===0x4138);
+test('FTDI modem status 2 bytes per packet',()=>eq(Array.from(stripFtdiStatus([0,0,1,2,3,4,5,6,0,0,7,8],8).data),[1,2,3,4,5,6,7,8]));
+test('FTDI header truncation rejected',()=>{try{stripFtdiStatus([1],64);return false}catch{return true}});
+test('Read-only allowlist has WAKE/HELLO/ID',()=>eq(Object.keys(READ_ONLY_COMMANDS).slice(0,3),['WAKE','HELLO','ID']));
+test('USB hardware method offers no flash/erase API',()=>!('erase' in Ft232rWebUsb.prototype)&&!('writeFlash' in Ft232rWebUsb.prototype));
+test('C# checksum8Bit for 0',()=>checksum8BitCSharp(new Uint8Array(128))===0);
+test('C# checksum8Bit for two 0xff',()=>checksum8BitCSharp(Uint8Array.of(255,255))===254);
+for(const [name,profile,sz,header] of [
+  ['Keihin 128-byte','KEIHINOTHER',128,0x8b],
+  ['Keihin H8C 64-byte','KEIHINH8C',64,0x4b],
+  ['Shindengen V850 128-byte','SHINDENGENV850',128,0x8b]
+]){
+ test(name+' frame size and Honda CRC',()=>{
+  const b=createWriteFrame(new Uint8Array(sz),{profile,startOffset:0x8000,blockIndex:0});
+  return b.length===sz+11&&b[1]===header&&hondaChecksum(b)===0;
+ });
+}
+test('C# final block links to zero',()=>{
+ const b=createWriteFrame(new Uint8Array(128),{profile:'KEIHINOTHER',startOffset:0x8000,isFinal:true});
+ return b[134]===0&&b[135]===0;
+});
+test('64KB Keihin = 512 offline blocks',()=>auditWriteFrames(new Uint8Array(65536),{profile:'KEIHINOTHER',startOffset:0x8000}).frames===512);
+test('256KB Shindengen starts at startOffset/128',()=>auditWriteFrames(new Uint8Array(262144),{profile:'SHINDENGENV850',startOffset:0x10000}).frames===1536);
+test('Unknown ECU profile rejected (no fallback)',()=>{try{createWriteFrame(new Uint8Array(128),{profile:'UNKNOWN'});return false}catch{return true}});
+const ok=tests.filter(t=>t.ok).length;
+document.getElementById('summary').textContent=ok+'/'+tests.length+' PASS — Software-only';
+document.getElementById('summary').style.color=ok===tests.length?'#81efbc':'#ff908a';
+document.getElementById('results').textContent=tests.map(t=>(t.ok?'PASS':'FAIL')+' — '+t.name+(t.reason?' : '+t.reason:'')).join('\n')+
+'\n\nหมายเหตุ: ผลทดสอบผ่านไม่ได้หมายความว่าโปรโตคอล WRITE/ERASE บน ECU จริงปลอดภัยหรือใช้งานได้แล้ว';
+</script></body></html>
