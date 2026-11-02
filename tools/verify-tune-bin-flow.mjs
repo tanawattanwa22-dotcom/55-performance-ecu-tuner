@@ -27,6 +27,12 @@ p.bytes[500]=99;
 assert.equal(flow.matches(p,original,{model,sourceName,customerBin:true}),false,'corrupted saved bytes rejected');
 const embedded=flow.prepare(original,{model,sourceName:'embedded',filename:'stock.bin',customerBin:false,checksumMode:'sum0'});
 assert.equal(embedded.customerBin,false);
+assert.equal(flow.matches(embedded,original,{model,sourceName:'embedded',customerBin:false}),true,
+ 'bundled master firmware can enter save->ECU preflight with matching snapshot');
+const masterEdit=original.slice();masterEdit[123]^=0xff;
+assert.equal(flow.matches(embedded,masterEdit,{model,sourceName:'embedded',customerBin:false}),false,
+ 'editing bundled BIN after Save invalidates snapshot and flash preflight');
+
 const index=fs.readFileSync(new URL('index.html',root),'utf8');
 const ui=fs.readFileSync(new URL('ui/v18-tune-flow.js',root),'utf8');
 for(const id of ['tuneFlow','flowSaved','flowFlash','tuneSaveStatus','flashSnapshot','btnAutoOffset','autoOffsetInfo','btnReturnTune'])
@@ -35,6 +41,18 @@ assert(ui.includes('if(INLINEFLASH.busy&&!INLINEFLASH.postCheck)'),'saved BIN is
 assert(ui.includes('S.saved.bytes.slice()'),'send saved bytes, not current mutable array');
 assert(ui.includes('event.stopImmediatePropagation()'),'unsaved click blocked before original handler');
 assert(ui.includes('guardRun().st==="MISMATCH"'),'match guard hard stop');
+assert(!ui.includes('if(!S.saved.customerBin)'),'master BIN must NOT force customer file import');
+assert(!ui.includes('!S.saved.customerBin||guardRun()'),'master BIN must NOT be blocked at flash');
+assert(ui.includes('flash.disabled=!saved'),'flash button depends on snapshot and license, not BIN source');
+assert(ui.includes('BIN หลักในแอป'),'master BIN status must be visible');
+const embedBegin=index.indexOf('<script data-inline-source="ui/v18-tune-flow.js">');
+assert(embedBegin>=0,'inline BIN flow controller must be present');
+const embedEnd=index.indexOf('</script>',embedBegin);
+const inlineScript=index.slice(embedBegin,embedEnd);
+assert(inlineScript.includes('globalThis.__55TuneFlowVersion="18.5"'),'inlined flow must use updated version');
+assert(!inlineScript.includes('if(!S.saved.customerBin)'),'inlined flow must NOT block bundled BIN');
+assert(inlineScript.includes('return S.saved.bytes.slice()'),'inlined flash uses exact saved snapshot');
+
 const engine=fs.readFileSync(new URL('flash_port/honda-write-engine.js',root),'utf8');
 assert(engine.includes('catalog.startOffset??suggested.startOffset'),'automatic offset uses C# ECU catalog then BIN inference');
 assert(engine.includes('checksumOffset:offset')===false,'no invented checksum auto authorization');
