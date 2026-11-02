@@ -276,11 +276,42 @@ table.g th,table.g td{border-right:1px solid rgba(255,255,255,.35);border-bottom
    <div class="mu sm" style="margin-top:8px" id="cableMsg">ต่อสาย K-line เข้า OTG แล้วเสียบมือถือ จากนั้นกดปุ่มด้านบน (ใช้ Chrome)</div>
    <details><summary>รายละเอียดทางเทคนิค</summary><pre id="klog">-</pre></details>
   </div>
+  <div class="card" id="mainSourceTools"><h2>Honda Main · เครื่องมือ BIN และ ECU</h2>
+  <details><summary style="color:#ffb984;cursor:pointer">เปิดเครื่องมือจากซอร์ส Main C#</summary>
+    <p class="mu sm">เครื่องมือไฟล์ทำงานในมือถือเท่านั้น ไม่เขียน ECU โดยอัตโนมัติ</p>
+    <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px">
+      <button class="btn" type="button" id="mtOpenBin">เปิด BIN</button>
+      <button class="btn" type="button" id="mtSaveBin">บันทึก BIN</button>
+      <button class="btn" type="button" id="mtInspect">ค้น BIN ID</button>
+      <button class="btn" type="button" id="mtFindId">ค้น ECM ID ใน BIN</button>
+      <button class="btn" type="button" id="mtLockRead">Lock Read 48/64KB</button>
+      <button class="btn" type="button" id="mtLockMode">Lock Mode 48/64KB</button>
+      <button class="btn" type="button" id="mtUndo">Undo BIN</button>
+      <button class="btn" type="button" id="mtReadEcu">อ่าน ECU ID / Flash Count</button>
+      <button class="btn" type="button" id="mtDiag">Diagnostic / Live</button>
+      <button class="btn" type="button" id="mtDtc">DTC</button>
+    </div>
+    <div class="row" style="margin-top:8px;flex-wrap:wrap">
+     <input id="mtEcuId" type="text" maxlength="10" placeholder="ECU ID HEX 10 หลัก" style="min-width:0;flex:1;background:#202027;border:1px solid #666;color:white;border-radius:8px;padding:10px">
+     <button class="btn" type="button" id="mtCatalog">ค้นจาก Main C#</button>
+    </div>
+    <div class="row" style="margin-top:8px;flex-wrap:wrap">
+     <button class="btn" type="button" id="mtDat">นำเข้า ecuData.dat</button>
+     <button class="btn" type="button" id="mtDatSearch">ค้นข้อมูล DAT</button>
+     <input id="mtDatFile" hidden type="file" accept=".dat">
+    </div>
+    <details><summary>Fast Write / Recovery ขั้นสูง</summary>
+     <p class="mu sm">ใช้เครื่องมือช่างแยก เมนูหลักไม่เปิดโหมด Fast/Recovery อัตโนมัติ</p>
+     <a href="flash_port/flash-write-lab.html" target="_blank" rel="noopener">Flash Bench (สำหรับกล่องสำรอง)</a>
+    </details>
+    <pre id="mtOut" style="white-space:pre-wrap;max-height:225px;overflow:auto">เลือกคำสั่งเพื่อใช้เครื่องมือ</pre>
+  </details></div>
   <div class="card" id="flashCard"><h2>อัดไฟล์เข้ากล่อง</h2>
    <div class="bar"><i id="barFill"></i></div>
    <div class="pct" id="pct">0%</div>
    <div id="stepTxt"></div>
-   <button class="btn full" id="btnFlash" disabled>เริ่มอัดไฟล์ (เร็ว ๆ นี้)</button>
+   <button class="btn full" id="btnFlash" disabled>อัดไฟล์ลงกล่อง ECU</button>
+   <button class="btn" id="btnFlashLog" type="button" style="margin-top:8px;width:100%;background:#293b51">ดาวน์โหลด TX/RX Log</button>
   </div>
  </div>
 </section>
@@ -589,6 +620,123 @@ function runOp(op){
 
 /* ---------- home ---------- */
 function setLed(id,st){const e=$(id);e.className="led"+(st?" "+st:"")}
+
+/* Honda Main C# BIN tools and inline ECU flash — maintain original tuner UI */
+const MAINTOOLS={rows:[],readBusy:false,lastEcu:null};
+const FLASHUI={busy:false,engine:null,port:null,post:false,events:[],status:'NOT_STARTED',filename:null,ecuId:null};
+const mainOut=t=>{$('#mtOut').textContent=String(t)};
+const mainClick=(id,fn)=>$('#'+id).addEventListener('click',async()=>{try{await fn()}catch(e){mainOut('ERROR: '+(e.message||e))}});
+const needBin=()=>{if(!(S.bin instanceof Uint8Array)||!S.bin.length)throw Error('กรุณาเปิด BIN ก่อน')};
+mainClick('mtOpenBin',()=>$('#btnRead').click());
+mainClick('mtSaveBin',()=>{needBin();saveBin()});
+mainClick('mtInspect',async()=>{
+ needBin();const {readBinId}=await import('./flash_port/bin-tools.js');
+ const r=readBinId(buildOut());mainOut('BIN: '+S.fname+'\nSize: '+S.bin.length+' bytes\nBIN ID: '+(r.ok?r.id:'ไม่พบ')+'\n'+(r.reason||'พบ @ 0x'+r.at.toString(16)));
+});
+mainClick('mtFindId',async()=>{
+ needBin();const id=$('#mtEcuId').value.trim().toUpperCase()||MAINTOOLS.lastEcu?.ecuId||'';
+ if(!/^[0-9A-F]{10}$/.test(id))throw Error('กรอก ECU ID 10 หลัก หรืออ่าน ECU จริงก่อน');
+ const {findEcmIdInBin}=await import('./flash_port/bin-tools.js'),r=findEcmIdInBin(buildOut(),id);
+ mainOut('ECU '+id+'\n'+(r.ok?'พบ 3 ไบต์แรก @ '+r.index:'ไม่พบ ID pattern ใน BIN')+'\nการพบ pattern ไม่ยืนยันความเข้ากันของ ECU');
+});
+async function mainPatch(mode){needBin();if(FLASHUI.busy)throw Error('Flash กำลังทำงาน');
+ const mod=await import('./flash_port/bin-tools.js'),r=(mode==='read'?mod.lockRead:mod.lockMode)(S.bin);
+ if(!r.ok)throw Error(r.error);const edits=[];
+ for(let i=0;i<S.bin.length;i++)if(S.bin[i]!==r.bytes[i])edits.push([i,r.bytes[i]]);
+ if(!edits.length){mainOut('ไม่มีการเปลี่ยนค่า');return}
+ if(!confirm('แก้ BIN ('+mode+') '+edits.length+' ไบต์\nเก็บ Undo และยังไม่เขียนลง ECU ยืนยัน?'))return;
+ commit('Main Lock '+mode,edits);mainOut('แก้ BIN '+edits.length+' ไบต์\nย้อนกลับด้วย Undo ได้');
+}
+mainClick('mtLockRead',()=>mainPatch('read'));mainClick('mtLockMode',()=>mainPatch('mode'));
+mainClick('mtUndo',()=>{needBin();undo();mainOut('ย้อนการแก้ล่าสุดแล้ว')});
+mainClick('mtCatalog',async()=>{
+ const id=$('#mtEcuId').value.trim().toUpperCase();
+ if(!/^[0-9A-F]{10}$/.test(id))throw Error('ECU ID ต้องเป็น 10 HEX');
+ const {findCSharpEcuId}=await import('./flash_port/csharp-ecu-catalog.js'),r=await findCSharpEcuId(id);
+ const d=MAINTOOLS.rows.find(x=>x.ecuId===id);
+ mainOut('ECU '+id+'\n'+(r?'MAIN: '+r.part+' / '+r.family+'\nStart '+r.startOffset+' / Checksum '+r.checksumOffset:'ไม่พบในฐาน C# 288 รายการ')+(d?'\nDAT: '+d.part+' / '+d.model:''));
+});
+mainClick('mtDat',()=>$('#mtDatFile').click());
+$('#mtDatFile').addEventListener('change',async e=>{
+ try{const f=e.target.files?.[0];if(!f)return;if(f.size>3000000)throw Error('DAT too large');
+ const {parseEcuDat}=await import('./flash_port/ecu-dat.js');
+ MAINTOOLS.rows=parseEcuDat(await f.arrayBuffer());mainOut('นำเข้า DAT สำเร็จ '+MAINTOOLS.rows.length+' รายการ\nใช้ค้นข้อมูลเท่านั้น ไม่อนุมัติ Flash');}
+ catch(err){mainOut('อ่าน DAT ไม่ผ่าน: '+err.message)}finally{e.target.value=''}
+});
+mainClick('mtDatSearch',()=>{const q=$('#mtEcuId').value.toUpperCase().trim();
+ mainOut(MAINTOOLS.rows.filter(x=>(x.ecuId+' '+x.part+' '+x.model).toUpperCase().includes(q)).slice(0,30).map(x=>x.ecuId+' '+x.part+' '+x.model).join('\n')||'ไม่พบข้อมูล DAT')});
+mainClick('mtDiag',()=>openLive());mainClick('mtDtc',()=>{openLive();lvMode('dtc')});
+function flashLog(line){const t=new Date().toISOString()+' '+line;FLASHUI.events.push(t);if(FLASHUI.events.length>2500)FLASHUI.events.shift();
+ const e=$('#stepTxt');if(e)e.textContent=FLASHUI.busy?'Flash: '+line.slice(0,135):line.slice(0,175)}
+function flashRefresh(){
+ const b=$('#btnFlash');if(b){b.disabled=FLASHUI.busy||!S.bin||!!document.getElementById('licenseGate');b.textContent=FLASHUI.post?'ตรวจ ECU ID หลังรีสตาร์ต':FLASHUI.busy?'กำลังทำงาน • ห้ามปิดหน้าจอ':'อัดไฟล์ลงกล่อง ECU'}
+}
+function downloadFlashLog(){const blob=new Blob([JSON.stringify({status:FLASHUI.status,ecuId:FLASHUI.ecuId,filename:FLASHUI.filename,verify:'FINAL_ACK_NOT_READBACK'},null,2)+'\n'+FLASHUI.events.join('\n')],{type:'text/plain'});
+ const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download='55_FLASH_'+Date.now()+'.txt';a.click();setTimeout(()=>URL.revokeObjectURL(u),3000)}
+$('#btnFlashLog').onclick=downloadFlashLog;
+async function flashCleanup(){if(FLASHUI.port)await FLASHUI.port.close().catch(()=>{});FLASHUI.port=null;FLASHUI.engine=null;FLASHUI.post=false}
+async function flashStart(){
+ if(FLASHUI.busy)return;
+ if(FLASHUI.post){
+  FLASHUI.busy=true;flashRefresh();
+  try{if(!confirm('รีสตาร์ต ECU สำรองแล้วใช่ไหม?\nจะอ่านรหัส ECU ไม่ใช่ Verify BIN'))return;
+   const r=await FLASHUI.engine.postFlashCheck();
+   FLASHUI.status='POST_RESTART_ID_RECEIVED_NOT_READBACK';flashLog('POST '+JSON.stringify(r));
+  }catch(e){FLASHUI.status='POST_ERROR';flashLog('ERROR '+e.message)}
+  finally{await flashCleanup();FLASHUI.busy=false;flashRefresh()}return;
+ }
+ if(!S.bin||document.getElementById('licenseGate')){toast('เปิด BIN และเข้าสู่ระบบก่อน');return}
+ // WebUSB chooser must be called synchronously from button user gesture.
+ const choose=navigator.usb?.requestDevice({filters:[{vendorId:0x0403,productId:0x6001}]});
+ if(!choose){toast('Chrome WebUSB / OTG ไม่พร้อม');return}
+ FLASHUI.busy=true;FLASHUI.status='CONNECTING';flashRefresh();
+ let erasePossible=false;
+ try{
+  const device=await choose;
+  const [{Ft232rWebUsb},{HondaFlashEngine}]=await Promise.all([import('./flash_port/ftdi-webusb.js'),import('./flash_port/honda-write-engine.js')]);
+  const license=await api('check',{device:localStorage.getItem('55_device_id')});
+  if(!license?.active)throw Error('License ไม่ได้เปิดใช้งาน');
+  if(typeof lvStop==='function'&&typeof LV!=='undefined'&&LV.run)lvStop();
+  if(K.t){const old=K.t;K.t=null;K.ecu=false;K.ecuId=null;await old.close();cableUi('','กำลังสลับเข้า Flash Engine','รอเชื่อมต่อ','รอ ECU')}
+  const usb=new Ft232rWebUsb(v=>flashLog('USB '+v));await usb.openSelected(device);FLASHUI.port=usb;
+  const engine=new HondaFlashEngine(usb,ev=>{flashLog('ENGINE '+JSON.stringify(ev));if(ev.phase==='WRITE_PROGRESS'){$('#barFill').style.width=ev.percent+'%';$('#pct').textContent=ev.percent+'%'}if(/ERASE_BEGIN/.test(ev.phase))erasePossible=true});
+  FLASHUI.engine=engine;
+  flashLog('READ ECU ID');const identity=await engine.identify();FLASHUI.ecuId=identity.ecuId;
+  if(!identity.sourceMatched)throw Error('ECU ID ไม่ตรงฐาน Main C#: ไม่อนุญาต ERASE');
+  const bin=buildOut();FLASHUI.filename=S.fname||'55_TUNED.bin';
+  let plan;try{plan=engine.makePlan(bin,{filename:FLASHUI.filename,fast:false,recovery:false})}
+  catch(e){if(e.code!=='PART_NOT_CONFIRMED')throw e;
+   const part=prompt('ยืนยันรหัส Part Code ECU '+identity.ecuId+'\nกรอกรหัสจากกล่องจริง เช่น '+identity.sourcePart);
+   if(!part)throw Error('ยกเลิกก่อน ERASE');plan=engine.makePlan(bin,{filename:FLASHUI.filename,confirmedPart:part.trim(),fast:false,recovery:false})}
+  const checks=confirm('ตรวจพบ ECU '+plan.ecuId+'\nPart '+plan.part+'\nBIN '+FLASHUI.filename+' ('+plan.size+' bytes)\n\nยืนยันว่ามี BACKUP ที่ตรงรุ่น, ไฟเลี้ยงนิ่ง และเครื่องมือกู้กล่องสำรอง\n\nกด OK เพื่อไปยืนยันขั้นสุดท้าย');
+  if(!checks){FLASHUI.status='USER_CANCELLED';return}
+  const typed=prompt('จะส่งคำสั่ง ERASE / WRITE จริงไปยังกล่องสำรอง\nพิมพ์ FLASH '+plan.ecuId+' เพื่อยืนยัน');
+  if((typed||'').trim().toUpperCase()!=='FLASH '+plan.ecuId){FLASHUI.status='USER_CANCELLED';return}
+  FLASHUI.status='ERASE_WRITE_IN_PROGRESS';erasePossible=true;flashLog('WRITE START');
+  const result=await engine.flash(plan,{confirmation:'FLASH '+plan.ecuId,physicalBackupConfirmed:true,externalPowerConfirmed:true,recoveryReady:true});
+  FLASHUI.status='SOURCE_FINAL_ACK_NOT_READBACK_VERIFIED';flashLog('FINAL ACK '+JSON.stringify(result));
+  FLASHUI.post=true;$('#barFill').style.width='100%';$('#pct').textContent='100%';
+  alert('ได้ Final ACK ตามโปรโตคอล\nยังไม่ใช่ Readback Verify\nรีสตาร์ตกล่องแล้วกดตรวจ ECU ID');
+ }catch(e){FLASHUI.status=erasePossible?'FAILED_AFTER_ERASE_POSSIBLE':'STOPPED_BEFORE_ERASE';flashLog('ERROR '+e.message);
+  alert('Flash หยุด: '+e.message+(erasePossible?'\nอาจเริ่มลบแล้ว ห้ามทดลองซ้ำโดยไม่ตรวจกล่อง':''))}
+ finally{if(!FLASHUI.post)await flashCleanup();FLASHUI.busy=false;flashRefresh()}
+}
+$('#btnFlash').onclick=flashStart;
+mainClick('mtReadEcu',async()=>{
+ if(MAINTOOLS.readBusy||FLASHUI.busy)throw Error('ระบบกำลังใช้งาน USB');
+ const device=await navigator.usb.requestDevice({filters:[{vendorId:0x0403,productId:0x6001}]});
+ MAINTOOLS.readBusy=true;let usb;
+ try{const [{Ft232rWebUsb},{HondaFlashEngine}]=await Promise.all([import('./flash_port/ftdi-webusb.js'),import('./flash_port/honda-write-engine.js')]);
+  const lic=await api('check',{device:localStorage.getItem('55_device_id')});if(!lic?.active)throw Error('License ไม่ผ่าน');
+  if(K.t){const t=K.t;K.t=null;await t.close()}
+  usb=new Ft232rWebUsb(v=>flashLog('ID '+v));await usb.openSelected(device);
+  const d=await new HondaFlashEngine(usb,ev=>flashLog('ID '+JSON.stringify(ev))).identify();
+  MAINTOOLS.lastEcu=d;$('#mtEcuId').value=d.ecuId;
+  mainOut('ECU ID: '+d.ecuId+'\nPart: '+(d.sourcePart||'ไม่พบ')+'\nFamily: '+d.family+'\nFlash count: '+(d.count??'?')+'\nREAD ONLY');
+ }finally{if(usb)await usb.close().catch(()=>{});MAINTOOLS.readBusy=false}
+});
+flashRefresh();
+
 function home(){
   const m=S.mi>=0?MODELS[S.mi]:null;
   $("#sModel").textContent=m?m.id:"-";
@@ -601,12 +749,13 @@ function home(){
     else $("#sSum").textContent="ไม่แก้ผลรวม";
   }else{$("#sId").textContent="-";$("#sFile").textContent="-";$("#sSum").textContent="-"}
   let step;
-  if(S.flash)step="ขั้นตอนอัดไฟล์: ① ต่อสาย K-line เข้ากล่อง ② เปิดกุญแจ (ON) ไม่ต้องสตาร์ท ③ กด เชื่อมต่อสาย แล้วรอให้ ECU ขึ้นสถานะ \"ตอบแล้ว\" ④ ระบบอัดไฟล์กำลังเตรียม ยังกดเริ่มไม่ได้ในตอนนี้";
+  if(S.flash)step="ขั้นตอนอัดไฟล์: ① ต่อสาย K-line เข้ากล่อง ② เปิดกุญแจ (ON) ไม่ต้องสตาร์ท ③ กด เชื่อมต่อสาย แล้วรอให้ ECU ขึ้นสถานะ \"ตอบแล้ว\" ④ เปิด BIN แล้วกดปุ่มอัดไฟล์ลงกล่อง ระบบจะตรวจ ECU ก่อน ERASE";
   else if(!m)step="เลือกรุ่นรถก่อน";
   else if(!DEFS[m.id])step="ตารางจูนเดิมยังเข้ารหัสและไม่ได้ย้ายมาระบบใหม่ จึงยังไม่สามารถเปิดตารางจูนรุ่นนี้ได้ (USB/DTC ยังใช้งานได้)";
   else step="พร้อมแล้ว กดปุ่ม จูน ได้เลย (หรือกด Read file เพื่อใช้ไฟล์ของลูกค้า)";
   $("#stepTxt").textContent=step;
   $("#flashCard").classList.toggle("hl",S.flash);
+  flashRefresh();
 }
 function fillSel(){
   const s=$("#sel");
