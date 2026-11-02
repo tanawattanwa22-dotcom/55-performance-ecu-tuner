@@ -137,6 +137,17 @@
  }
  $("n21Back").onclick=()=>api.home("dashboard");
  $("n21Menu").onclick=()=>{const dialog=$("n20MenuDialog");if(dialog?.showModal)dialog.showModal();else api.home("dashboard")};
+ const navDialog=$("n20MenuDialog");
+ if(navDialog)navDialog.addEventListener("click",e=>{
+   if(!live.classList.contains("on"))return;
+   const item=e.target.closest?.(".n20-menu-items button");
+   if(!item)return;
+   const all=[...navDialog.querySelectorAll(".n20-menu-items button")];
+   const destination=["dashboard","library","tune","flash","live","dtc","tools","settings"][all.indexOf(item)];
+   if(!destination)return;
+   e.preventDefault();e.stopImmediatePropagation();
+   navDialog.close();api.home(destination);
+ },true);
  $("n21Model").onclick=()=>api.home("library");
  $("n21Connection").onclick=()=>api.connect();
  $("n21GraphMetric").onchange=e=>{selected=e.target.value;render();requestAnimationFrame(draw)};
