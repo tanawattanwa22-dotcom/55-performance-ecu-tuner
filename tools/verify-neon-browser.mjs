@@ -73,7 +73,19 @@ try{
   assert.equal(await page.locator('#liveCard').evaluate(el=>el.classList.contains('n20-hidden')),false);
   assert.equal(await page.locator('#flashCard').evaluate(el=>el.classList.contains('n20-hidden')),true);
   await overflowing('Live entry '+width);
-  await page.evaluate(()=>document.querySelector('#v20Nav [data-cat="dtc"]').click());
+
+  // Reference Live Data V21 must render its real source dashboard, not fixed mock numbers.
+  await page.evaluate(()=>document.getElementById('goLive').click());
+  assert.equal(await page.locator('#n21Pane').count(),1,'image-matched Live dashboard exists');
+  assert.equal(await page.locator('#n21Pane .n21-metric').count(),8,'eight sensor cards');
+  assert.equal(await page.locator('#n21Canvas').count(),1,'real rolling graph canvas');
+  assert.equal(await page.locator('#n21Rec').innerText(),'ยังไม่บันทึก','no fabricated REC status');
+  assert.equal(await page.locator('#n21NowValue').innerText(),'—','never display mock RPM while disconnected');
+  assert.equal(await page.locator('#n21Connection').innerText().then(x=>x.includes('เชื่อมต่อแล้ว')),false,'no fake ECU connection');
+  await overflowing('Live real dashboard '+width);
+  await page.evaluate(()=>document.getElementById('n21Back').click());
+  await page.evaluate(()=>document.querySelector('#v20Nav [data-cat="live"]').click());
+    await page.evaluate(()=>document.querySelector('#v20Nav [data-cat="dtc"]').click());
   assert.equal(await page.locator('#liveCard').evaluate(el=>el.classList.contains('n20-hidden')),false);
   await overflowing('DTC entry '+width);
   if(width===393)await page.screenshot({path:path.join(root,'test-reports','neon-flash-393.png'),fullPage:false});
@@ -90,6 +102,7 @@ try{
    await page.evaluate(()=>document.getElementById('goLive').click());
    assert.equal(await page.locator('#live').evaluate(el=>el.classList.contains('on')),true,'real Live screen opens');
    assert.equal(await page.locator('#vGauge').count(),1,'original RPM gauge preserved');
+   assert.equal(await page.locator('#n21Pane .n21-metric').count(),8,'reference-matched sensor cards present');
    await page.evaluate(()=>document.querySelector('#live .lvtabs [data-m="dtc"]').click());
    assert.equal(await page.locator('#vDtc').evaluate(el=>el.style.display==='none'),false,'original DTC mode opens');
    await page.screenshot({path:path.join(root,'test-reports','neon-live-dtc-393.png'),fullPage:false});
