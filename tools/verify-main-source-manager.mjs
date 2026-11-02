@@ -13,6 +13,8 @@ assert.equal(upsertRow([basic],{...basic,part:'K20-T02'},basic.ecuId)[0].part,'K
 assert.equal(removeRow([basic],basic.ecuId).length,0,'delete');
 const long={...basic,model:'ทดสอบ'.repeat(30)};
 assert.deepEqual(readEcuDat(writeEcuDat([long]))[0].model,long.model,'UTF8 .NET 7-bit string length');
+const exotic={...basic,startOffset:'00008000',checksumOffset:'auto'};
+assert.deepEqual(readEcuDat(writeEcuDat([exotic]))[0],exotic,'preserve C# offsets verbatim, including leading zeros and text');
 const raw=writeEcuDat([basic]);
 assert.equal(raw[4],10,'7-bit ECU ID length');
 console.log('PASS: purchased C# PartID_ECU.cs DAT format: create/read/update/delete/search-backed data (11 checks).');
