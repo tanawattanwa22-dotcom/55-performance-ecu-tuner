@@ -97,7 +97,24 @@ export class HondaFlashEngine {
    this.emit('FTDI_ISO_INIT');
    await this.usb.initializeIso();
    await this.usb.sendWake();
-   await this.x('HELLO',READ_ONLY_COMMANDS.HELLO,{timeoutMs:1700});
+   let handshake='HELLO';
+   try{
+    await this.x('HELLO',READ_ONLY_COMMANDS.HELLO,{timeoutMs:1700});
+   }catch(e){
+    // Original WorkerThread falls back to the Keihin 7E keep-alive after
+    // 72/05/00/F0 has no reply. Failed WebUSB reads close the interface:
+    // reopen the *same approved FT232R* and reinitialize, never guess baud.
+    const dev=this.usb.dev||this.usb.lastDevice;
+    if(!dev)throw e;
+    this.emit('TRY_SOURCE_KEIHIN_FALLBACK',{firstError:e.message});
+    if(this.usb.ready)await this.usb.close();
+    await this.usb.openSelected(dev);
+    await this.usb.initializeIso();
+    await this.usb.sendWake();
+    const r=await this.x('KEIHIN_FALLBACK_HELLO',CMD.khPoll,{timeoutMs:1700});
+    if(r[3]===15)fail('FALLBACK_REJECTED','Keihin fallback returned locked session');
+    handshake='KEIHIN_POLL';
+   }
    const idReply=await this.x('READ_ECU_ID',READ_ONLY_COMMANDS.ID,{timeoutMs:1700});
    if(idReply.length<11)fail('NO_ECU_ID','ECU ID reply สั้นเกินไป');
    const ecuId=toHex(idReply.slice(5,10)).replaceAll(' ','');
@@ -116,7 +133,7 @@ export class HondaFlashEngine {
     this.emit('FAMILY_NOT_CONFIRMED',{message:e.message});
    }
    if(source&&source.family===family)this.emit('SOURCE_ECU_MATCH',{ecuId,part:source.part});
-   this.identity={ecuId,family,count,sourcePart:source?.part||null,sourceMatched:!!source&&source.family===family,catalog:source||null};
+   this.identity={ecuId,family,count,handshake,sourcePart:source?.part||null,sourceMatched:!!source&&source.family===family,catalog:source||null};
    this.state='identified';
    this.emit('ECU_IDENTIFIED',this.identity);
    return this.identity;
@@ -304,7 +321,7 @@ export class HondaFlashEngine {
    this.emit('FLASH_START',{ecuId:plan.ecuId,part:plan.part});
    // User may have spent time choosing BIN; renew the ECU session and
    // reconfirm its physical identity before entering destructive mode.
-   await this.x('RECHECK_HELLO',READ_ONLY_COMMANDS.HELLO,{timeoutMs:1600});
+   await this.x('RECHECK_HELLO',this.identity.handshake==='KEIHIN_POLL'?CMD.khPoll:READ_ONLY_COMMANDS.HELLO,{timeoutMs:1600});
    const reconfirm=await this.x('RECHECK_ECU_ID',READ_ONLY_COMMANDS.ID,{timeoutMs:1600});
    if(reconfirm.length<11||toHex(reconfirm.slice(5,10)).replaceAll(' ','')!==plan.ecuId)
     fail('ECU_ID_CHANGED','ECU ID changed during preflight: refuse ERASE');
