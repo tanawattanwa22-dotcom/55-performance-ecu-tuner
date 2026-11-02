@@ -649,6 +649,7 @@ function useEmbedded(){
   if(!m||!BINS[m.id]){toast("ยังไม่มีไฟล์ BIN มาตรฐานสำหรับรุ่นนี้");return false}
   S.bin=dec(BINS[m.id]);S.orig=S.bin.slice();S.fname=m.id+" (ไฟล์มาตรฐานในแอป)";S.custom=false;
   S.undo=[];S.redo=[];S.sel=null;S.idStr=String.fromCharCode(...S.bin.slice(1,9)).replace(/[^\x20-\x7e]/g,"").trim();M=null;
+  return true;
 }
 function openTune(){
   if(S.mi<0){toast("เลือกรุ่นรถก่อน");return}
