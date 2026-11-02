@@ -21,6 +21,7 @@ const CMD=Object.freeze({
  kh1:bytes([125,8,1,2,80,71,77,148]),
  kh2:bytes([125,8,1,3,45,70,73,187]),
  khPoll:bytes([126,6,1,1,0,122]),
+ khCount:bytes([125,6,1,1,3,120]),
  khPrepare:bytes([126,5,1,2,122]),
  khErase1:bytes([126,7,1,3,0,0,119]),
  khErase2:bytes([126,11,1,11,0,0,0,255,255,255,110]),
@@ -89,7 +90,7 @@ export class HondaFlashEngine {
    if(!/^[0-9A-F]{10}$/.test(ecuId))fail('BAD_ECU_ID','ECU ID ผิดรูปแบบ');
    let family='UNVERIFIED',count=null;
    try{
-    const r=await this.x('KEIHIN_FLASH_COUNT',CMD.khPoll,{timeoutMs:1200});
+    const r=await this.x('KEIHIN_FLASH_COUNT',CMD.khCount,{timeoutMs:1800});
     if(r.length>=7){family='KEIHIN';count=r[6]}
    }catch(e){
     // The C# program probes both Keihin and Shindengen.
@@ -214,6 +215,12 @@ export class HondaFlashEngine {
   let eraseStarted=false;
   try {
    this.emit('FLASH_START',{ecuId:plan.ecuId,part:plan.part});
+   // User may have spent time choosing BIN; renew the ECU session and
+   // reconfirm its physical identity before entering destructive mode.
+   await this.x('RECHECK_HELLO',READ_ONLY_COMMANDS.HELLO,{timeoutMs:1600});
+   const reconfirm=await this.x('RECHECK_ECU_ID',READ_ONLY_COMMANDS.ID,{timeoutMs:1600});
+   if(reconfirm.length<11||toHex(reconfirm.slice(5,10)).replaceAll(' ','')!==plan.ecuId)
+    fail('ECU_ID_CHANGED','ECU ID changed during preflight: refuse ERASE');
    eraseStarted=true; // Never claim unchanged ECU after entering the erase sequence.
    await this.khPreErase();
    const blocks=await this.writeBlocks(plan);
