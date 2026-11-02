@@ -50,6 +50,7 @@ button{font:650 12px system-ui;background:#2c4567;color:#dcefff;border:1px solid
 <div><strong id="groups">—</strong><small>กลุ่มรุ่นรถ</small></div>
 <div><strong id="review">—</strong><small>ต้องตรวจภาพซ้ำ</small></div>
 </div>
+<p id="syncStatus" style="font-size:12px;color:#adc0d7;margin-top:10px">ทะเบียนอ้างอิงบน GitHub • กำลังตรวจข้อมูลจาก Supabase…</p>
 </header>
 <div class="warning"><strong>ทะเบียนอ้างอิง ไม่ใช่รายการ ECU ที่แฟลชได้แล้ว</strong>
 <div>ข้อมูลนี้ไม่มีไฟล์ BIN/XDF/ADX และไม่ยืนยัน Memory Map หรือโปรโตคอลของกล่องจริง ระบบจูนและระบบ ERASE/WRITE เดิมไม่ถูกเปลี่ยนจากหน้านี้</div></div>
@@ -65,9 +66,11 @@ button{font:650 12px system-ui;background:#2c4567;color:#dcefff;border:1px solid
 </div>
 <section class="results" id="results" aria-live="polite"></section>
 <p class="footer">ที่มา: ภาพ “รายการข้อมูล ECM Honda” ของ KTR Racing ที่ผู้ใช้ส่งให้ • ข้อมูลที่อ่านไม่ชัดจะไม่ใส่ ECM ID เดา • หากมีภาพต้นฉบับความละเอียดสูงกว่านี้สามารถแก้ไขรหัสที่ต้องตรวจซ้ำได้ • ข้อมูลในทะเบียนไม่ใช่หลักฐานว่าอ่าน/เขียน ECU สำเร็จแล้ว</p>
+<script src="../license-config.js"></script>
 <script type="module">
 import {KTR_SOURCE,KTR_ECM_ROWS,KTR_ROW_COUNT,KTR_GROUP_COUNT,KTR_NEEDS_REVIEW} from './ecm-catalog.js';
 const $=s=>document.getElementById(s);
+let rows=KTR_ECM_ROWS;
 $('total').textContent=KTR_ROW_COUNT;
 $('groups').textContent=KTR_GROUP_COUNT;
 $('review').textContent=KTR_NEEDS_REVIEW;
@@ -83,12 +86,12 @@ function field(dl,name,value){
 }
 function render(){
  const query=norm($('search').value),family=$('family').value,size=$('size').value,quality=$('quality').value;
- const matches=KTR_ECM_ROWS.filter(x=>
+ const matches=rows.filter(x=>
   (!query||[x.model,x.ecuId,x.partCode,x.referenceId].some(v=>norm(v).includes(query)))&&
   (!family||x.family===family)&&(!size||String(x.sizeKB)===size)&&
   (!quality||(quality==='review'?x.reviewRequired:!x.reviewRequired))
  );
- $('count').textContent='พบ '+matches.length+' จาก '+KTR_ROW_COUNT+' รายการ';
+ $('count').textContent='พบ '+matches.length+' จาก '+rows.length+' รายการ';
  const root=$('results');root.replaceChildren();
  if(!matches.length){root.append(el('p','muted','ไม่พบรายการที่ตรงกับตัวกรอง'));return}
  const frag=document.createDocumentFragment();
@@ -123,5 +126,30 @@ $('reset').addEventListener('click',()=>{$('search').value='';$('family').value=
 const q=new URLSearchParams(location.search).get('q');
 if(q)$('search').value=q.slice(0,100);
 render();
+(async()=>{
+ try{
+  const cfg=window.LICENSE_CONFIG;
+  if(!cfg?.url||!cfg?.anonKey)throw Error('Supabase config unavailable');
+  const url=cfg.url+'/rest/v1/ecu_ktr_reference?select=reference_id,model,ecu_id,part_code,family,bin_size_kb,needs_review,source&order=reference_id.asc&limit=500';
+  const reply=await fetch(url,{headers:{apikey:cfg.anonKey},cache:'no-store'});
+  if(!reply.ok)throw Error('Supabase read returned HTTP '+reply.status);
+  const records=await reply.json();
+  if(!Array.isArray(records)||records.length<100||records.length>500)throw Error('Unexpected ECM registry response');
+  const mapped=records.map(x=>({
+    referenceId:x.reference_id,model:x.model,ecuId:x.ecu_id,partCode:x.part_code,
+    family:x.family,sizeKB:x.bin_size_kb,reviewRequired:x.needs_review,
+    source:x.source,flashVerified:false,hasBin:false,hasXdf:false
+  }));
+  if(!mapped.every(x=>/^[0-9A-F]{10}$/.test(x.ecuId||'')||x.ecuId===null))throw Error('ECM data integrity issue');
+  rows=mapped;
+  $('total').textContent=rows.length;
+  $('groups').textContent=new Set(rows.map(x=>x.model)).size;
+  $('review').textContent=rows.filter(x=>x.reviewRequired).length;
+  $('syncStatus').textContent='ซิงก์จาก Supabase แล้ว • '+rows.length+' รายการ • แก้ไขทะเบียนภายหลังได้โดยไม่ทับ BIN/XDF';
+  render();
+ }catch(error){
+  $('syncStatus').textContent='ใช้ทะเบียนอ้างอิงจาก GitHub '+KTR_ROW_COUNT+' รายการ (Supabase ยังไม่พร้อม: '+error.message+')';
+ }
+})();
 </script>
 </main></body></html>
