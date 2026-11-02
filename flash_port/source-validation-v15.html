@@ -1,0 +1,38 @@
+<!doctype html><html lang="th"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>55 ECU C# Validation V15</title><style>body{background:#121d2b;color:#edf5ff;font:15px system-ui;max-width:760px;margin:auto;padding:16px}pre{padding:17px;border-radius:13px;background:#1c2a3c;white-space:pre-wrap}a{color:#ffb376}</style>
+<a href="flash-write-lab.html">← Flash Bench V15</a><h2>55 ECU C# Source Validation V15</h2>
+<p>ทดสอบโค้ด/โปรไฟล์แบบออฟไลน์ ไม่ต่อ USB และไม่ส่ง ERASE/WRITE</p><b id="sum">กำลังทดสอบ...</b><pre id="out"></pre>
+<script type="module">
+import {loadCSharpCatalog,findCSharpEcuId} from './csharp-ecu-catalog.js';
+import {csharpOffsetInference} from './csharp-offsets.js';
+import {inspectCSharpEcuType,correctKeihinChecksum,correctShindengenChecksum,deriveShindengenWriteKey} from './csharp-logic.js';
+import {createWriteFrame} from './flash-frames.js';
+import {HondaFlashEngine} from './honda-write-engine.js';
+import {hondaChecksum} from './ftdi-webusb.js';
+const checks=[];
+async function t(name,fn){try{checks.push([name,!!(await fn())])}catch(e){checks.push([name,false,e.message])}}
+const reply=v=>{const a=Uint8Array.from(v);a[a.length-1]=hondaChecksum(a.slice(0,-1));return {reply:a}};
+function fake(id){return {ready:true,async initializeIso(){},async sendWake(){},async close(){this.ready=false},
+async exchangeRaw(f){const b=Array.from(f);if(b[0]===114&&b.length===7)return reply([2,11,0,0,0,...id.match(/../g).map(x=>parseInt(x,16)),0]);
+if((b[0]===125||b[0]===123)&&b.length===6&&b[3]===1)return reply([2,8,0,0,0,0,3,0]);
+return reply([2,5,0,0,0])}}}
+function shBin(){const b=new Uint8Array(262144);b.set([83,86,56,53,48],100);b.set([17,18,19,20,21,21,23],200);b.set([11,12,13,14,15,16],230);b.set([238,0],238);b.set([208,7],300);b.set([90,90,90,90],b.length-4);return b}
+await t('C# catalog 288 entries',async()=> (await loadCSharpCatalog()).size===288);
+await t('K03-H01 ID and offset 0x8000',async()=>{const v=await findCSharpEcuId('0101880D01');return v?.part==='38770-K03-H01'&&v.startOffset===32768});
+await t('Shindengen ID maps to auto offset',async()=>{const v=await findCSharpEcuId('01046B0F01');return v?.family==='SHINDENGEN'&&v.startOffset===null});
+await t('64KB auto offset but not auto family',()=>{const v=csharpOffsetInference(new Uint8Array(65536));return v.startOffset===32768&&v.csharpClassHint==='UNDETERMINED'});
+await t('Keihin checksum on copy',()=>correctKeihinChecksum(Uint8Array.of(0,1,2,3),0).newByte===250);
+await t('C# Keihin write-frame checksum',()=>{const b=createWriteFrame(new Uint8Array(128),{profile:'KEIHINOTHER',startOffset:32768});return b.length===139&&hondaChecksum(b)===0});
+await t('C# blank-block pointer',()=>{const b=createWriteFrame(new Uint8Array(128),{profile:'KEIHINOTHER',startOffset:32768,nextBlockIndex:4});return b[134]===8&&b[135]===32});
+await t('Shindengen BIN signature',()=>inspectCSharpEcuType(shBin()).type==='SHINDENGENV850');
+await t('Shindengen checksum offset',()=>correctShindengenChecksum(shBin()).checksumOffset===296);
+await t('Shindengen Seed/Key derived',()=>deriveShindengenWriteKey(shBin(),Uint8Array.of(18,52))?.length===2);
+await t('Physical K03 ID read from mocked ECU',async()=>{const e=new HondaFlashEngine(fake('0101880D01'));return (await e.identify()).sourceMatched});
+await t('K03 preflight correct',async()=>{const e=new HondaFlashEngine(fake('0101880D01'));await e.identify();return e.makePlan(new Uint8Array(65536),{filename:'K03-H01.bin'}).expectedBlockCount===512});
+await t('Mismatched BIN part blocked',async()=>{const e=new HondaFlashEngine(fake('0101880D01'));await e.identify();try{e.makePlan(new Uint8Array(65536),{filename:'K2J-T01.bin'});return false}catch(x){return x.code==='PART_NOT_CONFIRMED'}});
+await t('Unlisted ID blocked',async()=>{const e=new HondaFlashEngine(fake('FFFFFFFFFF'));await e.identify();try{e.makePlan(new Uint8Array(65536),{filename:'unknown.bin'});return false}catch(x){return x.code==='UNLISTED_ECU'}});
+await t('Shindengen auto preflight',async()=>{const e=new HondaFlashEngine(fake('01046B0F01'));await e.identify();const p=e.makePlan(shBin(),{filename:'K2SA-N02.bin'});return p.startOffset===65536&&p.expectedBlockCount===1536});
+const passed=checks.filter(x=>x[1]).length;document.getElementById('sum').textContent=passed+'/'+checks.length+' PASS (offline only)';
+document.getElementById('sum').style.color=passed===checks.length?'#7aebb0':'#ffa09b';
+document.getElementById('out').textContent=checks.map(x=>(x[1]?'PASS':'FAIL')+' — '+x[0]+(x[2]?' '+x[2]:'')).join('\n');
+</script></html>
