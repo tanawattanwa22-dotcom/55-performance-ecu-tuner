@@ -14,6 +14,7 @@ for(const group of [1,4,7]){
  trace[15]=80; // TPS = 40 degrees
  trace[14]=100; // TPS voltage = 1950 mV
  const decoded=decodeMainDiagnosticTrace(trace,group);
+ assert.equal(decoded.length,group===7?15:23,'Exact number of C# diagnostic rows');
  assert.equal(decoded.find(x=>x.name==='RPM').value,1234);
  assert.equal(decoded.find(x=>x.name==='Throttle TPS').value,40);
  assert.equal(decoded.find(x=>x.name==='TPS voltage').value,1950);
