@@ -1066,10 +1066,11 @@ async function probeEcu(){
       klog("ECU ID "+id+" | Part "+(found.partCode||"UNKNOWN")+" | "+(found.model||"UNKNOWN MODEL")+
         " | KTR="+found.ktrMatched+" C#="+found.csharpMatched+" | "+found.status);
     }catch(e){
-      K.ecuId=null;
       const box=$("#autoEcuName");box.hidden=false;
-      box.textContent="ECU ตอบกลับแล้ว แต่ยังไม่สามารถอ่านและแปล ECM ID: "+e.message+
-       " • ลองใช้เมนู Flash Bench เพื่ออ่าน ID แบบ C# เต็มลำดับ";
+      box.textContent=(K.ecuId?"อ่าน ECM ID "+K.ecuId+" ได้แล้ว แต่ยังแปล Part Code ไม่สำเร็จ: ":
+        "ECU ตอบกลับแล้ว แต่ยังไม่ได้ ECM ID ที่ยืนยันได้: ")+e.message+
+       " • เปิด Flash Bench เพื่อตรวจด้วยลำดับ C# เต็ม";
+      if(K.ecuId)$("#sEcu").textContent="ECM ID "+K.ecuId+" (ยังไม่ทราบ Part Code)";
       klog("ECM AUTO ID: "+e.message);
     }
   }else if(rep.length){
