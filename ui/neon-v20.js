@@ -322,10 +322,9 @@ function library(){
   buttons.append(btnSmall('▤ เปิดตาราง',()=>openTable(r),'n22-action-tune'),
    btnSmall('ⓘ รายละเอียด',()=>showDetails(r),'n22-action-info'),
    btnSmall('♛ เลือกเป็นไฟล์หลัก',()=>toggleMaster(r),'n22-action-master'));
-  details.append(buttons);
   const bike=document.createElement('img');bike.className='n22-feature-bike';
   bike.src='ui/assets/neon-bike.svg';bike.alt='ภาพประกอบรถจักรยานยนต์';bike.loading='lazy';
-  featureCard.append(chip,details,bike);
+  featureCard.append(chip,details,bike,buttons);
   for(let d=0;d<Math.min(5,all.length);d++){
    const dot=mk('span','n22-dot'+(d===i?' active':''));
    dots.append(dot);
