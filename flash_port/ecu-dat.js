@@ -22,7 +22,7 @@ export function parseEcuDat(buffer){
     const [ecuId,part,name,start,cks,size,type]=Array.from({length:7},()=>readString(dv,u8,pos));
     const id=ecuId.toUpperCase();
     if(!/^[0-9A-F]{10}$/.test(id))continue;
-    rows.push({ecuId:id,part,model:name,startOffset:hexOrNull(start),checksumOffset:hexOrNull(cks),
+    rows.push({ecuId:id,part,model:name,rawStartOffset:start,rawChecksumOffset:cks,startOffset:hexOrNull(start),checksumOffset:hexOrNull(cks),
       sizeText:size,typeText:type,family:/shind/i.test(type)?'SHINDENGEN':'KEIHIN',source:'ecuData.dat (user file)'});
   }
   return rows;
