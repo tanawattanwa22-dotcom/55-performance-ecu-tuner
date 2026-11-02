@@ -219,6 +219,10 @@ export class HondaFlashEngine {
   const blockSize=plan.blockBytes,total=plan.bin.length/blockSize;
   const firstBlock=plan.profile.startsWith('SHINDENGEN')?plan.startOffset/blockSize:0;
   let current=firstBlock,sent=0,lastFrame=null;
+  // FormMain.cs WriteFlash() keeps a single counter 'num' for the entire
+  // operation. An explicit 7-byte ECU response with bytes [4,5]=[0,0]
+  // permits at most two retransmits IN TOTAL, not two per block.
+  let sourceRetryBudget=2;
   while(current<total){
    const skipBlank=plan.profile==='KEIHINOTHER'||plan.profile==='SHINDENGENV850';
    const next=skipBlank?nextNonBlank(plan.bin,current,total,blockSize):current+1;
@@ -226,10 +230,24 @@ export class HondaFlashEngine {
      profile:plan.profile,startOffset:plan.startOffset,blockIndex:current-firstBlock,
      nextBlockIndex:next-firstBlock,isFinal:next===total});
    if(frame[1]!==frame.length||hondaChecksum(frame)!==0)fail('BAD_FRAME','Invalid frame generated before USB transfer');
-   // No blind retry after ambiguous status: source can resend, but this port
-   // deliberately fails closed until hardware trace establishes that it is safe.
-   const reply=await this.x('WRITE_BLOCK_'+current,frame,{timeoutMs:7000});
-   if(reply.length!==5)fail('WRITE_AMBIGUOUS','Unknown ACK for flash block '+current+': length '+reply.length);
+   // Do not resend after USB timeout, corrupt ACK or missing reply.
+   // Only a valid, explicit 7-byte ECU frame can authorize the limited
+   // retransmission behavior in the owner's C# WriteFlash() source.
+   let accepted=false;
+   while(!accepted){
+     const reply=await this.x('WRITE_BLOCK_'+current,frame,{timeoutMs:7000});
+     if(reply.length===5){
+       this.emit('WRITE_BLOCK_ACK',{block:current,sourceReplyStatus:reply[3]});
+       accepted=true;
+     }else if(reply.length===7&&reply[4]===0&&reply[5]===0&&sourceRetryBudget>0){
+       sourceRetryBudget--;
+       this.emit('SOURCE_EXPLICIT_RETRY',{block:current,remaining:sourceRetryBudget});
+     }else{
+       fail('WRITE_REJECTED','ECU rejected flash block '+current+
+         ' (reply length '+reply.length+', status '+(reply[3]??'unknown')+
+         '). No further data sent.');
+     }
+   }
    sent++;
    if(plan.blockBytes===64&&(current+1)%2===0){
      await this.x('KH_H8C_FLUSH',CMD.kh64Flush,{timeoutMs:3000});
