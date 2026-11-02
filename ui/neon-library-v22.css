@@ -224,3 +224,11 @@
 
 /* Empty master BIN state must span both featured columns, not a narrow chip column. */
 .n22-feature-card>.n22-empty{grid-column:1/-1;align-self:center;justify-self:stretch;min-height:93px;display:flex;align-items:center;justify-content:center;text-align:center}
+
+/* Full-width featured actions, readable Thai labels at narrow Android widths. */
+.n22-feature-card{grid-template-rows:auto auto;align-items:center;padding-bottom:13px}
+.n22-feature-card>.n22-feature-actions{grid-column:1/-1;width:100%;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:4px;position:relative;z-index:2}
+.n22-feature-card>.n22-feature-actions .n22-row-action{min-height:39px!important;font-size:clamp(10px,2.7vw,12px)!important;flex:auto;max-width:none!important;padding:7px 3px!important;line-height:1.2!important;overflow-wrap:anywhere}
+.n22-feature-card>.n22-feature-detail{align-self:center}
+.n22-feature-card>.n22-empty{min-height:93px}
+@media(max-width:359px){.n22-feature-card>.n22-feature-actions .n22-row-action{font-size:10px!important}}
