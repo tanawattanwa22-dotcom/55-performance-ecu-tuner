@@ -57,9 +57,31 @@ try{
   await page.evaluate(()=>document.querySelector('#v20Nav [data-cat="library"]').click());
   assert.equal(await page.locator('#n20Model').count(),1);
   assert.equal(await page.locator('#n20Stage .n20-model-row').count(),3,'3 actual bundled models, no fabricated 50');
-  assert.equal(await page.locator('#modelCard').evaluate(el=>el.classList.contains('n20-hidden')),false);
+  assert.equal(await page.locator('#modelCard').evaluate(el=>el.classList.contains('n20-hidden')),true,'old model selector hidden behind new full BIN library');
   assert.equal(await page.locator('#flashCard').evaluate(el=>el.classList.contains('n20-hidden')),true);
+  assert.equal(await page.locator('#n22Library').count(),1,'dedicated catalog page present');
+  assert.equal(await page.locator('.n22-feature-card').count(),1,'featured master BIN card');
+  assert.equal(await page.locator('#n22Library .n22-bin-row').count(),3,'only actual three installed models');
+  assert.equal(await page.locator('#n22Library .n22-brand-logo img[alt="Honda"]').count(),3,
+   'Honda logo present on every Honda BIN row');
+  assert.equal(await page.locator('#n22Library .n22-row-actions').count(),3,
+   'every row has three actionable buttons');
+  assert.equal(await page.locator('#n22Library .n22-filter-chip').count(),5,
+   'full brand and ECU vendor filter bar');
+  await page.evaluate(()=>document.querySelector('#n22Library .n22-bin-row .n22-action-info').click());
+  assert.equal(await page.locator('#n22InfoDialog').evaluate(d=>d.open),true,'BIN details dialog opens');
+  assert((await page.locator('#n22InfoDialog').innerText()).includes('ECU'));
+  await page.evaluate(()=>document.querySelector('#n22InfoDialog button').click());
+  assert.equal(await page.locator('#n22InfoDialog').evaluate(d=>d.open),false,'details dialog closes');
+  await page.evaluate(()=>document.querySelector('.n22-view-switch button:last-child').click());
+  assert.equal(await page.locator('#n22Library .n22-model-list').evaluate(el=>el.classList.contains('n22-as-grid')),true,
+   'list/grid toggle works');
+  await page.evaluate(()=>document.querySelector('.n22-view-switch button:first-child').click());
+  const logos=await page.evaluate(()=>[...document.querySelectorAll('#n22Library .n22-brand-logo img')]
+   .map(img=>({src:img.getAttribute('src'),complete:img.complete,loaded:img.naturalWidth>0})));
+  assert(logos.every(l=>l.loaded),'every local Honda logo loaded: '+JSON.stringify(logos));
   await overflowing('Library '+width);
+
   await page.evaluate(()=>document.querySelector('#v20Nav [data-cat="flash"]').click());
   assert.equal(await page.locator('#flashCard').evaluate(el=>el.classList.contains('n20-hidden')),false);
   assert.equal(await page.locator('#btnFlash').evaluate(el=>el.hidden),true,'no flash before saved BIN');
