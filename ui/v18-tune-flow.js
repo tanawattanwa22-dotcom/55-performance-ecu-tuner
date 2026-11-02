@@ -104,7 +104,7 @@
    S.flash=true;history.back();
    setTimeout(()=>{
      home();
-     document.querySelector("#v18Nav [data-cat='ecu']")?.click();
+     window.__55NeonNavigate?.("flash");
      el("flashCard").scrollIntoView({behavior:"smooth",block:"center"});
    },100);
  };
