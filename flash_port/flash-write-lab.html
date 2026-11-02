@@ -32,7 +32,8 @@ pre{background:#0b1827;border-radius:10px;padding:12px;font:12px ui-monospace,mo
 <div id="usb" class="status">ยังไม่เชื่อมต่อ FTDI</div></div>
 <div class="card"><div class="step">ขั้นตอน 2</div><h2>อ่านรหัส ECU สำรองจริง</h2>
 <button id="probe" disabled>ปลุก ECU / อ่าน ECU ID</button>
-<div id="ecu" class="status">ยังไม่ได้ตรวจรหัส ECU</div><small>ต้องระบุรหัสจากคำตอบจริง ไม่อนุญาตให้เลือก ECU Type เองเพื่อเขียนแฟลช</small></div>
+<div id="ecu" class="status">ยังไม่ได้ตรวจรหัส ECU</div>
+<div id="ecuMatch" class="status" hidden style="margin-top:10px;border:1px solid #7b56aa;background:#202039"></div><small>ต้องระบุรหัสจากคำตอบจริง ไม่อนุญาตให้เลือก ECU Type เองเพื่อเขียนแฟลช</small></div>
 <div class="card"><div class="step">ขั้นตอน 3</div><h2>ตรวจไฟล์ BIN ก่อน ERASE</h2>
 <input id="bin" type="file" accept=".bin,application/octet-stream">
 <label for="part">ยืนยันรหัสอะไหล่ ECU ตามฐาน C# (กรอกเมื่อชื่อ BIN ไม่ระบุรุ่น)</label><input id="part" type="text" autocomplete="off" placeholder="เช่น 38770-K03-H01">
@@ -59,6 +60,8 @@ pre{background:#0b1827;border-radius:10px;padding:12px;font:12px ui-monospace,mo
 <script type="module">
 import {Ft232rWebUsb} from './ftdi-webusb.js';
 import {HondaFlashEngine} from './honda-write-engine.js';
+import {lookupEcmId} from './ecu-id-lookup.js';
+import {renderEcmIdentification,showEcmPopup} from './ecu-id-ui.js';
 const $=id=>document.getElementById(id);
 let authorized=false,port=null,engine=null,identity=null,plan=null,busy=false,flashing=false,wakeLock=null;
 let lastPlanEvidence=null,flashOutcome='NOT_STARTED'; // immutable evidence survives plan reset after Final ACK
@@ -93,7 +96,7 @@ $('connect').onclick=async()=>{
   const device=await Ft232rWebUsb.choose(); // Direct tap grants WebUSB chooser.
   const p=new Ft232rWebUsb(push);
   await p.openSelected(device);
-  port=p;identity=null;plan=null;engine=new HondaFlashEngine(port,ev=>{
+  port=p;identity=null;plan=null;$('ecuMatch').hidden=true;engine=new HondaFlashEngine(port,ev=>{
    const detail=Object.fromEntries(Object.entries(ev).filter(([k])=>k!=='at'&&k!=='phase'));
    if(ev.phase==='WRITE_PROGRESS'){$('bar').style.width=ev.percent+'%';$('percent').textContent=ev.percent+'% • '+ev.bytesCovered+'/'+ev.totalBytes+' bytes acknowledged'}
    push(ev.phase+' '+JSON.stringify(detail));
@@ -106,7 +109,7 @@ $('connect').onclick=async()=>{
 $('disconnect').onclick=async()=>{
  if(flashing)return;busy=true;refreshButtons();
  try{if(port)await port.close()}finally{
-  port=null;engine=null;identity=null;plan=null;
+  port=null;engine=null;identity=null;plan=null;$('ecuMatch').hidden=true;
   $('usb').textContent='ตัดสายแล้ว';$('ecu').textContent='ยังไม่ได้อ่าน ECU';
   busy=false;refreshButtons();
  }
@@ -122,6 +125,18 @@ $('probe').onclick=async()=>{
     (identity.family==='KEIHIN'?' | FLASH COUNT '+identity.count:'');
   $('ecu').className='status '+(identity.sourceMatched?'ok':'bad');
   $('part').placeholder=identity.sourcePart||'ยังไม่พบรหัสอะไหล่ในฐาน C#';
+  // KTR is a DISPLAY lookup; the actual C# identity/flash allowlist is unchanged.
+  try{
+    const translated=await lookupEcmId(identity.ecuId);
+    renderEcmIdentification($('ecuMatch'),translated);
+    showEcmPopup(translated);
+    push('ECU ID MATCH '+JSON.stringify({id:translated.ecuId,part:translated.partCode,
+      model:translated.model,candidates:translated.candidates.length,status:translated.status,source:translated.source}));
+  }catch(lookupError){
+    $('ecuMatch').hidden=false;
+    $('ecuMatch').textContent='อ่าน ECU ID ได้แล้ว แต่ดึงชื่อ Part Code ไม่สำเร็จ: '+lookupError.message;
+    push('ECU NAME LOOKUP ERROR '+lookupError.message);
+  }
   push('ECU ID '+identity.ecuId);
  }catch(e){$('ecu').textContent='ไม่สำเร็จ: '+e.message;push('ECU PROBE STOP: '+e.message)}
  finally{busy=false;refreshButtons()}
