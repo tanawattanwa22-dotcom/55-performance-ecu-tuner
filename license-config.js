@@ -1,2 +1,6 @@
-// Fill in the SAME project values in both admin and tuner. Publishable/anon key ONLY.
-window.LICENSE_CONFIG = {url: 'https://YOUR_PROJECT.supabase.co', anonKey: 'YOUR_PUBLISHABLE_KEY', functionName: 'license-api'};
+// Public values only. Never put the service_role key in GitHub Pages.
+window.LICENSE_CONFIG = {
+  url: 'https://awkxbvjcxtssexecstke.supabase.co',
+  anonKey: 'sb_publishable_bAHn9Cks9TVLgGAUlh-_GA_JF9hOqtf',
+  functionName: 'license-api'
+};
