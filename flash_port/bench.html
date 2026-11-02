@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>55 PERFORMANCE · FTDI + Honda ECU LAB</title>
+<meta name="theme-color" content="#0d1420">
+<style>
+:root{color-scheme:dark;font-family:system-ui,-apple-system,sans-serif}
+*{box-sizing:border-box}
+body{margin:0;background:#0d1420;color:#eef4fc;line-height:1.55}
+main{max-width:780px;padding:16px 14px 50px;margin:auto}
+a{color:#ffab65}
+h1{font-size:clamp(23px,5vw,30px);line-height:1.18;margin:14px 0}h2{font-size:19px;margin:0 0 10px}
+p{margin:10px 0;color:#b6c6da}
+.card{background:#1b2b40;border:1px solid #43566c;border-radius:17px;padding:19px;margin:14px 0}
+.warning{border-left:5px solid #f4a13d}
+.status{padding:10px;border-radius:10px;background:#0d1929;color:#ccdaf0}
+.row{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
+button{font:600 15px system-ui;padding:11px 15px;background:#df6c24;color:#fff;border:1px solid #e9904b;border-radius:10px;cursor:pointer;min-height:45px}
+button.secondary{background:#2e4864;border-color:#6a87a7}
+button:disabled{opacity:.35;cursor:not-allowed}
+input,select{padding:11px;border:1px solid #59708f;background:#101f32;color:#fff;border-radius:10px;font:inherit;max-width:100%;width:100%;margin:4px 0 10px}
+label{font-weight:650;display:block;margin-top:7px}
+pre{overflow-wrap:anywhere;white-space:pre-wrap;background:#101b2a;border-radius:10px;padding:12px;font:12px ui-monospace,monospace;max-height:330px;overflow:auto}
+small{display:block;color:#aebfd3;margin:7px 0}
+.ok{color:#79e8b2}.bad{color:#ffb4a2}
+hr{border:0;border-top:1px solid #42556c;margin:14px 0}
+</style></head><body><main>
+<div class="row"><a href="../index.html">← กลับโปรแกรมจูน</a><a href="./protocol-tests.html">Protocol Tests</a><a href="../55_FTDI_USB_TEST.html">USB Detection</a></div>
+<h1>55 PERFORMANCE<br>FTDI / Honda ECU LAB</h1>
+<p>พอร์ตคำสั่งระบุรหัส ECU จาก C# ต้นฉบับและเครื่องมือตรวจแพ็กเก็ตเขียนแฟลชแบบออฟไลน์</p>
+<div class="card warning"><strong>ขอบเขตที่ทำได้จริง</strong>
+<p>โมดูลนี้สื่อสารผ่าน WebUSB กับ FT232R 0403:6001 จริงเมื่อเลือกสาย และมีโหมดอ่านรหัส ECU แบบไม่ลบหรือเขียนหน่วยความจำ คำสั่งปลุก ECU ยังไม่ได้รับรองกับทุกกล่อง</p>
+<p><b>ไม่มีคำสั่ง ERASE, WRITE หรือ VERIFY บนสายจริงในหน้านี้</b> ห้ามนำไปใช้แฟลช ECU รถลูกค้าจนกว่าจะตรวจโปรไฟล์ ECU และทดสอบกับกล่องสำรองเรียบร้อย</p></div>
+<div class="card">
+<h2>1. ตรวจสิทธิ์ Supabase</h2>
+<div class="status" id="license">กำลังตรวจสิทธิ์จาก Supabase...</div>
+<small>ต้องล็อกอินและเปิด License Key บนเครื่องนี้ผ่านแอป ECU Tuner ก่อน</small>
+<button class="secondary" id="recheck">ตรวจสิทธิ์อีกครั้ง</button>
+</div>
+<div class="card">
+<h2>2. เชื่อมต่อ FT232R ด้วย Chrome Android</h2>
+<p>ขั้นนี้เสียบเฉพาะสาย FTDI + OTG กับมือถือได้ ยังไม่ต้องต่อกล่อง ECU</p>
+<div class="row">
+<button id="pick" disabled>เลือกสาย FTDI</button>
+<button class="secondary" id="disconnect" disabled>ตัดสาย</button>
+</div>
+<div class="status" id="usb">ยังไม่เชื่อมต่อ</div>
+<small>รองรับชิป FT232R VID 0403 PID 6001 ที่ยืนยันการเข้ารหัส Baud Rate แล้ว ชิปตระกูลอื่นต้องตรวจแยก</small>
+</div>
+<div class="card">
+<h2>3. ตรวจ ECU ID (อ่านอย่างเดียว)</h2>
+<p>ใช้ ECU สำรองและวงจร K-Line ที่ตรวจขั้วและแรงดันแล้วเท่านั้น อย่าต่อ FTDI TTL เข้าขา K-Line 12V โดยตรง</p>
+<div class="row">
+<button id="id" disabled>ปลุกและอ่าน ECU ID</button>
+</div>
+<div class="status" id="ecu">ยังไม่ได้อ่าน ECU</div>
+<small>ลำดับทำงานตาม C#: InitFtdiIso → WAKE → HELLO → ECU ID; ล้มเหลวจะปิด USB ไม่เดาคำสั่งอื่น</small>
+</div>
+<div class="card">
+<h2>4. ตรวจ BIN และแพ็กเก็ตจาก C# (ออฟไลน์)</h2>
+<p>นำไฟล์ .bin จากมือถือมาตรวจว่าฟังก์ชันสร้างแพ็กเก็ตเขียน (64/128 byte) สอดคล้องกับสูตร C# หรือไม่ ไม่ส่งข้อมูลไป ECU หรือเซิร์ฟเวอร์</p>
+<label for="bin">ไฟล์ BIN</label><input type="file" id="bin" accept=".bin,application/octet-stream">
+<label for="ecuType">ECU Type ใน C# (สำหรับทดสอบการเข้ารหัสแพ็กเก็ตเท่านั้น)</label>
+<select id="ecuType">
+<option value="">เลือกประเภทที่ตรวจยืนยันจาก C# ก่อน</option>
+<option>KEIHINOTHER</option><option>KEIHINH8C</option><option>KEIHINM32R</option>
+<option>SHINDENGENV850</option><option>SHINDENGENRH850</option><option>SHINDENGENRH850B</option>
+</select>
+<label for="offset">Start Offset (hex) จากโปรไฟล์ที่ตรวจแล้ว</label><input id="offset" placeholder="เช่น 8000 — ห้ามเดาสุ่ม" inputmode="text">
+<button id="audit">ตรวจแพ็กเก็ต (ไม่เขียนรถ)</button>
+<pre id="auditOut">รอเลือกไฟล์และโปรไฟล์</pre>
+</div>
+<div class="card">
+<h2>5. USB / ECU Log</h2>
+<div class="row"><button class="secondary" id="copyLog">คัดลอก Log</button><button class="secondary" id="clearLog">ล้างหน้าจอ Log</button></div>
+<pre id="logs">ยังไม่มี Log</pre>
+</div>
+</main>
+<script src="../license-config.js"></script><script src="../license-client.js"></script>
+<script type="module">
+import {Ft232rWebUsb,toHex} from './ftdi-webusb.js';
+import {auditWriteFrames} from './flash-frames.js';
+const el=id=>document.getElementById(id);
+let port=null,active=false;
+const logs=[];
+function log(s){const text=new Date().toLocaleTimeString('th-TH')+' '+s;logs.push(text);el('logs').textContent=logs.join('\n');console.log(text)}
+function busy(v){['pick','id','disconnect'].forEach(id=>el(id).disabled=v||!active||(id==='pick'?!!port:!port))}
+async function checkLicense(){
+ active=false;busy(false);
+ const device=localStorage.getItem('55_device_id');
+ if(!device){el('license').textContent='ยังไม่พบรหัสอุปกรณ์นี้ กรุณาเปิด ECU Tuner แล้วเข้าสู่ระบบก่อน';return}
+ try{
+  const r=await api('check',{device});
+  active=!!r.active;
+  el('license').textContent=active?'LICENSE ผ่าน · อนุญาตให้ทดสอบ FTDI บนอุปกรณ์นี้':'ยังไม่มี License ที่ใช้งานได้สำหรับเครื่องนี้';
+  el('license').className='status '+(active?'ok':'bad');
+  log('License '+(active?'ACTIVE':'NOT ACTIVE'));
+ }catch(e){el('license').textContent='ตรวจสิทธิ์ไม่ได้: '+e.message;log('License error '+e.message)}
+ busy(false);
+}
+el('recheck').onclick=()=>checkLicense();
+el('pick').onclick=async()=>{
+ // requestDevice must be invoked by direct user click; license was pre-checked.
+ if(!active)return;
+ busy(true);
+ try{
+  const device=await Ft232rWebUsb.choose();
+  const x=new Ft232rWebUsb(log);
+  await x.openSelected(device);
+  port=x;
+  el('usb').textContent='FT232R opened · 10400 baud, 8N1 (ยังไม่สื่อสาร ECU)';
+ }catch(e){log('USB ERROR: '+e.message);el('usb').textContent='เชื่อมต่อไม่ได้: '+e.message}
+ finally{busy(false)}
+};
+el('disconnect').onclick=async()=>{busy(true);try{if(port)await port.close()}finally{port=null;el('usb').textContent='ตัดสายแล้ว';el('ecu').textContent='ไม่ได้เชื่อมต่อ';busy(false)}};
+el('id').onclick=async()=>{
+ if(!port||!active)return;
+ if(!confirm('ยืนยัน: ใช้กล่อง ECU สำรอง ตรวจ K-Line และแหล่งจ่ายไฟถูกต้องแล้ว และเข้าใจว่ายังไม่ได้ยืนยันกับรถทุกรุ่นใช่หรือไม่?'))return;
+ busy(true);
+ try{
+  el('ecu').textContent='กำลัง Init FTDI ISO / WAKE / HELLO...';
+  await port.initializeIso();
+  await port.sendWake();
+  const hello=await port.command('HELLO',{timeoutMs:900});
+  log('HELLO reply '+toHex(hello.reply));
+  const identity=await port.command('ID',{timeoutMs:900});
+  const response=identity.reply;
+  if(response.length<10)throw Error('ECU ID reply too short; reject identification');
+  const ecuId=toHex(response.slice(5,10)).replaceAll(' ','');
+  el('ecu').textContent='ECU responded · ID '+ecuId+' · HELLO/ID checksum ผ่าน · ยังไม่ยืนยันรุ่นและยังไม่ได้อ่าน Flash';
+  el('ecu').className='status ok';
+  log('ECU ID (C# reply[5..9]): '+ecuId);
+ }catch(e){
+  log('ECU PROBE STOPPED: '+e.message);
+  el('ecu').className='status bad';
+  el('ecu').textContent='หยุดทดสอบ: '+e.message;
+  if(port&&!port.ready){port=null;el('usb').textContent='USB ปิดเพื่อป้องกันคำสั่งค้าง'}
+ }finally{busy(false)}
+};
+el('audit').onclick=async()=>{
+ const f=el('bin').files?.[0],profile=el('ecuType').value,offset=el('offset').value.trim();
+ try{
+  if(!f)throw Error('เลือกไฟล์ BIN ก่อน');
+  if(!profile)throw Error('เลือก ECU Type ที่ตรวจยืนยันแล้ว');
+  if(!/^(?:0x)?[0-9a-f]+$/i.test(offset))throw Error('กรอก Start Offset เป็นเลขฐาน 16 ตาม C#');
+  const bytes=new Uint8Array(await f.arrayBuffer());
+  const sha=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),x=>x.toString(16).padStart(2,'0')).join('');
+  const result=auditWriteFrames(bytes,{profile,startOffset:parseInt(offset.replace(/^0x/i,''),16)});
+  el('auditOut').textContent=JSON.stringify({filename:f.name,sha256:sha,...result},null,2);
+  log('OFFLINE BIN AUDIT '+f.name+' | '+result.frames+' simulated frames (no transmission)');
+ }catch(e){el('auditOut').textContent='ไม่ผ่าน: '+e.message;log('BIN AUDIT: '+e.message)}
+};
+el('copyLog').onclick=async()=>{try{await navigator.clipboard.writeText(logs.join('\n'));log('Log copied')}catch(e){log('Copy failed: '+e.message)}};
+el('clearLog').onclick=()=>{logs.length=0;el('logs').textContent='ไม่มี Log'};
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&port){log('Page hidden: disconnecting USB');port.close().catch(()=>{});port=null;busy(false)}});
+checkLicense();
+</script></body></html>
