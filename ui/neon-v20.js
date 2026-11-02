@@ -227,7 +227,7 @@ function library(){
  infoDialog.append(mk('h3','', 'รายละเอียดไฟล์ BIN'));
  const infoBody=mk('div','n22-dialog-body');infoDialog.append(infoBody);
  infoDialog.append(action('ปิดรายละเอียด',()=>infoDialog.close(),'btn'));
- document.body.append(infoDialog);
+ lib.append(infoDialog); // Scoped to the library; removed automatically on category change
  const currentFav=id=>favorites.includes(id);
  const markRecent=id=>{
   recent=[id,...recent.filter(x=>x!==id)].slice(0,30);save(KRECENT,recent);
