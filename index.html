@@ -1405,9 +1405,40 @@ function applyModels(c){
 function idbo(){return new Promise((ok,no)=>{const r=indexedDB.open("ecu55",1);r.onupgradeneeded=()=>r.result.createObjectStore("kv");r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)})}
 async function idbGet(k){try{const d=await idbo();return await new Promise((ok,no)=>{const q=d.transaction("kv").objectStore("kv").get(k);q.onsuccess=()=>ok(q.result);q.onerror=()=>no(q.error)})}catch(e){return undefined}}
 async function idbSet(k,v){try{const d=await idbo();await new Promise((ok,no)=>{const t=d.transaction("kv","readwrite");t.objectStore("kv").put(v,k);t.oncomplete=ok;t.onerror=()=>no(t.error)})}catch(e){}}
+async function ecuModelsRequest(action,payload={}){
+  const cfg=window.LICENSE_CONFIG;
+  const access=await token();
+  const r=await fetch(cfg.url+'/functions/v1/ecu-models-api',{
+    method:'POST',
+    cache:'no-store',
+    headers:{'Content-Type':'application/json','apikey':cfg.anonKey,'Authorization':'Bearer '+access},
+    body:JSON.stringify({action,device:localStorage.getItem('55_device_id'),...payload})
+  });
+  const data=await r.json().catch(()=>({}));
+  if(!r.ok)throw Error(data.error||('HTTP '+r.status));
+  return data;
+}
 async function syncModels(){
-  // Existing on-device model cache only. Old /api/models endpoint was retired.
-  try{applyModels((await idbGet("mods"))||{})}catch(e){console.warn("Cached model metadata unavailable",e)}
+  // Supabase returns definitions only after license-api confirmed this device.
+  // Never contact the retired Netlify /api/models endpoint.
+  let cache={};
+  try{cache=(await idbGet("mods"))||{}}catch(e){}
+  try{
+    const listing=await ecuModelsRequest('list');
+    if(!Array.isArray(listing.models))throw Error('Supabase model list invalid');
+    for(const row of listing.models){
+      if(!row||typeof row.id!=='string')continue;
+      if(cache[row.id]&&cache[row.id]._checksum_sha256===row.checksum_sha256)continue;
+      const data=await ecuModelsRequest('get',{id:row.id});
+      if(!data.model||data.model.id!==row.id||data.sha256!==row.checksum_sha256)
+        throw Error('ข้อมูล ECU '+row.id+' ไม่ตรงกับรายการรุ่น');
+      cache[row.id]={...data.model,_checksum_sha256:data.sha256};
+    }
+    await idbSet("mods",cache);
+  }catch(e){
+    console.warn('Supabase ECU models not available; only previously cached models will display',e);
+  }
+  try{applyModels(cache)}catch(e){console.warn('Failed applying ECU definitions',e)}
 }
 let started=false;
 async function initTunerAfterLicense(){
@@ -1443,7 +1474,7 @@ function startApp(){
 }
 history.replaceState({p:"login"},"");
 setTimeout(()=>{$("#spl").classList.add("out")},1100);
-if("serviceWorker"in navigator&&/^https:|localhost/.test(location.protocol+location.hostname))navigator.serviceWorker.register("sw.js?v=11", {updateViaCache:"none"}).catch(()=>{});
+if("serviceWorker"in navigator&&/^https:|localhost/.test(location.protocol+location.hostname))navigator.serviceWorker.register("sw.js?v=12", {updateViaCache:"none"}).catch(()=>{});
 window.__ecu={S,K,ftdiDivisor,hondaOk,editAxis,sharers,get M(){return M},openTune,selectTable,runOp,buildOut,loadFile,pick,snap,valCell,rawCell,curT,compile,MODELS};
 /* ===================== MATCH GUARD · LOG · AUTO TUNE ASSIST ===================== */
 /* หลักการ: ใช้เฉพาะข้อมูลจริงจากกล่อง/ไฟล์ ไม่สร้างค่าขึ้นเอง ค่าที่ไม่มี = ว่าง (NaN) ไม่ใช้ศูนย์แทน */
@@ -2091,7 +2122,7 @@ function v3Draw(){
 <a href="55_SOURCE_AUDIT.html" target="_blank" rel="noopener" style="position:fixed;right:12px;bottom:74px;z-index:2147483000;background:#242e3b;color:#ffd2a1;border:1px solid #f68a38;border-radius:12px;padding:9px 12px;font:600 12px system-ui;text-decoration:none">FLASH SOURCE AUDIT</a>
 <!-- 55 V3 protocol tests link --><a href="flash_port/protocol-tests.html" target="_blank" rel="noopener" style="position:fixed;bottom:16px;left:12px;z-index:2147483000;background:#182433;color:#ffb77a;border:1px solid #ff8b35;border-radius:10px;padding:8px 12px;font:12px system-ui;text-decoration:none">ECU PROTOCOL TEST V3</a><style>#licenseGate{position:fixed;inset:0;z-index:2147483647;background:#0b1220;color:white;display:flex;align-items:center;justify-content:center;font:16px system-ui}#licenseGate .wrap{width:min(94vw,440px);padding:25px;background:#1b2b40;border:1px solid #536783;border-radius:16px}#licenseGate input,#licenseGate button{box-sizing:border-box;width:100%;margin:5px 0;padding:12px;border-radius:9px;background:#243a55;color:white;border:1px solid #6c7e9d}#licenseGate button{background:#b65720}#licenseGate small{color:#c5d2e2}</style>
 <div id="licenseGate"><div class="wrap"><h2>55 PERFORMANCE ECU TUNER</h2><p>เปิดใช้งานด้วย License Key • 1 คีย์ / 1 เครื่อง</p><input id="licEmail" type="email" placeholder="อีเมล"><input id="licPass" type="password" placeholder="รหัสผ่าน"><button id="licLogin">เข้าสู่ระบบ</button><small style="display:block;margin:2px 0 8px;color:#8fd6ff;font-weight:700">ระบบสมัครสมาชิก V10 • แก้ตรวจอีเมลและแคชแล้ว</small><button id="licSignup" type="button" style="background:#284660;border-color:#6c7e9d">สมัครบัญชีลูกค้าใหม่ (ฟรี)</button><small style="display:block;line-height:1.5;margin:5px 0 9px">ลูกค้าใหม่กรอกอีเมลของตนเองและตั้งรหัสผ่านอย่างน้อย 8 ตัวอักษรเพื่อสมัคร หากมีบัญชีอยู่แล้วให้กดเข้าสู่ระบบ ไม่ต้องสมัครซ้ำ ระบบอาจส่งอีเมลยืนยัน</small><input id="licKey" placeholder="กรอก License Key"><button id="licActivate">เปิดใช้งานคีย์</button><button id="licCheck">ตรวจสิทธิ์อีกครั้ง</button><small id="licMsg">กรุณาเข้าสู่ระบบก่อนใช้งาน</small></div></div>
-<script src="license-config.js?v=tuner11"></script><script src="license-client.js?v=tuner11"></script><script>
+<script src="license-config.js?v=tuner11"></script><script src="license-client.js?v=tuner12"></script><script>
 (function(){const message=x=>document.getElementById('licMsg').textContent=x.message||String(x);let device=localStorage.getItem('55_device_id');if(!device){device=crypto.randomUUID();localStorage.setItem('55_device_id',device)}async function check(){const j=await api('check',{device});if(j.active){await window.__ecuOnLicenseGranted();document.getElementById('licenseGate').remove()}else message(j.message||'ยังไม่มีคีย์ที่ใช้งานได้')}
 document.getElementById('licLogin').onclick=async()=>{try{await login(document.getElementById('licEmail').value,document.getElementById('licPass').value);await check()}catch(e){message(e)}};
 document.getElementById('licSignup').onclick=async()=>{const el=document.getElementById('licSignup');try{el.disabled=true;message({message:'กำลังสมัครบัญชีลูกค้า...'});const result=await signup(document.getElementById('licEmail').value,document.getElementById('licPass').value);if(result.signedIn){message({message:'สมัครสำเร็จและเข้าสู่ระบบแล้ว กรุณากรอก License Key ที่ซื้อจากร้าน'});}else{message({message:'รับคำขอสมัครแล้ว กรุณาตรวจอีเมล (รวมถึงจดหมายขยะ) เพื่อยืนยันบัญชี แล้วกลับมาเข้าสู่ระบบก่อนกรอกคีย์'});}}catch(e){message(e)}finally{el.disabled=false}};
