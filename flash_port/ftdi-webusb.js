@@ -150,6 +150,17 @@ export class Ft232rWebUsb {
       throw err;
     }finally{clearTimeout(timer)}
   }
+  async sendWake(){
+    if(!this.ready)throw Error('Connect FT232R first');
+    const wake=Uint8Array.from(READ_ONLY_COMMANDS.WAKE);
+    requireAllowed(wake);
+    await this.purge();
+    await this._write(wake);
+    this._log('TX WAKE (no reply required by C#): '+toHex(wake));
+    // C# SendCommand attempts a short reply; failure is ignored before HELLO.
+    await sleep(80);
+    await this.purge();
+  }
   async command(label,{timeoutMs=500,afterWriteMs=0}={}){
     if(!this.ready)throw Error('Connect FT232R first');
     if(!Object.hasOwn(READ_ONLY_COMMANDS,label))throw Error('Unknown read-only action');
