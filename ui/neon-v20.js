@@ -134,14 +134,14 @@ function library(){
   const bytes=typeof file==='string'?Math.max(0,Math.floor(file.length/4)*3-(file.endsWith('==')?2:file.endsWith('=')?1:0)):0;
   const meta=m.meta&&typeof m.meta==='object'?m.meta:{};
   const manufacturer=String(m.brand||meta.brand||meta.manufacturer||meta.make||'Honda').trim();
-  const vendor=String(m.ecuVendor||meta.ecuVendor||meta.ecuManufacturer||meta.ecuType||meta.vendor||'').trim();
+  const vendor=String(m.ecuVendor||meta.ecuVendor||meta.ecuManufacturer||meta.ecuType||meta.vendor||(m.id==='K03-H01'?'Keihin':'')).trim();
   return {m,i,ready,bytes,manufacturer,vendor};
  });
  const read=(key,fallback)=>{try{const x=JSON.parse(localStorage.getItem(key));return Array.isArray(fallback)?Array.isArray(x)?x:fallback:typeof x==='string'?x:fallback}catch{return fallback}};
  const save=(key,value)=>{try{localStorage.setItem(key,JSON.stringify(value))}catch{}};
  const KMASTER='55lib.master',KFAV='55lib.favorites',KRECENT='55lib.recent';
  let master=read(KMASTER,''),favorites=read(KFAV,[]),recent=read(KRECENT,[]),
-     maker='all',tab='all',order='name',gridView=false,page=1,featured=0,
+     maker='Honda',tab='all',order='name',gridView=false,page=1,featured=0,
      panelOpen=false;
  const perPage=10;
  const logoFor=(r,cls='n22-brand-logo')=>{
@@ -162,7 +162,7 @@ function library(){
  input.placeholder='ค้นหารุ่น รหัส ECU หรือหมายเหตุ…';input.setAttribute('aria-label','ค้นหา BIN หลัก');
  const clear=action('×',()=>{input.value='';searchText='';page=1;render()},'n22-clear');
  clear.setAttribute('aria-label','ล้างคำค้นหา');
- const filterButton=action('☷  ตัวกรอง',()=>{panelOpen=!panelOpen;filterBox.hidden=!panelOpen},'btn n22-filter-button');
+ const filterButton=action('☷  ตัวกรอง',()=>{panelOpen=!panelOpen;filterBox.hidden=!panelOpen;filterButton.setAttribute('aria-expanded',String(panelOpen))},'btn n22-filter-button');
  filterButton.setAttribute('aria-expanded','false');
  searchArea.append(input,clear,filterButton);lib.append(searchArea);
  const filterBox=mk('div','n22-filter-panel');filterBox.hidden=true;
@@ -176,7 +176,8 @@ function library(){
  filterBox.append(reset);lib.append(filterBox);
  const chips=mk('div','n22-quick-filters');lib.append(chips);
  const chipValues=[
-  ['all','Honda','honda'],
+  ['all','ทั้งหมด','all'],
+  ['Honda','Honda','honda'],
   ['Keihin','Keihin','keihin'],
   ['Shindengen','Shindengen','shindengen'],
   ['fav','นิยม','star']
@@ -187,7 +188,7 @@ function library(){
   if(icon==='honda'){
    const image=document.createElement('img');image.src='ui/assets/honda-wing.svg';image.alt='';
    image.className='n22-filter-logo';b.append(image);
-  }else b.append(mk('span','n22-filter-icon',icon==='star'?'☆':'▣'));
+  }else b.append(mk('span','n22-filter-icon',icon==='star'?'☆':icon==='all'?'◎':'▣'));
   b.append(document.createTextNode(label));chips.append(b);
  }
  const sectionTitle=(label)=>{const h=mk('h3','n22-section-heading',label);return h};
