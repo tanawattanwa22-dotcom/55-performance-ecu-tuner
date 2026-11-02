@@ -4,7 +4,7 @@ import {execFileSync} from 'node:child_process';
 const root=new URL('../',import.meta.url);
 const read=path=>fs.readFileSync(new URL(path,root),'utf8');
 const idx=read('index.html'),style=read('ui/v19-modern.css'),nav=read('ui/v19-categories.js');
-assert(idx.includes('ui/v19-modern.css?v=19'));
+assert(idx.includes('ui/v19-modern.css?v=182'));
 assert(idx.includes('ui/v19-categories.js?v=19'));
 assert(idx.includes('id="btnFlash"')&&idx.includes('id="licenseGate"'),'preserve Flash button and license');
 assert(style.includes('#v18Nav')&&style.includes('--bg:#091121'));
@@ -18,7 +18,7 @@ for(const name of [
  assert(read(path).includes('<html'),'valid HTML page present');
 }
 for(const file of [
- 'ui/v19-categories.js','flash_port/main-source-live-v19.js','flash_port/main-source-diagnostic.js',
+ 'ui/v19-categories.js','ui/v18-tune-flow.js','flash_port/tune-bin-flow.js','flash_port/main-source-live-v19.js','flash_port/main-source-diagnostic.js',
  'flash_port/main-legacy-aes.js','flash_port/main-legacy-converter.js',
  'flash_port/main-source-dtc.js','flash_port/ecu-dat-editor.js','flash_port/main-source-manager.js'
 ]){
@@ -30,4 +30,8 @@ for(const file of ['main-source-live.html','main-source-dtc.html','main-source-c
   execFileSync(process.execPath,['--check','--input-type=module'],{input:source});
  }
 }
+assert(idx.includes('ui/v18-tune-flow.js?v=182'),'tune flow loaded after original inline tuner');
+assert(idx.includes('id="tuneFlow"')&&idx.includes('id="flashSnapshot"'));
+assert(idx.includes('id="btnFlash" disabled hidden'),'do not expose flash before saved BIN');
+assert(style.includes('#tune .bb{display:grid'),'mobile footer is a responsive grid');
 console.log('PASS V19 dashboard pages, navigation, original license/flash controls, JS syntax and source labs');
