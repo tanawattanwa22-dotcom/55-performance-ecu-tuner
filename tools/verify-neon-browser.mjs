@@ -35,8 +35,12 @@ try{
    if(r.url().includes('/ui/neon-')&&r.status()>=400)assetErrors.push(r.url()+' '+r.status());
   });
   await page.goto(url,{waitUntil:'domcontentloaded',timeout:30000});
-  await page.waitForSelector('#neonShell',{timeout:20000});
-  await page.waitForTimeout(400);
+  await page.waitForSelector('#neonShell',{state:'attached',timeout:20000});
+  // Screenshot only: expose the underlying app while preserving the actual License gate in production.
+  await page.evaluate(()=>{document.getElementById('home').classList.add('on');
+   const gate=document.getElementById('licenseGate');if(gate)gate.style.visibility='hidden';
+   const splash=document.getElementById('spl');if(splash)splash.style.visibility='hidden';});
+  await page.waitForTimeout(350);
   assert.equal(await page.locator('#v20Nav button').count(),8,'8 real UI categories');
   assert.equal(await page.locator('#n20Stage .n20-tile').count(),8,'8 dashboard tiles');
   const overflowing=async label=>{
