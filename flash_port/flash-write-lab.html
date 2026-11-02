@@ -46,6 +46,10 @@ pre{background:#0b1827;border-radius:10px;padding:12px;font:12px ui-monospace,mo
 <input type="text" id="typed" placeholder="FLASH + ECU ID" autocomplete="off" spellcheck="false">
 <div class="progress"><div id="bar"></div></div><div id="percent" class="status">0% • ยังไม่ได้ส่งคำสั่งแฟลช</div>
 <button id="write" disabled>ERASE / WRITE (กล่องสำรองเท่านั้น)</button>
+<hr><div class="step">ขั้นตอน 5 — หลังรีสตาร์ตกล่องสำรอง</div>
+<button id="postCheck" class="secondary" disabled>ตรวจ ECU ID หลังเขียน / รีสตาร์ต</button>
+<div id="postStatus" class="status">รอผล SOURCE FINAL ACK จากขั้นตอนที่ 4</div>
+<small>รีสตาร์ต ECU ตามขั้นตอนรุ่นที่ทดสอบแล้วกดตรวจรหัสเดิม ไม่ใช่การอ่าน BIN กลับมา Verify</small>
 <small>เมื่อลบแฟลชแล้ว ห้ามตัดไฟหรือถอดสายกลางคัน การรายงาน 100% หมายถึง ACK ของโปรโตคอล C# ไม่ใช่ Verify Memory อ่านกลับ</small>
 </div>
 <div class="card"><h2>Flash TX/RX Log</h2>
@@ -64,6 +68,7 @@ function refreshButtons(){
  $('disconnect').disabled=busy||!port;
  $('probe').disabled=busy||!authorized||!port;
  $('prepare').disabled=busy||!authorized||!identity||!$('bin').files?.length;
+ $('postCheck').disabled=busy||!authorized||!port?.ready||engine?.state!=='finished';
  $('write').disabled=busy||!authorized||!port?.ready||!plan||identity?.ecuId!==plan.ecuId||
   !$('backup').checked||!$('power').checked||!$('recovery').checked||
   $('typed').value.trim().toUpperCase()!=='FLASH '+identity.ecuId;
@@ -155,6 +160,7 @@ $('write').onclick=async()=>{
    recoveryReady:$('recovery').checked});
   $('percent').textContent='ได้รับ SOURCE FINAL ACK • โปรดรีสตาร์ต ECU และตรวจซ้ำ • ยังไม่ได้ Readback VERIFY';
   $('percent').className='status ok';
+  $('postStatus').textContent='ได้รับ Final ACK แล้ว • รีสตาร์ต ECU สำรองก่อนกดตรวจ ECU ID อีกครั้ง';
   push('SOURCE COMPLETE (not full readback verification) '+JSON.stringify(result));
  }catch(e){
   $('percent').textContent='หยุดอัดไฟล์: '+e.message+
@@ -167,6 +173,26 @@ $('write').onclick=async()=>{
   if(engine?.state==='finished'){plan=null}
   refreshButtons();
  }
+};
+$('postCheck').onclick=async()=>{
+  if(!authorized||busy||flashing||!port?.ready||engine?.state!=='finished')return;
+  if(!confirm('ได้รีสตาร์ต ECU สำรองและต่อไฟ/สายพร้อมแล้วใช่หรือไม่? จะตรวจเฉพาะ ECU ID และการตอบกลับ ไม่อ่าน BIN กลับ'))return;
+  busy=true;refreshButtons();
+  $('postStatus').textContent='กำลังตรวจรหัส ECU หลังรีสตาร์ต...';
+  try{
+    const result=await engine.postFlashCheck();
+    $('postStatus').className='status ok';
+    $('postStatus').textContent='ECU ตอบกลับหลังรีสตาร์ต: '+result.ecuId+
+      ' | '+(result.sourcePart||'')+
+      ' | ยังไม่ได้ Verify เนื้อหา BIN ใน Flash';
+    push('POST FLASH CHECK '+JSON.stringify(result));
+    plan=null;identity=engine.identity;
+  }catch(e){
+    $('postStatus').className='status bad';
+    $('postStatus').textContent='ตรวจ ECU หลังรีสตาร์ตไม่ผ่าน: '+e.message+
+      ' | ตรวจไฟเลี้ยง/สายและใช้เครื่องมือกู้คืนตามความจำเป็น';
+    push('POST FLASH STOP '+e.message);
+  }finally{busy=false;refreshButtons()}
 };
 $('copy').onclick=()=>navigator.clipboard.writeText(logs.join('\n')).catch(e=>push('Clipboard failed '+e.message));
 window.addEventListener('beforeunload',e=>{if(flashing){e.preventDefault();e.returnValue='ECU FLASH IN PROGRESS'}});
