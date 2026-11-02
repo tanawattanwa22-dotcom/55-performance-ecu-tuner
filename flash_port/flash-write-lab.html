@@ -1,0 +1,169 @@
+<!doctype html><html lang="th">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>55 PERFORMANCE | Flash Spare ECU Bench V14</title><meta name="theme-color" content="#0d1420">
+<style>
+*{box-sizing:border-box}body{margin:0;background:#0e1521;color:#ecf2ff;font:15px/1.55 system-ui}
+main{max-width:770px;margin:auto;padding:15px 13px 80px}a{color:#ffb67c}
+h1{font-size:25px;line-height:1.25}h2{font-size:19px;margin:0 0 12px}
+.card{border:1px solid #40536c;background:#1b2a40;border-radius:17px;margin:12px 0;padding:19px}
+.danger{border-left:5px solid #f59638}.step{font-size:13px;color:#9aafc6;font-weight:700}
+button{font:600 15px system-ui;border:1px solid #c67e4e;border-radius:11px;color:#fff;background:#bd5a21;padding:12px;min-height:44px}
+button:disabled{opacity:.35;cursor:not-allowed}button.secondary{background:#2e4b63;border-color:#7695b1}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+p,small{color:#b6c8da}small{display:block;margin:7px 0}
+input[type=text],input[type=file]{background:#0e192a;border:1px solid #637b98;border-radius:9px;padding:12px;color:white;font:inherit;width:100%;margin:8px 0}
+label{display:block;padding:6px 0}
+label input[type=checkbox]{accent-color:#ef8c39;width:18px;height:18px;vertical-align:middle;margin-right:8px}
+pre{background:#0b1827;border-radius:10px;padding:12px;font:12px ui-monospace,monospace;white-space:pre-wrap;overflow-wrap:anywhere;max-height:400px;overflow:auto}
+.status{padding:10px;border-radius:9px;background:#102138;margin:7px 0}
+.ok{color:#78edb2}.bad{color:#ffa19a}
+.progress{height:13px;border-radius:20px;background:#3b485b;overflow:hidden}
+.progress>div{height:100%;width:0%;background:linear-gradient(90deg,#3aa4ff,#64e3bc);transition:width .3s}
+</style></head><body><main>
+<div class="row"><a href="./bench.html">← กลับ LAB V13</a><a href="../index.html">โปรแกรมจูน</a></div>
+<h1>55 PERFORMANCE ECU FLASH<br><span style="color:#ffab69">BENCH V14 — กล่องสำรอง</span></h1>
+<div class="card danger"><b>มีการส่งคำสั่ง ERASE/WRITE จริง!</b>
+<p>เครื่องมือนี้ใช้โค้ด C# ที่ซื้อมาเป็นต้นแบบและเปิดเฉพาะ ECU ID ที่จับคู่กับฐานข้อมูลเดิมแล้วเท่านั้น ปัจจุบันใช้กับรหัส <b>0101880D01 (38770-K03-H01)</b> ในโหมด Keihin ทดลองได้หลังตรวจอุปกรณ์ครบ</p>
+<p>ยังไม่เคยยืนยันเขียนบนกล่องจริงของนาย ฟังก์ชัน Verify ในซอร์สต้นฉบับเป็น ACK ปิดเซสชัน **ไม่ใช่การอ่านแฟลชกลับทั้งก้อน** อุปกรณ์สำรองก็สามารถเสียหายถาวรได้</p>
+<p>สาย FTDI TTL <b>ห้ามต่อเข้าขา K-Line 12V โดยตรง</b> ต้องมีวงจร K-Line transceiver/แหล่งจ่ายที่ถูกต้อง และอุปกรณ์กู้คืนที่ทดสอบแล้ว</p></div>
+<div class="card"><div class="step">ขั้นตอน 1</div><h2>ตรวจ License / เชื่อมต่อสาย</h2>
+<div id="auth" class="status">กำลังตรวจสิทธิ์ Supabase...</div>
+<div class="row"><button class="secondary" id="check">ตรวจสิทธิ์อีกครั้ง</button><button id="connect" disabled>เชื่อม FT232R</button><button class="secondary" id="disconnect" disabled>ตัดสาย</button></div>
+<div id="usb" class="status">ยังไม่เชื่อมต่อ FTDI</div></div>
+<div class="card"><div class="step">ขั้นตอน 2</div><h2>อ่านรหัส ECU สำรองจริง</h2>
+<button id="probe" disabled>ปลุก ECU / อ่าน ECU ID</button>
+<div id="ecu" class="status">ยังไม่ได้ตรวจรหัส ECU</div><small>ต้องระบุรหัสจากคำตอบจริง ไม่อนุญาตให้เลือก ECU Type เองเพื่อเขียนแฟลช</small></div>
+<div class="card"><div class="step">ขั้นตอน 3</div><h2>ตรวจไฟล์ BIN ก่อน ERASE</h2>
+<input id="bin" type="file" accept=".bin,application/octet-stream"><button id="prepare" disabled>ตรวจ BIN และสร้างแผนเขียน</button>
+<pre id="plan">ต้องอ่าน ECU ID ก่อน • ไฟล์ไม่ถูกส่งไปที่เซิร์ฟเวอร์</pre></div>
+<div class="card danger"><div class="step">ขั้นตอน 4 — มีความเสี่ยง</div><h2>ยืนยันก่อนส่งคำสั่งเขียนจริง</h2>
+<label><input type="checkbox" id="backup">มีไฟล์ BIN เดิมที่ถูกต้องจาก ECU รุ่นนี้ สำรองไว้นอกมือถือแล้ว</label>
+<label><input type="checkbox" id="power">ECU สำรองต่อไฟเลี้ยงนิ่ง มีวงจรป้องกันและสาย K-Line ที่ตรวจสอบแล้ว</label>
+<label><input type="checkbox" id="recovery">มีเครื่องมือกู้คืน ECU และรู้ขั้นตอนกู้ หาก ERASE/WRITE ล้มเหลว</label>
+<label for="typed">พิมพ์ FLASH ตามด้วยรหัส ECU 10 หลักที่อ่านได้ เช่น <code>FLASH 0101880D01</code></label>
+<input type="text" id="typed" placeholder="FLASH + ECU ID" autocomplete="off" spellcheck="false">
+<div class="progress"><div id="bar"></div></div><div id="percent" class="status">0% • ยังไม่ได้ส่งคำสั่งแฟลช</div>
+<button id="write" disabled>ERASE / WRITE (กล่องสำรองเท่านั้น)</button>
+<small>เมื่อลบแฟลชแล้ว ห้ามตัดไฟหรือถอดสายกลางคัน การรายงาน 100% หมายถึง ACK ของโปรโตคอล C# ไม่ใช่ Verify Memory อ่านกลับ</small>
+</div>
+<div class="card"><h2>Flash TX/RX Log</h2>
+<div class="row"><button class="secondary" id="copy">คัดลอก Log</button></div><pre id="log">ยังไม่มี Log</pre></div>
+</main>
+<script src="../license-config.js"></script><script src="../license-client.js"></script>
+<script type="module">
+import {Ft232rWebUsb} from './ftdi-webusb.js';
+import {HondaFlashEngine} from './honda-write-engine.js';
+const $=id=>document.getElementById(id);
+let authorized=false,port=null,engine=null,identity=null,plan=null,busy=false,flashing=false,wakeLock=null;
+const logs=[];
+const push=(v)=>{const s=new Date().toLocaleTimeString('th-TH')+' '+v;logs.push(s);$('log').textContent=logs.join('\n');$('log').scrollTop=$('log').scrollHeight};
+function refreshButtons(){
+ $('connect').disabled=busy||!authorized||!!port;
+ $('disconnect').disabled=busy||!port;
+ $('probe').disabled=busy||!authorized||!port;
+ $('prepare').disabled=busy||!authorized||!identity||!$('bin').files?.length;
+ $('write').disabled=busy||!authorized||!port?.ready||!plan||identity?.ecuId!==plan.ecuId||
+  !$('backup').checked||!$('power').checked||!$('recovery').checked||
+  $('typed').value.trim().toUpperCase()!=='FLASH '+identity.ecuId;
+}
+async function license(){
+ authorized=false;refreshButtons();
+ try{
+  const device=localStorage.getItem('55_device_id');
+  if(!device)throw Error('เปิดโปรแกรมจูนและเข้าสู่ระบบก่อน');
+  const r=await api('check',{device});
+  authorized=!!r.active;
+  $('auth').textContent=authorized?'License ใช้งานได้บนมือถือเครื่องนี้':'License ไม่ได้เปิดใช้งานสำหรับมือถือเครื่องนี้';
+ }catch(e){$('auth').textContent='ตรวจสิทธิ์ไม่ได้: '+e.message}
+ refreshButtons();
+}
+$('check').onclick=license;
+$('connect').onclick=async()=>{
+ if(!authorized)return;
+ busy=true;refreshButtons();
+ try{
+  const device=await Ft232rWebUsb.choose(); // Direct tap grants WebUSB chooser.
+  const p=new Ft232rWebUsb(push);
+  await p.openSelected(device);
+  port=p;identity=null;plan=null;engine=new HondaFlashEngine(port,ev=>{
+   const detail=Object.fromEntries(Object.entries(ev).filter(([k])=>k!=='at'&&k!=='phase'));
+   if(ev.phase==='WRITE_PROGRESS'){$('bar').style.width=ev.percent+'%';$('percent').textContent=ev.percent+'% • '+ev.bytesCovered+'/'+ev.totalBytes+' bytes acknowledged'}
+   push(ev.phase+' '+JSON.stringify(detail));
+  });
+  $('usb').textContent='FT232R เปิดสำเร็จ → ยังไม่ได้อ่าน ECU';
+  push('FT232R connected; flash session not started');
+ }catch(e){$('usb').textContent='USB ERROR: '+e.message;push(e.message)}
+ finally{busy=false;refreshButtons()}
+};
+$('disconnect').onclick=async()=>{
+ if(flashing)return;busy=true;refreshButtons();
+ try{if(port)await port.close()}finally{
+  port=null;engine=null;identity=null;plan=null;
+  $('usb').textContent='ตัดสายแล้ว';$('ecu').textContent='ยังไม่ได้อ่าน ECU';
+  busy=false;refreshButtons();
+ }
+};
+$('probe').onclick=async()=>{
+ if(!port||flashing)return;
+ busy=true;refreshButtons();
+ $('ecu').textContent='กำลัง Init FTDI และอ่าน ECU ID...';
+ try{
+  identity=await engine.identify();
+  $('ecu').textContent='ECU ID = '+identity.ecuId+' | family = '+identity.family+
+    ' | C# source = '+(identity.sourcePart||'ไม่พบในฐานเดิม')+
+    (identity.family==='KEIHIN'?' | FLASH COUNT '+identity.count:'');
+  $('ecu').className='status '+(identity.sourceMatched?'ok':'bad');
+  push('ECU ID '+identity.ecuId);
+ }catch(e){$('ecu').textContent='ไม่สำเร็จ: '+e.message;push('ECU PROBE STOP: '+e.message)}
+ finally{busy=false;refreshButtons()}
+};
+$('prepare').onclick=async()=>{
+ plan=null;busy=true;refreshButtons();
+ try{
+  const file=$('bin').files[0];
+  const data=new Uint8Array(await file.arrayBuffer());
+  const sha=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',data)),b=>b.toString(16).padStart(2,'0')).join('');
+  plan=engine.makePlan(data,{filename:file.name});
+  $('plan').textContent=JSON.stringify({ecuId:plan.ecuId,part:plan.part,fileName:plan.filename,
+   originalSha256:sha,profile:plan.profile,startOffset:'0x'+plan.startOffset.toString(16).toUpperCase(),
+   checksumOffset:plan.checksumOffset,binBytes:plan.size,expectedBlocks:plan.expectedBlockCount,checks:plan.checks,
+   note:'ผ่านเฉพาะ source mapping / ECU ID ไม่ใช่ความปลอดภัยของแฟลช'},null,2);
+  push('BIN PREFLIGHT PASS: '+file.name+' '+sha);
+ }catch(e){$('plan').textContent='ห้ามเขียน: '+e.message;push('PREFLIGHT STOP: '+e.message)}
+ finally{busy=false;refreshButtons()}
+};
+for(const id of ['backup','power','recovery','typed'])$(id).addEventListener('input',refreshButtons);
+$('bin').addEventListener('change',()=>{plan=null;refreshButtons()});
+$('write').onclick=async()=>{
+ if(!plan||flashing||!authorized)return;
+ const message='กล่องสำรอง '+plan.part+' ECU ID '+plan.ecuId+
+   '\nBIN '+plan.filename+' ('+plan.size+' bytes)'+
+   '\nStart Offset 0x'+plan.startOffset.toString(16)+
+   '\n\nจะเข้าสู่ขั้นตอน ERASE/WRITE จริงและมีโอกาสทำ ECU เสีย ถ้ายังไม่พร้อมกด Cancel';
+ if(!confirm(message))return;
+ busy=true;flashing=true;refreshButtons();
+ $('percent').textContent='เริ่มขั้นตอนแฟลช ECU สำรอง • ห้ามปิดหน้าเว็บ';
+ try{
+  if(navigator.wakeLock?.request){try{wakeLock=await navigator.wakeLock.request('screen')}catch(e){push('Screen WakeLock unavailable: '+e.message)}}
+  const result=await engine.flash(plan,{confirmation:$('typed').value.trim().toUpperCase(),
+   physicalBackupConfirmed:$('backup').checked,externalPowerConfirmed:$('power').checked,
+   recoveryReady:$('recovery').checked});
+  $('percent').textContent='ได้รับ SOURCE FINAL ACK • โปรดรีสตาร์ต ECU และตรวจซ้ำ • ยังไม่ได้ Readback VERIFY';
+  $('percent').className='status ok';
+  push('SOURCE COMPLETE (not full readback verification) '+JSON.stringify(result));
+ }catch(e){
+  $('percent').textContent='หยุดอัดไฟล์: '+e.message+
+   '\nห้ามสันนิษฐานว่ากล่องยังใช้ได้ หากเข้าสู่ ERASE แล้วต้องใช้ขั้นตอนกู้คืน';
+  $('percent').className='status bad';
+  push('FLASH STOP: '+e.message);
+ }finally{
+  flashing=false;busy=false;
+  if(wakeLock){try{await wakeLock.release()}catch{}wakeLock=null}
+  if(engine?.state==='finished'){plan=null}
+  refreshButtons();
+ }
+};
+$('copy').onclick=()=>navigator.clipboard.writeText(logs.join('\n')).catch(e=>push('Clipboard failed '+e.message));
+window.addEventListener('beforeunload',e=>{if(flashing){e.preventDefault();e.returnValue='ECU FLASH IN PROGRESS'}});
+license();
+</script></body></html>
