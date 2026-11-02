@@ -24,6 +24,8 @@ FT_Read ใน SendCommand เป็นการอ่านคำตอบจ�
 - โค้ดนี้มีคำสั่ง USB ERASE/WRITE จริง และผ่านการทดสอบซอฟต์แวร์ด้วยตัวตอบ ECU จำลอง
 - ยังไม่ได้ผ่านการทดสอบสาย FTDI, ECU และการกู้คืนบนฮาร์ดแวร์จริงของผู้ใช้
 - Final ACK ไม่ใช่ Readback Verification, จึงไม่สามารถรับรองความสำเร็จ 100%
+- ขั้นตอนหลังเขียนที่เพิ่มใน V15.1: Power-cycle ECU สำรองตามคู่มือ, กดตรวจ ECU ID หลังเขียน เพื่อตรวจว่ากล่องกลับมาตอบและ ID ตรงกับก่อนเขียน — **ไม่ใช่การอ่าน BIN กลับมาเทียบ**
+- หน้าทดสอบ source-validation-v15.html เพิ่มกรณี post-flash ID ตรง/ไม่ตรง (รวม 17 รายการในโค้ด)
 - หาก ECU ID, ECU Part, Start Offset, Firmware Type, BIN Checksum หรือ Block Address ไม่ตรง ระบบจะหยุด
 - Shindengen Offset ในฐาน C# เป็น auto ต้องตรวจลายเซ็น BIN, checksum marker และ Seed/Key จริง
 - ไม่มีข้อมูลยืนยัน Flash สำหรับ K2J-T01 จากชื่อไฟล์อย่างเดียว; ต้องอ่าน ECU ID และตรวจ Part จากซอร์ส
