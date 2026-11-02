@@ -1,0 +1,58 @@
+<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>55 ECU | หลักฐานพอร์ต C# → WebUSB V16</title><meta name="theme-color" content="#101828">
+<style>*,*:before,*:after{box-sizing:border-box}body{background:#0e1726;color:#eff5ff;font:15px/1.6 system-ui;margin:0}main{padding:18px 14px 60px;max-width:920px;margin:auto}h1{font-size:26px;line-height:1.25}h2{font-size:19px;margin:0 0 12px}.card{background:#1d2d42;border:1px solid #435976;border-radius:16px;padding:18px;margin:14px 0}p,small{color:#bed0e3}small{display:block}a{color:#ffad6c}table{border-collapse:collapse;width:100%;font-size:13px;line-height:1.4}th,td{padding:9px 7px;border-bottom:1px solid #465b75;vertical-align:top;text-align:left}th{color:#9fdaff}code,pre{font-family:ui-monospace,monospace}pre{background:#0e1b2c;padding:14px;border-radius:10px;white-space:pre-wrap;overflow-wrap:anywhere}button,input{font:inherit;padding:12px;border-radius:9px;background:#0f2236;color:#eef5ff;border:1px solid #58708f}input{width:100%}button{background:#c36b26;border-color:#ec9d5e;margin-top:10px;cursor:pointer}a.action{display:inline-block;background:#2e4e69;color:#fff;padding:10px 12px;text-decoration:none;border-radius:10px;margin:4px 7px 6px 0}.warn{border-left:5px solid #ffa14b}.ok{color:#75e9b0}.muted{color:#a9bbd2}</style></head><body><main>
+<a href="../index.html">← โปรแกรมจูน</a> • <a href="flash-write-lab.html?v=16">Flash Bench V16</a>
+<h1>55 PERFORMANCE ECU<br>หลักฐานพอร์ต C# → WebUSB</h1>
+<p>ตรวจฟังก์ชันแฟลชจากซอร์สที่ซื้อมา อ้างอิงชื่อฟังก์ชันและบรรทัดใน <code>Main.zip/FormMain.cs</code> ก่อนใช้ทดสอบกับกล่องสำรอง</p>
+<div class="card warn"><b>Flash Engine มีคำสั่ง ERASE/WRITE จริง แต่ยังไม่ได้ยืนยันกับกล่อง ECU จริง</b>
+<p>แสดงหลักฐานโค้ดและผลตรวจไฟล์ ไม่ใช่ใบรับรองว่ากล่องรุ่นใดจะเขียนสำเร็จ ขณะนี้ไม่มีฟังก์ชัน READ FLASH ทั้งก้อนหรือ Readback Verify ในซอร์สที่พบ</p>
+</div>
+<div class="card"><h2>หลักฐานซอร์สต้นฉบับ</h2>
+<small>SHA-256 FormMain.cs (123,553 ไบต์)</small><pre>50e13192164e25493fffb1babd5baa580902d0a14a09452a3279cf75157594f1</pre>
+<p>ฟังก์ชันด้านล่างอ้างอิงไฟล์ต้นฉบับจริง ไม่ใช่การตั้งค่าโดยเดา โปรดตรวจรายละเอียดและข้อจำกัดในเอกสารรายงาน</p>
+<a class="action" href="https://github.com/tanawattanwa22-dotcom/55-performance-ecu-tuner/blob/main/flash_port/C_SHARP_SOURCE_PROOF_V16_TH.md" target="_blank" rel="noopener">อ่านรายงานต้นฉบับและข้อจำกัด</a>
+</div>
+<div class="card"><h2>รายการฟังก์ชันที่พอร์ต</h2>
+<table><thead><tr><th>FormMain.cs</th><th>บรรทัด</th><th>ไฟล์ใน V16</th></tr></thead><tbody>
+<tr><td>SendCommand / FTDI RX/TX</td><td>298</td><td>ftdi-webusb.js</td></tr>
+<tr><td>WriteFlash + ACK/retry</td><td>362</td><td>flash-frames.js, honda-write-engine.js</td></tr>
+<tr><td>GetShindengenWriteKey</td><td>603</td><td>csharp-logic.js</td></tr>
+<tr><td>ShindengenAutoChecksum</td><td>665</td><td>csharp-logic.js</td></tr>
+<tr><td>ShindengenPreWriteFlash</td><td>696</td><td>honda-write-engine.js</td></tr>
+<tr><td>KeihinAutoChecksum</td><td>784</td><td>csharp-logic.js</td></tr>
+<tr><td>KeihinPreWriteFlash</td><td>790</td><td>honda-write-engine.js</td></tr>
+<tr><td>InitFtdiIso</td><td>863</td><td>ftdi-webusb.js</td></tr>
+<tr><td>WorkerThread</td><td>938</td><td>honda-write-engine.js</td></tr>
+<tr><td>Start/Checksum Offset</td><td>1220</td><td>csharp-offsets.js</td></tr>
+<tr><td>GetEcuType</td><td>1289</td><td>csharp-logic.js</td></tr>
+</tbody></table>
+<p><b>ECU catalog:</b> 288 รายการจาก C# เดิม (Keihin 232 และ Shindengen 56 ที่มี Part Code) การพบชื่อในรายการไม่ได้ยืนยัน Memory Layout ของกล่องจริงโดยอัตโนมัติ</p>
+</div>
+<div class="card"><h2>ตรวจ BIN จากมือถือ (ไม่ส่งออกจากเครื่อง)</h2>
+<p>เลือก BIN เพื่อดู SHA-256, ลายเซ็น C#, Start Offset ที่อนุมาน และคำเตือน ก่อนนำไปทดสอบใน Flash Bench</p>
+<input id="bin" type="file" accept=".bin,application/octet-stream"><button id="inspect">ตรวจไฟล์จากซอร์ส C#</button>
+<pre id="out">ยังไม่ได้เลือกไฟล์</pre>
+<small>ไฟล์ BIN ถูกอ่านด้วย JavaScript ในเครื่อง ไม่ได้อัปโหลดขึ้น GitHub หรือ Supabase จากหน้านี้</small></div>
+<div class="card"><h2>หน้าทดสอบและอัดแฟลช</h2>
+<a class="action" href="source-validation-v15.html?v=16">ทดสอบสูตร C# 21 รายการ (ไม่ต่อรถ)</a>
+<a class="action" href="bench.html?v=16">FTDI / อ่าน ECU ID</a>
+<a class="action" href="flash-write-lab.html?v=16">Flash Bench — ส่ง ERASE/WRITE จริง</a>
+<p>ก่อนกดเขียน ต้องใช้กล่องสำรอง, K-Line transceiver ที่ถูกต้อง, ไฟเลี้ยงที่ควบคุมได้, การสำรองข้อมูลและวิธีกู้คืน หากหน้าเว็บแสดง Final ACK จะต้องตรวจ ECU กลับมาตอบหลังรีสตาร์ต และยังไม่ถือว่า Verify BIN สำเร็จทั้งไฟล์</p>
+</div>
+<script type="module">
+import {csharpBinQuickAudit} from './csharp-logic.js';
+import {csharpOffsetInference} from './csharp-offsets.js';
+const $=id=>document.getElementById(id);
+$('inspect').onclick=async()=>{
+ try{
+   const file=$('bin').files?.[0];
+   if(!file)throw Error('เลือก BIN ก่อน');
+   if(file.size<32||file.size>1048576)throw Error('ขนาดไฟล์อยู่นอกช่วงที่ตรวจ (32 B–1 MB)');
+   const data=new Uint8Array(await file.arrayBuffer());
+   const hashBytes=new Uint8Array(await crypto.subtle.digest('SHA-256',data));
+   const sha=Array.from(hashBytes,b=>b.toString(16).padStart(2,'0')).join('');
+   const signature=csharpBinQuickAudit(data),offset=csharpOffsetInference(data);
+   $('out').textContent=JSON.stringify({file:file.name,bytes:data.length,sha256:sha,signature,offset,flashAuthorized:false},null,2);
+ }catch(err){$('out').textContent='ตรวจไม่ผ่าน: '+err.message}
+};
+</script></main></body></html>
