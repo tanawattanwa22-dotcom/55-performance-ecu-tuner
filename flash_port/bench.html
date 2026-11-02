@@ -53,6 +53,7 @@ hr{border:0;border-top:1px solid #42556c;margin:14px 0}
 <button id="id" disabled>ปลุกและอ่าน ECU ID</button>
 </div>
 <div class="status" id="ecu">ยังไม่ได้อ่าน ECU</div>
+<div class="status" id="ecuMatch" hidden style="border:1px solid #936bb4;background:#242139;margin-top:10px"></div>
 <small>ลำดับทำงานตาม C#: InitFtdiIso → WAKE → HELLO → ECU ID; ล้มเหลวจะปิด USB ไม่เดาคำสั่งอื่น</small>
 </div>
 <div class="card">
@@ -81,6 +82,8 @@ import {Ft232rWebUsb,toHex} from './ftdi-webusb.js';
 import {auditWriteFrames} from './flash-frames.js';
 import {csharpBinQuickAudit} from './csharp-logic.js';
 import {csharpOffsetInference} from './csharp-offsets.js';
+import {lookupEcmId,parseEcmIdReply} from './ecu-id-lookup.js';
+import {renderEcmIdentification,showEcmPopup} from './ecu-id-ui.js';
 const el=id=>document.getElementById(id);
 let port=null,active=false;
 const logs=[];
@@ -113,7 +116,7 @@ el('pick').onclick=async()=>{
  }catch(e){log('USB ERROR: '+e.message);el('usb').textContent='เชื่อมต่อไม่ได้: '+e.message}
  finally{busy(false)}
 };
-el('disconnect').onclick=async()=>{busy(true);try{if(port)await port.close()}finally{port=null;el('usb').textContent='ตัดสายแล้ว';el('ecu').textContent='ไม่ได้เชื่อมต่อ';busy(false)}};
+el('disconnect').onclick=async()=>{busy(true);try{if(port)await port.close()}finally{port=null;el('usb').textContent='ตัดสายแล้ว';el('ecu').textContent='ไม่ได้เชื่อมต่อ';el('ecuMatch').hidden=true;busy(false)}};
 el('id').onclick=async()=>{
  if(!port||!active)return;
  if(!confirm('ยืนยัน: ใช้กล่อง ECU สำรอง ตรวจ K-Line และแหล่งจ่ายไฟถูกต้องแล้ว และเข้าใจว่ายังไม่ได้ยืนยันกับรถทุกรุ่นใช่หรือไม่?'))return;
@@ -126,11 +129,15 @@ el('id').onclick=async()=>{
   log('HELLO reply '+toHex(hello.reply));
   const identity=await port.command('ID',{timeoutMs:900});
   const response=identity.reply;
-  if(response.length<10)throw Error('ECU ID reply too short; reject identification');
-  const ecuId=toHex(response.slice(5,10)).replaceAll(' ','');
-  el('ecu').textContent='ECU responded · ID '+ecuId+' · HELLO/ID checksum ผ่าน · ยังไม่ยืนยันรุ่นและยังไม่ได้อ่าน Flash';
+  const ecuId=parseEcmIdReply(response);
+  if(!ecuId)throw Error('ECU ID response length, status or checksum invalid');
+  const found=await lookupEcmId(ecuId);
+  renderEcmIdentification(el('ecuMatch'),found);
+  showEcmPopup(found);
+  el('ecu').textContent='ECU ID '+ecuId+' • Part '+(found.partCode||'ยังไม่พบ')+
+    ' • '+(found.model||'ยังไม่ระบุรุ่น')+' • CHECKSUM ผ่าน';
   el('ecu').className='status ok';
-  log('ECU ID (C# reply[5..9]): '+ecuId);
+  log('ECU ID '+ecuId+' | KTR/C# '+found.status+' | Part '+(found.partCode||'UNKNOWN'));
  }catch(e){
   log('ECU PROBE STOPPED: '+e.message);
   el('ecu').className='status bad';
