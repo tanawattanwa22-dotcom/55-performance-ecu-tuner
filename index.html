@@ -269,6 +269,7 @@ table.g th,table.g td{border-right:1px solid rgba(255,255,255,.35);border-bottom
     <dt>สาย</dt><dd id="sCable">ยังไม่เชื่อมต่อ</dd>
     <dt>กล่อง ECU</dt><dd id="sEcu">ยังไม่ตอบ</dd>
    </dl>
+   <div id="autoEcuName" hidden style="margin-top:12px;background:#20203b;border:1px solid #9266ba;border-radius:12px;padding:12px;color:#fff;font:14px system-ui"></div>
   </div>
   <div class="card"><h2>4 · เชื่อมต่อสาย <i class="led" id="ledCable"></i></h2>
    <button class="btn full" id="btnCable">เชื่อมต่อสาย</button>
@@ -914,7 +915,7 @@ $("#fin").onchange=e=>loadFile(e.target.files[0]);
 
 /* ---------- สายเชื่อมต่อ: WebUSB (FTDI FT232R) เป็นหลัก, Web Serial เป็นทางสำรอง ---------- */
 const FTDI_IDS=[{vendorId:0x0403,productId:0x6001},{vendorId:0x0403,productId:0x6015},{vendorId:0x0403,productId:0x6010},{vendorId:0x0403,productId:0x6014}];
-const K={t:null,q:[],ecu:false,mode:"usb"};
+const K={t:null,q:[],ecu:false,ecuId:null,mode:"usb"};
 function klog(s){const e=$("#klog"),t=new Date().toLocaleTimeString("th-TH",{hour12:false});e.textContent=(e.textContent==="-"?"":e.textContent+"\n")+t+" "+s;e.scrollTop=e.scrollHeight}
 const hex=a=>[...a].map(x=>x.toString(16).padStart(2,"0")).join(" ").toUpperCase();
 function cableUi(st,msg,usbTxt,ecuTxt){
@@ -1014,7 +1015,8 @@ function hondaOk(r){
   return false;
 }
 function lost(msg){
-  const t=K.t;K.t=null;K.ecu=false;
+  const t=K.t;K.t=null;K.ecu=false;K.ecuId=null;
+  const nameBox=$("#autoEcuName");if(nameBox){nameBox.hidden=true;nameBox.replaceChildren()}
   if(t){t.run=false;t.close().catch(()=>{})}
   if(typeof lvConnUi==="function")try{lvConnUi()}catch(_){}
   klog(msg);cableUi("bd",msg+" — กดเชื่อมต่อสายเพื่อลองใหม่","ตัดการเชื่อมต่อ (Disconnected)","ยังไม่ตอบ");
@@ -1039,6 +1041,32 @@ async function probeEcu(){
     K.ecu=true;
     const q=[0x72,0x05,0x71,0x00];q.push(hcs(q));await send(q);
     cableUi("ok","USB เชื่อมต่อแล้ว และ ECU ตอบกลับถูกต้อง (ตรวจเช็คซัมแล้ว)");
+    // Ask ECU for its actual five-byte ID. Translate it from KTR/C# catalogs
+    // automatically; NEVER derive ECU ID from selected BIN or tuning profile.
+    const connectedTransport=K.t;
+    try{
+      const {parseEcmIdReply,lookupEcmId}=await import('./flash_port/ecu-id-lookup.js');
+      const idResponse=await send([0x72,0x07,0x72,0x00,0x00,0x05,0x10]);
+      if(!K.t||K.t!==connectedTransport)return;
+      const id=parseEcmIdReply(idResponse);
+      if(!id)throw Error('ECU ตอบกลับแล้วแต่ยังไม่พบเฟรม ECU ID ที่ผ่าน checksum');
+      K.ecuId=id;
+      const found=await lookupEcmId(id);
+      if(!K.t||K.t!==connectedTransport)return;
+      const {renderEcmIdentification,showEcmPopup}=await import('./flash_port/ecu-id-ui.js');
+      renderEcmIdentification($("#autoEcuName"),found);
+      showEcmPopup(found);
+      const name=found.partCode?(found.partCode+(found.model?' • '+found.model:'')):id;
+      cableUi("ok","อ่าน ECU ID "+id+" → "+(found.partCode||"ยังไม่พบ Part Code ในทะเบียน"),null,name);
+      klog("ECU ID "+id+" | Part "+(found.partCode||"UNKNOWN")+" | "+(found.model||"UNKNOWN MODEL")+
+        " | KTR="+found.ktrMatched+" C#="+found.csharpMatched+" | "+found.status);
+    }catch(e){
+      K.ecuId=null;
+      const box=$("#autoEcuName");box.hidden=false;
+      box.textContent="ECU ตอบกลับแล้ว แต่ยังไม่สามารถอ่านและแปล ECM ID: "+e.message+
+       " • ลองใช้เมนู Flash Bench เพื่ออ่าน ID แบบ C# เต็มลำดับ";
+      klog("ECM AUTO ID: "+e.message);
+    }
   }else if(rep.length){
     cableUi("ok","USB เชื่อมต่อแล้ว แต่ข้อมูลที่ตอบกลับไม่ใช่รูปแบบของ ECU Honda (Communication Error) ดูรายละเอียดทางเทคนิค",null,"ตอบผิดรูปแบบ");
   }else{
@@ -1046,7 +1074,7 @@ async function probeEcu(){
   }
 }
 async function connectCable(){
-  if(K.t){const t=K.t;K.t=null;K.ecu=false;await t.close();klog("ตัดการเชื่อมต่อ");cableUi("","ตัดการเชื่อมต่อแล้ว","ตัดการเชื่อมต่อ (Disconnected)");return}
+  if(K.t){const t=K.t;K.t=null;K.ecu=false;K.ecuId=null;$("#autoEcuName").hidden=true;await t.close();klog("ตัดการเชื่อมต่อ");cableUi("","ตัดการเชื่อมต่อแล้ว","ตัดการเชื่อมต่อ (Disconnected)");return}
   let tr=null;
   try{
     cableUi("wn","กำลังเชื่อมต่อ… เลือกอุปกรณ์ในหน้าต่างที่เด้งขึ้นมา",null,"ยังไม่ตอบ");
@@ -1066,7 +1094,7 @@ async function connectCable(){
       tr=new SerialT(await navigator.serial.requestPort());
     }
     await tr.open();
-    K.t=tr;K.q=[];K.ecu=false;
+    K.t=tr;K.q=[];K.ecu=false;K.ecuId=null;$("#autoEcuName").hidden=true;
     klog("ช่องทาง: "+tr.name);
     await probeEcu();
   }catch(e){
