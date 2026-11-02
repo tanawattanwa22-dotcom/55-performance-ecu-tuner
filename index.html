@@ -1032,11 +1032,13 @@ function inlineFlashConfirm(plan){
   const dialog=document.createElement('dialog');dialog.id='ecu-flash-confirm';
   dialog.style.cssText='box-sizing:border-box;width:min(94vw,460px);max-height:90vh;overflow:auto;background:#15243a;color:white;border:1px solid #7891aa;border-radius:16px;padding:20px;font:14px/1.5 system-ui';
   const title=document.createElement('h3');title.textContent='ยืนยันก่อน ERASE / WRITE (กล่องสำรอง)';dialog.append(title);
+  if(S.saved&&!S.saved.customerBin){const warning=document.createElement('p');warning.style.cssText='padding:10px;border-radius:10px;background:#4c3016;color:#ffe2b8';warning.textContent='กำลังใช้ BIN หลักที่ติดมากับแอป ไม่ใช่ไฟล์ที่อ่านจาก ECU คันนี้ ต้องยืนยันความเข้ากันได้ของ ECU ID, Part Code และเวอร์ชันเฟิร์มแวร์ก่อนอัด';dialog.append(warning)}
   const summary=document.createElement('pre');summary.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;color:#e2f0ff;background:#091424;padding:12px;border-radius:9px';
   summary.textContent='ECU ID: '+plan.ecuId+'\nPart: '+plan.part+'\nBIN: '+plan.filename+'\nขนาด: '+plan.size+' ไบต์\nStart: 0x'+plan.startOffset.toString(16).toUpperCase()+'\nChecksum corrected: '+plan.checksumChanged+'\nโหมด: NORMAL 10400 baud\nVERIFY: ยังไม่มี READBACK';
   dialog.append(summary);
   const checks=[
    'มีสำเนา BIN ต้นฉบับที่ตรงรุ่นเก็บไว้นอกเครื่องนี้แล้ว',
+   ...(S.saved&&!S.saved.customerBin?['ตรวจสอบแล้วว่า BIN หลักในแอปตรง ECU ID, Part Code และเฟิร์มแวร์ของกล่องคันนี้']:[]),
    'ไฟ ECU และวงจร K-Line ตรวจถูกต้องและเสถียร',
    'มีกระบวนการและเครื่องมือกู้คืนกล่องที่ทดสอบแล้ว'
   ].map(t=>{const label=document.createElement('label');label.style.cssText='display:block;margin:12px 0';const box=document.createElement('input');box.type='checkbox';box.style.marginRight='8px';label.append(box,document.createTextNode(t));dialog.append(label);return box});
