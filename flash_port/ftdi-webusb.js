@@ -161,6 +161,53 @@ export class Ft232rWebUsb {
     await sleep(80);
     await this.purge();
   }
+  async exchangeRaw(frame,{timeoutMs,afterWriteMs=0,expectReply=true}={}){
+    // C# SendCommand-compatible echo + reply. This method can transmit an ECU
+    // programming frame: callers must complete hardware/profile preflight.
+    if(!this.ready)throw Error('FT232R not connected');
+    if(this.exchangeBusy)throw Error('FTDI exchange already active');
+    const bytes=Uint8Array.from(frame);
+    if(bytes.length<3||bytes.length>256||bytes[1]!==bytes.length)
+      throw Error('Invalid framed command length');
+    if(hondaChecksum(bytes)!==0)throw Error('Incorrect command checksum');
+    if(!Number.isFinite(afterWriteMs)||afterWriteMs<0||afterWriteMs>5000)
+      throw Error('Invalid response delay');
+    const timeout=timeoutMs??Math.min(6000,Math.max(700,200+bytes.length*10));
+    if(!Number.isFinite(timeout)||timeout<80||timeout>15000)throw Error('Invalid response timeout');
+    this.exchangeBusy=true;
+    try {
+      await this.purge();
+      await this.ctl(0x09,8);
+      await this._write(bytes);
+      this._log('TX RAW '+toHex(bytes.length<=16?bytes:bytes.slice(0,16))+(bytes.length>16?' ... ('+bytes.length+' bytes)':''));
+      if(!expectReply){await sleep(afterWriteMs);return {reply:null,echoOK:null}}
+      if(afterWriteMs)await sleep(afterWriteMs);
+      const end=Date.now()+timeout,stream=[];
+      while(Date.now()<end){
+        const rx=await this._readOnce(end);
+        stream.push(...rx.data);
+        if(stream.length>bytes.length+256+64)
+          throw Error('Too many bytes without valid ECU reply');
+        if(stream.length<bytes.length+2)continue;
+        const echo=stream.slice(0,bytes.length);
+        if(echo.some((v,i)=>v!==bytes[i]))throw Error('Serial echo does not match transmitted bytes');
+        const size=stream[bytes.length+1];
+        if(size<3||size>255)throw Error('ECU reply length invalid: '+size);
+        if(stream.length<bytes.length+size)continue;
+        const reply=Uint8Array.from(stream.slice(bytes.length,bytes.length+size));
+        checkedHondaReply(reply);
+        this._log('RX '+toHex(reply.length<=24?reply:reply.slice(0,24))+(reply.length>24?' ...':''));
+        await this.purge();
+        return {reply,echoOK:true};
+      }
+      throw Error('No complete ECU reply before timeout');
+    }catch(error){
+      this._log('STOP exchange: '+error.message);
+      // Any ambiguous write response requires aborting the programming run.
+      await this.close();
+      throw error;
+    }finally{this.exchangeBusy=false}
+  }
   async command(label,{timeoutMs=500,afterWriteMs=0}={}){
     if(!this.ready)throw Error('Connect FT232R first');
     if(!Object.hasOwn(READ_ONLY_COMMANDS,label))throw Error('Unknown read-only action');
