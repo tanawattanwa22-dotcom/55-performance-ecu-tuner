@@ -1,0 +1,30 @@
+name: KTR Honda ECM Catalog — Integrity
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ktr/**"
+      - "tools/verify-ktr-catalog.mjs"
+      - ".github/workflows/ktr-catalog-verify.yml"
+  pull_request:
+    paths:
+      - "ktr/**"
+      - "tools/verify-ktr-catalog.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-catalog:
+    name: Verify KTR 152-row reference integrity (NO ECU)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Validate KTR Honda ECM reference records
+        run: node tools/verify-ktr-catalog.mjs
