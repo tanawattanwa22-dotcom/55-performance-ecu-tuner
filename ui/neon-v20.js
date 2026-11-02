@@ -35,7 +35,19 @@ const top=mk('header','n20-head');
 const logo=home.querySelector('.top img.lg');
 if(logo){const icon=logo.cloneNode(true);icon.className='n20-icon';icon.alt='55 PERFORMANCE';top.append(icon)}
 const name=mk('div','n20-logo','55 PERFORMANCE');name.append(mk('small','','ECU TUNER'));top.append(name);
-top.append(mk('div','n20-top-right','MOBILE · ECU LAB'));
+const drawer=mk('dialog','n20-menu-dialog');drawer.id='n20MenuDialog';
+drawer.setAttribute('aria-label','เมนูทั้งหมด');
+drawer.append(mk('h2','','55 PERFORMANCE · เมนูทั้งหมด'));
+const closeMenu=action('✕ ปิดเมนู',()=>drawer.close(),'btn n20-menu-close');drawer.append(closeMenu);
+const drawerItems=mk('div','n20-menu-items');
+for(const cat of cats){
+ const b=action(cat[1]+'  '+cat[2],()=>{drawer.close();navigate(cat[0])});
+ drawerItems.append(b);
+}
+drawer.append(drawerItems);drawer.addEventListener('click',e=>{if(e.target===drawer)drawer.close()});
+document.body.append(drawer);
+const menu=action('☰',()=>drawer.showModal(),'n20-menu-button');
+menu.setAttribute('aria-label','เปิดเมนูทั้งหมด');top.append(menu);
 const hero=mk('div','n20-hero');
 hero.innerHTML='<div class="n20-eyebrow">55 Performance • Motorcycle ECU</div>'+
  '<div class="n20-mark">55<span>PERFORMANCE</span></div>'+
