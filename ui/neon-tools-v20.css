@@ -1,0 +1,56 @@
+/* 55 Performance Neon Tool Suite — visual only, no diagnostic/flash code. */
+:root{color-scheme:dark;--bg:#061020;--p1:#142744;--p2:#1a3152;--ln:#34567c;--tx:#f2fbff;--mu:#a9c2d9;--ac:#34e3ed;--cyan:#24e8fa;--violet:#9d72ff;--pink:#f45cce;--amber:#ffbd66;--green:#44eab5}
+*,*:before,*:after{box-sizing:border-box}
+html{background:#061020;max-width:100%;overflow-x:hidden}
+body{background:radial-gradient(circle at 85% 0%,#1c315e,transparent 45%),radial-gradient(circle at 0% 90%,#1d214c,transparent 45%),#061020!important;color:#f0faff!important;font:14px/1.55 system-ui,"Noto Sans Thai",sans-serif!important;max-width:100%!important;min-height:100dvh;margin:0!important;padding:0!important;overflow-x:hidden}
+body>header,body>.top,header.top{padding:15px 16px!important;background:linear-gradient(125deg,#0d2341,#152544 55%,#241945)!important;border-bottom:1px solid #3a5c80!important;box-shadow:0 7px 24px #0007!important;max-width:100%;min-height:75px}
+header b,header h1{color:#f6fcff;font-weight:900}
+header small,.muted,.note{color:#adc6dc}
+body>header:before{content:"55 PERFORMANCE  /  ECU LAB";display:block;font:italic 900 11px system-ui;letter-spacing:1.4px;color:#46eaff;margin-bottom:7px}
+body>main,main{width:min(100%,1000px)!important;max-width:1000px!important;margin:0 auto!important;padding:14px 13px 45px!important}
+main>section,main>.card,section,.card,article{background:linear-gradient(145deg,#19304fcf,#0f1e37ee)!important;border:1px solid #3b6288!important;border-radius:18px!important;box-shadow:0 10px 28px #0005!important;margin:0 0 13px!important;padding:15px!important;max-width:100%;min-width:0}
+h1,h2,h3{color:#fff!important;line-height:1.3;overflow-wrap:anywhere}
+h1{font-size:clamp(20px,5.5vw,29px)!important;letter-spacing:-.3px}
+h2{font-size:clamp(16px,4.4vw,21px)!important;border-left:4px solid #24e4fa;padding-left:10px;margin:9px 0 13px}
+h3{font-size:16px}
+p,small,div{overflow-wrap:anywhere}
+button,.button,a.button,a.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;background:linear-gradient(135deg,#205681,#222d59)!important;color:#e8faff!important;border:1px solid #5b7ba7!important;border-radius:12px!important;min-height:43px;padding:10px 13px;font:700 13px/1.3 system-ui!important;cursor:pointer;white-space:normal;text-align:center;text-decoration:none;max-width:100%}
+button.primary,button.ac,.button.primary{background:linear-gradient(120deg,#087e9d,#7c4cd6)!important;border-color:#5defff!important;color:#fff!important;box-shadow:0 0 16px #12c9e443}
+button.danger,button.warn{background:linear-gradient(120deg,#6f2755,#b3448f)!important;border-color:#bd619d!important}
+button:disabled{opacity:.46!important;cursor:not-allowed}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #36ebfc!important;outline-offset:2px}
+a{color:#77eafb}
+a:not(.btn):not(.button):hover{text-decoration:underline}
+button:active{transform:scale(.985)}
+input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]),select,textarea{background:#0a1b33!important;color:#edfaff!important;border:1px solid #557297!important;border-radius:11px!important;padding:10px!important;min-height:42px;max-width:100%;font:14px system-ui}
+input::placeholder,textarea::placeholder{color:#93abc6}
+label{color:#bdd0e7!important;line-height:1.55}
+input[type=checkbox],input[type=radio]{accent-color:#30dce8}
+pre,code,.log,#log{background:#06162a!important;color:#7cf1df!important;border:1px solid #355576!important;border-radius:11px!important;padding:10px!important;white-space:pre-wrap!important;overflow:auto!important;overflow-wrap:anywhere;max-width:100%}
+table{max-width:100%;border-collapse:collapse}
+table td,table th{border-color:#3f5675!important}
+summary{color:#61dff3!important;padding:8px 2px;cursor:pointer}
+a[href="../index.html"],a[href="./index.html"]{background:linear-gradient(130deg,#173c5b,#23275c)!important;color:#dffaff!important;border:1px solid #5375a1!important;border-radius:12px;display:inline-flex;padding:10px 14px;text-decoration:none}
+.row,.actions,.controls,.buttons{display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-width:0;max-width:100%}
+.row>*{min-width:0}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+#result,.metric-grid,.metrics{gap:9px}
+.metric, .value-card{background:linear-gradient(130deg,#11354d,#221c42)!important;border:1px solid #4776a3!important;color:#e8fbff!important;border-radius:13px!important;padding:12px!important}
+.metric:nth-child(4n+2){border-color:#a25ea7!important}
+.metric:nth-child(4n+3){border-color:#b48255!important}
+.metric strong,.value-card strong{color:#f5fdff!important}
+#log,#status{line-height:1.7}
+svg,canvas,img{max-width:100%}
+canvas{border-color:#3e6486}
+progress{accent-color:#2ce8ff}
+.badge,.pill{border-color:#47829c;color:#a8eaff}
+@media(max-width:420px){
+ body>header,header.top{padding:12px!important}
+ main,body>main{padding:11px 10px 38px!important}
+ main>section,section,.card{padding:12px!important}
+ button,.button{font-size:12px!important;padding:9px 11px}
+ .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:330px){.grid{grid-template-columns:1fr}}
+@media(min-width:900px){main,body>main{padding-top:22px!important}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
