@@ -1,6 +1,6 @@
 <!doctype html><html lang="th">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>55 PERFORMANCE | Flash Spare ECU Bench V16</title><meta name="theme-color" content="#0d1420">
+<title>55 PERFORMANCE | Flash Spare ECU Bench V16.1</title><meta name="theme-color" content="#0d1420">
 <style>
 *{box-sizing:border-box}body{margin:0;background:#0e1521;color:#ecf2ff;font:15px/1.55 system-ui}
 main{max-width:770px;margin:auto;padding:15px 13px 80px}a{color:#ffb67c}
@@ -20,8 +20,8 @@ pre{background:#0b1827;border-radius:10px;padding:12px;font:12px ui-monospace,mo
 .progress{height:13px;border-radius:20px;background:#3b485b;overflow:hidden}
 .progress>div{height:100%;width:0%;background:linear-gradient(90deg,#3aa4ff,#64e3bc);transition:width .3s}
 </style></head><body><main>
-<div class="row"><a href="./bench.html">← กลับ LAB V13</a><a href="../index.html">โปรแกรมจูน</a><a href="./source-proof.html?v=16">หลักฐานโค้ด C#</a><a href="./source-validation-v15.html?v=16">ทดสอบสูตร 23 รายการ</a></div>
-<h1>55 PERFORMANCE ECU FLASH<br><span style="color:#ffab69">BENCH V16 — กล่องสำรอง</span></h1>
+<div class="row"><a href="./bench.html">← กลับ LAB V13</a><a href="../index.html">โปรแกรมจูน</a><a href="./source-proof.html?v=16">หลักฐานโค้ด C#</a><a href="./source-validation-v15.html?v=16">ทดสอบสูตรหน้าเว็บ 23 รายการ</a> <a href="https://github.com/tanawattanwa22-dotcom/55-performance-ecu-tuner/actions/workflows/honda-flash-offline-tests.yml" target="_blank" rel="noopener">GitHub Actions 29 รายการ</a></div>
+<h1>55 PERFORMANCE ECU FLASH<br><span style="color:#ffab69">BENCH V16.1 — กล่องสำรอง</span></h1>
 <div class="card danger"><b>มีการส่งคำสั่ง ERASE/WRITE จริง!</b>
 <p>เครื่องมือนี้ใช้โค้ด C# ที่ซื้อมาเป็นต้นแบบและเปิดเฉพาะ ECU ID ที่จับคู่กับฐานข้อมูลเดิมแล้วเท่านั้น พอร์ตฐานข้อมูล C# เดิม <b>288 รายการ</b> และอนุญาตทดลองเขียนเฉพาะกล่อง <b>Keihin</b> ที่อ่าน ECU ID ตรงฐานต้นฉบับ ผ่านการตรวจแฟลชเคานต์และโปรไฟล์ข้อมูล (ตัวอย่าง K03-H01 รหัส 0101880D01 • ทั้ง Keihin และ Shindengen ต้องผ่านการยืนยันรายรุ่น)</p>
 <p>ยังไม่เคยยืนยันเขียนบนกล่องจริงของนาย ฟังก์ชัน Verify ในซอร์สต้นฉบับเป็น ACK ปิดเซสชัน **ไม่ใช่การอ่านแฟลชกลับทั้งก้อน** อุปกรณ์สำรองก็สามารถเสียหายถาวรได้</p>
@@ -210,7 +210,7 @@ $('copy').onclick=()=>navigator.clipboard.writeText(logs.join('\n')).catch(e=>pu
 $('saveLog').onclick=()=>{
  const safeId=identity?.ecuId?.replace(/[^0-9A-F]/g,'')||'NO_ID';
  const timestamp=new Date().toISOString().replace(/[:.]/g,'-');
- const report=['55 PERFORMANCE ECU FLASH BENCH V16','Source: C# FormMain.cs SHA256 50e13192164e25493fffb1babd5baa580902d0a14a09452a3279cf75157594f1',
+ const report=['55 PERFORMANCE ECU FLASH BENCH V16.1','Source: C# FormMain.cs SHA256 50e13192164e25493fffb1babd5baa580902d0a14a09452a3279cf75157594f1',
   'ECU ID: '+safeId,'ECU family: '+(identity?.family||'UNKNOWN'),
   'ECU Part: '+(identity?.sourcePart||'UNKNOWN'),
   'Plan evidence (kept after flash): '+(lastPlanEvidence?JSON.stringify(lastPlanEvidence):'not yet prepared'),
