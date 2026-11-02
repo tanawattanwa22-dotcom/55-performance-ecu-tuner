@@ -1,0 +1,38 @@
+name: Neon V20 Mobile Browser Smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "index.html"
+      - "ui/**"
+      - "flash_port/**/*.html"
+      - "tools/verify-neon-browser.mjs"
+      - ".github/workflows/neon-ui-mobile.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mobile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser runner for tests only
+        run: npm install --no-save --ignore-scripts playwright@1.56.1
+      - name: Check runner Chrome
+        run: which google-chrome || which google-chrome-stable
+      - name: Run 320–720px responsive UI tests (no ECU connection)
+        run: node tools/verify-neon-browser.mjs
+      - name: Upload mobile UI screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: neon-v20-mobile-screenshots
+          path: test-reports/*.png
+          if-no-files-found: ignore
