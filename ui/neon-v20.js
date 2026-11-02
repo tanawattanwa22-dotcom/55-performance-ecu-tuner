@@ -185,11 +185,17 @@ function library(){
  for(const [id,label,icon] of chipValues){
   const b=action('',()=>{maker=id;page=1;setFilter();render()},'n22-filter-chip');
   b.dataset.maker=id;
+  b.setAttribute('aria-label',label);
   if(icon==='honda'){
    const image=document.createElement('img');image.src='ui/assets/honda-wing.svg';image.alt='';
    image.className='n22-filter-logo';b.append(image);
+  }else if(icon==='keihin'||icon==='shindengen'){
+   const image=document.createElement('img');
+   image.src=icon==='keihin'?'ui/assets/keihin-badge.svg':'ui/assets/shindengen-badge.svg';
+   image.alt=label;image.className='n22-filter-vendor-logo';b.append(image);
   }else b.append(mk('span','n22-filter-icon',icon==='star'?'☆':icon==='all'?'◎':'▣'));
-  b.append(document.createTextNode(label));chips.append(b);
+  if(icon!=='keihin'&&icon!=='shindengen')b.append(document.createTextNode(label));
+  chips.append(b);
  }
  const sectionTitle=(label)=>{const h=mk('h3','n22-section-heading',label);return h};
  const fhead=mk('div','n22-section-line');
@@ -278,6 +284,12 @@ function library(){
   const code=mk('b','n22-row-code',r.m.id);
   const sub=mk('small','',r.manufacturer+' · ECU '+(r.vendor||r.m.fam||'ไม่ระบุ'));
   left.append(code,sub);
+  const vendorLogo=/^keihin$/i.test(r.vendor)?'ui/assets/keihin-badge.svg':
+   /^shindengen$/i.test(r.vendor)?'ui/assets/shindengen-badge.svg':null;
+  if(vendorLogo){
+   const vimg=document.createElement('img');vimg.src=vendorLogo;
+   vimg.alt=r.vendor;vimg.className='n22-row-vendor-logo';vimg.loading='lazy';left.append(vimg);
+  }
   const mid=mk('div','n22-row-mid');
   mid.append(mk('div','n22-fileline',r.ready?'▣ BIN '+(r.bytes/1024).toFixed(2)+' KB':'ยังไม่มีไฟล์ BIN'));
   mid.append(mk('div','n22-fileline','▤ '+(r.m.sub||'ตระกูล '+(r.m.fam||'-'))));
