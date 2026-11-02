@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths:
       - "flash_port/**"
+      - "ui/**"
+      - "index.html"
+      - "tools/verify-ui-v19.mjs"
       - "tools/verify-honda-flash.mjs"
       - "package.json"
       - ".github/workflows/honda-flash-offline-tests.yml"
@@ -40,3 +43,5 @@ jobs:
         run: node tools/verify-main-legacy-converter.mjs
       - name: Verify C# DTC six-memory read parsing
         run: node tools/verify-main-dtc.mjs
+      - name: Validate V19 mobile category UI, pages and script syntax
+        run: node tools/verify-ui-v19.mjs
