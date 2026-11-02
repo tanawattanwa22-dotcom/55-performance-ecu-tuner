@@ -23,7 +23,7 @@
  };
  const map=new Map(cards.map(c=>[c,type(c)]));
  const nav=document.createElement('nav');nav.id='v18Nav';nav.setAttribute('aria-label','หมวดหมู่เครื่องมือ ECU');
- nav.innerHTML='<div class="v19brand"><strong>55 PERFORMANCE <span style="color:#fff">ECU LAB</span></strong><small>V18 MAIN · MOBILE</small></div><div class="v19tabs" role="tablist"></div><div class="v19quick"><a href="flash_port/main-source-live.html?v=19">📊 LIVE C#</a><a href="flash_port/main-source-manager.html?v=19">🗂️ ECU DATABASE</a><a href="flash_port/flash-write-lab.html?v=18">⚡ FLASH BENCH</a></div>';
+ nav.innerHTML='<div class="v19brand"><strong>55 PERFORMANCE <span style="color:#fff">ECU LAB</span></strong><small>V18 MAIN · MOBILE</small></div><div class="v19tabs" role="tablist"></div><div class="v19quick"><a href="flash_port/main-source-live.html?v=19">📊 LIVE C#</a><a href="flash_port/main-source-manager.html?v=19">🗂️ ECU DATABASE</a><a href="flash_port/main-source-converter.html?v=19">📦 ACG/ECU → BIN</a></div>';
  const bar=nav.querySelector('.v19tabs');
  let active='all';
  const activate=id=>{
