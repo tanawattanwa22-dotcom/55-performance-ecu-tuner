@@ -27,7 +27,10 @@ export function inspectCSharpEcuType(bin){
   const v=findSignature(bin,SH_V850);
   const r=findSignature(bin,SH_RH850);
   if(v>=0)return {type:'SHINDENGENV850',proof:'SV850 signature and 5A tail',source:'C# GetEcuType',verifiedAgainstHardware:false};
-  if(r>=0)return {type:'SHINDENGENRH850',proof:'SH850 signature and 5A tail; RH850B requires further start0 signature',source:'C# GetEcuType',verifiedAgainstHardware:false};
+  if(r>=0){
+   const isB=matches(bin,Uint8Array.of(0xa5,0xa5,0xa5,0xa5,0),40960);
+   return {type:isB?'SHINDENGENRH850B':'SHINDENGENRH850',proof:'SH850 and 5A tail'+(isB?' plus start0 at 0xA000':''),source:'C# GetEcuType',verifiedAgainstHardware:false};
+  }
   if(findSignature(bin,SH_W_SIG)>=0)return {type:'SHINDENGENV850',proof:'write-key signature and 5A tail; source fallback',source:'C# GetEcuType',verifiedAgainstHardware:false};
  }
  if([32768,57344].includes(bin.length)&&matches(bin,KH_H8C,bin.length-KH_H8C.length))
