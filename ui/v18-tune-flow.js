@@ -5,7 +5,7 @@
 (()=>{"use strict";
  const el=id=>document.getElementById(id);
  const flow=globalThis.TuneBinFlow;
- globalThis.__55TuneFlowVersion="18.4";
+ globalThis.__55TuneFlowVersion="18.5";
  if(!flow||!el("btnSave")||!el("flashSnapshot")){
    console.error("55 BIN flow initialization failed: missing dependency or UI");
    if(el("tuneSaveStatus"))el("tuneSaveStatus").textContent="ระบบสถานะบันทึก BIN ไม่พร้อม · กรุณาโหลดหน้าเว็บใหม่";
@@ -21,7 +21,7 @@
    const saved=same(),fromCustomer=saved&&S.saved.customerBin;
    const flash=el("btnFlash"),go=el("btnToFlash"),panel=el("flashSnapshot");
    go.hidden=!saved;
-   go.textContent=fromCustomer?"ไปหน้าอัดไฟล์":"เปิด BIN ลูกค้าก่อนอัด";
+   go.textContent=saved?"ไปหน้าอัด BIN ที่บันทึกแล้ว":"ไปหน้าอัดไฟล์";
    el("tune").querySelector(".bb")?.classList.toggle("no-snapshot",!saved);
    if(saved)el("btnSave").textContent="✓ บันทึก BIN แล้ว ("+changedBytes()+" ไบต์)";
    el("flowTune")?.classList.toggle("done",saved);
@@ -30,20 +30,19 @@
    el("flowSaved")?.classList.toggle("done",saved);
    el("flowFlash")?.classList.toggle("on",false);
    el("tuneSaveStatus").textContent=saved
-     ?(fromCustomer?"BIN ลูกค้าที่จูนถูกบันทึกแล้ว · ไปตรวจ Offset และอัดได้":"บันทึกสำเร็จ · ต้องเปิด BIN ต้นฉบับลูกค้าเพื่อใช้อัดจริง")
+     ?("✓ บันทึก BIN สำเร็จ · "+(fromCustomer?"BIN นำเข้าจากเครื่อง":"BIN หลักในแอป")+" · ไปตรวจ ECU ID / Part / Offset ก่อนอัด")
      :"แก้ตารางจูนได้ตามต้องการ แล้วกด บันทึก BIN ก่อนจะแสดงปุ่มไปหน้าอัด";
    panel.textContent=saved
      ?"ไฟล์ที่จะใช้: "+S.saved.filename+"\nต้นฉบับ: "+S.saved.sourceName+
        "\nขนาด: "+S.saved.size+" ไบต์ · "+(fromCustomer?"BIN ที่เปิดจากเครื่อง":"ไฟล์มาตรฐานในแอป")+
        "\nSHA-256: "+(S.saved.sha256||"กำลังคำนวณ...")+
-       "\n"+(fromCustomer?"พร้อมตรวจ ECU ID / Part / Offset เพิ่ม":"ห้ามใช้เป็นหลักฐานว่าเป็นไฟล์ของ ECU ลูกค้า")
+       "\nพร้อมตรวจ ECU ID / Part / Offset ของกล่องจริงก่อนอัด"+"\nไฟล์หลักของรุ่นไม่รับประกันว่าเข้ากับเฟิร์มแวร์ ECU ทุกคัน"
      :"ยังไม่มี BIN ที่บันทึกแล้ว · บันทึกไฟล์ที่จูนก่อน จึงจะแสดงขั้นตอนอัด";
    el("btnReturnTune").disabled=S.mi<0||!S.bin;
    flash.hidden=!saved&&!INLINEFLASH.postCheck;
    if(!INLINEFLASH.busy&&!INLINEFLASH.postCheck){
-     flash.disabled=!fromCustomer||!!document.getElementById("licenseGate");
-     flash.textContent=fromCustomer?"ยืนยันไฟล์และเริ่มขั้นตอนตรวจ ECU / อัดไฟล์":
-        "ต้องเปิด BIN ต้นฉบับลูกค้าก่อนอัด";
+     flash.disabled=!saved||!!document.getElementById("licenseGate");
+     flash.textContent="ตรวจ BIN ที่บันทึก · ECU ID / Part / Offset ก่อนอัด";
    }
  }
  function forget(){
@@ -90,7 +89,7 @@
    S.saved=snap;S.flash=true;refresh();
    el("tuneSaveStatus").textContent=snap.customerBin
      ?"✓ บันทึก BIN ลูกค้าแล้ว · ดาวน์โหลดไฟล์ "+name+" · ปุ่มไปหน้าอัดแสดงแล้ว"
-     :"✓ บันทึก BIN มาตรฐานแล้ว · "+name+" · ต้องเปิด BIN ของลูกค้าก่อนอัดจริง";
+     :"✓ บันทึก BIN หลักแล้ว · "+name+" · ไปหน้าอัดเพื่อตรวจ ECU จริง";
    toast("สร้าง BIN และสั่งดาวน์โหลดแล้ว · "+name,3500);
    crypto.subtle.digest("SHA-256",snap.bytes).then(buf=>{
      const hex=Array.from(new Uint8Array(buf),x=>x.toString(16).padStart(2,"0")).join("");
@@ -102,15 +101,6 @@
  el("btnSave").addEventListener("click",()=>{if(S.saved)refresh();});
  el("btnToFlash").onclick=()=>{
    if(!same())return toast("กรุณาบันทึก BIN ใหม่ก่อน");
-   if(!S.saved.customerBin){
-     history.back();
-     setTimeout(()=>{
-       home();
-       document.querySelector("#v18Nav [data-cat='tune']")?.click();
-       toast("บันทึก BIN มาตรฐานแล้ว · ก่อนอัดกล่องจริง ให้กด Read file เปิด BIN ต้นฉบับลูกค้า",5000);
-     },100);
-     return;
-   }
    S.flash=true;history.back();
    setTimeout(()=>{
      home();
@@ -137,9 +127,9 @@
  // Never let an invalid or unsaved image reach the legacy write click handler.
  el("btnFlash").addEventListener("click",event=>{
    if(INLINEFLASH.postCheck)return;
-   if(!same()||!S.saved.customerBin||guardRun().st==="MISMATCH"){
+   if(!same()||guardRun().st==="MISMATCH"){
      event.preventDefault();event.stopImmediatePropagation();
-     toast("ยังไม่ได้บันทึก BIN ลูกค้าที่ตรงกัน หรือ Match Guard พบข้อมูลไม่ตรง");
+     toast("BIN ยังไม่ได้บันทึก ถูกแก้ภายหลัง หรือ Match Guard พบข้อมูลไม่ตรง");
      refresh();
    }
  },true);
