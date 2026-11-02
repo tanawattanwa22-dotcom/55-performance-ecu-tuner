@@ -131,8 +131,10 @@ export class HondaFlashEngine {
    fail('UNLISTED_ECU','ECU ID '+ecuId+' ไม่อยู่ในฐานโปรแกรม C# เดิม หยุดก่อนส่งคำสั่ง ERASE');
   if(!['KEIHIN','SHINDENGEN'].includes(family))
    fail('FAMILY_UNKNOWN','ยังไม่ได้ยืนยันตระกูล ECU จากคำตอบจริง');
-  if(!Number.isInteger(catalog.startOffset)||!Number.isInteger(catalog.checksumOffset))
-   fail('NO_MEMORY_MAP','แผนผัง Start Offset และ Checksum Offset ในฐาน C# ไม่ครบ');
+  if(family==='KEIHIN'&&(!Number.isInteger(catalog.startOffset)||!Number.isInteger(catalog.checksumOffset)))
+   fail('NO_MEMORY_MAP','Keihin ต้องมี Start Offset และ Checksum Offset ในฐาน C#');
+  // The original C# Shindengen catalog stores "auto"; start offset and
+  // checksum are derived from exact firmware signatures, not blank defaults.
   const sourcePart=catalog.part.toUpperCase(),shortPart=sourcePart.split('-').slice(1).join('-');
   if(!filename.toUpperCase().includes(shortPart)&&confirmedPart.trim().toUpperCase()!==sourcePart)
    fail('PART_NOT_CONFIRMED','ชื่อ BIN ไม่ระบุ '+shortPart+' ให้กรอกรหัสอะไหล่ ECU ตามต้นฉบับ '+sourcePart+' ในช่องยืนยัน Part');
