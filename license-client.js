@@ -20,7 +20,7 @@ function saveSession(j){
 
 async function signup(email,password){
  const normalized=String(email||'').trim();
- if(!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(normalized))throw Error('กรุณากรอกอีเมลที่ถูกต้อง');
+ if(!/^[^@ ]+@[^@ ]+[.][^@ ]+$/.test(normalized))throw Error('กรุณากรอกอีเมลที่ถูกต้อง');
  if(typeof password!=='string'||password.length<8)throw Error('ตั้งรหัสผ่านอย่างน้อย 8 ตัวอักษร');
  // New users sign up with their own account, separate from the shop's admin.
  const result=await request(cfg.url+'/auth/v1/signup',{email:normalized,password});
