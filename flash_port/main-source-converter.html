@@ -1,0 +1,45 @@
+<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101c34"><title>55 Performance · ACG/ECU to BIN</title><link rel="stylesheet" href="./main-source-live-v19.css?v=19"></head>
+<body><header class="top"><div><div class="eyebrow">HONDA MAIN C# · LOCAL FILE CONVERSION</div><div class="brand">55 PERFORMANCE <span style="color:#fff;font-size:16px">BIN LAB</span></div><div class="subtitle">แปลงไฟล์ ACG / ECU เป็น BIN จากโปรแกรม Main ที่ซื้อมา</div></div><span class="version">SOURCE C#</span></header>
+<main><div class="nav"><a href="../index.html">🏠 กลับหน้าโปรแกรม</a><a href="main-source-manager.html?v=19">🗂️ ECU Data</a><a href="main-source-live.html?v=19">📊 Live Data</a></div>
+<section class="panel accent"><div class="title"><h2>📦 Converter ACG / ECU → BIN</h2><span class="badge">OFFLINE IN BROWSER</span></div>
+<p class="subtitle">พอร์ตอัลกอริทึมจาก ACGECUTOBIN.cs: MD5 จากรหัสผ่าน → AES-256 ECB PKCS#7 → แปลงข้อความ HEX เป็น BIN โดยใช้ขนาดบล็อก Base64 43,712 ตัวอักษรเหมือนต้นฉบับ</p>
+<div class="controls"><div class="field"><label for="file">เลือกไฟล์ต้นทาง</label><input id="file" type="file" accept=".acg,.ECU,.ecu,text/plain"></div>
+<div class="field"><label for="mode">ประเภทไฟล์</label><select id="mode"><option value="auto">ตรวจตามนามสกุลไฟล์</option><option value="acg">ACG</option><option value="ecu">ECU</option></select></div></div>
+<div class="controls"><div class="field"><label for="password">รหัสผ่านเฉพาะรูปแบบไฟล์ (จากซอร์สที่ซื้อ)</label><input id="password" type="password" spellcheck="false" autocomplete="off" placeholder="ใส่รหัสสำหรับไฟล์ประเภทที่เลือก"></div></div>
+<p class="subtitle">รหัสจะถูกใช้ในหน้านี้บนมือถือเท่านั้น ไม่เก็บในเครื่อง/เซิร์ฟเวอร์ ไม่ใส่ลง GitHub และไม่อัปโหลดไฟล์ไปที่ใด ต้องใช้รหัสให้ตรงกับ ACG หรือ ECU</p>
+<div class="controls"><button id="convert" class="primary">แปลงเป็น BIN</button><button id="save" class="live" disabled>ดาวน์โหลด BIN</button><button id="clear">ล้างรหัสและข้อมูล</button></div>
+<div class="status" id="status">รอเลือกไฟล์ ACG หรือ ECU • ยังไม่ได้แปลง</div></section>
+<section class="panel"><div class="title"><h2>✅ ผลการแปลงและตรวจไฟล์</h2><span class="badge" id="flag">NO FILE</span></div>
+<div class="grid"><div class="value"><div class="name">ต้นฉบับ</div><div class="big" id="sourceSize">—</div><div class="unit">Bytes</div></div><div class="value"><div class="name">BIN ที่ได้</div><div class="big" id="outputSize">—</div><div class="unit">Bytes</div></div></div>
+<div class="subtitle" style="margin-top:15px">SHA-256 ของ BIN</div><div id="sha" class="raw">—</div></section>
+<section class="panel"><h2>ความถูกต้องก่อนอัดไฟล์</h2><p class="subtitle">การแปลงไฟล์สำเร็จหมายถึงได้ BIN ที่ถอดรหัสตามสูตรเท่านั้น ไม่ยืนยันว่าไฟล์เข้ากันได้กับ ECU รุ่นนั้น การอัดจริงยังต้องตรวจ ECU ID, รุ่นกล่อง, Offset, Checksum และสำรองข้อมูลก่อนตามระบบ Flash Engine เดิม</p></section></main>
+<script type="module">
+import {decodeLegacyFile} from './main-legacy-converter.js';
+const $=id=>document.getElementById(id);
+let bin=null,name='';
+const state=msg=>$('status').textContent=msg;
+$('file').onchange=()=>{const file=$('file').files?.[0];bin=null;$('save').disabled=true;$('sourceSize').textContent=file?file.size:'—';$('outputSize').textContent='—';$('sha').textContent='—';$('flag').textContent='READY';if(file&&$('mode').value==='auto')state('เลือกแล้ว: '+file.name+' • ใส่รหัสไฟล์รูปแบบนี้เพื่อแปลง');};
+$('convert').onclick=async()=>{
+ const file=$('file').files?.[0],pwd=$('password').value,btn=$('convert');
+ if(!file)return state('กรุณาเลือกไฟล์ ACG หรือ ECU');
+ if(!pwd)return state('กรุณากรอกรหัสจากโปรแกรมที่ซื้อมา');
+ if(file.size>40000000)return state('ไฟล์เกิน 40 MB');
+ btn.disabled=true;bin=null;$('save').disabled=true;state('กำลังถอดรหัสด้วย JavaScript ภายในเครื่อง…');
+ try{
+  const kind=$('mode').value==='auto'?file.name.split('.').pop().toLowerCase():$('mode').value;
+  if(!['acg','ecu'].includes(kind))throw Error('รองรับเฉพาะ .acg หรือ .ecu');
+  const output=decodeLegacyFile(await file.text(),pwd);
+  if(!output.length)throw Error('BIN ว่างหรือไฟล์เสีย');
+  bin=output;name=file.name.replace(/\.[^.]+$/,'.bin');
+  $('outputSize').textContent=output.length.toLocaleString('th-TH');
+  const digest=await crypto.subtle.digest('SHA-256',output);
+  $('sha').textContent=Array.from(new Uint8Array(digest),x=>x.toString(16).padStart(2,'0')).join('');
+  $('flag').textContent='CONVERTED';$('flag').className='badge on';
+  state('แปลง '+kind.toUpperCase()+' → BIN เรียบร้อย · ขนาด '+output.length.toLocaleString('th-TH')+' ไบต์ · ยังไม่ได้ส่งเข้า ECU');
+  $('save').disabled=false;
+ }catch(e){$('flag').textContent='ERROR';state('แปลงไม่สำเร็จ: '+(e.message||e))}
+ finally{$('password').value='';btn.disabled=false}
+};
+$('save').onclick=()=>{if(!bin)return;const url=URL.createObjectURL(new Blob([bin],{type:'application/octet-stream'}));const a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2500);};
+$('clear').onclick=()=>{bin=null;name='';$('file').value='';$('password').value='';$('save').disabled=true;$('flag').textContent='NO FILE';$('sourceSize').textContent='—';$('outputSize').textContent='—';$('sha').textContent='—';state('ล้างข้อมูลในหน้านี้แล้ว')};
+</script></body></html>
