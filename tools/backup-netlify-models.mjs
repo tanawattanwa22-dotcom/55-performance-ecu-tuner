@@ -6,7 +6,6 @@ import { createHash } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
 import { homedir } from 'node:os';
 import path from 'node:path';
-import readline from 'node:readline';
 import { execFileSync } from 'node:child_process';
 
 const ORIGIN = 'https://55ecutuningbyle.netlify.app';
@@ -15,17 +14,43 @@ function sha256(x) { return createHash('sha256').update(x).digest('hex'); }
 
 async function readPassword() {
   if (!process.stdin.isTTY) throw new Error('ต้องเปิด Terminal แบบโต้ตอบใน GitHub Codespaces');
-  let muted = false;
+  // Read from the TTY without Node readline, which may echo secret characters
+  // back into the terminal even after stty -echo.
+  let echoDisabled = false;
   try {
-    try { execFileSync('stty',['-echo'],{stdio:['inherit','ignore','ignore']}); muted=true; }
-    catch { throw new Error('ไม่สามารถซ่อนรหัสผ่านใน Terminal ได้ จึงยกเลิกเพื่อความปลอดภัย'); }
-    const r = readline.createInterface({ input: process.stdin, output: process.stdout });
-    const password = await new Promise(resolve => r.question('รหัส ADMIN_PASSWORD ของ Netlify เดิม (พิมพ์แล้วไม่แสดง): ', resolve));
-    r.close();
+    try {
+      execFileSync('stty',['-echo'],{stdio:['inherit','ignore','ignore']});
+      echoDisabled = true;
+    } catch {
+      throw new Error('ซ่อนรหัสผ่านไม่ได้ จึงหยุดการทำงานเพื่อความปลอดภัย');
+    }
+    process.stdout.write('รหัส ADMIN_PASSWORD ของ Netlify เดิม (พิมพ์แล้วไม่แสดง): ');
+    const password = await new Promise((resolve,reject)=>{
+      let input='';
+      const cleanup=()=>{
+        process.stdin.off('data',onData);
+        process.stdin.off('error',onError);
+        process.stdin.pause();
+      };
+      const onError=e=>{cleanup();reject(e)};
+      const onData=data=>{
+        input+=data.toString('utf8');
+        if(input.includes('\n')||input.includes('\r')){
+          cleanup();
+          resolve(input.split(/\r?\n|\r/)[0]);
+        }
+      };
+      process.stdin.on('data',onData);
+      process.stdin.on('error',onError);
+      process.stdin.resume();
+    });
     process.stdout.write('\n');
     return password;
   } finally {
-    if (muted) { try { execFileSync('stty',['echo'],{stdio:['inherit','ignore','ignore']}); } catch {} }
+    if(echoDisabled){
+      try{execFileSync('stty',['echo'],{stdio:['inherit','ignore','ignore']})}
+      catch{process.stderr.write('ไม่สามารถเปิดการแสดงข้อความ Terminal กลับได้ ให้พิมพ์ stty echo ภายหลัง\n')}
+    }
   }
 }
 
@@ -44,7 +69,7 @@ async function call(password, action, id) {
     try { j = await response.json(); }
     catch { throw new Error('Netlify ไม่ตอบ JSON (HTTP '+response.status+')'); }
     if (!response.ok) {
-      if (response.status === 401) throw new Error('รหัสแอดมิน Netlify ไม่ถูกต้อง (401) — หยุดทดสอบ ไม่ลองรหัสซ้ำ');
+      if (response.status === 401) throw new Error('รหัสแอดมิน Netlify ไม่ตรง (401) — ตรวจตัวพิมพ์ใหญ่/เล็กให้ตรง Environment Variables และตรวจว่า Deploy ล่าสุดใช้ค่าใหม่แล้ว');
       throw new Error('Netlify API '+action+' ล้มเหลว HTTP '+response.status+' '+(j?.error||''));
     }
     return j;
