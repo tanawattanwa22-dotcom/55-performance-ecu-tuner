@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>55 PERFORMANCE · Main C# ECU Data</title>
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}
+body{margin:0;background:#10151c;color:#e8edf6;font:14px system-ui,sans-serif}
+header{position:sticky;top:0;padding:14px 16px;background:#1b2733;border-bottom:1px solid #3b5368;z-index:1}
+h1{font-size:19px;margin:0 0 4px}h2{font-size:17px;margin:0 0 10px}
+small,.muted{color:#9bb0c6}
+main{max-width:980px;margin:auto;padding:12px;display:grid;gap:12px}
+section{border:1px solid #34465b;background:#17212d;border-radius:14px;padding:14px}
+label{display:block;font-size:12px;color:#b2c9df;margin:6px 0}
+input,select{width:100%;padding:10px;border:1px solid #51677b;border-radius:9px;background:#0e1925;color:white;font-size:14px}
+button,.button{display:inline-block;padding:10px 13px;border:1px solid #6387a2;border-radius:9px;background:#284358;color:#fff;font:600 14px system-ui;text-decoration:none;cursor:pointer}
+button.primary{background:#a15a20;border-color:#d18c45}
+button:disabled{opacity:.5}button.danger{background:#58323a}
+.actions{display:flex;gap:7px;flex-wrap:wrap;margin:10px 0}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+@media(min-width:760px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+#list{max-height:450px;overflow:auto}
+.item{padding:10px;border:1px solid #354c62;margin:7px 0;border-radius:10px;cursor:pointer}
+.item strong{color:#ffbe7a}.item.active{outline:2px solid #ffb46b}
+#status{white-space:pre-wrap;line-height:1.45}
+</style></head>
+<body><header><h1>55 PERFORMANCE · Main C# ECU Data</h1><small>จัดการไฟล์ ecuData.dat ที่ซื้อมา · ทำงานในเครื่องมือถือ ไม่ส่งข้อมูลเข้าเซิร์ฟเวอร์</small></header>
+<main>
+<section><a href="../index.html" class="button">‹ กลับหน้าโปรแกรมจูน</a>
+<p class="muted">พอร์ตเมนู PartID_ECU.cs: เพิ่ม / ค้นหา / แก้ไข / ลบ / นำเข้า / ส่งออก .dat ของ Windows แบบ BinaryWriter. ฐานที่แก้ในหน้านี้ใช้ค้นข้อมูลเท่านั้น ไม่สามารถอนุมัติการอัด ECU</p>
+<div class="actions"><button id="import">นำเข้า ecuData.dat</button><button id="export" class="primary">บันทึก ecuData.dat</button><button id="new">เพิ่มรายการใหม่</button><button id="clear" class="danger">ล้างข้อมูลที่กำลังแก้</button></div>
+<input id="file" type="file" accept=".dat,application/octet-stream" hidden>
+<input id="search" placeholder="ค้นหา ECU ID / Part / รุ่นรถ">
+<div id="summary" class="muted"></div><div id="list"></div></section>
+<section><h2 id="formTitle">เพิ่ม / แก้ไขรายการ ECU</h2><form id="editor">
+<div class="grid">
+<label>ECU ID 10 หลัก<input name="ecuId" required maxlength="10" autocomplete="off" placeholder="0101C60D01"></label>
+<label>Part ECU<input name="part" required autocomplete="off"></label>
+<label>ชื่อรุ่นรถ<input name="model" required autocomplete="off"></label>
+<label>Start Offset (HEX)<input name="startOffset" required autocomplete="off" placeholder="8000"></label>
+<label>Checksum (HEX)<input name="checksumOffset" required autocomplete="off" placeholder="FFFF"></label>
+<label>File Size<input name="sizeText" required autocomplete="off" placeholder="64KB"></label>
+<label>Type ECU<input name="typeText" required autocomplete="off" placeholder="KEIHIN"></label>
+</div><div class="actions"><button class="primary" type="submit">บันทึกข้อมูลรายการนี้</button><button id="delete" type="button" class="danger" disabled>ลบรายการที่เลือก</button><button id="reset" type="button">ยกเลิกการแก้ไข</button></div>
+</form><output id="status" aria-live="polite">พร้อมใช้งาน • ต้องเลือกนำเข้าไฟล์ DAT หากต้องการแก้ฐานเดิม</output></section>
+</main>
+<script type="module" src="./main-source-manager.js"></script></body></html>
