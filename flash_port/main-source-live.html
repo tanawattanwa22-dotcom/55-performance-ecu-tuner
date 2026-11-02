@@ -1,71 +1,31 @@
-<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>55 PERFORMANCE · Main C# Diagnostic</title><style>
-:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#101620;color:#eff4f8;font:14px system-ui}
-header{padding:15px;background:#1c2834;border-bottom:1px solid #496176}h1{font-size:19px;margin:0 0 6px}
-main{padding:12px;max-width:830px;margin:auto}section{border:1px solid #354a5c;border-radius:12px;padding:13px;margin-bottom:10px;background:#192431}
-button,a{border:1px solid #708da5;background:#2d485c;border-radius:8px;padding:10px 13px;color:#fff;font:600 14px system-ui;cursor:pointer}
-a{text-decoration:none;display:inline-block}select,textarea{width:100%;padding:10px;color:#fff;background:#101820;border:1px solid #4b6176;border-radius:8px;font:13px ui-monospace,monospace}
-textarea{min-height:120px}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0}
-button:disabled{opacity:.5}small,.muted{color:#a6bfd0}
-#result{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-.metric{background:#0e1924;border:1px solid #304b60;border-radius:9px;padding:10px}
-.metric strong{display:block;font-size:19px;margin-top:4px;color:#ffb466}
-pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:200px;overflow:auto}
-</style></head><body>
-<header><h1>55 PERFORMANCE · Honda Main C# Diagnostic</h1><small>การอ่านข้อมูลจากโปรโตคอล Main C# · Chrome Android · FT232R WebUSB</small></header>
-<main><section><a href="../index.html">‹ กลับหน้าโปรแกรมจูน</a>
-<p class="muted">ใช้สูตรและลำดับคำสั่ง Diagnostic จากไฟล์ FM_diag.cs ของคุณโดยตรง หน้านี้มีเฉพาะคำสั่งอ่าน ไม่ส่งคำสั่ง ERASE, WRITE หรือ Reset ECU</p>
-<label>กลุ่มโปรโตคอลจาก Main C#</label>
-<select id="group"><option value="1">Group 1 · Legacy</option><option value="4">Group 4 · Honda 0x17</option><option value="7">Group 7 · Honda 0x13</option></select>
-<div class="row"><button id="read">อ่าน ECU ID และ Diagnostic 1 รอบ (WebUSB)</button><button id="decode">ถอดรหัส HEX ที่วาง</button></div>
-<small>ต้องล็อกอินและมี License ที่ใช้งานได้บนหน้าโปรแกรมหลัก เปิด Chrome HTTPS และใช้ FT232R ผ่านวงจร K-Line ที่เหมาะสม กลุ่มโปรโตคอลต้องตรงกับรุ่นกล่อง</small>
-</section><section><label>HEX Trace (สำหรับตรวจเทียบโปรแกรม Windows หรือข้อมูลที่อ่านจาก ECU)</label>
-<textarea id="hex" placeholder="72 07 72 ..."></textarea>
-<div id="result"></div>
-<h2>สถานะ</h2><pre id="log" aria-live="polite">พร้อมอ่านข้อมูล</pre></section></main>
-<script src="../license-config.js"></script><script src="../license-client.js"></script>
-<script type="module">
-import {MAIN_CAPTURE_COMMANDS,decodeMainDiagnosticTrace} from './main-source-diagnostic.js';
-import {Ft232rWebUsb} from './ftdi-webusb.js';
-import {HondaFlashEngine} from './honda-write-engine.js';
-const $=id=>document.getElementById(id);
-const report=t=>{$('log').textContent+=t+'\n'};
-const decode=()=>{
- const result=decodeMainDiagnosticTrace($('hex').value,$('group').value);
- $('result').replaceChildren();
- for(const r of result){
-  const box=document.createElement('div');box.className='metric';
-  const label=document.createElement('span');label.textContent=r.name;
-  const value=document.createElement('strong');value.textContent=String(r.value)+' '+r.unit;
-  box.append(label,value);$('result').append(box);
- }
- report('ถอดรหัสจากสูตร C# group '+$('group').value+' ได้ '+result.length+' รายการ • ค่าอิงโครงสร้างข้อมูลต้นฉบับ');
-};
-$('decode').onclick=()=>{try{decode()}catch(e){report('ไม่สามารถถอดรหัส: '+e.message)}};
-$('read').onclick=async()=>{
- const button=$('read');let port=null;button.disabled=true;
- try{
-  if(!navigator.usb)throw Error('Chrome นี้ไม่รองรับ WebUSB');
-  const device=await Ft232rWebUsb.choose();
-  const lic=await api('check',{device:localStorage.getItem('55_device_id')});
-  if(!lic?.active)throw Error('License ยังไม่เปิดใช้งาน ให้ล็อกอินที่หน้าโปรแกรมหลักก่อน');
-  port=new Ft232rWebUsb(s=>report(s));
-  await port.openSelected(device);
-  const engine=new HondaFlashEngine(port,()=>{});
-  const identity=await engine.identify();
-  report('ECU ID = '+identity.ecuId+' (ยืนยันจากการตอบของกล่อง)');
-  const frames=MAIN_CAPTURE_COMMANDS[$('group').value];
-  const collected=[];
-  for(const frame of frames){
-   const {reply,echoOK}=await port.exchangeRaw(frame,{timeoutMs:2000,afterWriteMs:50});
-   if(!echoOK)throw Error('Echo ไม่ตรงกับคำสั่ง C#');
-   collected.push(...frame,...reply);
-   report('RX table '+frame[3].toString(16).toUpperCase()+' · '+reply.length+' bytes');
-  }
-  $('hex').value=collected.map(b=>b.toString(16).padStart(2,'0')).join(' ').toUpperCase();
-  decode();
-  report('หมายเหตุ: การจัดวางผลตอบรับ WebUSB และ SerialPort C# อาจแตกต่างกัน ต้องตรวจเทียบค่า RAW กับรถจริง');
- }catch(e){report('หยุดการอ่าน: '+(e.message||String(e)))}
- finally{if(port)try{await port.close()}catch{} button.disabled=false}
-};
-</script></body></html>
+<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#101c34"><title>55 Performance · Honda Main Live V19</title><link rel="stylesheet" href="./main-source-live-v19.css?v=19"></head>
+<body><header class="top"><div><div class="eyebrow">HONDA MAIN C# · LIVE TELEMETRY</div><div class="brand">55 PERFORMANCE <span style="font-size:15px;color:#fff">LIVE</span></div><div class="subtitle">Real ECU Data · FT232R WebUSB · Chrome Android</div></div><span class="version">V19 LIVE</span></header>
+<main>
+<div class="hero">
+<section class="panel accent"><div class="title"><h2>📡 การเชื่อมต่อ ECU</h2><span class="badge" id="connection">OFFLINE</span></div>
+<div class="controls"><div class="field"><label for="group">รูปแบบ Live Data ตาม FM_diag.cs</label><select id="group"><option value="1">Group 1 · 23 ค่าข้อมูล</option><option value="4">Group 4 · 23 ค่าข้อมูล</option><option value="7">Group 7 · 15 ค่าข้อมูล</option></select></div><div class="field"><label for="interval">การเก็บข้อมูล</label><select id="interval"><option value="350">เร็ว (350 ms ระหว่างชุด)</option><option value="700" selected>ปกติ (700 ms ระหว่างชุด)</option><option value="1500">ประหยัด (1.5 วินาที)</option></select></div></div>
+<div class="controls"><button id="connect" class="live">🔗 ต่อ FT232R / ECU</button><button id="start" class="primary" disabled>▶ อ่านค่าต่อเนื่อง</button><button id="stop" class="stop" disabled>■ หยุด</button></div>
+<div class="status" id="notice">เลือก Group ให้ตรง ECU ก่อนเชื่อมต่อ • คำสั่งหน้านี้อ่านข้อมูลอย่างเดียว ไม่ลบ/เขียน Flash</div>
+</section>
+<section class="panel"><div class="title"><h2>🧭 ลัดไปยังเครื่องมือ</h2><span class="badge">MAIN MENU</span></div>
+<nav class="nav"><a href="../index.html">🏠 หน้าแรก</a><a href="main-source-manager.html?v=19">🗂️ ฐาน ECU</a><a href="flash-write-lab.html?v=18">⚡ Flash Bench</a><a href="../ktr/index.html">📚 ตาราง KTR</a></nav>
+<div class="subtitle">Live Data ใช้ข้อมูลตอบกลับ ECU จริงหรือ HEX Trace ที่คุณนำเข้ามาทดสอบ ไม่มีการสร้างค่าจำลองมาแสดงเป็นค่าจริง</div>
+<div class="stats"><span>ECU ID: <b id="ecuId">—</b></span><span>รอบที่อ่านสำเร็จ: <b id="cycles">0</b></span><span>ค่าอัปเดตล่าสุด: <b id="updated">—</b></span></div>
+</section></div>
+<section class="panel"><div class="title"><h2>📈 ค่าหลักจาก Main C#</h2><span class="badge" id="dataBadge">NO DATA</span></div>
+<div class="grid" id="tiles"><div class="value"><div class="name">RPM</div><div class="big">—</div><div class="unit">รอ ECU / ไฟล์ Trace</div></div></div></section>
+<section class="panel"><div class="title"><h2>📉 กราฟเรียลไทม์ + Min / Max</h2><button type="button" id="resetStats">รีเซ็ต Min/Max</button></div>
+<div class="controls"><div class="field"><label for="series">เลือกเซ็นเซอร์</label><select id="series"><option value="RPM">RPM</option><option value="Throttle TPS">TPS</option><option value="Injection">Injection</option><option value="Ignition">Ignition</option><option value="Battery">Battery</option><option value="ECT">ECT</option><option value="IAT">IAT</option><option value="MAP">MAP</option><option value="O2 voltage">O2</option></select></div></div>
+<div class="chartWrap"><canvas id="chart" aria-label="กราฟข้อมูล ECU ย้อนหลัง" role="img"></canvas></div>
+<div class="stats"><span>ปัจจุบัน: <b id="current">—</b></span><span>ต่ำสุด: <b id="min">—</b></span><span>สูงสุด: <b id="max">—</b></span><span>จำนวนจุด: <b id="points">0</b></span></div>
+</section>
+<section class="panel"><div class="title"><h2>🔍 เซ็นเซอร์และสถานะทั้งหมด</h2><span class="badge">SOURCE C#</span></div><div id="rows"><div class="muted">รอข้อมูลจริง</div></div></section>
+<section class="panel"><div class="title"><h2>🧾 บันทึก / วิเคราะห์ข้อมูล</h2><span class="badge">LOCAL ONLY</span></div>
+<div class="controls"><button id="csv">ดาวน์โหลด CSV</button><button id="export">ดาวน์โหลด JSON</button><button id="clearHistory">ล้างข้อมูลย้อนหลัง</button></div>
+<div class="subtitle">บันทึกเฉพาะข้อมูลที่อ่านได้จริงในแท็บนี้ ไม่ส่งข้อมูลขึ้น Supabase และไม่ได้อัดไฟล์ลง ECU</div></section>
+<section class="panel"><div class="title"><h2>🧪 ตรวจเทียบ HEX จาก Windows Main</h2><span class="badge warn">OFFLINE TRACE</span></div>
+<p class="subtitle">วางข้อมูลดิบต่อเนื่องตามรูปแบบที่ Main C# อ่าน (echo + ECU reply) หรือข้อมูลที่บันทึกจากหน้าเว็บนี้เพื่อเปรียบเทียบค่า</p>
+<label for="hex">HEX Trace</label><textarea id="hex" placeholder="72 07 72 11 ..."></textarea><div class="controls"><button id="decode">ถอดรหัสและแสดงผล</button><button id="raw">ดู Raw HEX ชุดล่าสุด</button></div>
+</section>
+<section class="panel"><div class="title"><h2>🛠️ บันทึกการสื่อสาร</h2><button id="clearLog">ล้าง Log</button></div><pre id="log" aria-live="polite">พร้อมใช้งาน · ไม่มีการส่งคำสั่ง ERASE / WRITE</pre></section>
+</main><script src="../license-config.js"></script><script src="../license-client.js"></script><script type="module" src="./main-source-live-v19.js?v=19"></script></body></html>
