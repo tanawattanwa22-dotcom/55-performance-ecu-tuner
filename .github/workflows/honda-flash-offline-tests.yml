@@ -34,3 +34,5 @@ jobs:
         run: node tools/verify-honda-flash.mjs
       - name: Verify Main C# PartID_ECU data-port round trip
         run: node tools/verify-main-source-manager.mjs
+      - name: Verify three purchased C# diagnostic profiles and safe frames
+        run: node tools/verify-main-diagnostic.mjs
