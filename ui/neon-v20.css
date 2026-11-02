@@ -209,3 +209,20 @@ table.g td.s{outline:2px solid #68faff!important;box-shadow:inset 0 0 18px #43df
  .n20-stats{margin-top:8px}
 }
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}}
+
+/* Original illustrated hero, responsive and purely decorative. */
+.n20-hero:before{
+ content:"";position:absolute;pointer-events:none;right:-42px;top:-10px;
+ width:clamp(190px,48vw,355px);height:220px;border:0;border-radius:0;
+ background:url("./assets/neon-bike.svg") center/contain no-repeat;
+ filter:drop-shadow(0 0 20px #1caef488);box-shadow:none;transform:none;opacity:.8;
+}
+.n20-hero:after{pointer-events:none}
+.n20-hero .n20-eyebrow,.n20-hero .n20-mark,.n20-hero h2,.n20-hero p{position:relative;z-index:1}
+.n20-hero .n20-mark{max-width:75%}
+.n20-hero .n20-hero-title,.n20-hero p{max-width:72%}
+@media(max-width:390px){
+ .n20-hero:before{right:-84px;top:0;opacity:.53}
+ .n20-hero .n20-mark{max-width:80%}
+ .n20-hero .n20-hero-title,.n20-hero p{max-width:78%}
+}
