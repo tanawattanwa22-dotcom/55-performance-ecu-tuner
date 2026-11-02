@@ -9,6 +9,7 @@
 <script type="module">
 import {baudDivisor,stripFtdiStatus,hondaChecksum,checkedHondaReply,READ_ONLY_COMMANDS,Ft232rWebUsb} from './ftdi-webusb.js';
 import {checksum8BitCSharp,createWriteFrame,auditWriteFrames} from './flash-frames.js';
+import {inspectCSharpEcuType,correctKeihinChecksum,deriveShindengenWriteKey} from './csharp-logic.js';
 const tests=[];
 const eq=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 function test(name,fn){
@@ -45,6 +46,26 @@ test('C# final block links to zero',()=>{
 test('64KB Keihin = 512 offline blocks',()=>auditWriteFrames(new Uint8Array(65536),{profile:'KEIHINOTHER',startOffset:0x8000}).frames===512);
 test('256KB Shindengen starts at startOffset/128',()=>auditWriteFrames(new Uint8Array(262144),{profile:'SHINDENGENV850',startOffset:0x10000}).frames===1536);
 test('Unknown ECU profile rejected (no fallback)',()=>{try{createWriteFrame(new Uint8Array(128),{profile:'UNKNOWN'});return false}catch{return true}});
+test('C# Keihin BIN checksum correction',()=>{
+ const r=correctKeihinChecksum(Uint8Array.of(0,1,2,3),0);
+ return r.newByte===250&&r.sumAfter===0&&r.data[1]===1;
+});
+test('C# H8C signature detection, not ECU verification',()=>{
+ const b=new Uint8Array(32768);b.set([255,255,170,170],32764);
+ return inspectCSharpEcuType(b).type==='KEIHINH8C';
+});
+test('C# Shindengen V850 magic bytes',()=>{
+ const b=new Uint8Array(262144);b.set([83,86,56,53,48],100);b.set([90,90,90,90],b.length-4);
+ return inspectCSharpEcuType(b).type==='SHINDENGENV850';
+});
+test('C# Shindengen Seed/Key arithmetic (synthetic fixture)',()=>{
+ const b=new Uint8Array(64);b.set([17,18,19,20,21,21,23],3);
+ b.set([1,2,3,4,5,6,0,0,238,0],10);
+ const seed=Uint8Array.of(0x12,0x34),key=deriveShindengenWriteKey(b,seed);
+ const n=0x1234,a=0x201,k=0x403,c=0x605;
+ const expect=((k*(n+a))&65535)+(n%c);
+ return key&&key[0]===(expect>>8&255)&&key[1]===(expect&255);
+});
 const ok=tests.filter(t=>t.ok).length;
 document.getElementById('summary').textContent=ok+'/'+tests.length+' PASS — Software-only';
 document.getElementById('summary').style.color=ok===tests.length?'#81efbc':'#ff908a';
