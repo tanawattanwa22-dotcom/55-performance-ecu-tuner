@@ -1,0 +1,72 @@
+<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>55 PERFORMANCE · ECU Offset Lab</title><link rel="stylesheet" href="main-source-live-v19.css?v=19"></head><body>
+<header class="top"><div><div class="eyebrow">C# SOURCE · BIN CHECKS</div><div class="brand">55 PERFORMANCE <span style="color:white;font-size:15px">OFFSET LAB</span></div><div class="subtitle">ตรวจ Part / Offset / Checksum ก่อนอัดไฟล์</div></div><span class="version">BIN ONLY</span></header>
+<main><div class="nav"><a href="../index.html">🏠 หน้าแรก</a><a href="main-source-converter.html?v=19">📦 แปลงไฟล์</a><a href="main-source-manager.html?v=19">🗂️ ECU Data</a><a href="flash-write-lab.html?v=18">⚡ Flash Bench</a></div>
+<section class="panel accent"><div class="title"><h2>🔍 ตรวจไฟล์และตารางจาก Main C#</h2><span class="badge">NO ECU WRITE</span></div>
+<div class="controls"><div class="field"><label for="bin">ไฟล์ BIN</label><input id="bin" type="file" accept=".bin,application/octet-stream"></div><div class="field"><label for="ecu">ECU ID (10 หลัก)</label><input id="ecu" maxlength="10" placeholder="0101C60D01"></div></div>
+<div class="controls"><button id="inspect" class="primary">ตรวจ BIN / ECU ID / Offset</button><button id="report" disabled>ดาวน์โหลดรายงาน JSON</button></div><div class="status" id="status">รอเลือก BIN · ไม่มีคำสั่งลบหรือเขียนลง ECU</div>
+</section><section class="panel"><div class="title"><h2>📊 ค่าจากโปรแกรม Windows C#</h2><span class="badge" id="flag">UNVERIFIED</span></div><div id="summary" class="grid"></div></section>
+<section class="panel"><div class="title"><h2>🧰 กรอก Offset เพื่อเปรียบเทียบ</h2><span class="badge warn">REFERENCE ONLY</span></div>
+<div class="controls"><div class="field"><label for="start">Manual Start Offset (HEX)</label><input id="start" placeholder="8000"></div><div class="field"><label for="checksum">Manual Checksum Offset (HEX)</label><input id="checksum" placeholder="B000"></div></div>
+<div class="controls"><button id="compare">เปรียบเทียบกับต้นฉบับ C#</button></div><div class="status" id="difference">ค่าที่กรอกเป็นข้อมูลตรวจสอบเท่านั้น ไม่ได้แก้ไข Flash Plan หรือเปิดสิทธิ์อัดไฟล์</div>
+<p class="subtitle" style="margin-top:12px">ต้องยืนยัน ECU ID จากกล่องจริง รหัส Part Code ไฟล์และผังหน่วยความจำตรงกันก่อนอัดไฟล์ ค่า Offset ที่คาดจากขนาด BIN อย่างเดียวไม่เพียงพอ</p></section></main>
+<script type="module">
+import {readBinId} from './bin-tools.js';
+import {csharpOffsetInference} from './csharp-offsets.js';
+import {findCSharpEcuId} from './csharp-ecu-catalog.js';
+const $=id=>document.getElementById(id),fmt=n=>Number.isInteger(n)?'0x'+n.toString(16).toUpperCase():'ไม่ทราบ';
+let current=null;
+function card(k,v){
+ const box=document.createElement('div');box.className='value';
+ const name=document.createElement('div');name.className='name';name.textContent=k;
+ const value=document.createElement('div');value.className='big';value.style.fontSize='17px';value.textContent=String(v);
+ box.append(name,value);return box;
+}
+$('inspect').onclick=async()=>{
+ const f=$('bin').files?.[0],id=$('ecu').value.trim().toUpperCase();
+ if(!f)return $('status').textContent='กรุณาเลือก BIN';
+ if(f.size>20e6)return $('status').textContent='ไฟล์ BIN เกิน 20 MB';
+ const button=$('inspect');button.disabled=true;
+ try{
+  if(id&&!/^[0-9A-F]{10}$/.test(id))throw Error('ECU ID ต้องเป็น HEX 10 หลัก');
+  const bytes=new Uint8Array(await f.arrayBuffer());
+  const binId=readBinId(bytes),source=id?await findCSharpEcuId(id):null;
+  const inferred=csharpOffsetInference(bytes,{ecuId:id||undefined});
+  current={file:f.name,length:bytes.length,binId:binId.ok?binId.id:null,ecuId:id||null,
+   sourcePart:source?.part||null,sourceFamily:source?.family||null,
+   sourceStartOffset:source?.startOffset??null,sourceChecksumOffset:source?.checksumOffset??null,
+   inferredStartOffset:inferred.startOffset??null,inferredChecksumOffset:inferred.checksumOffset??null,
+   inferredReason:inferred.source,authorization:false,created:new Date().toISOString()};
+  const out=$('summary');out.replaceChildren();
+  for(const [k,v] of Object.entries({
+   'ขนาด BIN':bytes.length.toLocaleString()+' bytes',
+   'BIN ID':current.binId||'ไม่มีแพตเทิร์นตรง',
+   'ECU ID':id||'ยังไม่ระบุ',
+   'C# Part':current.sourcePart||'ไม่พบใน 288 รายการ',
+   'ตระกูล C#':current.sourceFamily||'ไม่ทราบ',
+   'C# Start Offset':fmt(current.sourceStartOffset),
+   'C# Checksum Offset':fmt(current.sourceChecksumOffset),
+   'คาด Start Offset':fmt(current.inferredStartOffset),
+   'คาด Checksum Offset':fmt(current.inferredChecksumOffset),
+   'แหล่งอ้างอิง':current.inferredReason
+  }))out.append(card(k,v));
+  $('start').value=Number.isInteger(current.sourceStartOffset)?current.sourceStartOffset.toString(16).toUpperCase():'';
+  $('checksum').value=Number.isInteger(current.sourceChecksumOffset)?current.sourceChecksumOffset.toString(16).toUpperCase():'';
+  $('flag').textContent=source?'C# ID FOUND':'NO MATCH';
+  $('report').disabled=false;$('status').textContent='ตรวจไฟล์เสร็จ (อ่านเฉพาะ BIN) · ไม่ได้อนุมัติให้แฟลช ECU';
+ }catch(e){$('status').textContent='ตรวจไม่สำเร็จ: '+e.message}
+ finally{button.disabled=false}
+};
+$('compare').onclick=()=>{
+ if(!current)return $('difference').textContent='ต้องตรวจ BIN ก่อน';
+ const start=$('start').value.trim(),sum=$('checksum').value.trim();
+ if(!/^[0-9a-f]{1,8}$/i.test(start)||!/^[0-9a-f]{1,8}$/i.test(sum))return $('difference').textContent='กรอกเลขฐาน 16 ไม่เกิน 8 หลัก';
+ const a=parseInt(start,16),b=parseInt(sum,16);
+ current.manualStartOffset=a;current.manualChecksumOffset=b;
+ $('difference').textContent='Start '+fmt(a)+(current.sourceStartOffset===a?' ตรง C#':' ไม่ตรง/ไม่มีต้นฉบับยืนยัน')+' · Checksum '+fmt(b)+(current.sourceChecksumOffset===b?' ตรง C#':' ไม่ตรง/ไม่มีต้นฉบับยืนยัน')+' · ไม่ได้ส่งไป Flash Engine';
+};
+$('report').onclick=()=>{
+ if(!current)return;
+ const url=URL.createObjectURL(new Blob([JSON.stringify(current,null,2)],{type:'application/json'}));
+ const a=document.createElement('a');a.href=url;a.download='55_ecu_offset_'+Date.now()+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1800);
+};
+</script></body></html>
