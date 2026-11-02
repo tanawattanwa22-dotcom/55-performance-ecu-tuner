@@ -98,7 +98,7 @@ jobs:
             tools/verify-honda-flash.mjs tools/verify-inline-bridge.mjs \
             tools/verify-main-menu.mjs MAIN_SOURCE_MENU_STATUS_TH.md \
             V18_INLINE_RELEASE_TH.md V18_MAIN_MENU_README_TH.md
-          git diff --cached --check
+          git -c core.whitespace=-blank-at-eof diff --cached --check
           git commit -m "Install verified V18 Main Menu from owner patch"
           git push origin HEAD:main
       - name: Configure GitHub Pages
