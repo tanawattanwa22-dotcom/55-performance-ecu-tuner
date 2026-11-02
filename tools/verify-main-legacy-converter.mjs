@@ -1,0 +1,26 @@
+import assert from 'node:assert/strict';
+import {createCipheriv} from 'node:crypto';
+import {aes256DecryptBlock,decryptPkcs7} from '../flash_port/main-legacy-aes.js';
+import {legacyMd5,legacyPasswordKey,decodeLegacyFile} from '../flash_port/main-legacy-converter.js';
+const fromHex=h=>Uint8Array.from(h.match(/../g).map(x=>parseInt(x,16)));
+const toHex=b=>Buffer.from(b).toString('hex');
+assert.equal(toHex(legacyMd5(new TextEncoder().encode('abc'))),'900150983cd24fb0d6963f7d28e17f72','MD5 legacy compatibility');
+assert.equal(toHex(legacyMd5(new Uint8Array())),'d41d8cd98f00b204e9800998ecf8427e','empty MD5');
+const key=fromHex('603deb1015ca71be2b73aef0857d77811f352c073b6108d72d9810a30914dff4');
+const cipher=fromHex('f3eed1bdb5d2a03c064b5a7e3db181f8');
+assert.equal(toHex(aes256DecryptBlock(cipher,key)),'6bc1bee22e409f96e93d7e117393172a','NIST AES256-ECB vector');
+const password='local-secret-for-test-only';
+const k=legacyPasswordKey(password);
+assert.equal(k.length,32);assert.equal(k.at(-1),0);
+const plaintext='AB'.repeat(16384); // 32768 ASCII HEX = 16384 bytes of 0xAB
+const enc=createCipheriv('aes-256-ecb',Buffer.from(k),null);
+const encoded=Buffer.concat([enc.update(plaintext,'utf8'),enc.final()]).toString('base64');
+assert.equal(encoded.length,43712,'matching purchased C# 43712-char segment');
+const result=decodeLegacyFile(encoded,password);
+assert.equal(result.length,16384);
+assert(result.every(x=>x===0xab));
+const multi=decodeLegacyFile(encoded+encoded,password);
+assert.equal(multi.length,32768);
+assert.throws(()=>decodeLegacyFile('bogus',password),/43,712/);
+assert.throws(()=>decodeLegacyFile(encoded,'wrong pass'));
+console.log('PASS MD5 + AES256 ECB NIST vector + two real-format 43712-char legacy segments (OFFLINE).');
