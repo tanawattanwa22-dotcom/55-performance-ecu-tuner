@@ -1046,6 +1046,11 @@ async function probeEcu(){
     const connectedTransport=K.t;
     try{
       const {parseEcmIdReply,lookupEcmId}=await import('./flash_port/ecu-id-lookup.js');
+      // Mirror the purchased C# WorkerThread double HELLO confirmation before
+      // ECU ID, but do not break existing Live Data if a legacy ECU rejects it.
+      const workerConfirmation=await send(init);
+      if(hondaOk(workerConfirmation))klog('WorkerThread: HELLO confirmed again before ECM ID');
+      else klog('WorkerThread HELLO confirmation incomplete; requesting read-only ECM ID without assuming success');
       const idResponse=await send([0x72,0x07,0x72,0x00,0x00,0x05,0x10]);
       if(!K.t||K.t!==connectedTransport)return;
       const id=parseEcmIdReply(idResponse);
