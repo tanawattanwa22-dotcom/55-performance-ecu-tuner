@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 172 120" role="img" aria-labelledby="title"><title id="title">Honda motorcycle brand emblem</title>
+<defs><linearGradient id="w" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ff516d"/><stop offset="1" stop-color="#db1537"/></linearGradient></defs>
+<g fill="url(#w)">
+<path d="M6 67 153 3 145 19 39 70 19 75Z"/>
+<path d="M15 77 139 29 132 42 47 80 26 85Z"/>
+<path d="M26 87 127 51 120 64 51 90 35 94Z"/>
+<path d="M38 96 114 72 103 85 55 101 48 104Z"/>
+<path d="M52 105 93 90 79 103 61 110Z"/>
+</g><text x="86" y="117" fill="#ff2c4b" font-family="Arial,Helvetica,sans-serif" font-size="18" font-weight="900" text-anchor="middle" letter-spacing="1.8">HONDA</text></svg>
