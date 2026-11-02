@@ -79,6 +79,7 @@ hr{border:0;border-top:1px solid #42556c;margin:14px 0}
 <script type="module">
 import {Ft232rWebUsb,toHex} from './ftdi-webusb.js';
 import {auditWriteFrames} from './flash-frames.js';
+import {csharpBinQuickAudit} from './csharp-logic.js';
 const el=id=>document.getElementById(id);
 let port=null,active=false;
 const logs=[];
@@ -145,7 +146,7 @@ el('audit').onclick=async()=>{
   const bytes=new Uint8Array(await f.arrayBuffer());
   const sha=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),x=>x.toString(16).padStart(2,'0')).join('');
   const result=auditWriteFrames(bytes,{profile,startOffset:parseInt(offset.replace(/^0x/i,''),16)});
-  el('auditOut').textContent=JSON.stringify({filename:f.name,sha256:sha,...result},null,2);
+  el('auditOut').textContent=JSON.stringify({filename:f.name,sha256:sha,csharpSignature:csharpBinQuickAudit(bytes),...result},null,2);
   log('OFFLINE BIN AUDIT '+f.name+' | '+result.frames+' simulated frames (no transmission)');
  }catch(e){el('auditOut').textContent='ไม่ผ่าน: '+e.message;log('BIN AUDIT: '+e.message)}
 };
