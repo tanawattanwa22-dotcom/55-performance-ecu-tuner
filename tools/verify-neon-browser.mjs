@@ -64,6 +64,18 @@ try{
   assert.equal(await page.locator('#flashCard').evaluate(el=>el.classList.contains('n20-hidden')),false);
   assert.equal(await page.locator('#btnFlash').evaluate(el=>el.hidden),true,'no flash before saved BIN');
   await overflowing('Flash '+width);
+  const flashButtons=await page.evaluate(()=>[...document.querySelectorAll('#flashCard .btn:not([hidden])')].map(b=>{
+   const r=b.getBoundingClientRect();return {name:b.id,left:r.left,right:r.right};
+  }));
+  for(const b of flashButtons)assert(b.left>=-2&&b.right<=width+2,
+   'Flash action overflows '+width+'px: '+JSON.stringify(b));
+  await page.evaluate(()=>document.querySelector('#v20Nav [data-cat="live"]').click());
+  assert.equal(await page.locator('#liveCard').evaluate(el=>el.classList.contains('n20-hidden')),false);
+  assert.equal(await page.locator('#flashCard').evaluate(el=>el.classList.contains('n20-hidden')),true);
+  await overflowing('Live entry '+width);
+  await page.evaluate(()=>document.querySelector('#v20Nav [data-cat="dtc"]').click());
+  assert.equal(await page.locator('#liveCard').evaluate(el=>el.classList.contains('n20-hidden')),false);
+  await overflowing('DTC entry '+width);
   if(width===393)await page.screenshot({path:path.join(root,'test-reports','neon-flash-393.png'),fullPage:false});
   await page.evaluate(()=>document.querySelector('#v20Nav [data-cat="tools"]').click());
   assert.equal(await page.locator('#mainSourceTools').evaluate(el=>el.classList.contains('n20-hidden')),false);
@@ -75,6 +87,14 @@ try{
   await page.evaluate(()=>document.querySelector('#v20Nav [data-cat="dashboard"]').click());
   if(width===393){
    await page.screenshot({path:path.join(root,'test-reports','neon-dashboard-393.png'),fullPage:false});
+   await page.evaluate(()=>document.getElementById('goLive').click());
+   assert.equal(await page.locator('#live').evaluate(el=>el.classList.contains('on')),true,'real Live screen opens');
+   assert.equal(await page.locator('#vGauge').count(),1,'original RPM gauge preserved');
+   await page.evaluate(()=>document.querySelector('#live .lvtabs [data-m="dtc"]').click());
+   assert.equal(await page.locator('#vDtc').evaluate(el=>el.style.display==='none'),false,'original DTC mode opens');
+   await page.screenshot({path:path.join(root,'test-reports','neon-live-dtc-393.png'),fullPage:false});
+   await page.evaluate(()=>{document.getElementById('live').classList.remove('on');
+    document.getElementById('home').classList.add('on')});
    await page.evaluate(()=>{
     document.getElementById('home').classList.remove('on');
     document.getElementById('tune').classList.add('on');
@@ -85,7 +105,7 @@ try{
   assert.deepEqual(assetErrors,[],'no missing Neon assets');
   const critical=jsErrors.filter(e=>/ReferenceError|SyntaxError|neon-v20|n20Stage|Cannot access .* before initialization/i.test(e));
   assert.deepEqual(critical,[],'critical JS errors in mobile page');
-  results.push({width,views:5,assets:'ok',overflow:'none',errors:jsErrors.slice(0,3)});
+  results.push({width,views:7,assets:'ok',overflow:'none',errors:jsErrors.slice(0,3)});
   await page.close();
  }
  console.log('PASS Neon V20 Chrome mobile screens: '+JSON.stringify(results,null,2));
