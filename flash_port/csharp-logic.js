@@ -76,6 +76,40 @@ export function deriveShindengenWriteKey(bin,seed,{recovery=false}={}){
  }
  return null;
 }
+function sum32Little(data,start,end){
+ let acc=0;
+ for(let i=start;i+4<=end;i+=4){
+  const v=(data[i]|data[i+1]<<8|data[i+2]<<16|data[i+3]<<24)>>>0;
+  acc=(acc+v)>>>0;
+ }
+ return acc;
+}
+export function correctShindengenChecksum(bin){
+ if(!(bin instanceof Uint8Array)||bin.length<256)throw Error('Shindengen BIN too small');
+ const out=bin.slice();
+ let at=findSignature(out,SH_W_SIG);
+ while(at>=0){
+  for(let j=at+SH_W_SIG.length;j<out.length-6;j++){
+   if(out[j]===0xd0&&out[j+1]===0x07){
+    // C# ShindengenAutoChecksum aligns a special 0xD0 0x07 marker.
+    const pos=j%4===2?j-6:j;
+    const ck=pos-4;
+    if(ck<0||ck+4>out.length||pos<4||pos>out.length)
+     throw Error('C# Shindengen checksum address invalid');
+    const sum=(sum32Little(out,0,ck)+sum32Little(out,pos,out.length))>>>0;
+    const change=(-sum)>>>0;
+    const before=Array.from(out.slice(ck,ck+4));
+    out[ck]=change&255;out[ck+1]=(change>>>8)&255;
+    out[ck+2]=(change>>>16)&255;out[ck+3]=(change>>>24)&255;
+    const verified=(sum32Little(out,0,out.length)>>>0)===0;
+    if(!verified)throw Error('C# Shindengen checksum verification failed');
+    return {data:out,checksumOffset:ck,oldBytes:before,newBytes:Array.from(out.slice(ck,ck+4)),modified:before.some((v,i)=>v!==out[ck+i])};
+   }
+  }
+  at=findSignature(out,SH_W_SIG,at+1);
+ }
+ throw Error('Missing Shindengen write-key and checksum marker in original BIN');
+}
 export function csharpBinQuickAudit(bin){
  const family=inspectCSharpEcuType(bin);
  return {byteLength:bin.length,typeHint:family.type,evidence:family.proof,
