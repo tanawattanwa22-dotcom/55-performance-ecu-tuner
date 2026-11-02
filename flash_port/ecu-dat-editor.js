@@ -11,8 +11,7 @@ export function cleanRow(row){
   sizeText:safeString(row.sizeText),typeText:safeString(row.typeText)};
  if(!/^[0-9A-F]{10}$/.test(r.ecuId))throw Error('ECU ID must be 10 HEX digits');
  for(const k of FIELDS)if(!r[k]||r[k].length>300)throw Error('Missing or overly long field: '+k);
- for(const k of ['startOffset','checksumOffset'])
-  if(!/^[0-9A-F]{1,8}$/i.test(r[k]))throw Error('Invalid hex: '+k);
+ // Keep original C# text fields verbatim. Unknown offsets cannot authorize flash.
  return r;
 }
 export function normalizeRows(rows){
@@ -37,7 +36,7 @@ export function writeEcuDat(rows){
  new DataView(out.buffer).setInt32(0,clean.length,true);
  out.set(data,4);return out;
 }
-export function readEcuDat(data){return normalizeRows(parseEcuDat(data));}
+export function readEcuDat(data){return normalizeRows(parseEcuDat(data).map(r=>({...r,startOffset:r.rawStartOffset??r.startOffset,checksumOffset:r.rawChecksumOffset??r.checksumOffset})));}
 export function upsertRow(rows,row,oldId=null){
  const normalized=normalizeRows(rows),next=cleanRow(row),id=oldId?oldId.toUpperCase():null;
  if(id&&!normalized.some(r=>r.ecuId===id))throw Error('Original ECU row missing');
