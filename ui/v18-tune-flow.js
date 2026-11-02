@@ -5,7 +5,14 @@
 (()=>{"use strict";
  const el=id=>document.getElementById(id);
  const flow=globalThis.TuneBinFlow;
- if(!flow||!el("btnSave")||!el("flashSnapshot")){console.error("55 BIN flow initialization failed: missing dependency or UI");return;}
+ globalThis.__55TuneFlowVersion="18.4";
+ if(!flow||!el("btnSave")||!el("flashSnapshot")){
+   console.error("55 BIN flow initialization failed: missing dependency or UI");
+   if(el("tuneSaveStatus"))el("tuneSaveStatus").textContent="ระบบสถานะบันทึก BIN ไม่พร้อม · กรุณาโหลดหน้าเว็บใหม่";
+   return;
+ }
+ globalThis.__55TuneFlowReady=true;
+ el("tuneSaveStatus").setAttribute("role","status");
  const same=()=>!!S.saved&&!!S.bin&&flow.matches(S.saved,S.bin,{
    model:MODELS[S.mi]?.id,sourceName:S.fname,customerBin:S.custom
  });
@@ -13,7 +20,10 @@
    if(S.saved&&!same()&&!INLINEFLASH.busy)S.saved=null;
    const saved=same(),fromCustomer=saved&&S.saved.customerBin;
    const flash=el("btnFlash"),go=el("btnToFlash"),panel=el("flashSnapshot");
-   go.hidden=!saved;el("tune").querySelector(".bb")?.classList.toggle("no-snapshot",!saved);
+   go.hidden=!saved;
+   go.textContent=fromCustomer?"ไปหน้าอัดไฟล์":"เปิด BIN ลูกค้าก่อนอัด";
+   el("tune").querySelector(".bb")?.classList.toggle("no-snapshot",!saved);
+   if(saved)el("btnSave").textContent="✓ บันทึก BIN แล้ว ("+changedBytes()+" ไบต์)";
    el("flowTune")?.classList.toggle("done",saved);
    el("flowTune")?.classList.toggle("on",!saved);
    el("flowSaved")?.classList.toggle("on",saved);
@@ -78,6 +88,9 @@
    document.body.append(a);a.click();
    setTimeout(()=>{URL.revokeObjectURL(url);a.remove()},8000);
    S.saved=snap;S.flash=true;refresh();
+   el("tuneSaveStatus").textContent=snap.customerBin
+     ?"✓ บันทึก BIN ลูกค้าแล้ว · ดาวน์โหลดไฟล์ "+name+" · ปุ่มไปหน้าอัดแสดงแล้ว"
+     :"✓ บันทึก BIN มาตรฐานแล้ว · "+name+" · ต้องเปิด BIN ของลูกค้าก่อนอัดจริง";
    toast("สร้าง BIN และสั่งดาวน์โหลดแล้ว · "+name,3500);
    crypto.subtle.digest("SHA-256",snap.bytes).then(buf=>{
      const hex=Array.from(new Uint8Array(buf),x=>x.toString(16).padStart(2,"0")).join("");
@@ -89,7 +102,15 @@
  el("btnSave").addEventListener("click",()=>{if(S.saved)refresh();});
  el("btnToFlash").onclick=()=>{
    if(!same())return toast("กรุณาบันทึก BIN ใหม่ก่อน");
-   if(!S.saved.customerBin)return toast("ต้องเปิด BIN ของลูกค้า ไม่สามารถอัดจากไฟล์ตัวอย่างอัตโนมัติ");
+   if(!S.saved.customerBin){
+     history.back();
+     setTimeout(()=>{
+       home();
+       document.querySelector("#v18Nav [data-cat='tune']")?.click();
+       toast("บันทึก BIN มาตรฐานแล้ว · ก่อนอัดกล่องจริง ให้กด Read file เปิด BIN ต้นฉบับลูกค้า",5000);
+     },100);
+     return;
+   }
    S.flash=true;history.back();
    setTimeout(()=>{
      home();
