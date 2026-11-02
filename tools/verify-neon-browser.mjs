@@ -81,6 +81,7 @@ try{
    .map(img=>({src:img.getAttribute('src'),complete:img.complete,loaded:img.naturalWidth>0})));
   assert(logos.every(l=>l.loaded),'every local Honda logo loaded: '+JSON.stringify(logos));
   await overflowing('Library '+width);
+  if(width===393)await page.screenshot({path:path.join(root,'test-reports','neon-library-v22-393.png'),fullPage:false});
 
   await page.evaluate(()=>document.querySelector('#v20Nav [data-cat="flash"]').click());
   assert.equal(await page.locator('#flashCard').evaluate(el=>el.classList.contains('n20-hidden')),false);
