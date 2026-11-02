@@ -33,7 +33,7 @@ input,textarea{accent-color:#9c72ff}
 #v18Nav .v19tabs{display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
 #v18Nav .v19tabs button{flex:none;min-height:40px;padding:8px 13px;border-radius:12px;color:#d5e9f9;background:#1c3351;border:1px solid #34577c;font:700 12px system-ui;white-space:nowrap}
 #v18Nav .v19tabs button[aria-selected=true]{background:linear-gradient(120deg,#256eb1,#924cce);color:#fff;border-color:#92a8ff;box-shadow:0 3px 15px #486cd055}
-#v18Nav .v19quick{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:9px}
+#v18Nav .v19quick{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:9px}
 #v18Nav .v19quick a{display:flex;align-items:center;justify-content:center;min-height:43px;border-radius:10px;background:#193c58;border:1px solid #39698b;color:#dff9ff;text-decoration:none;text-align:center;font:700 12px system-ui;padding:5px}
 #v18Nav .v19quick a:nth-child(2){background:#39235a;border-color:#6d4694;color:#ffe0ff}
 #v18Nav .v19quick a:nth-child(3){background:#43331f;border-color:#7c623a;color:#fff2dc}
@@ -42,3 +42,5 @@ input,textarea{accent-color:#9c72ff}
 #licenseGate{backdrop-filter:blur(14px);background:#07172eeb}
 #licenseGate .wrap{background:linear-gradient(140deg,#182b47,#26193e);border-color:#6082b0;box-shadow:0 22px 75px #0009}
 @media(max-width:375px){#v18Nav .v19tabs button{padding:8px 10px;font-size:11px}#v18Nav .v19quick a{font-size:11px}}
+
+#v18Nav .v19quick a:nth-child(4){background:#123c42;border-color:#2b898e;color:#c1fffd}
