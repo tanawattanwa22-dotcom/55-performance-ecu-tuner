@@ -30,7 +30,7 @@
   active=id;
   for(const [card,cat] of map){card.classList.toggle('v19hidden',id!=='all'&&cat!==id)}
   for(const btn of bar.querySelectorAll('button'))btn.setAttribute('aria-selected',String(btn.dataset.cat===id));
-  scroll.scrollTo({top:0,behavior:'instant'});
+  scroll.scrollTo({top:0,behavior:'auto'});
  };
  for(const cat of categories){
   const btn=document.createElement('button');btn.type='button';btn.dataset.cat=cat.id;btn.setAttribute('role','tab');btn.textContent=cat.label;btn.onclick=()=>activate(cat.id);bar.append(btn);
