@@ -36,7 +36,8 @@
 
 - C# บางจุดยังทำงานต่อแม้จะไม่ตรวจค่า Status ของทุก ACK; WebUSB port หยุดเมื่อข้อมูล reply/echo/checksum ไม่ถูกต้อง
 - Retry: `WriteFlash()` ต้นฉบับอนุญาตให้ส่งซ้ำเมื่อได้รับ 7-byte reply และ bytes [4,5] = [0,0] โดยใช้ตัวนับ `num` รวมไม่เกินสองครั้ง; V16 พอร์ตเงื่อนไขนี้แล้ว แต่จะไม่ retry หลัง USB timeout
-- `ShindengenAutoChecksum()` ต้องตรวจสองช่วง 32-bit sum และ byte-word ตำแหน่ง Checksum ซึ่งอาจไม่ aligned; V16 แก้ให้ตรง C#
+- `ShindengenAutoChecksum()` ต้องบวก Sum32Bit สองช่วงและ DWORD Checksum ที่แก้ไข ซึ่งอาจไม่ aligned; V16 แก้ให้ตรง C#
+- `WorkerThread()` ใน C# ส่ง HELLO/Keihin Poll ซ้ำอีกครั้งเพื่อยืนยันเซสชันก่อนอ่าน ECU ID; V16 เพิ่มขั้นนี้พร้อม fallback แบบยืนยันการตอบรับจริง
 - UI เปิดแฟลชเฉพาะการอ่าน ECU ID จริงและแมตช์กับรายการจาก C#; `K2J-T01` ไม่ได้ปรากฏเป็น part-code ใน `FormMain.cs` ฉบับที่ตรวจ ดังนั้น **จะไม่แอบอนุญาตแฟลชจากชื่อไฟล์ BIN 64KB เพียงอย่างเดียว**
 - การแสดง `SOURCE FINAL ACK` หมายถึง ECU ตอบรับตามโปรโตคอลหลังส่งข้อมูล ไม่ได้เท่ากับ VERIFY FLASH แบบอ่านกลับทั้งก้อน
 - เพิ่มการตรวจ ECU ID **หลังรีสตาร์ตกล่องสำรอง** เพื่อตรวจว่ายังสื่อสารได้ ไม่เท่ากับการตรวจ byte-level firmware
@@ -51,7 +52,7 @@
 
 ## ทดสอบที่ทำได้ทันที
 
-- `flash_port/source-validation-v15.html?v=16`: ชุดตรวจ source parity 21 รายการ ออฟไลน์ (เปิดหน้าเว็บเพื่อดู PASS ที่คำนวณบนเครื่องจริง)
+- `flash_port/source-validation-v15.html?v=16`: ชุดตรวจ source parity 23 รายการ ออฟไลน์ (เปิดหน้าเว็บเพื่อดู PASS ที่คำนวณบนเครื่องจริง)
 - `flash_port/bench.html`: USB และ ECU ID แบบไม่ลบ
 - `flash_port/flash-write-lab.html?v=16`: **ส่ง ERASE/WRITE จริงได้กับ ECU ที่ผ่าน preflight ตาม source catalog**; ผู้ใช้รับผิดชอบ bench wiring, backup และ recovery
 - หลัง SOURCE FINAL ACK กดตรวจ ECU ID หลังรีสตาร์ต ต้องอ่านรหัสเดิมได้ และยังต้องการ Readback external หากจะอ้างว่า Flash 100%
