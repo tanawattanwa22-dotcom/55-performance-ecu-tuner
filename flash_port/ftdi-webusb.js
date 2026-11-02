@@ -73,6 +73,7 @@ export class Ft232rWebUsb {
     if(dev.vendorId!==FT232R_VID||dev.productId!==FT232R_PID)throw Error('Only verified FT232R 0403:6001 accepted');
     if(this.dev)throw Error('Close current device before connecting another');
     this.dev=dev;
+    this.lastDevice=dev; // reuse same user-approved USB device for C# wake fallback
     try{
       await dev.open();
       if(!dev.configuration)await dev.selectConfiguration(1);
