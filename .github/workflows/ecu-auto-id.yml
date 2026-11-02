@@ -1,0 +1,39 @@
+name: ECU Auto-ID — KTR and C# Lookup
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "index.html"
+      - "flash_port/ecu-id-lookup.js"
+      - "flash_port/ecu-id-ui.js"
+      - "flash_port/bench.html"
+      - "flash_port/flash-write-lab.html"
+      - "ktr/ecm-catalog.js"
+      - "tools/verify-ecu-id-autolookup.mjs"
+      - ".github/workflows/ecu-auto-id.yml"
+  pull_request:
+    paths:
+      - "index.html"
+      - "flash_port/ecu-id-lookup.js"
+      - "flash_port/ecu-id-ui.js"
+      - "flash_port/bench.html"
+      - "flash_port/flash-write-lab.html"
+      - "ktr/ecm-catalog.js"
+      - "tools/verify-ecu-id-autolookup.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ecu-id-lookup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Test real ECU ID parsing and non-flashing metadata lookup
+        run: node tools/verify-ecu-id-autolookup.mjs
