@@ -1,0 +1,112 @@
+name: Install reviewed V18 Main Menu patch
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "V18_MAIN_GITHUB_PATCH.b64"
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: 55-ecu-v18-main-install
+  cancel-in-progress: false
+
+jobs:
+  validate-install-and-deploy:
+    if: github.event.head_commit.message != 'Install verified V18 Main Menu from owner patch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: github-pages
+      url: \${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Checkout original repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
+      - name: Install Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Validate archive and apply exact V18 Main Menu patch
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import base64, hashlib, io, lzma, subprocess, tarfile, tempfile
+          from pathlib import Path
+          payload=Path("V18_MAIN_GITHUB_PATCH.b64")
+          if not payload.is_file():
+              raise SystemExit("Uploaded owner V18 patch not found")
+          raw=payload.read_bytes()
+          assert hashlib.sha256(raw).hexdigest()=="d10d1237e5c7b49a50ce7042e2ef4cbc9bd82efeda900b667d0d9e4a769be56a", "Owner patch SHA mismatch"
+          assert len(raw)==48272, "Unexpected patch size"
+          archive=lzma.decompress(base64.b64decode(raw,validate=True))
+          assert hashlib.sha256(archive).hexdigest()=="bfcf775f29b73ad14f4288bc9785724e9fdd500d180e0f17de4a23edc4e41a4a", "Archive integrity mismatch"
+          patches={"index.html.patch":"index.html", "sw.js.patch":"sw.js"}
+          files={
+            "flash_port/honda-write-engine.js", "flash_port/ftdi-webusb.js",
+            "flash_port/flash-write-lab.html", "tools/verify-honda-flash.mjs",
+            "MAIN_SOURCE_MENU_STATUS_TH.md", "V18_INLINE_RELEASE_TH.md",
+            "V18_MAIN_MENU_README_TH.md", "flash_port/bin-id-table.js",
+            "flash_port/bin-tools.js", "flash_port/ecu-dat.js",
+            "tools/verify-inline-bridge.mjs", "tools/verify-main-menu.mjs"
+          }
+          with tarfile.open(fileobj=io.BytesIO(archive),mode="r:") as tf:
+              members=tf.getmembers()
+              assert len(members)==14 and {m.name for m in members}==set(patches)|files, "Unexpected files in archive"
+              assert all(m.isfile() and m.size<100000 for m in members), "Unsafe archive entries"
+              data={m.name:tf.extractfile(m).read() for m in members}
+          with tempfile.TemporaryDirectory() as tmp:
+              for name in patches:
+                  file=Path(tmp)/name
+                  file.write_bytes(data[name])
+                  subprocess.run(["patch","--dry-run","--batch","--fuzz=0","-p1","-i",str(file)],check=True)
+              for name in patches:
+                  subprocess.run(["patch","--batch","--fuzz=0","-p1","-i",str(Path(tmp)/name)],check=True)
+          for name in files:
+              dst=Path(name)
+              dst.parent.mkdir(parents=True,exist_ok=True)
+              dst.write_bytes(data[name])
+          assert Path("data.enc").stat().st_size>100000, "Original BIN/XDF data missing"
+          for name in ("license-client.js","license-config.js","xdfc.js","ov.js"):
+              assert Path(name).is_file(), name+" missing"
+          print("Installed exactly 12 V18 source files and 2 context-checked patches")
+          PY
+      - name: Run V18 software and UI regression tests
+        shell: bash
+        run: |
+          node tools/verify-honda-flash.mjs
+          node tools/verify-main-menu.mjs
+          node tools/verify-inline-bridge.mjs
+          node tools/verify-ecu-id-autolookup.mjs
+          node tools/verify-ktr-catalog.mjs
+      - name: Commit only reviewed V18 changes
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -- V18_MAIN_GITHUB_PATCH.b64
+          git add -- index.html sw.js \
+            flash_port/honda-write-engine.js flash_port/ftdi-webusb.js \
+            flash_port/flash-write-lab.html flash_port/bin-id-table.js \
+            flash_port/bin-tools.js flash_port/ecu-dat.js \
+            tools/verify-honda-flash.mjs tools/verify-inline-bridge.mjs \
+            tools/verify-main-menu.mjs MAIN_SOURCE_MENU_STATUS_TH.md \
+            V18_INLINE_RELEASE_TH.md V18_MAIN_MENU_README_TH.md
+          git diff --cached --check
+          git commit -m "Install verified V18 Main Menu from owner patch"
+          git push origin HEAD:main
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+      - name: Upload deployed site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - id: deploy
+        name: Deploy V18 website
+        uses: actions/deploy-pages@v4
