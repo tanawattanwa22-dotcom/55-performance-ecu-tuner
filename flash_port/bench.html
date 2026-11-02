@@ -61,11 +61,11 @@ hr{border:0;border-top:1px solid #42556c;margin:14px 0}
 <label for="bin">ไฟล์ BIN</label><input type="file" id="bin" accept=".bin,application/octet-stream">
 <label for="ecuType">ECU Type ใน C# (สำหรับทดสอบการเข้ารหัสแพ็กเก็ตเท่านั้น)</label>
 <select id="ecuType">
-<option value="">เลือกประเภทที่ตรวจยืนยันจาก C# ก่อน</option>
+<option value="">ตรวจจาก BIN อัตโนมัติ (แนะนำ)</option>
 <option>KEIHINOTHER</option><option>KEIHINH8C</option><option>KEIHINM32R</option>
 <option>SHINDENGENV850</option><option>SHINDENGENRH850</option><option>SHINDENGENRH850B</option>
 </select>
-<label for="offset">Start Offset (hex) จากโปรไฟล์ที่ตรวจแล้ว</label><input id="offset" placeholder="เช่น 8000 — ห้ามเดาสุ่ม" inputmode="text">
+<label for="offset">Start Offset (hex) จาก C# (ประเมินอัตโนมัติเมื่อเลือก BIN)</label><input id="offset" placeholder="ระบบจะคำนวณให้" inputmode="text" readonly><small id="offsetMsg">ยังไม่มี BIN • ไม่มีการอนุญาตให้เขียน Flash จากผลนี้</small>
 <button id="audit">ตรวจแพ็กเก็ต (ไม่เขียนรถ)</button>
 <pre id="auditOut">รอเลือกไฟล์และโปรไฟล์</pre>
 </div>
@@ -80,6 +80,7 @@ hr{border:0;border-top:1px solid #42556c;margin:14px 0}
 import {Ft232rWebUsb,toHex} from './ftdi-webusb.js';
 import {auditWriteFrames} from './flash-frames.js';
 import {csharpBinQuickAudit} from './csharp-logic.js';
+import {csharpOffsetInference} from './csharp-offsets.js';
 const el=id=>document.getElementById(id);
 let port=null,active=false;
 const logs=[];
@@ -137,16 +138,29 @@ el('id').onclick=async()=>{
   if(port&&!port.ready){port=null;el('usb').textContent='USB ปิดเพื่อป้องกันคำสั่งค้าง'}
  }finally{busy(false)}
 };
+async function inferOffset(){
+ const f=el('bin').files?.[0];
+ if(!f){el('offset').value='';el('offsetMsg').textContent='กรุณาเลือก BIN';return}
+ try{
+  const data=new Uint8Array(await f.arrayBuffer());
+  const hint=csharpOffsetInference(data);
+  el('offset').value=hint.startOffsetHex||'';
+  el('offsetMsg').textContent=hint.source+' • ECU Type: '+hint.csharpClassHint+' • ยังไม่ได้ยืนยันกับฮาร์ดแวร์';
+  el('ecuType').value=hint.csharpClassHint!=='UNDETERMINED'?hint.csharpClassHint:'';
+  if(hint.csharpClassHint==='UNDETERMINED')el('offsetMsg').textContent+=' • ต้องทราบ ECU ID จริงก่อนเลือกประเภท';
+ }catch(e){el('offset').value='';el('offsetMsg').textContent='ไม่สามารถประเมิน Offset: '+e.message}
+}
+el('bin').addEventListener('change',inferOffset);
 el('audit').onclick=async()=>{
  const f=el('bin').files?.[0],profile=el('ecuType').value,offset=el('offset').value.trim();
  try{
   if(!f)throw Error('เลือกไฟล์ BIN ก่อน');
-  if(!profile)throw Error('เลือก ECU Type ที่ตรวจยืนยันแล้ว');
-  if(!/^(?:0x)?[0-9a-f]+$/i.test(offset))throw Error('กรอก Start Offset เป็นเลขฐาน 16 ตาม C#');
+  if(!profile)throw Error('ยังไม่ระบุชนิด ECU จากลายเซ็น BIN: ห้ามเลือก Shindengen หรือ Keihin โดยเดา ให้ตรวจ ECU ID ก่อน');
+  if(!/^(?:0x)?[0-9a-f]+$/i.test(offset))throw Error('C# ไม่สามารถคำนวณ Start Offset ที่เชื่อถือได้จากไฟล์นี้');
   const bytes=new Uint8Array(await f.arrayBuffer());
   const sha=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),x=>x.toString(16).padStart(2,'0')).join('');
   const result=auditWriteFrames(bytes,{profile,startOffset:parseInt(offset.replace(/^0x/i,''),16)});
-  el('auditOut').textContent=JSON.stringify({filename:f.name,sha256:sha,csharpSignature:csharpBinQuickAudit(bytes),...result},null,2);
+  el('auditOut').textContent=JSON.stringify({filename:f.name,sha256:sha,csharpSignature:csharpBinQuickAudit(bytes),offsetSource:csharpOffsetInference(bytes),...result},null,2);
   log('OFFLINE BIN AUDIT '+f.name+' | '+result.frames+' simulated frames (no transmission)');
  }catch(e){el('auditOut').textContent='ไม่ผ่าน: '+e.message;log('BIN AUDIT: '+e.message)}
 };
