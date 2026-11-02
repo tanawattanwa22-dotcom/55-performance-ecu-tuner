@@ -1,6 +1,6 @@
-// 55 PERFORMANCE ECU TUNER — v13
+// 55 PERFORMANCE ECU TUNER — v15
 // Authentication and navigation are network-only to prevent outdated login/signup code.
-const CACHE_NAME='55ecu-static-v13';
+const CACHE_NAME='55ecu-static-v15';
 const STATIC_FILES=['./manifest.webmanifest','./icons/icon-192.png','./icons/icon-512.png','./icons/icon-maskable-512.png','./icons/apple-touch-icon.png','./icons/favicon-64.png'];
 self.addEventListener('install',event=>{
  event.waitUntil(caches.open(CACHE_NAME).then(cache=>cache.addAll(STATIC_FILES)).then(()=>self.skipWaiting()));
