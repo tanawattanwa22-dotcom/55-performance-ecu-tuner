@@ -32,6 +32,7 @@ pre{background:#051126!important;color:#a4f7e9;border:1px solid #324a69}
 .top{background:linear-gradient(100deg,#102442,#14234c 70%,#1f1645)!important;border-bottom:1px solid #42608c!important;box-shadow:0 5px 24px #0005}
 .top b{color:#fff}.top small{color:#b7cee6}
 .top .lg{border-radius:12px;border:1px solid #4a6388}
+#home>.top{display:none!important} /* Main app uses one unified brand header; original logout button remains bound for Settings. */
 #home>.scroll{display:flex!important;flex-direction:column!important;gap:12px;overflow-x:hidden!important;padding:0 12px calc(38px + env(safe-area-inset-bottom))!important}
 #home>.scroll>.card{margin:0;width:100%}
 #home>.scroll>.workshop-banner{display:none!important}
