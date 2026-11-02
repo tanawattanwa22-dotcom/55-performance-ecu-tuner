@@ -27,13 +27,14 @@ export function resolveWriteProfile(profile){
  if(!Object.hasOwn(WRITE_PROFILES,profile))throw Error('Unknown C# ECU type (no fallback to KEIHINOTHER)');
  return WRITE_PROFILES[profile];
 }
-export function createWriteFrame(block,{profile,startOffset=0,blockIndex=0,isFinal=false}={}){
+export function createWriteFrame(block,{profile,startOffset=0,blockIndex=0,nextBlockIndex=blockIndex+1,isFinal=false}={}){
  const p=resolveWriteProfile(profile);
  if(!(block instanceof Uint8Array)||block.length!==p.blockSize)throw Error('Block must be exact '+p.blockSize+' bytes');
  if(!Number.isInteger(startOffset)||startOffset<0||startOffset%16!==0)throw Error('startOffset must be 16-byte aligned');
  if(!Number.isInteger(blockIndex)||blockIndex<0)throw Error('Invalid block index');
  const addr=(startOffset/16)+(blockIndex*p.addressStep);
- const next=isFinal?0:addr+p.addressStep;
+ if(!Number.isInteger(nextBlockIndex)||nextBlockIndex<=blockIndex)throw Error('Next block must advance');
+ const next=isFinal?0:(startOffset/16)+(nextBlockIndex*p.addressStep);
  if(addr>0xffff||next>0xffff)throw Error('Frame address exceeds C# 16-bit field');
  const size=p.blockSize;
  const frame=new Uint8Array(size+11);
