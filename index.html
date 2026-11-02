@@ -245,6 +245,10 @@ table.g th,table.g td{border-right:1px solid rgba(255,255,255,.35);border-bottom
  <div class="scroll">
   <div class="card"><h2>1 · รุ่นรถ</h2>
    <div class="row"><select id="sel"><option value="">เลือกรุ่นรถ…</option></select><button class="btn ac" id="goTune" disabled>จูน</button></div>
+   <div style="margin:10px 0 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <a href="flash_port/bench.html?v=13" target="_blank" rel="noopener" style="background:#223e56;color:#d0ecff;border:1px solid #6389a7;border-radius:9px;padding:8px 12px;font:600 13px system-ui;text-decoration:none">FTDI / ECU LAB V13</a>
+    <a href="flash_port/bench-tests.html?v=13" target="_blank" rel="noopener" style="color:#547a99;font:600 12px system-ui;text-decoration:none">ทดสอบ Engine V13</a>
+   </div>
   </div>
   <div class="card"><h2>ตรวจความเข้ากัน (Match Guard)</h2><div id="guardBox" class="mu sm">เลือกรุ่นรถเพื่อตรวจ</div><button class="mini" id="guardRef" style="margin-top:8px">ตรวจอีกครั้ง</button></div>
   <div class="card"><h2>Live Data</h2><button class="btn ac" id="goLive" style="width:100%;padding:13px;font-size:16px;letter-spacing:1px">⚡ LIVE DATA · เกจ / ทดสอบ AFR</button><div class="mu sm" style="margin-top:6px">ดูค่าสดจากกล่อง ทดสอบ AFR บนตารางน้ำมัน (มีโหมดจำลองให้ลองก่อน)</div></div>
@@ -1475,7 +1479,7 @@ function startApp(){
 }
 history.replaceState({p:"login"},"");
 setTimeout(()=>{$("#spl").classList.add("out")},1100);
-if("serviceWorker"in navigator&&/^https:|localhost/.test(location.protocol+location.hostname))navigator.serviceWorker.register("sw.js?v=12", {updateViaCache:"none"}).catch(()=>{});
+if("serviceWorker"in navigator&&/^https:|localhost/.test(location.protocol+location.hostname))navigator.serviceWorker.register("sw.js?v=13", {updateViaCache:"none"}).catch(()=>{});
 window.__ecu={S,K,ftdiDivisor,hondaOk,editAxis,sharers,get M(){return M},openTune,selectTable,runOp,buildOut,loadFile,pick,snap,valCell,rawCell,curT,compile,MODELS};
 /* ===================== MATCH GUARD · LOG · AUTO TUNE ASSIST ===================== */
 /* หลักการ: ใช้เฉพาะข้อมูลจริงจากกล่อง/ไฟล์ ไม่สร้างค่าขึ้นเอง ค่าที่ไม่มี = ว่าง (NaN) ไม่ใช้ศูนย์แทน */
