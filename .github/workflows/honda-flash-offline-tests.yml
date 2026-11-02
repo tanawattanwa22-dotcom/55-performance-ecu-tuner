@@ -36,3 +36,5 @@ jobs:
         run: node tools/verify-main-source-manager.mjs
       - name: Verify three purchased C# diagnostic profiles and safe frames
         run: node tools/verify-main-diagnostic.mjs
+      - name: Verify C# ACG/ECU password-protected format without publishing secrets
+        run: node tools/verify-main-legacy-converter.mjs
