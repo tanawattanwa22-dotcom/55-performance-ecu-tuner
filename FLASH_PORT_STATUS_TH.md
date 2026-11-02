@@ -1,4 +1,4 @@
-# 55 PERFORMANCE ECU TUNER — Honda C# Flash Port V16
+# 55 PERFORMANCE ECU TUNER — Honda C# Flash Port V16.1
 วันที่: 2026-11-02 | เป้าหมาย: GitHub Pages / Chrome Android / FT232R + K-Line
 
 ## สถานะบน GitHub
@@ -15,6 +15,7 @@
 - flash_port/source-proof.html: หน้าหลักฐานฟังก์ชันและ SHA-256 ของซอร์สที่ซื้อ + ตรวจ BIN ในเครื่อง
 - flash_port/C_SHARP_SOURCE_PROOF_V16_TH.md: ตารางฟังก์ชัน C# พร้อมบรรทัดที่อ้างอิง
 - flash_port/flash-write-lab.html: มีปุ่มดาวน์โหลด TX/RX Log เป็น .txt ลงมือถือและตรวจ ECU ID อีกครั้งหลังรีสตาร์ต
+- V16.1: เก็บหลักฐาน SHA-256 ของ BIN ต้นฉบับและสำเนาที่ถูกปรับ Checksum, ECU ID, Offset, ขนาด BIN, จำนวนบล็อกและสถานะหยุด/Final ACK ไว้ใน Log แม้แผนเขียนบนหน้าจอถูกล้าง
 
 ## อ้างอิงจากซอร์ส C# ที่ซื้อ
 FormMain.cs: InitFtdiIso, SendCommand, WorkerThread, GetOffsetsFromBinType, GetEcuType,
@@ -28,7 +29,8 @@ FT_Read ใน SendCommand เป็นการอ่านคำตอบจ�
 - ยังไม่ได้ผ่านการทดสอบสาย FTDI, ECU และการกู้คืนบนฮาร์ดแวร์จริงของผู้ใช้
 - Final ACK ไม่ใช่ Readback Verification, จึงไม่สามารถรับรองความสำเร็จ 100%
 - ขั้นตอนหลังเขียนที่เพิ่มใน V15.1: Power-cycle ECU สำรองตามคู่มือ, กดตรวจ ECU ID หลังเขียน เพื่อตรวจว่ากล่องกลับมาตอบและ ID ตรงกับก่อนเขียน — **ไม่ใช่การอ่าน BIN กลับมาเทียบ**
-- หน้าทดสอบ source-validation-v15.html เพิ่มกรณี post-flash ID ตรง/ไม่ตรง (รวม 17 รายการในโค้ด)
+- หน้าทดสอบ source-validation-v15.html มีชุดตรวจในเบราว์เซอร์รวม **23 รายการ**; เพิ่ม GitHub Actions ตรวจออฟไลน์/ECU จำลอง **29 รายการ** อัตโนมัติด้วย `tools/verify-honda-flash.mjs`
+- แก้การยืนยัน Write Block ACK: ต้องเป็นแพ็กเก็ต 5 ไบต์ **และ status byte = 0** เท่านั้นจึงนับว่าเขียนบล็อกสำเร็จ มิฉะนั้นหยุดทันที
 - หาก ECU ID, ECU Part, Start Offset, Firmware Type, BIN Checksum หรือ Block Address ไม่ตรง ระบบจะหยุด
 - Shindengen Offset ในฐาน C# เป็น auto ต้องตรวจลายเซ็น BIN, checksum marker และ Seed/Key จริง
 - ไม่มีข้อมูลยืนยัน Flash สำหรับ K2J-T01 จากชื่อไฟล์อย่างเดียว; ต้องอ่าน ECU ID และตรวจ Part จากซอร์ส
@@ -40,10 +42,18 @@ FT_Read ใน SendCommand เป็นการอ่านคำตอบจ�
 3. เปิด https://tanawattanwa22-dotcom.github.io/55-performance-ecu-tuner/flash_port/bench.html
 4. ทดสอบ FTDI ต่อมือถือผ่าน OTG อย่างเดียว
 5. หากใช้กล่องสำรอง ต้องตรวจวงจร K-Line transceiver 12V และแหล่งจ่ายไฟ พร้อมวิธีกู้คืน
-6. เปิด https://tanawattanwa22-dotcom.github.io/55-performance-ecu-tuner/flash_port/flash-write-lab.html?v=15
+6. เปิด https://tanawattanwa22-dotcom.github.io/55-performance-ecu-tuner/flash_port/flash-write-lab.html?v=161
 7. ต่อ ECU สำรอง, อ่านรหัสจริง, เลือก BIN, ตรวจ ECU Part และยืนยัน Backup/Power/Recovery ก่อนส่ง ERASE
 8. หากรับ SOURCE_FINAL_ACK ต้องตรวจการสื่อสารหลังรีสตาร์ต และตรวจข้อมูลเพิ่มเติมด้วยเครื่องมือที่อ่านแฟลชได้จริง
 
 **โปรดเข้าใจว่า Source Final ACK ไม่เท่ากับการอ่าน Flash กลับมา Verify ทั้งไฟล์ และต้องผ่านทดสอบ ECU สำรองก่อนนำไปใช้กับรถจริง**
 
 **ไม่ต่อ FTDI TTL กับขา K-Line 12V โดยตรง และอย่าแฟลช ECU รถลูกค้าในขั้นทดสอบ**
+
+## CI และหลักฐานเชิงซอฟต์แวร์ V16.1
+
+- Actions: https://github.com/tanawattanwa22-dotcom/55-performance-ecu-tuner/actions/workflows/honda-flash-offline-tests.yml
+- ต้นทางชุดทดสอบ: `node tools/verify-honda-flash.mjs` รันด้วย Node 22 โดย **ไม่มีการต่อ USB**
+- 29/29 PASS = Source parity / fault-handling simulated tests เท่านั้น ไม่ใช่ผลกู้คืน ECU หรือ Readback Verify
+- เมื่อทดลองกับ ECU สำรอง ให้กด `ดาวน์โหลด Log` ก่อนออกจากหน้าเว็บ; Log ระบุ SHA และรายละเอียดไฟล์ที่พยายามเขียน โดยไม่แนบไฟล์ BIN หรือรหัสผ่าน
+- **ถ้าพบ USB Timeout หลัง ERASE อย่าลองกด WRITE ซ้ำ** โดยไม่ทราบสภาพแฟลชและมีขั้นตอนกู้คืนที่ตรวจแล้ว
