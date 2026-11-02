@@ -236,3 +236,12 @@ table.g td.s{outline:2px solid #68faff!important;box-shadow:inset 0 0 18px #43df
 .n20-menu-dialog .n20-menu-close{width:100%;margin:0 0 14px;border-color:#c961c5!important;background:#392559!important;color:#fff}
 .n20-menu-items{display:grid;gap:9px}
 .n20-menu-items button{padding:15px 14px!important;justify-content:flex-start!important;text-align:left!important;min-height:52px;border-radius:14px!important;background:linear-gradient(120deg,#193a59,#1c244a)!important;font-size:14px!important}
+
+/* Consistent vector icons across cards, top tabs and slide-out menu. */
+.n20-icon-line{display:inline-flex;align-items:center;justify-content:center;flex:none;vertical-align:middle}
+.n20-icon-line svg{height:21px;width:21px;display:block}
+.n20-tile-icon .n20-icon-line svg{height:26px;width:26px;filter:drop-shadow(0 0 6px #40cefa80)}
+.n20-nav button{display:inline-flex;align-items:center;justify-content:center;gap:7px}
+.n20-nav button .n20-icon-line svg{width:17px;height:17px}
+.n20-menu-items button{display:flex;gap:12px;align-items:center}
+.n20-menu-items button .n20-icon-line svg{width:22px;height:22px;color:#62e8f8}
