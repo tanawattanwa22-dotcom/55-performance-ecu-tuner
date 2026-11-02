@@ -37,8 +37,15 @@ pre{background:#0b1827;border-radius:10px;padding:12px;font:12px ui-monospace,mo
 <div class="card"><div class="step">ขั้นตอน 3</div><h2>ตรวจไฟล์ BIN ก่อน ERASE</h2>
 <input id="bin" type="file" accept=".bin,application/octet-stream">
 <label for="part">ยืนยันรหัสอะไหล่ ECU ตามฐาน C# (กรอกเมื่อชื่อ BIN ไม่ระบุรุ่น)</label><input id="part" type="text" autocomplete="off" placeholder="เช่น 38770-K03-H01">
+<label><input type="checkbox" id="optFast">Fast Write (Keihin ทั่วไป: สลับเป็น 921600 baud / Shindengen: ตัดหน่วง 150 ms) — ยังไม่ผ่านทดสอบกล่องจริง</label>
+<label><input type="checkbox" id="optRecovery">Recovery Mode (Shindengen ที่ ECU ID ลงท้าย 0000 เท่านั้น ใช้คีย์ Recovery)</label>
+<input id="recStart" type="text" autocomplete="off" placeholder="Start Offset (HEX, ไม่บังคับ ใช้เฉพาะ Recovery) เช่น 10000">
 <button id="prepare" disabled>ตรวจ BIN และสร้างแผนเขียน</button>
 <pre id="plan">ต้องอ่าน ECU ID ก่อน • ไฟล์ไม่ถูกส่งไปที่เซิร์ฟเวอร์</pre></div>
+<div class="card"><div class="step">เครื่องมือ BIN (จาก Main)</div><h2>BIN ID / Lock Read / Lock Mode</h2>
+<div id="binInfo" class="status">เลือกไฟล์ BIN ในขั้นตอน 3 เพื่ออ่าน BIN ID</div>
+<div class="row"><button class="secondary" id="lockRead" disabled>Lock Read (48/64 KB) → ดาวน์โหลด</button><button class="secondary" id="lockMode" disabled>Lock Mode (48/64 KB) → ดาวน์โหลด</button></div>
+<small>ปุ่มเหล่านี้สร้างสำเนา BIN ที่แก้แล้วให้ดาวน์โหลด ไม่แก้ไฟล์เดิม และไม่ส่งเข้ากล่อง ถ้าจะเขียนไฟล์ที่แก้ ให้เลือกไฟล์ใหม่ในขั้นตอน 3 (ระบบจะคำนวณ Checksum ใหม่ตอนสร้างแผนเขียน)</small></div>
 <div class="card danger"><div class="step">ขั้นตอน 4 — มีความเสี่ยง</div><h2>ยืนยันก่อนส่งคำสั่งเขียนจริง</h2>
 <label><input type="checkbox" id="backup">มีไฟล์ BIN เดิมที่ถูกต้องจาก ECU รุ่นนี้ สำรองไว้นอกมือถือแล้ว</label>
 <label><input type="checkbox" id="power">ECU สำรองต่อไฟเลี้ยงนิ่ง มีวงจรป้องกันและสาย K-Line ที่ตรวจสอบแล้ว</label>
@@ -147,7 +154,9 @@ $('prepare').onclick=async()=>{
   const file=$('bin').files[0];
   const data=new Uint8Array(await file.arrayBuffer());
   const sha=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',data)),b=>b.toString(16).padStart(2,'0')).join('');
-  plan=engine.makePlan(data,{filename:file.name,confirmedPart:$('part').value});
+  const recHex=$('recStart').value.trim();
+   plan=engine.makePlan(data,{filename:file.name,confirmedPart:$('part').value,fast:$('optFast').checked,recovery:$('optRecovery').checked,
+    startOffsetOverride:/^[0-9A-Fa-f]+$/.test(recHex)?parseInt(recHex,16):null});
   const writeSha=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',plan.bin)),b=>b.toString(16).padStart(2,'0')).join('');
   lastPlanEvidence=Object.freeze({createdAt:new Date().toISOString(),ecuId:plan.ecuId,part:plan.part,
    filename:plan.filename,originalSha256:sha,actualWriteSha256:writeSha,
@@ -156,7 +165,7 @@ $('prepare').onclick=async()=>{
    expectedBlockCount:plan.expectedBlockCount});
   flashOutcome='PREFLIGHT_ONLY_NO_FLASH';
   $('plan').textContent=JSON.stringify({ecuId:plan.ecuId,part:plan.part,fileName:plan.filename,
-   originalSha256:sha,actualWriteSha256:writeSha,checksumChanged:plan.checksumChanged,profile:plan.profile,startOffset:'0x'+plan.startOffset.toString(16).toUpperCase(),
+   originalSha256:sha,actualWriteSha256:writeSha,checksumChanged:plan.checksumChanged,profile:plan.profile,fast:plan.fast,recovery:plan.recovery,startOffset:'0x'+plan.startOffset.toString(16).toUpperCase(),
    checksumOffset:plan.checksumOffset,binBytes:plan.size,expectedBlocks:plan.expectedBlockCount,checks:plan.checks,
    note:'ผ่านเฉพาะ source mapping / ECU ID ไม่ใช่ความปลอดภัยของแฟลช'},null,2);
   push('BIN PREFLIGHT PASS: '+file.name+' '+sha);
@@ -165,7 +174,36 @@ $('prepare').onclick=async()=>{
 };
 for(const id of ['backup','power','recovery','typed'])$(id).addEventListener('input',refreshButtons);
 $('bin').addEventListener('change',()=>{plan=null;refreshButtons()});
+import {readBinId,findEcmIdInBin,lockRead,lockMode} from './bin-tools.js';
+async function refreshBinInfo(){
+ const f=$('bin').files?.[0];
+ $('lockRead').disabled=$('lockMode').disabled=true;
+ if(!f){$('binInfo').textContent='เลือกไฟล์ BIN ในขั้นตอน 3 เพื่ออ่าน BIN ID';return}
+ const data=new Uint8Array(await f.arrayBuffer());
+ const id=readBinId(data);
+ let txt='ขนาด '+(data.length/1024)+' KB | BIN ID: '+(id.ok?id.id+' (offset '+id.at+')':'ไม่พบ ('+id.reason+')');
+ if(identity?.ecuId){const m=findEcmIdInBin(data,identity.ecuId);txt+=' | ECM ID ในไฟล์: '+(m.ok?'พบที่ '+m.index:'ไม่พบ')}
+ $('binInfo').textContent=txt;
+ const ok=data.length===49152||data.length===65536;
+ $('lockRead').disabled=$('lockMode').disabled=!ok;
+}
+function downloadPatched(kind,fn){
+ const f=$('bin').files[0];if(!f)return;
+ f.arrayBuffer().then(buf=>{
+  const r=fn(new Uint8Array(buf));
+  if(!r.ok){push(kind+' STOP: '+r.error);$('binInfo').textContent=r.error;return}
+  const url=URL.createObjectURL(new Blob([r.bytes],{type:'application/octet-stream'}));
+  const a=document.createElement('a');a.href=url;a.download=f.name.replace(/\.bin$/i,'')+'_'+kind+'.bin';a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1500);
+  push(kind+' OK: '+r.hits+' hit(s), file '+a.download);
+ });
+}
+$('lockRead').onclick=()=>downloadPatched('lockread',lockRead);
+$('lockMode').onclick=()=>downloadPatched('lockmode',lockMode);
+$('bin').addEventListener('change',refreshBinInfo);
+
 $('part').addEventListener('input',()=>{plan=null;refreshButtons()});
+for(const id of ['optFast','optRecovery','recStart'])$(id).addEventListener('input',()=>{plan=null;refreshButtons()});
 $('write').onclick=async()=>{
  if(!plan||flashing||!authorized)return;
  const message='กล่องสำรอง '+plan.part+' ECU ID '+plan.ecuId+

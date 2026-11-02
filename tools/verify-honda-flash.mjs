@@ -122,6 +122,50 @@ await check('Post-flash checker never issues write/erase',async()=>{
  await e.postFlashCheck();
  return sent.length>0&&sent.every(x=>[0x72,0x7d,0x7e].includes(x))&&!sent.includes(0x7c);
 });
+
+// ---- V17: Fast Write / Recovery (mock only) ----
+await check('Fast Write: KEIHINOTHER switches to 921600 only after status-0 ack',async()=>{
+ const baud=[];const e=new HondaFlashEngine({ready:true,async setBaud(b){baud.push(b)}});const seen=[];
+ e.x=async(name,f)=>{seen.push(name);return Uint8Array.of(2,5,0,0,0)};
+ await e.writeBlocks({bin:new Uint8Array(128),blockBytes:128,startOffset:0,profile:'KEIHINOTHER',fast:true});
+ return seen[0]==='KH_FAST_SWITCH'&&baud.length===1&&baud[0]===921600&&e.fastBaudActive===true;
+});
+await check('Fast Write: refused ack keeps normal baud (like C#)',async()=>{
+ const baud=[];const e=new HondaFlashEngine({ready:true,async setBaud(b){baud.push(b)}});let n=0;
+ e.x=async()=>++n===1?Uint8Array.of(2,5,0,9,0):Uint8Array.of(2,5,0,0,0);
+ await e.writeBlocks({bin:new Uint8Array(128),blockBytes:128,startOffset:0,profile:'KEIHINOTHER',fast:true});
+ return baud.length===0&&!e.fastBaudActive;
+});
+await check('Fast Write ignored for non-KEIHINOTHER profiles (C# parity)',async()=>{
+ const baud=[];const e=new HondaFlashEngine({ready:true,async setBaud(b){baud.push(b)}});const seen=[];
+ e.x=async(name)=>{seen.push(name);return Uint8Array.of(2,5,0,0,0)};
+ await e.writeBlocks({bin:new Uint8Array(64),blockBytes:64,startOffset:0,profile:'KEIHINH8C',fast:true});
+ return !seen.includes('KH_FAST_SWITCH')&&baud.length===0;
+});
+await check('Shindengen write delay 150 ms normal, 0 ms fast',async()=>{
+ const run=async fast=>{const e=new HondaFlashEngine({ready:true});let d=null;
+  e.x=async(n,f,o)=>{if(n.startsWith('WRITE_BLOCK'))d=o.afterWriteMs;return Uint8Array.of(2,5,0,0,0)};
+  await e.writeBlocks({bin:new Uint8Array(65536),blockBytes:128,startOffset:65536-128,profile:'SHINDENGENV850',fast});return d};
+ return (await run(false))===150&&(await run(true))===0;
+});
+await check('Fast switch command is the only unframed command allowed by exchangeRaw',async()=>{
+ const {FAST_SWITCH_COMMAND}=await import('../flash_port/ftdi-webusb.js');
+ const u=new Ft232rWebUsb();
+ let okMsg='',badMsg='';
+ u.ready=true;try{await u.exchangeRaw(Uint8Array.from(FAST_SWITCH_COMMAND),{timeoutMs:100})}catch(x){okMsg=x.message}
+ const mut=Uint8Array.from(FAST_SWITCH_COMMAND);mut[4]^=1;
+ u.ready=true;try{await u.exchangeRaw(mut,{timeoutMs:100})}catch(x){badMsg=x.message}
+ return !/Invalid framed|Incorrect command checksum/.test(okMsg)&&/Invalid framed command length/.test(badMsg);
+});
+await check('Recovery plan only for ECU ID ending 0000 with Shindengen BIN',async()=>{
+ const good=new HondaFlashEngine(fake('0102030000'));await good.identify();
+ const p=good.makePlan(shBin(),{filename:'any.bin',recovery:true});
+ const other=new HondaFlashEngine(fake('0101880D01'));await other.identify();
+ let rejectedId=false,rejectedBin=false;
+ try{other.makePlan(shBin(),{filename:'any.bin',recovery:true})}catch(x){rejectedId=x.code==='RECOVERY_ID'}
+ try{good.makePlan(new Uint8Array(65536),{filename:'any.bin',recovery:true})}catch(x){rejectedBin=true}
+ return p.recovery===true&&p.profile.startsWith('SHINDENGEN')&&Number.isInteger(p.startOffset)&&rejectedId&&rejectedBin;
+});
 const ok=checks.filter(x=>x.ok).length;
 console.log('\n'+ok+'/'+checks.length+' PASS — OFFLINE/MOCK ONLY');
 if(ok!==checks.length){process.exitCode=1;console.error('FAILURES:',checks.filter(x=>!x.ok))}

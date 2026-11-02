@@ -5,6 +5,7 @@
  */
 export const FT232R_VID=0x0403, FT232R_PID=0x6001;
 const FRAC_CODE=[0,3,2,4,1,5,6,7];
+export const FAST_SWITCH_COMMAND=Object.freeze([0xFF,0x25,0x00,0x20,0x7C,0x00]); // C# WriteFlash array (KEIHINOTHER + fastWrite)
 export function baudDivisor(baud){
   if(!Number.isInteger(baud)||baud<300||baud>3000000)throw Error('Unsupported baud rate');
   const divisor8=Math.round(24000000/baud);
@@ -168,9 +169,14 @@ export class Ft232rWebUsb {
     if(!this.ready)throw Error('FT232R not connected');
     if(this.exchangeBusy)throw Error('FTDI exchange already active');
     const bytes=Uint8Array.from(frame);
-    if(bytes.length<3||bytes.length>256||bytes[1]!==bytes.length)
-      throw Error('Invalid framed command length');
-    if(hondaChecksum(bytes)!==0)throw Error('Incorrect command checksum');
+    // The ONE non-framed command in the C# source (Keihin Fast Write baud switch,
+    // FormMain.cs WriteFlash) is accepted only as an exact byte match.
+    const isFastSwitch=bytes.length===FAST_SWITCH_COMMAND.length&&FAST_SWITCH_COMMAND.every((v,i)=>bytes[i]===v);
+    if(!isFastSwitch){
+      if(bytes.length<3||bytes.length>256||bytes[1]!==bytes.length)
+        throw Error('Invalid framed command length');
+      if(hondaChecksum(bytes)!==0)throw Error('Incorrect command checksum');
+    }
     if(!Number.isFinite(afterWriteMs)||afterWriteMs<0||afterWriteMs>5000)
       throw Error('Invalid response delay');
     const timeout=timeoutMs??Math.min(6000,Math.max(700,200+bytes.length*10));

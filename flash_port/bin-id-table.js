@@ -1,0 +1,68 @@
+/**
+ * BIN ID locator table — derived from Main/FormMain.cs SearchPattern{32..1024}KB().
+ * Each row: if file is >= minLen and bytes at chkOff match chk, the ID is `len` bytes at readFrom.
+ * Rows are tried in order; first match wins (same as the C# early-return flow).
+ * NOTE: C# 64KB row #6 reads from row #3 offset (copy/paste quirk) — kept as readFrom.
+ */
+export const BIN_ID_TABLE=Object.freeze({
+ 32768:Object.freeze([
+  {idOff:31956,len:5,minLen:31956,chkOff:31952,chk:[0xFF,0x00,0x00,0x00],readFrom:31956},
+  {idOff:38861,len:5,minLen:38861,chkOff:38857,chk:[0x8C,0x0F,0xA0,0x00],readFrom:38861},
+  {idOff:38861,len:5,minLen:38860,chkOff:38856,chk:[0x8C,0x0F,0xA0,0x00],readFrom:38861},
+ ]),
+ 49152:Object.freeze([
+  {idOff:38813,len:5,minLen:38813,chkOff:38809,chk:[0x8C,0x0F,0xA0,0x00],readFrom:38813},
+  {idOff:38861,len:5,minLen:38861,chkOff:38857,chk:[0x8C,0x0F,0xA0,0x00],readFrom:38861},
+  {idOff:38861,len:5,minLen:38860,chkOff:38856,chk:[0x8C,0x0F,0xA0,0x00],readFrom:38861},
+ ]),
+ 57344:Object.freeze([
+  {idOff:31874,len:5,minLen:31874,chkOff:31870,chk:[0xFF,0x00,0x00,0x00],readFrom:31874},
+  {idOff:49568,len:5,minLen:49568,chkOff:49564,chk:[0x00,0x00,0x00,0x00],readFrom:49568},
+ ]),
+ 65536:Object.freeze([
+  {idOff:9144,len:5,minLen:9144,chkOff:9140,chk:[0x00,0x00,0x00,0x00],readFrom:9144},
+  {idOff:11122,len:5,minLen:11131,chkOff:11127,chk:[0x00,0x00,0x00,0xFF],readFrom:11122},
+  {idOff:9740,len:5,minLen:9740,chkOff:9736,chk:[0x00,0x00,0x00,0x00],readFrom:9740},
+  {idOff:11154,len:5,minLen:11154,chkOff:11150,chk:[0x00,0x00,0x00,0x00],readFrom:11154},
+  {idOff:10302,len:5,minLen:10302,chkOff:10298,chk:[0x00,0x00,0x00,0x00],readFrom:10302},
+  {idOff:11154,len:5,minLen:11154,chkOff:11150,chk:[0x00,0x00,0x00,0x00],readFrom:9740},
+  {idOff:9110,len:5,minLen:9110,chkOff:9106,chk:[0x00,0x00,0x00,0x00],readFrom:9110},
+ ]),
+ 98304:Object.freeze([
+  {idOff:15951,len:5,minLen:15951,chkOff:15947,chk:[0x00,0x00,0x00,0x00],readFrom:15951},
+  {idOff:15698,len:5,minLen:15698,chkOff:15694,chk:[0x00,0xFF,0xA0,0x15],readFrom:15698},
+  {idOff:12851,len:5,minLen:12851,chkOff:12847,chk:[0x00,0x00,0x00,0x00],readFrom:12851},
+  {idOff:15683,len:5,minLen:15683,chkOff:15679,chk:[0x00,0x00,0x00,0x00],readFrom:15683},
+  {idOff:15800,len:5,minLen:15800,chkOff:15796,chk:[0x00,0x00,0x00,0x00],readFrom:15800},
+  {idOff:12128,len:5,minLen:12128,chkOff:12124,chk:[0x00,0x00,0x00,0x00],readFrom:12128},
+ ]),
+ 131072:Object.freeze([
+  {idOff:55929,len:5,minLen:55929,chkOff:55925,chk:[0x9F,0x01,0xFF,0x00],readFrom:55929},
+  {idOff:55908,len:5,minLen:55908,chkOff:55904,chk:[0x9F,0x01,0xFF,0x00],readFrom:55908},
+  {idOff:56167,len:5,minLen:56167,chkOff:56163,chk:[0x9F,0x01,0xFF,0x00],readFrom:56167},
+ ]),
+ 262144:Object.freeze([
+  {idOff:2048,len:3,minLen:2048,chkOff:2044,chk:[0x00,0x00,0x00,0x00],readFrom:2048},
+  {idOff:1928,len:3,minLen:1928,chkOff:1924,chk:[0xFF,0xFF,0xFF,0xFF],readFrom:1928},
+  {idOff:224455,len:3,minLen:224464,chkOff:224460,chk:[0x00,0x20,0x20,0x20],readFrom:224455},
+ ]),
+ 393216:Object.freeze([
+  {idOff:1928,len:3,minLen:1931,chkOff:1924,chk:[0xFF,0xFF,0xFF,0xFF],readFrom:1928},
+  {idOff:2048,len:3,minLen:2051,chkOff:2044,chk:[0x00,0x00,0x00,0x00],readFrom:2048},
+ ]),
+ 524288:Object.freeze([
+  {idOff:99416,len:5,minLen:99416,chkOff:99412,chk:[0x3A,0xBC,0x33,0xFF],readFrom:99416},
+  {idOff:11122,len:5,minLen:11131,chkOff:11127,chk:[0x00,0x00,0x00,0xFF],readFrom:11122},
+  {idOff:9144,len:5,minLen:9153,chkOff:9149,chk:[0x00,0x02,0x00,0xFF],readFrom:9144},
+ ]),
+ 786432:Object.freeze([
+  {idOff:779182,len:5,minLen:779182,chkOff:779178,chk:[0x00,0x00,0x00,0x00],readFrom:779182},
+  {idOff:777566,len:5,minLen:777566,chkOff:777562,chk:[0x00,0x00,0x00,0x00],readFrom:777566},
+  {idOff:9144,len:5,minLen:9153,chkOff:9149,chk:[0x00,0x02,0x00,0xFF],readFrom:9144},
+ ]),
+ 1048576:Object.freeze([
+  {idOff:9144,len:5,minLen:9153,chkOff:9149,chk:[0x00,0x00,0x00,0xFF],readFrom:9144},
+  {idOff:11122,len:5,minLen:11131,chkOff:11127,chk:[0x00,0x00,0x00,0xFF],readFrom:11122},
+  {idOff:9144,len:5,minLen:9153,chkOff:9149,chk:[0x00,0x02,0x00,0xFF],readFrom:9144},
+ ]),
+});

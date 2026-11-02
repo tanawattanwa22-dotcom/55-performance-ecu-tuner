@@ -7,7 +7,7 @@
  * Deliberately DISABLED for undocumented ECU IDs and Shindengen until exact
  * source catalog entry and ECU response are verified. This is not a simulator.
  */
-import {READ_ONLY_COMMANDS,toHex,hondaChecksum} from './ftdi-webusb.js';
+import {READ_ONLY_COMMANDS,toHex,hondaChecksum,FAST_SWITCH_COMMAND} from './ftdi-webusb.js';
 import {createWriteFrame,resolveWriteProfile} from './flash-frames.js';
 import {inspectCSharpEcuType,correctKeihinChecksum,correctShindengenChecksum,deriveShindengenWriteKey} from './csharp-logic.js';
 import {csharpOffsetInference,catalogLookup} from './csharp-offsets.js';
@@ -143,21 +143,30 @@ export class HondaFlashEngine {
    return this.identity;
   }catch(e){this.state='stopped';this.emit('PROBE_FAILED',{error:e.message});throw e}
  }
- makePlan(bin,{filename='',confirmedPart=''}={}){
+ makePlan(bin,{filename='',confirmedPart='',fast=false,recovery=false,startOffsetOverride=null}={}){
   if(this.state!=='identified'||!this.identity?.ecuId)
    fail('NO_ID','ต้องอ่าน ECU ID จริงก่อนสร้างแผนเขียน');
   if(!(bin instanceof Uint8Array))fail('NO_BIN','กรุณาเลือกไฟล์ BIN');
-  const {ecuId,family,catalog}=this.identity;
+  let {ecuId,family,catalog}=this.identity;
+  const rec=!!recovery;
+  if(rec){
+   // C# FormMain.SetEcmParamsFromDb(): recovery = ECU ID ends with "0000".
+   if(!/0000$/.test(ecuId))
+    fail('RECOVERY_ID','Recovery ใช้ได้เฉพาะ ECU ID ที่ลงท้าย 0000 (ตามต้นฉบับ C#) — ECU นี้คือ '+ecuId);
+   family='SHINDENGEN';
+   catalog={part:'RECOVERY-UNKNOWN',startOffset:null,checksumOffset:null,family:'SHINDENGEN'};
+  }else{
   if(!catalog||!this.identity.sourceMatched)
    fail('UNLISTED_ECU','ECU ID '+ecuId+' ไม่อยู่ในฐานโปรแกรม C# เดิม หยุดก่อนส่งคำสั่ง ERASE');
   if(!['KEIHIN','SHINDENGEN'].includes(family))
    fail('FAMILY_UNKNOWN','ยังไม่ได้ยืนยันตระกูล ECU จากคำตอบจริง');
   if(family==='KEIHIN'&&(!Number.isInteger(catalog.startOffset)||!Number.isInteger(catalog.checksumOffset)))
    fail('NO_MEMORY_MAP','Keihin ต้องมี Start Offset และ Checksum Offset ในฐาน C#');
+  }
   // The original C# Shindengen catalog stores "auto"; start offset and
   // checksum are derived from exact firmware signatures, not blank defaults.
   const sourcePart=catalog.part.toUpperCase(),shortPart=sourcePart.split('-').slice(1).join('-');
-  if(!filename.toUpperCase().includes(shortPart)&&confirmedPart.trim().toUpperCase()!==sourcePart)
+  if(!rec&&!filename.toUpperCase().includes(shortPart)&&confirmedPart.trim().toUpperCase()!==sourcePart)
    fail('PART_NOT_CONFIRMED','ชื่อ BIN ไม่ระบุ '+shortPart+' ให้กรอกรหัสอะไหล่ ECU ตามต้นฉบับ '+sourcePart+' ในช่องยืนยัน Part');
   const validSizes=new Set([32768,49152,57344,65536,98304,131072,262144,393216,524288,1048576]);
   if(!validSizes.has(bin.length))fail('BIN_SIZE','ขนาด BIN ไม่อยู่ในขนาดที่ C# รองรับ');
@@ -171,7 +180,7 @@ export class HondaFlashEngine {
   if(!profile.startsWith(family))fail('BIN_TYPE','ECU Type ไม่ตรงกับ ID/ตระกูล ECU');
   const p=resolveWriteProfile(profile);
   const suggested=csharpOffsetInference(originalBin,{ecuId});
-  const offset=catalog.startOffset??suggested.startOffset;
+  const offset=(rec&&Number.isInteger(startOffsetOverride))?startOffsetOverride:(catalog.startOffset??suggested.startOffset);
   if(!Number.isInteger(offset)||offset<0||offset%16)
    fail('BAD_SOURCE_MAP','Start Offset จาก C# ไม่ครบ/ผิด Alignment');
   if(bin.length%p.blockSize)fail('BLOCK_ALIGNMENT','BIN ไม่ตรงขนาดบล็อก C#');
@@ -184,7 +193,7 @@ export class HondaFlashEngine {
      ?correctKeihinChecksum(originalBin,catalog.checksumOffset)
      :correctShindengenChecksum(originalBin);
   const checksumOffset=corrected.checksumOffset;
-  const plan={ecuId,part:sourcePart,profile,startOffset:offset,checksumOffset,
+  const plan={ecuId,part:sourcePart,profile,startOffset:offset,checksumOffset,fast:!!fast,recovery:rec,
     filename,size:corrected.data.length,blockBytes:p.blockSize,bin:corrected.data,
     checksumChanged:corrected.modified,expectedBlockCount:corrected.data.length/p.blockSize-first,
     checks:{physicalIdMatched:true,familyFlashCountResponded:true,partFromCSharp:true,
@@ -229,6 +238,16 @@ export class HondaFlashEngine {
   // operation. An explicit 7-byte ECU response with bytes [4,5]=[0,0]
   // permits at most two retransmits IN TOTAL, not two per block.
   let sourceRetryBudget=2;
+  // C# WriteFlash(): KEIHINOTHER + fastWrite sends a special command and, only
+  // if the ECU answers 05 xx 00 (status 0), switches the FTDI to 921600 baud.
+  if(plan.fast&&plan.profile==='KEIHINOTHER'){
+   const r=await this.x('KH_FAST_SWITCH',Uint8Array.from(FAST_SWITCH_COMMAND),{timeoutMs:3000});
+   if(r.length===5&&r[3]===0){
+    await this.usb.setBaud(921600);this.fastBaudActive=true;
+    this.emit('FAST_BAUD_ENABLED',{baud:921600});
+   }else this.emit('FAST_BAUD_REFUSED',{replyLength:r.length,status:r[3]}); // C# continues at normal speed
+  }else if(plan.fast)this.emit('FAST_IGNORED',{profile:plan.profile}); // C# only fast-switches KEIHINOTHER
+  const writeDelay=plan.profile.startsWith('SHINDENGEN')&&!plan.fast?150:0; // C# sleepMs
   while(current<total){
    const skipBlank=plan.profile==='KEIHINOTHER'||plan.profile==='SHINDENGENV850';
    const next=skipBlank?nextNonBlank(plan.bin,current,total,blockSize):current+1;
@@ -241,7 +260,7 @@ export class HondaFlashEngine {
    // retransmission behavior in the owner's C# WriteFlash() source.
    let accepted=false;
    while(!accepted){
-     const reply=await this.x('WRITE_BLOCK_'+current,frame,{timeoutMs:7000});
+     const reply=await this.x('WRITE_BLOCK_'+current,frame,{timeoutMs:7000,afterWriteMs:writeDelay});
      if(reply.length===5&&reply[3]===0){
        this.emit('WRITE_BLOCK_ACK',{block:current,sourceReplyStatus:reply[3]});
        accepted=true;
@@ -270,7 +289,7 @@ export class HondaFlashEngine {
  async shPreErase(plan){
   this.state='preparing';
   this.emit('SH_PREWRITE_BEGIN',{profile:plan.profile});
-  const latency=150;
+  const latency=plan.fast?0:150; // C# sleepMs: 150 unless fastWrite
   await this.x('SH_HANDSHAKE_A',CMD.shHello1,{timeoutMs:3000,afterWriteMs:latency});
   await this.x('SH_HANDSHAKE_B',CMD.shHello2,{timeoutMs:3000,afterWriteMs:latency});
   for(let n=10;n>=1;n--){this.emit('SH_SECURITY_WAIT',{secondsRemaining:n});await sleep(1000)}
@@ -279,7 +298,7 @@ export class HondaFlashEngine {
   if(seedReply.length!==7||seedReply[3]!==0)
     fail('SH_BAD_SEED','Shindengen ECU seed response not valid');
   const seed=Uint8Array.of(seedReply[4],seedReply[5]);
-  const key=deriveShindengenWriteKey(plan.bin,seed);
+  const key=deriveShindengenWriteKey(plan.bin,seed,{recovery:!!plan.recovery});
   if(!key)fail('SH_KEY_NOT_FOUND','Shindengen key algorithm not found in BIN; refuse erase');
   const keyFrame=Uint8Array.of(123,7,2,5,key[0],key[1],0);
   keyFrame[6]=hondaChecksum(keyFrame.slice(0,6));
@@ -296,14 +315,14 @@ export class HondaFlashEngine {
   if(result[3]!==0)fail('SH_ERASE_FAILED','Shindengen erase completion failed '+result[3]);
   this.emit('SH_ERASE_ACKNOWLEDGED');
  }
- async shFinish(){
+ async shFinish(plan={}){
   this.state='finishing';
   for(const [label,frame,delay] of [
     ['SH_FINAL1',CMD.shFinish1,1000],['SH_FINAL2',CMD.shFinish2,1000],
     ['SH_FINAL3',CMD.shFinish3,1000],['SH_FINAL4',CMD.shFinish4,3000],
     ['SH_FINAL5',CMD.shFinish5,0]
   ]){
-    const r=await this.x(label,frame,{timeoutMs:6000,afterWriteMs:150});
+    const r=await this.x(label,frame,{timeoutMs:6000,afterWriteMs:plan.fast?0:150});
     if(label==='SH_FINAL5'&&r[3]!==15)fail('SH_FINAL_ACK','Shindengen final ACK must be 0x0F');
     if(delay)await sleep(delay);
   }
@@ -342,11 +361,14 @@ export class HondaFlashEngine {
   this.state='idle';
   try{
     const observed=await this.identify();
-    if(observed.ecuId!==expected||!observed.sourceMatched)
+    if(this.lastResult.recovery){
+      if(!observed.sourceMatched||/0000$/.test(observed.ecuId))
+        fail('POST_RECOVERY_UNRECOGNISED','หลัง Recovery ECU ต้องรายงาน ID จริงที่อยู่ในฐาน C# แต่ได้ '+observed.ecuId);
+    }else if(observed.ecuId!==expected||!observed.sourceMatched)
       fail('POST_FLASH_MISMATCH','อ่าน ECU ID หลังรีสตาร์ตไม่ตรงกับก่อนเขียน');
     const result={postFlashEcuResponded:true,ecuId:observed.ecuId,
       sourcePart:observed.sourcePart,flashCount:observed.count,
-      idMatchesBeforeWrite:true,readbackVerified:false,
+      idMatchesBeforeWrite:!this.lastResult.recovery,readbackVerified:false,
       note:'Post-restart ECU ID and flash count communication only; firmware bytes were NOT read back'};
     this.emit('POST_FLASH_ID_CONFIRMED',result);
     return result;
@@ -358,7 +380,7 @@ export class HondaFlashEngine {
  }
  async flash(plan,{confirmation,physicalBackupConfirmed=false,externalPowerConfirmed=false,recoveryReady=false}={}){
   if(this.state!=='identified')fail('NOT_READY','อ่านรหัส ECU ให้เสร็จก่อน');
-  if(!plan||plan.ecuId!==this.identity.ecuId||!plan.profile.startsWith(this.identity.family))
+  if(!plan||plan.ecuId!==this.identity.ecuId||(!plan.recovery&&!plan.profile.startsWith(this.identity.family)))
     fail('PLAN_INVALID','แผนเขียนไม่ตรงกับ ECU ที่ตรวจแล้ว');
   if(confirmation!=='FLASH '+plan.ecuId)fail('CONFIRMATION','ต้องพิมพ์ FLASH และ ECU ID ที่อ่านได้');
   if(!physicalBackupConfirmed||!externalPowerConfirmed||!recoveryReady)
@@ -377,15 +399,17 @@ export class HondaFlashEngine {
    if(plan.profile.startsWith('SHINDENGEN'))await this.shPreErase(plan);
    else await this.khPreErase();
    const blocks=await this.writeBlocks(plan);
-   if(plan.profile.startsWith('SHINDENGEN'))await this.shFinish();
+   if(plan.profile.startsWith('SHINDENGEN'))await this.shFinish(plan);
    else await this.khFinish();
+   if(this.fastBaudActive){await this.usb.setBaud(10400);this.fastBaudActive=false}
    this.state='finished';
-   const result={ok:true,phase:'SOURCE_FINAL_ACK',ecuId:plan.ecuId,part:plan.part,blocksSent:blocks,
+   const result={ok:true,phase:'SOURCE_FINAL_ACK',recovery:!!plan.recovery,fast:!!plan.fast,ecuId:plan.ecuId,part:plan.part,blocksSent:blocks,
      readbackVerified:false,needEcuRestart:true,warning:'The purchased C# source checks final ECU ACK, not full-memory readback VERIFY.'};
    this.lastResult=result;
    this.emit('FLASH_SOURCE_COMPLETE',result);
    return result;
   }catch(e){
+   this.fastBaudActive=false;
    this.state='stopped';
    this.emit('FLASH_STOP',{error:e.message,eraseMayHaveStarted:eraseStarted,recoveryRequired:eraseStarted});
    if(this.usb.ready)await this.usb.close().catch(()=>{});
