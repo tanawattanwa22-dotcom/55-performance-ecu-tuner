@@ -101,10 +101,12 @@ export function correctShindengenChecksum(bin){
     const before=Array.from(out.slice(ck,ck+4));
     out[ck]=change&255;out[ck+1]=(change>>>8)&255;
     out[ck+2]=(change>>>16)&255;out[ck+3]=(change>>>24)&255;
-    // Verify the SAME two ranges as C# ShindengenAutoChecksum / Sum32Bit.
-    // The second range may start unaligned; a whole-file word sum is NOT
-    // equivalent and incorrectly rejects valid firmware in that case.
-    const verified=((sum32Little(out,0,ck)+sum32Little(out,pos,out.length))>>>0)===0;
+    // C# Sum32Bit excludes the four checksum bytes and may skip unaligned
+    // padding around the marker. Verify source range A + stored checksum
+    // word + source range B, NOT the full-file word sum.
+    const storedChecksum=(out[ck]|(out[ck+1]<<8)|(out[ck+2]<<16)|(out[ck+3]<<24))>>>0;
+    const verified=((sum32Little(out,0,ck)+storedChecksum+
+      sum32Little(out,pos,out.length))>>>0)===0;
     if(!verified)throw Error('C# Shindengen checksum verification failed');
     return {data:out,checksumOffset:ck,oldBytes:before,newBytes:Array.from(out.slice(ck,ck+4)),modified:before.some((v,i)=>v!==out[ck+i])};
    }
