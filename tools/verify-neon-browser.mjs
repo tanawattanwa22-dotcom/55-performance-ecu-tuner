@@ -81,7 +81,23 @@ try{
    .map(img=>({src:img.getAttribute('src'),complete:img.complete,loaded:img.naturalWidth>0})));
   assert(logos.every(l=>l.loaded),'every local Honda logo loaded: '+JSON.stringify(logos));
   await overflowing('Library '+width);
-  if(width===393)await page.screenshot({path:path.join(root,'test-reports','neon-library-v22-393.png'),fullPage:false});
+  if(width===393){
+   await page.screenshot({path:path.join(root,'test-reports','neon-library-v22-393.png'),fullPage:false});
+   // Visual fixture ONLY. Production still reads encrypted licensed BIN data, not these synthetic bytes.
+   const preexisting=await page.evaluate(()=>Boolean(BINS['K03-H01']&&DEFS['K03-H01']));
+   if(!preexisting){
+    await page.evaluate(()=>{
+     BINS['K03-H01']=btoa(String.fromCharCode(...new Uint8Array(1024)));
+     DEFS['K03-H01']={tables:[]};
+     window.__55NeonNavigate('library');
+    });
+   }
+   await page.waitForTimeout(90);
+   await page.screenshot({path:path.join(root,'test-reports','neon-library-v22-ready-fixture-393.png'),fullPage:false});
+   if(!preexisting)await page.evaluate(()=>{
+    delete BINS['K03-H01'];delete DEFS['K03-H01'];window.__55NeonNavigate('library');
+   });
+  }
 
   await page.evaluate(()=>document.querySelector('#v20Nav [data-cat="flash"]').click());
   assert.equal(await page.locator('#flashCard').evaluate(el=>el.classList.contains('n20-hidden')),false);
