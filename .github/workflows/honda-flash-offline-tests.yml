@@ -45,3 +45,5 @@ jobs:
         run: node tools/verify-main-dtc.mjs
       - name: Validate V19 mobile category UI, pages and script syntax
         run: node tools/verify-ui-v19.mjs
+      - name: Verify saved BIN snapshot and mobile customer flash handoff
+        run: node tools/verify-tune-bin-flow.mjs
