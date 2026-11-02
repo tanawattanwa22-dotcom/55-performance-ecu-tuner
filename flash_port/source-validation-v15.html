@@ -1,6 +1,6 @@
 <!doctype html><html lang="th"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>55 ECU C# Validation V15</title><style>body{background:#121d2b;color:#edf5ff;font:15px system-ui;max-width:760px;margin:auto;padding:16px}pre{padding:17px;border-radius:13px;background:#1c2a3c;white-space:pre-wrap}a{color:#ffb376}</style>
-<a href="flash-write-lab.html">← Flash Bench V15</a><h2>55 ECU C# Source Validation V16.1</h2>
+<a href="flash-write-lab.html">← Flash Bench V15</a><h2>55 ECU C# Source Validation V16.1.1</h2>
 <p>ทดสอบโค้ด/โปรไฟล์แบบออฟไลน์ ไม่ต่อ USB และไม่ส่ง ERASE/WRITE</p><b id="sum">กำลังทดสอบ...</b><pre id="out"></pre>
 <script type="module">
 import {loadCSharpCatalog,findCSharpEcuId} from './csharp-ecu-catalog.js';
@@ -74,6 +74,28 @@ await t('USB timeout never blindly resends flash block',async()=>{
  e.x=async()=>{attempts++;throw Error('hardware timeout')};
  try{await e.writeBlocks({bin:new Uint8Array(128),blockBytes:128,startOffset:0,profile:'KEIHINOTHER'});return false}
  catch(err){return attempts===1&&err.message==='hardware timeout'}
+});
+
+await t('C# WorkerThread confirms HELLO twice before ECU ID',async()=>{
+ const e=new HondaFlashEngine(fake('0101880D01'));const labels=[],original=e.x.bind(e);
+ e.x=async(...args)=>{labels.push(args[0]);return original(...args)};
+ await e.identify();
+ return labels.indexOf('HELLO')>=0&&labels.indexOf('CONFIRM_WORKER_SESSION')>labels.indexOf('HELLO')&&
+        labels.indexOf('READ_ECU_ID')>labels.indexOf('CONFIRM_WORKER_SESSION');
+});
+await t('C# WorkerThread fallback poll reconfirms session before ECU ID',async()=>{
+ const usb=fake('0101880D01'),physicalDevice={vendorId:0x0403};
+ usb.lastDevice=physicalDevice;usb.openSelected=async()=>{usb.ready=true};
+ const e=new HondaFlashEngine(usb),labels=[],original=e.x.bind(e);
+ e.x=async(...args)=>{
+   labels.push(args[0]);
+   if(args[0]==='HELLO')throw Error('No HELLO response');
+   return original(...args);
+ };
+ const identity=await e.identify();
+ return identity.handshake==='KEIHIN_POLL'&&labels.includes('KEIHIN_FALLBACK_HELLO')&&
+        labels.indexOf('CONFIRM_WORKER_SESSION')>labels.indexOf('KEIHIN_FALLBACK_HELLO')&&
+        labels.indexOf('READ_ECU_ID')>labels.indexOf('CONFIRM_WORKER_SESSION');
 });
 const passed=checks.filter(x=>x[1]).length;document.getElementById('sum').textContent=passed+'/'+checks.length+' PASS (offline only)';
 document.getElementById('sum').style.color=passed===checks.length?'#7aebb0':'#ffa09b';
