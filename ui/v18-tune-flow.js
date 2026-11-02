@@ -5,7 +5,7 @@
 (()=>{"use strict";
  const el=id=>document.getElementById(id);
  const flow=globalThis.TuneBinFlow;
- if(!flow||!el("btnSave")||!el("flashSnapshot"))return;
+ if(!flow||!el("btnSave")||!el("flashSnapshot")){console.error("55 BIN flow initialization failed: missing dependency or UI");return;}
  const same=()=>!!S.saved&&!!S.bin&&flow.matches(S.saved,S.bin,{
    model:MODELS[S.mi]?.id,sourceName:S.fname,customerBin:S.custom
  });
@@ -15,8 +15,10 @@
    const flash=el("btnFlash"),go=el("btnToFlash"),panel=el("flashSnapshot");
    go.hidden=!saved;el("tune").querySelector(".bb")?.classList.toggle("no-snapshot",!saved);
    el("flowTune")?.classList.toggle("done",saved);
+   el("flowTune")?.classList.toggle("on",!saved);
+   el("flowSaved")?.classList.toggle("on",saved);
    el("flowSaved")?.classList.toggle("done",saved);
-   el("flowFlash")?.classList.toggle("on",saved);
+   el("flowFlash")?.classList.toggle("on",false);
    el("tuneSaveStatus").textContent=saved
      ?(fromCustomer?"BIN ลูกค้าที่จูนถูกบันทึกแล้ว · ไปตรวจ Offset และอัดได้":"บันทึกสำเร็จ · ต้องเปิด BIN ต้นฉบับลูกค้าเพื่อใช้อัดจริง")
      :"แก้ตารางจูนได้ตามต้องการ แล้วกด บันทึก BIN ก่อนจะแสดงปุ่มไปหน้าอัด";
@@ -82,7 +84,9 @@
      if(S.saved===snap){snap.sha256=hex;refresh()}
    }).catch(()=>{});
  };
+ // A later UI handler or cached inline script must not silently bypass snapshot creation.
  el("btnSave").onclick=saveBin;
+ el("btnSave").addEventListener("click",()=>{if(S.saved)refresh();});
  el("btnToFlash").onclick=()=>{
    if(!same())return toast("กรุณาบันทึก BIN ใหม่ก่อน");
    if(!S.saved.customerBin)return toast("ต้องเปิด BIN ของลูกค้า ไม่สามารถอัดจากไฟล์ตัวอย่างอัตโนมัติ");
