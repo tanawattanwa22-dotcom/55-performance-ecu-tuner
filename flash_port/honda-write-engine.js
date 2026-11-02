@@ -11,6 +11,7 @@ import {READ_ONLY_COMMANDS,toHex,hondaChecksum} from './ftdi-webusb.js';
 import {createWriteFrame,resolveWriteProfile} from './flash-frames.js';
 import {inspectCSharpEcuType,correctKeihinChecksum} from './csharp-logic.js';
 import {csharpOffsetInference,catalogLookup} from './csharp-offsets.js';
+import {findCSharpEcuId} from './csharp-ecu-catalog.js';
 const sleep=ms=>new Promise(ok=>setTimeout(ok,ms));
 function bytes(list){
  const b=Uint8Array.from(list);
@@ -88,49 +89,63 @@ export class HondaFlashEngine {
    if(idReply.length<11)fail('NO_ECU_ID','ECU ID reply สั้นเกินไป');
    const ecuId=toHex(idReply.slice(5,10)).replaceAll(' ','');
    if(!/^[0-9A-F]{10}$/.test(ecuId))fail('BAD_ECU_ID','ECU ID ผิดรูปแบบ');
+   const source=(await findCSharpEcuId(ecuId))||catalogLookup(ecuId);
    let family='UNVERIFIED',count=null;
    try{
-    const r=await this.x('KEIHIN_FLASH_COUNT',CMD.khCount,{timeoutMs:1800});
-    if(r.length>=7){family='KEIHIN';count=r[6]}
+    const isSh=source?.family==='SHINDENGEN';
+    const label=isSh?'SHINDENGEN_FLASH_COUNT':'KEIHIN_FLASH_COUNT';
+    const command=isSh?CMD.shPoll:CMD.khCount;
+    const r=await this.x(label,command,{timeoutMs:1800});
+    if(r.length>=7){family=isSh?'SHINDENGEN':'KEIHIN';count=r[6]}
    }catch(e){
-    // The C# program probes both Keihin and Shindengen.
-    // WebUSB timeout closes the interface; stop rather than guessing.
+    // The C# source uses family-specific count responses. Stop when absent;
+    // no blind attempts at the other family's programming commands.
     this.emit('FAMILY_NOT_CONFIRMED',{message:e.message});
    }
-   const source=catalogLookup(ecuId);
-   if(source&&source.family==='KEIHIN'&&family==='KEIHIN')this.emit('SOURCE_ECU_MATCH',{ecuId,part:source.part});
-   this.identity={ecuId,family,count,sourcePart:source?.part||null,sourceMatched:!!source};
+   if(source&&source.family===family)this.emit('SOURCE_ECU_MATCH',{ecuId,part:source.part});
+   this.identity={ecuId,family,count,sourcePart:source?.part||null,sourceMatched:!!source&&source.family===family,catalog:source||null};
    this.state='identified';
    this.emit('ECU_IDENTIFIED',this.identity);
    return this.identity;
   }catch(e){this.state='stopped';this.emit('PROBE_FAILED',{error:e.message});throw e}
  }
- makePlan(bin,{filename='' }={}){
+ makePlan(bin,{filename='',confirmedPart=''}={}){
   if(this.state!=='identified'||!this.identity?.ecuId)
    fail('NO_ID','ต้องอ่าน ECU ID จริงก่อนสร้างแผนเขียน');
   if(!(bin instanceof Uint8Array))fail('NO_BIN','กรุณาเลือกไฟล์ BIN');
-  const {ecuId,family}=this.identity;
-  const supported=SOURCE_WRITE_SUPPORT[ecuId];
-  if(!supported)fail('UNLISTED_ECU','ECU ID '+ecuId+' ยังไม่มีโปรไฟล์เขียนที่ตรวจเทียบจาก C# แล้ว กรุณาส่ง Log ให้ตรวจ ไม่ส่ง ERASE');
-  if(family!=='KEIHIN')fail('FAMILY_MISMATCH','ECU ไม่ตอบชุดคำสั่ง Keihin ที่ระบุในซอร์ส');
-  if(!filename.toUpperCase().includes('K03-H01'))fail('FILENAME_MISMATCH','ใช้ BIN ที่ระบุ K03-H01 ตรงกับรหัสกล่องเท่านั้น');
-  if(bin.length!==supported.size)fail('BIN_SIZE','BIN ต้องมีขนาด '+supported.size+' ไบต์ตามโปรไฟล์นี้');
-  const suggested=csharpOffsetInference(bin,{ecuId});
-  if(suggested.startOffset!==supported.offset)fail('OFFSET_MISMATCH','Start Offset จาก C# และรายการ ECU ไม่ตรงกัน');
-  const type=inspectCSharpEcuType(bin);
-  if(type.type!=='UNDETERMINED'&&type.type!=='KEIHINOTHER')
-   fail('BIN_FAMILY','BIN มีลายเซ็น ECU คนละตระกูล: '+type.type);
-  const binToWrite=correctKeihinChecksum(bin,supported.checksumOffset).data;
-  const block=resolveWriteProfile(supported.profile);
-  if(binToWrite.length%block.blockSize)fail('BLOCK_ALIGNMENT','ขนาด BIN ไม่ตรงขนาดบล็อก');
-  const plan={
-   ecuId,part:supported.part,profile:supported.profile,startOffset:supported.offset,
-   checksumOffset:supported.checksumOffset,filename,size:binToWrite.length,blockBytes:block.blockSize,
-   bin:binToWrite,
-   expectedBlockCount:binToWrite.length/block.blockSize,
-   checks:{physicalIdMatched:true,keihinCountResponded:true,partFromCSharp:true,offsetFromCSharp:true,binSizeValidated:true}
-  };
-  this.emit('PREFLIGHT_PASS',{ecuId,part:plan.part,bytes:plan.size,offsetHex:'0x'+plan.startOffset.toString(16),blockBytes:plan.blockBytes});
+  const {ecuId,family,catalog}=this.identity;
+  if(!catalog||!this.identity.sourceMatched)
+   fail('UNLISTED_ECU','ECU ID '+ecuId+' ไม่อยู่ในฐานโปรแกรม C# เดิม หยุดก่อนส่งคำสั่ง ERASE');
+  if(family!=='KEIHIN')
+   fail('SHINDENGEN_NOT_ENABLED','พบ '+family+' ในฐาน C# แล้ว แต่โมดูลลบ/เขียน Shindengen ยังไม่ได้ตรวจเทียบจึงไม่ส่ง ERASE');
+  if(!Number.isInteger(catalog.startOffset)||!Number.isInteger(catalog.checksumOffset))
+   fail('NO_MEMORY_MAP','แผนผัง Start Offset และ Checksum Offset ในฐาน C# ไม่ครบ');
+  const sourcePart=catalog.part.toUpperCase(),shortPart=sourcePart.split('-').slice(1).join('-');
+  if(!filename.toUpperCase().includes(shortPart)&&confirmedPart.trim().toUpperCase()!==sourcePart)
+   fail('PART_NOT_CONFIRMED','ชื่อ BIN ไม่ระบุ '+shortPart+' ให้กรอกรหัสอะไหล่ ECU ตามต้นฉบับ '+sourcePart+' ในช่องยืนยัน Part');
+  const validSizes=new Set([32768,49152,57344,65536,98304,131072,262144,393216,524288,1048576]);
+  if(!validSizes.has(bin.length))fail('BIN_SIZE','ขนาด BIN ไม่อยู่ในขนาดที่ C# รองรับ');
+  const originalBin=bin.slice();
+  const detected=inspectCSharpEcuType(originalBin);
+  if(detected.type.startsWith('SHINDENGEN'))
+   fail('BIN_FAMILY','BIN เป็นตระกูล Shindengen แต่ ECU ID อยู่ในฐาน Keihin');
+  const profile=detected.type==='UNDETERMINED'?'KEIHINOTHER':detected.type;
+  if(!profile.startsWith('KEIHIN'))fail('BIN_TYPE','ไม่สามารถกำหนด ECU Type ได้');
+  const p=resolveWriteProfile(profile);
+  const offset=catalog.startOffset,checksumOffset=catalog.checksumOffset;
+  if(offset<0||offset%16||checksumOffset<0||checksumOffset>=bin.length)
+   fail('BAD_SOURCE_MAP','Offset ของ C# อยู่นอกขอบเขต BIN หรือไม่ตรง Alignment');
+  if(bin.length%p.blockSize)fail('BLOCK_ALIGNMENT','BIN ไม่ตรงขนาดบล็อก C#');
+  const lastAddress=offset/16+(bin.length/p.blockSize-1)*p.addressStep;
+  if(lastAddress>0xffff)fail('ADDRESS_OVERFLOW','Address 16-bit เกินขอบเขตที่ตรวจได้ ไม่ให้ wrap หน่วยความจำอัตโนมัติ');
+  const corrected=correctKeihinChecksum(originalBin,checksumOffset);
+  const plan={ecuId,part:sourcePart,profile,startOffset:offset,checksumOffset,
+    filename,size:corrected.data.length,blockBytes:p.blockSize,bin:corrected.data,
+    checksumChanged:corrected.modified,expectedBlockCount:corrected.data.length/p.blockSize,
+    checks:{physicalIdMatched:true,keihinFlashCountResponded:true,partFromCSharp:true,
+      offsetsFromCSharp:true,binSizeValidated:true,hardwareValidated:false}};
+  this.emit('PREFLIGHT_PASS',{ecuId,part:plan.part,profile,bytes:plan.size,
+    offsetHex:'0x'+offset.toString(16),blockBytes:plan.blockBytes,checksumChanged:corrected.modified});
   return plan;
  }
  async khPreErase(){
@@ -206,7 +221,7 @@ export class HondaFlashEngine {
  }
  async flash(plan,{confirmation,physicalBackupConfirmed=false,externalPowerConfirmed=false,recoveryReady=false}={}){
   if(this.state!=='identified')fail('NOT_READY','อ่านรหัส ECU ให้เสร็จก่อน');
-  if(!plan||plan.ecuId!==this.identity.ecuId||plan.profile!=='KEIHINOTHER')
+  if(!plan||plan.ecuId!==this.identity.ecuId||!plan.profile.startsWith('KEIHIN'))
     fail('PLAN_INVALID','แผนเขียนไม่ตรงกับ ECU ที่ตรวจแล้ว');
   if(confirmation!=='FLASH '+plan.ecuId)fail('CONFIRMATION','ต้องพิมพ์ FLASH และ ECU ID ที่อ่านได้');
   if(!physicalBackupConfirmed||!externalPowerConfirmed||!recoveryReady)
