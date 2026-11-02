@@ -1,0 +1,34 @@
+name: Honda C# Flash Port — Offline Validation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "flash_port/**"
+      - "tools/verify-honda-flash.mjs"
+      - "package.json"
+      - ".github/workflows/honda-flash-offline-tests.yml"
+  pull_request:
+    paths:
+      - "flash_port/**"
+      - "tools/verify-honda-flash.mjs"
+      - "package.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-parity:
+    name: Source parity and failure-stop checks (NO ECU)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Run 29 offline/mock Honda flash checks
+        run: node tools/verify-honda-flash.mjs
