@@ -221,3 +221,6 @@
 @media(prefers-reduced-motion:reduce){
  .n22-library *{scroll-behavior:auto!important}
 }
+
+/* Empty master BIN state must span both featured columns, not a narrow chip column. */
+.n22-feature-card>.n22-empty{grid-column:1/-1;align-self:center;justify-self:stretch;min-height:93px;display:flex;align-items:center;justify-content:center;text-align:center}
