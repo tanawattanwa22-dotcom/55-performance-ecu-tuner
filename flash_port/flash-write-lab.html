@@ -61,6 +61,7 @@ import {Ft232rWebUsb} from './ftdi-webusb.js';
 import {HondaFlashEngine} from './honda-write-engine.js';
 const $=id=>document.getElementById(id);
 let authorized=false,port=null,engine=null,identity=null,plan=null,busy=false,flashing=false,wakeLock=null;
+let lastPlanEvidence=null,flashOutcome='NOT_STARTED'; // immutable evidence survives plan reset after Final ACK
 const logs=[];
 const push=(v)=>{const s=new Date().toLocaleTimeString('th-TH')+' '+v;logs.push(s);if(logs.length%5===0||!flashing){$('log').textContent=logs.slice(-130).join('\n');$('log').scrollTop=$('log').scrollHeight}};
 function refreshButtons(){
@@ -133,6 +134,12 @@ $('prepare').onclick=async()=>{
   const sha=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',data)),b=>b.toString(16).padStart(2,'0')).join('');
   plan=engine.makePlan(data,{filename:file.name,confirmedPart:$('part').value});
   const writeSha=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',plan.bin)),b=>b.toString(16).padStart(2,'0')).join('');
+  lastPlanEvidence=Object.freeze({createdAt:new Date().toISOString(),ecuId:plan.ecuId,part:plan.part,
+   filename:plan.filename,originalSha256:sha,actualWriteSha256:writeSha,
+   originalBinBytes:data.length,actualWriteBinBytes:plan.bin.length,checksumChanged:plan.checksumChanged,
+   profile:plan.profile,startOffset:plan.startOffset,checksumOffset:plan.checksumOffset,
+   expectedBlockCount:plan.expectedBlockCount});
+  flashOutcome='PREFLIGHT_ONLY_NO_FLASH';
   $('plan').textContent=JSON.stringify({ecuId:plan.ecuId,part:plan.part,fileName:plan.filename,
    originalSha256:sha,actualWriteSha256:writeSha,checksumChanged:plan.checksumChanged,profile:plan.profile,startOffset:'0x'+plan.startOffset.toString(16).toUpperCase(),
    checksumOffset:plan.checksumOffset,binBytes:plan.size,expectedBlocks:plan.expectedBlockCount,checks:plan.checks,
@@ -151,6 +158,7 @@ $('write').onclick=async()=>{
    '\nStart Offset 0x'+plan.startOffset.toString(16)+
    '\n\nจะเข้าสู่ขั้นตอน ERASE/WRITE จริงและมีโอกาสทำ ECU เสีย ถ้ายังไม่พร้อมกด Cancel';
  if(!confirm(message))return;
+ flashOutcome='FLASH_STARTED_NOT_VERIFIED';
  busy=true;flashing=true;refreshButtons();
  $('percent').textContent='เริ่มขั้นตอนแฟลช ECU สำรอง • ห้ามปิดหน้าเว็บ';
  try{
@@ -160,12 +168,14 @@ $('write').onclick=async()=>{
    recoveryReady:$('recovery').checked});
   $('percent').textContent='ได้รับ SOURCE FINAL ACK • โปรดรีสตาร์ต ECU และตรวจซ้ำ • ยังไม่ได้ Readback VERIFY';
   $('percent').className='status ok';
+  flashOutcome='SOURCE_FINAL_ACK_NO_READBACK';
   $('postStatus').textContent='ได้รับ Final ACK แล้ว • รีสตาร์ต ECU สำรองก่อนกดตรวจ ECU ID อีกครั้ง';
   push('SOURCE COMPLETE (not full readback verification) '+JSON.stringify(result));
  }catch(e){
   $('percent').textContent='หยุดอัดไฟล์: '+e.message+
    '\nห้ามสันนิษฐานว่ากล่องยังใช้ได้ หากเข้าสู่ ERASE แล้วต้องใช้ขั้นตอนกู้คืน';
   $('percent').className='status bad';
+  flashOutcome='FLASH_STOPPED_MAY_REQUIRE_ECU_RECOVERY';
   push('FLASH STOP: '+e.message);
  }finally{
   flashing=false;busy=false;
@@ -185,12 +195,14 @@ $('postCheck').onclick=async()=>{
     $('postStatus').textContent='ECU ตอบกลับหลังรีสตาร์ต: '+result.ecuId+
       ' | '+(result.sourcePart||'')+
       ' | ยังไม่ได้ Verify เนื้อหา BIN ใน Flash';
+    flashOutcome='POST_RESTART_ID_OK_NO_FIRMWARE_READBACK';
     push('POST FLASH CHECK '+JSON.stringify(result));
     plan=null;identity=engine.identity;
   }catch(e){
     $('postStatus').className='status bad';
     $('postStatus').textContent='ตรวจ ECU หลังรีสตาร์ตไม่ผ่าน: '+e.message+
       ' | ตรวจไฟเลี้ยง/สายและใช้เครื่องมือกู้คืนตามความจำเป็น';
+    flashOutcome='POST_RESTART_ECU_CHECK_FAILED';
     push('POST FLASH STOP '+e.message);
   }finally{busy=false;refreshButtons()}
 };
@@ -201,8 +213,9 @@ $('saveLog').onclick=()=>{
  const report=['55 PERFORMANCE ECU FLASH BENCH V16','Source: C# FormMain.cs SHA256 50e13192164e25493fffb1babd5baa580902d0a14a09452a3279cf75157594f1',
   'ECU ID: '+safeId,'ECU family: '+(identity?.family||'UNKNOWN'),
   'ECU Part: '+(identity?.sourcePart||'UNKNOWN'),
-  'Plan: '+(plan?JSON.stringify({profile:plan.profile,part:plan.part,binBytes:plan.size,startOffset:plan.startOffset,checksumOffset:plan.checksumOffset}):'none'),
-  'NOTE: Final ACK is not firmware readback verification.','',...logs].join('\n');
+  'Plan evidence (kept after flash): '+(lastPlanEvidence?JSON.stringify(lastPlanEvidence):'not yet prepared'),
+  'Run outcome: '+flashOutcome,
+  'NOTE: Final ACK and post-restart ECU ID are not firmware readback verification.','',...logs].join('\n');
  const url=URL.createObjectURL(new Blob([report],{type:'text/plain;charset=utf-8'}));
  const a=document.createElement('a');a.href=url;a.download='55_ECU_FLASH_LOG_'+safeId+'_'+timestamp+'.txt';a.click();
  setTimeout(()=>URL.revokeObjectURL(url),1500);
