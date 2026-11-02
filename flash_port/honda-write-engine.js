@@ -306,6 +306,32 @@ export class HondaFlashEngine {
   }
   this.emit('FINAL_ACK_RECEIVED');
  }
+ async postFlashCheck(){
+  // The purchased C# source has no full-memory READBACK VERIFY.
+  // Only re-identify the same ECU after the operator power-cycles the bench.
+  if(this.state!=='finished'||!this.lastResult?.ok)
+    fail('NO_COMPLETED_FLASH','ต้องมี SOURCE FINAL ACK จากการเขียนก่อน');
+  if(!this.usb?.ready)
+    fail('USB_LOST','FTDI ไม่พร้อมตรวจ ECU หลังรีสตาร์ต');
+  const expected=this.lastResult.ecuId;
+  this.emit('POST_FLASH_RECONNECT_START',{expectedEcuId:expected});
+  this.state='idle';
+  try{
+    const observed=await this.identify();
+    if(observed.ecuId!==expected||!observed.sourceMatched)
+      fail('POST_FLASH_MISMATCH','อ่าน ECU ID หลังรีสตาร์ตไม่ตรงกับก่อนเขียน');
+    const result={postFlashEcuResponded:true,ecuId:observed.ecuId,
+      sourcePart:observed.sourcePart,flashCount:observed.count,
+      idMatchesBeforeWrite:true,readbackVerified:false,
+      note:'Post-restart ECU ID and flash count communication only; firmware bytes were NOT read back'};
+    this.emit('POST_FLASH_ID_CONFIRMED',result);
+    return result;
+  }catch(error){
+    this.state='stopped';
+    this.emit('POST_FLASH_FAILED',{error:error.message,expectedEcuId:expected});
+    throw error;
+  }
+ }
  async flash(plan,{confirmation,physicalBackupConfirmed=false,externalPowerConfirmed=false,recoveryReady=false}={}){
   if(this.state!=='identified')fail('NOT_READY','อ่านรหัส ECU ให้เสร็จก่อน');
   if(!plan||plan.ecuId!==this.identity.ecuId||!plan.profile.startsWith(this.identity.family))
