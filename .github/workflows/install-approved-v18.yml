@@ -1,0 +1,104 @@
+name: Install approved V18 Inline Flash patch
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "55_PERFORMANCE_V18_INLINE_PATCH.zip"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: 55-ecu-v18-install
+  cancel-in-progress: false
+
+jobs:
+  validate-install-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Checkout latest repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check approved V18 archive SHA-256 and file whitelist
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from hashlib import sha256
+          from zipfile import ZipFile
+          import stat
+          p=Path("55_PERFORMANCE_V18_INLINE_PATCH.zip")
+          if not p.exists():
+              raise SystemExit("V18 archive not uploaded; nothing installed")
+          expected="e4de74ba9dc8f433e928ba1df51e6a5985f59492788073e9e3008a57487d7843"
+          if sha256(p.read_bytes()).hexdigest()!=expected:
+              raise SystemExit("V18 patch SHA-256 does not match the reviewed ZIP")
+          allowed={
+            "index.html", "sw.js", "V18_INLINE_RELEASE_TH.md",
+            "flash_port/honda-write-engine.js", "flash_port/ftdi-webusb.js",
+            "flash_port/flash-write-lab.html", "flash_port/bin-tools.js",
+            "flash_port/bin-id-table.js", "flash_port/ecu-dat.js",
+            "tools/verify-honda-flash.mjs", "tools/verify-inline-bridge.mjs"
+          }
+          with ZipFile(p) as z:
+              if z.testzip() is not None or set(z.namelist())!=allowed:
+                  raise SystemExit("Patch files differ from the expected 11 safe paths")
+              for info in z.infolist():
+                  if info.is_dir() or stat.S_ISLNK(info.external_attr >> 16):
+                      raise SystemExit("No links, directories or extra archive files allowed")
+              for name in sorted(allowed):
+                  path=Path(name)
+                  path.parent.mkdir(parents=True, exist_ok=True)
+                  path.write_bytes(z.read(name))
+          print("V18 prepared from reviewed archive, 11 whitelisted files")
+          PY
+      - name: Check V18 source parity and preserved ECU matching
+        run: |
+          node tools/verify-honda-flash.mjs
+          node tools/verify-inline-bridge.mjs
+          node tools/verify-ecu-id-autolookup.mjs
+          node tools/verify-ktr-catalog.mjs
+          python3 - <<'PY'
+          from pathlib import Path
+          data=Path("data.enc").read_bytes()
+          assert len(data)>100000, "Original encrypted BIN/XDF data missing"
+          for f in ["license-client.js","license-config.js","xdfc.js","ov.js"]:
+              assert Path(f).exists(), f+" missing"
+          print("Legacy BIN/XDF, license, DTC/Live Data entrypoints exist")
+          PY
+      - name: Commit only the approved patch and delete installer archive
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -- 55_PERFORMANCE_V18_INLINE_PATCH.zip
+          git add -- index.html sw.js V18_INLINE_RELEASE_TH.md \
+            flash_port/honda-write-engine.js flash_port/ftdi-webusb.js \
+            flash_port/flash-write-lab.html flash_port/bin-tools.js \
+            flash_port/bin-id-table.js flash_port/ecu-dat.js \
+            tools/verify-honda-flash.mjs tools/verify-inline-bridge.mjs
+          git diff --cached --check
+          git commit -m "Integrate reviewed V18 flash core with original tuner interface"
+          git push origin HEAD:main
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+      - name: Upload current repository to GitHub Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - id: deploy
+        name: Deploy approved V18 website
+        uses: actions/deploy-pages@v4
