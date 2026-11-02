@@ -17,6 +17,17 @@ function saveSession(j){
  if(!j.access_token)throw Error('การล็อกอินไม่ส่ง access token');
  localStorage.setItem(storageKey,JSON.stringify({access_token:j.access_token,refresh_token:j.refresh_token,expires_at:Date.now()+(j.expires_in||3600)*1000}));
 }
+
+async function signup(email,password){
+ const normalized=String(email||'').trim();
+ if(!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(normalized))throw Error('กรุณากรอกอีเมลที่ถูกต้อง');
+ if(typeof password!=='string'||password.length<8)throw Error('ตั้งรหัสผ่านอย่างน้อย 8 ตัวอักษร');
+ // New users sign up with their own account, separate from the shop's admin.
+ const result=await request(cfg.url+'/auth/v1/signup',{email:normalized,password});
+ if(result.access_token){saveSession(result);return {signedIn:true}}
+ return {signedIn:false};
+}
+
 async function login(email,password){
  const j=await request(cfg.url+'/auth/v1/token?grant_type=password',{email:email.trim(),password});
  saveSession(j);
