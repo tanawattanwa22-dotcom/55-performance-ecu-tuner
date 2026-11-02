@@ -1,61 +1,42 @@
-# 55 PERFORMANCE ECU TUNER — C# Source Port / Engine V13 (2026-11-02)
+# 55 PERFORMANCE ECU TUNER — Honda C# Flash Port V15
+วันที่: 2026-11-02 | เป้าหมาย: GitHub Pages / Chrome Android / FT232R + K-Line
 
-## สถานะปัจจุบัน
+## สถานะบน GitHub
+- แอปจูน BIN/XDF/ADX, Supabase License, DTC และ Live Data เดิมยังอยู่ ไม่ได้เขียนทับ
+- flash_port/ftdi-webusb.js: แปลง D2XX เป็น FT232R 0403:6001 WebUSB รวม vendor transfer, Baud Rate, ISO init, checksum, echo และ fail-stop
+- flash_port/csharp-ecu-catalog.js: รหัส ECU ID ที่คัดจาก C# 288 รายการ (Keihin 232, Shindengen 56) และ Offset/Checksum ตามแหล่งข้อมูล
+- flash_port/csharp-offsets.js: ข้อกำหนด offset, การตรวจตระกูล ECU และค่าที่อนุมานจาก BIN
+- flash_port/csharp-logic.js: Keihin/Shindengen Checksum, ECU Signature, Shindengen Seed-Key
+- flash_port/flash-frames.js: WriteFlash block 64/128 bytes, checksum, next-block pointer และ blank skip
+- flash_port/honda-write-engine.js: โปรแกรม Keihin/Shindengen แบบส่ง ERASE/WRITE จริงเมื่อเข้าข้อกำหนดทั้งหมดและกดยืนยัน
+- flash_port/flash-write-lab.html: ขั้นตอนเลือกสาย FTDI, อ่าน ECU ID, ตรวจ BIN, Part Code, Offset, แล้วจึงแสดง ERASE/WRITE
+- flash_port/source-validation-v15.html: ชุดตรวจสอบออฟไลน์ 15 รายการ ไม่ต้องต่อสายหรือรถ
+- flash_port/bench.html และ flash_port/bench-tests.html: ทดสอบ USB, ECU ID และแพ็กเก็ตโดยไม่ ERASE
 
-**V13 ไม่ได้ปลดล็อกการอัด Flash จริง** — ไม่สามารถรับประกันการทำงาน 100% จากผลทดสอบโค้ดอย่างเดียว
-ไม่มีปุ่มหรือ API ที่ใช้ส่งคำสั่ง ERASE/WRITE จาก Flash Lab นี้
+## อ้างอิงจากซอร์ส C# ที่ซื้อ
+FormMain.cs: InitFtdiIso, SendCommand, WorkerThread, GetOffsetsFromBinType, GetEcuType,
+SearchInProgram, KeihinPreWriteFlash, ShindengenPreWriteFlash, WriteFlash,
+ShindengenAutoChecksum, KeihinAutoChecksum, GetShindengenWriteKey.
+ไม่มีฟังก์ชันที่ยืนยันว่า READ Flash ทั้งก้อนได้ หรือ Verify โดยอ่านหน่วยความจำกลับ:
+FT_Read ใน SendCommand เป็นการอ่านคำตอบจาก ECU เท่านั้น.
 
-แอปจูนหลักยังใช้ BIN/XDF/ADX และ Supabase License ตามเดิม ส่วนโปรแกรมใหม่เพิ่มเติมเป็นหน้าตรวจเฉพาะทางที่
-\`flash_port/bench.html\` (ลิงก์ในหน้าเลือก ECU ของแอป)
+## ข้อจำกัดการรับรอง
+- โค้ดนี้มีคำสั่ง USB ERASE/WRITE จริง และผ่านการทดสอบซอฟต์แวร์ด้วยตัวตอบ ECU จำลอง
+- ยังไม่ได้ผ่านการทดสอบสาย FTDI, ECU และการกู้คืนบนฮาร์ดแวร์จริงของผู้ใช้
+- Final ACK ไม่ใช่ Readback Verification, จึงไม่สามารถรับรองความสำเร็จ 100%
+- หาก ECU ID, ECU Part, Start Offset, Firmware Type, BIN Checksum หรือ Block Address ไม่ตรง ระบบจะหยุด
+- Shindengen Offset ในฐาน C# เป็น auto ต้องตรวจลายเซ็น BIN, checksum marker และ Seed/Key จริง
+- ไม่มีข้อมูลยืนยัน Flash สำหรับ K2J-T01 จากชื่อไฟล์อย่างเดียว; ต้องอ่าน ECU ID และตรวจ Part จากซอร์ส
+- ชิป FT232R รองรับ VID/PID 0403:6001; หากสายอื่น ต้องตรวจ USB transport ก่อน
 
-## ส่วนที่พอร์ตและตรวจด้วยโค้ดแล้ว
+## ขั้นตอนทดสอบ
+1. เปิด https://tanawattanwa22-dotcom.github.io/55-performance-ecu-tuner/flash_port/source-validation-v15.html
+2. อ่านผล PASS (ไม่ต้องต่อสายหรือกล่อง)
+3. เปิด https://tanawattanwa22-dotcom.github.io/55-performance-ecu-tuner/flash_port/bench.html
+4. ทดสอบ FTDI ต่อมือถือผ่าน OTG อย่างเดียว
+5. หากใช้กล่องสำรอง ต้องตรวจวงจร K-Line transceiver 12V และแหล่งจ่ายไฟ พร้อมวิธีกู้คืน
+6. เปิด https://tanawattanwa22-dotcom.github.io/55-performance-ecu-tuner/flash_port/flash-write-lab.html?v=15
+7. ต่อ ECU สำรอง, อ่านรหัสจริง, เลือก BIN, ตรวจ ECU Part และยืนยัน Backup/Power/Recovery ก่อนส่ง ERASE
+8. หากรับ SOURCE_FINAL_ACK ต้องตรวจการสื่อสารหลังรีสตาร์ต และตรวจข้อมูลเพิ่มเติมด้วยเครื่องมือที่อ่านแฟลชได้จริง
 
-| Source C# | JS | ขอบเขต |
-|---|---|---|
-| FT_Open, FT_Purge, FT_SetBitMode, FT_SetDataCharacteristics | \`ftdi-webusb.js\` | ใช้ USB Vendor Control / Bulk Transfer กับ FT232R 0403:6001 |
-| FT_SetBaudRate 921600, 10400, latency 8 ms | \`ftdi-webusb.js\` | FT232R 3MHz divisor / bit-bang pulse ตาม C# |
-| FT_Write / FT_Read + Checksum | \`ftdi-webusb.js\` | รับส่ง USB จริง, แยก FTDI status 2 ไบต์ต่อ packet |
-| WorkerThread wake / HELLO / ECU ID | \`ftdi-webusb.js\`, \`bench.html\` | ปุ่มอ่าน ID เท่านั้น หลังผู้ใช้ยืนยันระบบไฟฟ้า |
-| Checksum8Bit / Checksum8BitHonda | \`flash-frames.js\`, \`ftdi-webusb.js\` | ตรวจสูตรและกรอบ packet ด้วย offline test |
-| WriteFlash() packet structure | \`flash-frames.js\` | สร้าง block 64/128 byte และตรวจ checksum ออฟไลน์ ไม่มีการส่งออก USB |
-| GetEcuType(), KeihinAutoChecksum() | \`csharp-logic.js\` | ตรวจลายเซ็นไฟล์และแก้ checksum ของสำเนา BIN (pure function) |
-| GetShindengenWriteKey(), RecoveryKey() | \`csharp-logic.js\` | การคำนวณ seed-key จากไฟล์ BIN ออฟไลน์ ไม่มีการปลดล็อก ECU จริง |
-
-ไฟล์ซอร์ส C# ที่ซื้อมา **ไม่ได้อัปโหลดไป GitHub Public** เนื่องจากมีสิทธิ์ใช้งานและอาจเป็นข้อมูลโปรแกรมเชิงพาณิชย์
-การพอร์ตนี้อ้างอิงจากไฟล์ \`Main.zip\` ที่ผู้ใช้ให้ไว้และมีในพื้นที่ทำงานในแชท
-
-## ทดสอบตอนนี้ได้เลย
-
-1. เปิด \`flash_port/bench-tests.html\` เพื่อรัน unit tests ใน Chrome **ไม่ต้องใช้สาย/รถ**
-2. เปิด \`flash_port/bench.html\` หลังเข้าสู่ระบบด้วย Supabase License ที่ใช้งานได้
-3. ต่อสาย FT232R (0403:6001) กับ Chrome Android ผ่าน USB OTG อย่างเดียว กด "เลือกสาย FTDI"
-4. หาก USB ผ่าน ให้เก็บผล Log; อย่าเข้าใจว่าตรวจ USB ผ่าน = ECU แฟลชได้
-5. เฉพาะกล่อง ECU **สำรองบนโต๊ะ**, วงจรแปลง K-Line 12V ที่ตรวจแล้ว และไฟเลี้ยงที่เหมาะสมเท่านั้น จึงทดลอง "ปลุกและอ่าน ECU ID"
-6. หน้าตรวจ BIN / Write Packet ให้ใช้ไฟล์ BIN ที่ทราบแหล่งที่มา เลือก ECU Type / Start Offset ตาม C# ที่ตรวจแล้ว ไม่ใช่การยืนยันว่าอัดได้
-
-## งานที่ยังต้องพัฒนา/ยืนยัน
-
-- ตรวจเอกลักษณ์ FTDI clone และ WebUSB บน Android รุ่น/สายจริง (รวมกรณี driver ชน, timeout, Echo)
-- เปรียบเทียบ RX/TX กับโปรแกรม Windows C# ผ่านฮาร์ดแวร์จริงและ logic capture
-- สอบกลับว่า ECU รุ่นเป้าหมายตรงกับ ID, ตระกูล, boot method, startOffset, checksumOffset, memory layout
-- ทดสอบคำสั่ง ID แบบอ่านอย่างเดียวบน ECU สำรอง
-- ตรวจสิทธิ์/ลำดับ Security/Seed-Key ก่อนลบ flash บน ECU สำรอง
-- พอร์ตสถานะ ERASE/WRITE/VERIFY เต็มตาม C# และทดสอบ recovery / power-loss
-- หากต้องการ READ flash ทั้งก้อน จำเป็นต้องตรวจว่าซอร์สมีโปรโตคอล READ จริงหรือหาข้อมูลที่พิสูจน์ได้เพิ่ม
-- ยังไม่ผ่าน bench WRITE/ERASE/VERIFY; ไม่รับรองการแฟลชจริงของ Keihin/Shindengen หรือ K3MH-T71
-
-## เกณฑ์ก่อนทดลองเขียนจริง
-
-- ECU spare, backup และวิธีกู้คืนที่ทดสอบได้
-- แหล่งจ่ายไฟนิ่ง มีการป้องกันกระแส/แรงดัน และผังขาไฟ/K-line ถูกต้อง
-- รหัส ECU และตัว BIN ตรงโปรไฟล์; Checksum และ flash memory layout ยืนยันแล้ว
-- packet trace จาก Chrome ตรงกับ C# (มี hardware evidence)
-- ทุกขั้นตอนตอบรับและการ VERIFY ตามเอกสาร ECU ไม่ใช่แค่สั่งครบหรือ progress 100%
-
-**ห้ามเสียบ FTDI TTL เข้าขา K-Line ของ ECU ที่ใช้ระดับ 12V โดยไม่มี transceiver ที่เหมาะสม**
-
-## GitHub Pages
-
-- แอปหลัก: https://tanawattanwa22-dotcom.github.io/55-performance-ecu-tuner/
-- Flash Lab: https://tanawattanwa22-dotcom.github.io/55-performance-ecu-tuner/flash_port/bench.html
-- Test Suite: https://tanawattanwa22-dotcom.github.io/55-performance-ecu-tuner/flash_port/bench-tests.html
+**ไม่ต่อ FTDI TTL กับขา K-Line 12V โดยตรง และอย่าแฟลช ECU รถลูกค้าในขั้นทดสอบ**
