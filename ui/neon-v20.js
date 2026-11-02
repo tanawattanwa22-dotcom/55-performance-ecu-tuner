@@ -18,6 +18,21 @@ const cats=[
  ['dtc','⚠','DTC / วินิจฉัย','อ่านรหัสข้อผิดพลาดและข้อมูล ECU','#f6b356'],
  ['tools','⌘','เครื่องมือ C#','BIN, DAT, FTDI และเครื่องมือช่าง','#40d8ec'],
  ['settings','⚙','ตั้งค่า / License','บัญชีและสิทธิ์ใช้งาน','#9aabcd']];
+const iconPath={
+ dashboard:'<path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/>',
+ library:'<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 7h8M8 12h8M8 17h8"/>',
+ tune:'<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/>',
+ flash:'<rect x="6" y="6" width="12" height="12" rx="2"/><path d="M12 16V9m-3 3 3-3 3 3M9 2v4m6-4v4M9 18v4m6-4v4M2 9h4m-4 6h4m12-6h4m-4 6h4"/>',
+ live:'<path d="M2 12h4l3-7 4 14 3-7h6"/><path d="M4 3h16v18H4" opacity=".35"/>',
+ dtc:'<path d="M10.3 3.7 1.9 18a2 2 0 0 0 1.7 3h16.8a2 2 0 0 0 1.7-3L13.7 3.7a2 2 0 0 0-3.4 0Z"/><path d="M12 9v5m0 3h.01"/>',
+ tools:'<path d="m8 7-5 5 5 5m8-10 5 5-5 5M14 4l-4 16"/>',
+ settings:'<circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.12-1.26l2-1.55-2-3.46-2.38.95A7 7 0 0 0 14.5 5.5L14 3h-4l-.5 2.5a7 7 0 0 0-2 1.18l-2.38-.95-2 3.46 2 1.55A7 7 0 0 0 5 12c0 .43.04.85.12 1.26l-2 1.55 2 3.46 2.38-.95a7 7 0 0 0 2 1.18L10 21h4l.5-2.5a7 7 0 0 0 2-1.18l2.38.95 2-3.46-2-1.55c.08-.41.12-.83.12-1.26Z"/>'
+};
+const lineIcon=(id)=>{
+ const span=document.createElement('span');span.className='n20-icon-line';
+ span.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">'+iconPath[id]+'</svg>';
+ return span;
+};
 const titleText={
  dashboard:['ศูนย์ควบคุม ECU','เลือกหมวดเพื่อเริ่มทำงาน'],
  library:['คลังรุ่น / BIN หลัก','รายการไฟล์หลักที่มีในแอปจริง'],
@@ -41,8 +56,8 @@ drawer.append(mk('h2','','55 PERFORMANCE · เมนูทั้งหมด'))
 const closeMenu=action('✕ ปิดเมนู',()=>drawer.close(),'btn n20-menu-close');drawer.append(closeMenu);
 const drawerItems=mk('div','n20-menu-items');
 for(const cat of cats){
- const b=action(cat[1]+'  '+cat[2],()=>{drawer.close();navigate(cat[0])});
- drawerItems.append(b);
+ const b=action('',()=>{drawer.close();navigate(cat[0])});
+ b.append(lineIcon(cat[0]),document.createTextNode(' '+cat[2]));drawerItems.append(b);
 }
 drawer.append(drawerItems);drawer.addEventListener('click',e=>{if(e.target===drawer)drawer.close()});
 document.body.append(drawer);
@@ -58,7 +73,7 @@ stats.innerHTML='<div><small>🔌 การเชื่อมต่อ</small><s
  '<div><small>🏍️ รุ่นที่เลือก</small><strong id="n20Model">ยังไม่เลือกรุ่น</strong></div>'+
  '<div><small>💾 BIN สำหรับอัด</small><strong id="n20Save">ยังไม่บันทึก</strong></div>';
 const nav=mk('nav','n20-nav');nav.id='v20Nav';nav.setAttribute('aria-label','เมนูหลัก ECU');
-for(const cat of cats){const b=action(cat[1]+' '+cat[2],()=>navigate(cat[0]));b.dataset.cat=cat[0];nav.append(b)}
+for(const cat of cats){const b=action('',()=>navigate(cat[0]));b.dataset.cat=cat[0];b.append(lineIcon(cat[0]),document.createTextNode(' '+cat[2]));nav.append(b)}
 shell.append(top,hero,stats,nav);sc.prepend(shell);
 const stage=mk('div','n20-stage');stage.id='n20Stage';sc.insertBefore(stage,shell.nextSibling);
 let selected='dashboard',searchText='',activeFilter='all';
@@ -91,7 +106,8 @@ function dashboard(){
  for(const cat of cats){
   const b=action('',()=>navigate(cat[0]),'n20-tile');
   b.style.setProperty('--tile-stroke',cat[4]+'88');b.style.setProperty('--tile-glow',cat[4]+'65');
-  b.append(mk('span','n20-tile-icon',cat[1]),mk('span','n20-tile-label',cat[2]),mk('span','n20-tile-desc',cat[3]),mk('span','n20-tile-arrow','›'));
+  const ic=mk('span','n20-tile-icon');ic.append(lineIcon(cat[0]));
+  b.append(ic,mk('span','n20-tile-label',cat[2]),mk('span','n20-tile-desc',cat[3]),mk('span','n20-tile-arrow','›'));
   grid.append(b);
  }
  stage.append(grid);
