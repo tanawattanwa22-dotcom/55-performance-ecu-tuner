@@ -1,0 +1,107 @@
+name: Apply V18 Main Menu verified payload
+on:
+  push:
+    branches: ["feature/v18-inline-flash"]
+    paths: [".github/workflows/apply-v18-main-menu.yml"]
+permissions:
+  contents: write
+jobs:
+  apply-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/v18-inline-flash
+          persist-credentials: true
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Validate and extract V18 staged package
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          from hashlib import sha256
+          import base64, lzma, tarfile, io
+          source=Path('deploy/V18_MAIN_GITHUB_PATCH.b64').read_bytes()
+          assert len(source)==48272 and sha256(source).hexdigest()=='d10d1237e5c7b49a50ce7042e2ef4cbc9bd82efeda900b667d0d9e4a769be56a', 'staged archive hash mismatch'
+          data=lzma.decompress(base64.b64decode(source,validate=True))
+          expected={
+            'index.html.patch','sw.js.patch',
+            'flash_port/honda-write-engine.js','flash_port/ftdi-webusb.js',
+            'flash_port/flash-write-lab.html','tools/verify-honda-flash.mjs',
+            'MAIN_SOURCE_MENU_STATUS_TH.md','V18_INLINE_RELEASE_TH.md',
+            'V18_MAIN_MENU_README_TH.md','flash_port/bin-id-table.js',
+            'flash_port/bin-tools.js','flash_port/ecu-dat.js',
+            'tools/verify-inline-bridge.mjs','tools/verify-main-menu.mjs'
+          }
+          with tarfile.open(fileobj=io.BytesIO(data),mode='r:') as tar:
+              members=tar.getmembers()
+              assert {m.name for m in members}==expected and len(members)==len(expected), 'invalid path whitelist'
+              for m in members:
+                  assert m.isfile() and '..' not in Path(m.name).parts and not m.name.startswith('/'), 'unexpected archive member'
+                  b=tar.extractfile(m).read()
+                  dest=Path('.v18-staging')/m.name
+                  dest.parent.mkdir(parents=True,exist_ok=True)
+                  dest.write_bytes(b)
+          for member in sorted(expected-{'index.html.patch','sw.js.patch'}):
+              target=Path(member)
+              target.parent.mkdir(parents=True,exist_ok=True)
+              target.write_bytes((Path('.v18-staging')/member).read_bytes())
+          print('V18 payload validated, extracted and staged')
+          PY
+          patch --batch --forward --fuzz=0 -p1 -i .v18-staging/index.html.patch
+          patch --batch --forward --fuzz=0 -p1 -i .v18-staging/sw.js.patch
+          python3 - <<'PY'
+          from pathlib import Path
+          from hashlib import sha256
+          expected={
+            'index.html':'7665ce3f291d546a836ee93eeafe2e2598752714e68530551eb4ca7cd139c799',
+            'sw.js':'e19325fa94aa60e09ceee084843ca7d128e3d2f42d2b2d3522ba3b43e697bdec',
+            'flash_port/honda-write-engine.js':'bdaa75a6124738df557a19084e0a338444cfba96233d12270250c5e25648b86b',
+            'flash_port/ftdi-webusb.js':'dcda623d9e1bb01c04a6b0703bc7338e53b2eeb41355414c74f9b71316222363',
+            'flash_port/flash-write-lab.html':'4f8ae173a07635bade52d834543ac9e855f296e81ee70424a858a54ab8ff2fbb',
+            'tools/verify-honda-flash.mjs':'b15a4c65a3ce1518ec1f1c69ae37cdc85c7b3f89feb7b61d31283833559bf107',
+            'MAIN_SOURCE_MENU_STATUS_TH.md':'7ef4b49b50817eff8b8a3f09b9cea11c5aa60affa9d5e58413cd002f3e3b742c',
+            'V18_INLINE_RELEASE_TH.md':'1bd9402936a0483ac6c3643be48b37d33ffa633f8e7762eff88806037207594c',
+            'V18_MAIN_MENU_README_TH.md':'b4374f9b0adf5bcac3c3c5a94b1209ded8f503a372e8d33f487c7d4ff74388f0',
+            'flash_port/bin-id-table.js':'4b9790ade3da3a717a2841ac6b890a2474f1d3e2d0bcf6ba221e821e1311bf62',
+            'flash_port/bin-tools.js':'7777b54523a0c89692869f78d33695b9bb6482a83547c89f5f672a1c58da92fd',
+            'flash_port/ecu-dat.js':'84d3a36645a9ffd1a6732f9f0e645e267e0c359a1f3bec5a38a06b473335f341',
+            'tools/verify-inline-bridge.mjs':'6dac382050e15031a60af412c62ff3e05274291fb4ae75785a516b1d523ed6e0',
+            'tools/verify-main-menu.mjs':'0d3088b8efaeee69c1c68268b35a412f992c3ef83bab28498331081909fb01c0'
+          }
+          for name,h in expected.items():
+              assert sha256(Path(name).read_bytes()).hexdigest()==h, name+' digest mismatch after apply'
+          assert Path('data.enc').is_file() and Path('license-client.js').is_file() and Path('xdfc.js').is_file()
+          print('All 14 source files match reviewed V18 release digests')
+          PY
+      - name: Run all offline regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          node tools/verify-honda-flash.mjs
+          node tools/verify-main-menu.mjs
+          node tools/verify-inline-bridge.mjs
+          node tools/verify-ecu-id-autolookup.mjs
+          node tools/verify-ktr-catalog.mjs
+      - name: Commit validated files and remove one-time installer
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- index.html sw.js flash_port/honda-write-engine.js flash_port/ftdi-webusb.js \
+            flash_port/flash-write-lab.html tools/verify-honda-flash.mjs \
+            MAIN_SOURCE_MENU_STATUS_TH.md V18_INLINE_RELEASE_TH.md \
+            V18_MAIN_MENU_README_TH.md flash_port/bin-id-table.js \
+            flash_port/bin-tools.js flash_port/ecu-dat.js \
+            tools/verify-inline-bridge.mjs tools/verify-main-menu.mjs
+          git rm -- deploy/V18_MAIN_GITHUB_PATCH.b64 .github/workflows/apply-v18-main-menu.yml
+          git diff --cached --check
+          git commit -m "Integrate validated V18 flash engine and Honda Main menus into existing tuner UI"
+          git push origin HEAD:feature/v18-inline-flash
