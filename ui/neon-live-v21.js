@@ -102,7 +102,7 @@
   const s=api.snapshot(),now=Date.now(),values={...(s.values||{})},mode=s.mode||"gauge";
   if(s.demo||!s.afrSupported)values.afr=null;
   live.classList.toggle("n21-gauge",mode==="gauge");
-  if(s.source!==lastSource){samples.length=0;stats.clear();frames.length=0;lastSample=0;lastProcessed=0;lastSource=s.source}
+  if(s.source==="ecu"&&lastSource!=="ecu"){samples.length=0;stats.clear();frames.length=0;lastSample=0;lastProcessed=0}lastSource=s.source;
   if(s.run&&s.source==="ecu"&&s.sampleSeq>lastProcessed&&keys.some(k=>values[k]!=null)){
    lastProcessed=s.sampleSeq;
    lastSample=now;const item={t:now};
