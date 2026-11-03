@@ -6,6 +6,10 @@ on:
       - "flash_port/**"
       - "tools/verify-honda-flash.mjs"
       - "tools/verify-main-full-flash-sim.mjs"
+      - "ui/neon-v20.js"
+      - "ui/shared-operations-v30.js"
+      - "index.html"
+      - "tools/verify-recovery-menu.mjs"
       - ".github/workflows/recovery-v319-validation.yml"
   push:
     branches: [main]
@@ -13,6 +17,10 @@ on:
       - "flash_port/**"
       - "tools/verify-honda-flash.mjs"
       - "tools/verify-main-full-flash-sim.mjs"
+      - "ui/neon-v20.js"
+      - "ui/shared-operations-v30.js"
+      - "index.html"
+      - "tools/verify-recovery-menu.mjs"
       - ".github/workflows/recovery-v319-validation.yml"
   workflow_dispatch:
 
@@ -32,6 +40,8 @@ jobs:
         run: |
           node --check flash_port/honda-write-engine.js
           node --check flash_port/csharp-logic.js
+      - name: Verify dedicated read-first Recovery menu and script syntax
+        run: node tools/verify-recovery-menu.mjs
       - name: Reproduce Main C# Keihin / Shindengen source frames and recovery preflight
         run: node tools/verify-honda-flash.mjs
       - name: Test full mock ERASE WRITE Recovery ordering and fail-stop
