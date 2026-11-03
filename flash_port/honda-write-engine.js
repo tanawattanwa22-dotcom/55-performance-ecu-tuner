@@ -4,13 +4,13 @@
  * Status: USB write calls ARE REAL; do not run without compatible SPARE ECU,
  * K-line transceiver, backed-up firmware and known recovery equipment.
  *
- * Deliberately DISABLED for undocumented ECU IDs and Shindengen until exact
- * source catalog entry and ECU response are verified. This is not a simulator.
+ * Destructive commands are gated by real ECU ID, matching catalog and C# BIN
+ * signatures. This is NOT hardware validated on every ECU; bench testing is required.
  */
 import {READ_ONLY_COMMANDS,toHex,hondaChecksum,FAST_SWITCH_COMMAND} from './ftdi-webusb.js?v=301';
 import {createWriteFrame,resolveWriteProfile} from './flash-frames.js';
 import {inspectCSharpEcuType,correctKeihinChecksum,correctShindengenChecksum,deriveShindengenWriteKey} from './csharp-logic.js';
-import {csharpOffsetInference,catalogLookup} from './csharp-offsets.js';
+import {csharpOffsetInference,catalogLookup} from './csharp-offsets.js?v=313';
 import {findCSharpEcuId} from './csharp-ecu-catalog.js?v=302';
 const sleep=ms=>new Promise(ok=>setTimeout(ok,ms));
 function bytes(list){
