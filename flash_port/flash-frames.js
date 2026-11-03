@@ -12,7 +12,7 @@ export const WRITE_PROFILES=Object.freeze({
  SHINDENGENRH850:{command:0x7c,ecuId:2,blockSize:128,addressStep:8},
  SHINDENGENRH850B:{command:0x7c,ecuId:2,blockSize:128,addressStep:8}
 });
-export const BIN_SIZES=Object.freeze([32768,49152,57344,65536,98304,131072,262144,393216,524288,1048576]);
+export const BIN_SIZES=Object.freeze([32768,49152,57344,65536,98304,131072,262144,393216,524288,786432,1048576]);
 export function checksum8BitCSharp(data,start=0,count=data.length-start){
  if(start<0||count<0||start+count>data.length)throw RangeError('Invalid checksum slice');
  let sum=0;for(let i=start;i<start+count;i++)sum+=data[i];
