@@ -109,14 +109,21 @@ try{
   }
 
   await page.evaluate(()=>document.querySelector('#v20Nav [data-cat="flash"]').click());
-  assert.equal(await page.locator('#flashCard').evaluate(el=>el.classList.contains('n20-hidden')),false);
-  assert.equal(await page.locator('#btnFlash').evaluate(el=>el.hidden),true,'no flash before saved BIN');
+  assert.equal(await page.locator('#flashCard').evaluate(el=>el.classList.contains('n20-hidden')),true,'old Flash form hidden behind V24');
+  assert.equal(await page.locator('#n20Stage .n24-hero').isVisible(),true,'real-state V24 Flash dashboard visible');
+  assert.equal(await page.locator('#n20Stage .n24-panel').count(),4,'BIN, ECU, Offset and checklist panels');
+  assert.equal(await page.locator('#n20Stage .n24-info-line').count(),14,'read-only BIN/ECU/Offset fields');
+  assert.equal(await page.locator('#n20Stage .n24-check-row').count(),5,'five preflight checks');
+  assert.equal(await page.locator('#n20Stage [data-n24="ecu"]').innerText(),'ยังไม่ได้อ่านจาก ECU','ECU ID never fabricated');
+  assert.equal(await page.locator('#n20Stage [data-n24="start"]').innerText(),'—','Offset never fabricated');
+  assert.equal(await page.locator('#n20Stage .n24-flash').isDisabled(),true,'cannot flash without physical preflight');
+  assert.equal(await page.locator('#btnFlash').evaluate(el=>el.hidden),true,'legacy write button still gated');
   await overflowing('Flash '+width);
-  const flashButtons=await page.evaluate(()=>[...document.querySelectorAll('#flashCard .btn:not([hidden])')].map(b=>{
-   const r=b.getBoundingClientRect();return {name:b.id,left:r.left,right:r.right};
+  const flashButtons=await page.evaluate(()=>[...document.querySelectorAll('#n20Stage .n24-actions button')].map(b=>{
+   const r=b.getBoundingClientRect();return {name:b.className,left:r.left,right:r.right};
   }));
   for(const b of flashButtons)assert(b.left>=-2&&b.right<=width+2,
-   'Flash action overflows '+width+'px: '+JSON.stringify(b));
+   'V24 Flash button overflows '+width+'px: '+JSON.stringify(b));
   await page.evaluate(()=>document.querySelector('#v20Nav [data-cat="live"]').click());
   assert.equal(await page.locator('#liveCard').evaluate(el=>el.classList.contains('n20-hidden')),false);
   assert.equal(await page.locator('#flashCard').evaluate(el=>el.classList.contains('n20-hidden')),true);
@@ -125,7 +132,9 @@ try{
   // Reference Live Data V21 must render its real source dashboard, not fixed mock numbers.
   await page.evaluate(()=>document.getElementById('goLive').click());
   assert.equal(await page.locator('#n21Pane').count(),1,'image-matched Live dashboard exists');
-  assert.equal(await page.locator('#n21Pane .n21-metric').count(),8,'eight sensor cards');
+  assert.equal(await page.locator('#n21Pane .n21-metric').count(),9,'nine sensor cards, with AFR');
+  assert.equal(await page.locator('#n21Value-afr').innerText(),'—','no fake AFR while disconnected');
+  assert.equal(await page.locator('#n21AfrNote').isVisible(),true,'AFR provenance visible');
   assert.equal(await page.locator('#n21Canvas').count(),1,'real rolling graph canvas');
   assert.equal(await page.locator('#n21Rec').innerText(),'ยังไม่บันทึก','no fabricated REC status');
   assert.equal(await page.locator('#n21NowValue').innerText(),'—','never display mock RPM while disconnected');
@@ -134,13 +143,14 @@ try{
   await page.evaluate(()=>document.getElementById('n21Range').click());
   assert((await page.locator('#n21Range').innerText()).includes('60'),'time window toggles to 60 seconds');
   await page.evaluate(()=>document.querySelector('#n21Pane [data-n21-cat="fuel"]').click());
-  assert.equal(await page.locator('#n21Pane .n21-metric:not([hidden])').count(),3,'fuel filter displays only real fuel-related cards');
+  assert.equal(await page.locator('#n21Pane .n21-metric:not([hidden])').count(),4,'fuel filter includes AFR card');
   await page.evaluate(()=>document.querySelector('#n21Pane [data-n21-cat="engine"]').click());
-  assert.equal(await page.locator('#n21Pane .n21-metric:not([hidden])').count(),8,'engine category restores all eight sensor cards');
+  assert.equal(await page.locator('#n21Pane .n21-metric:not([hidden])').count(),9,'engine category restores all nine sensor cards');
   if(width===393)await page.screenshot({path:path.join(root,'test-reports','neon-live-v21-393.png'),fullPage:false});
   await page.evaluate(()=>document.getElementById('n21Demo').click());
   await page.waitForTimeout(180);
   assert((await page.locator('#n21SourceNotice').innerText()).includes('DEMO'),'demo values marked as simulated');
+  assert.equal(await page.locator('#n21Value-afr').innerText(),'—','AFR remains blank in DEMO');
   assert.equal(await page.locator('#n21RecordBtn').isDisabled(),true,'demo cannot be recorded as a real ECU log');
   await page.evaluate(()=>document.getElementById('n21Back').click());
   await overflowing('Live real dashboard '+width);
@@ -170,7 +180,11 @@ try{
   await page.evaluate(()=>document.querySelector('#n23Pane .n23-brand-home').click());
   assert.equal(await page.locator('#home').evaluate(el=>el.classList.contains('on')),true,'DTC back returns directly to homepage');
   assert.equal(await page.locator('#live').evaluate(el=>el.classList.contains('on')),false,'DTC old Live page closes');
-  if(width===393)await page.screenshot({path:path.join(root,'test-reports','neon-flash-393.png'),fullPage:false});
+  if(width===393){
+   await page.evaluate(()=>window.__55NeonNavigate('flash'));
+   await page.screenshot({path:path.join(root,'test-reports','neon-flash-v24-393.png'),fullPage:false});
+   await page.evaluate(()=>window.__55NeonNavigate('dashboard'));
+  }
   await page.evaluate(()=>document.querySelector('#v20Nav [data-cat="tools"]').click());
   assert.equal(await page.locator('#mainSourceTools').evaluate(el=>el.classList.contains('n20-hidden')),false);
   assert(await page.locator('#n20Stage .n20-tool-links a').count()>=9,'all external C# tools linked');
@@ -184,7 +198,7 @@ try{
    await page.evaluate(()=>document.getElementById('goLive').click());
    assert.equal(await page.locator('#live').evaluate(el=>el.classList.contains('on')),true,'real Live screen opens');
    assert.equal(await page.locator('#vGauge').count(),1,'original RPM gauge preserved');
-   assert.equal(await page.locator('#n21Pane .n21-metric').count(),8,'reference-matched sensor cards present');
+   assert.equal(await page.locator('#n21Pane .n21-metric').count(),9,'reference-matched nine sensor cards present');
    await page.evaluate(()=>document.querySelector('#live .lvtabs [data-m="dtc"]').click());
    assert.equal(await page.locator('#vDtc').evaluate(el=>el.style.display==='none'),false,'original DTC mode opens');
    assert.equal(await page.locator('#n23Pane').count(),1,'real DTC panel preserved in Live mode');
