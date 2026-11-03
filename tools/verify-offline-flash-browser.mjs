@@ -25,8 +25,12 @@ try{
  ctx=await browser.newContext({viewport:{width:393,height:840},isMobile:true,hasTouch:true,serviceWorkers:'allow'});
  const page=await ctx.newPage();
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ page.on('console',msg=>{if(msg.type()==='error')console.error('BROWSER CONSOLE:',msg.text())});
+ page.on('requestfailed',req=>console.error('BROWSER REQUEST FAIL:',req.url(),req.failure()?.errorText));
+ page.on('response',res=>{if(res.status()>=400)console.error('BROWSER HTTP',res.status(),res.url())});
  const url='http://127.0.0.1:'+srv.address().port+'/flash_port/offline/index.html';
  await page.goto(url,{waitUntil:'domcontentloaded',timeout:30000});
+ await page.waitForTimeout(1800);console.log('OFFLINE BOOT SNAPSHOT',await page.locator('#offlineFiles').innerText(),await page.locator('#offlineState').innerText(),JSON.stringify(errors));
  await page.waitForFunction(()=>/เก็บไฟล์ออฟไลน์ครบ|ไฟล์ออฟไลน์ยังไม่พร้อม/.test(document.getElementById('offlineFiles')?.textContent||''),{timeout:30000});
  assert.equal(await page.locator('#offlineFiles').evaluate(el=>el.classList.contains('ok')),true,'service worker install and 16 assets must be cached');
  assert.equal(await page.locator('#connect').isDisabled(),true,'cannot connect before signed permit');
