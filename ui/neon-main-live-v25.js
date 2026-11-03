@@ -105,13 +105,16 @@ const homeScroll=home?.querySelector('.scroll');
 if(homeScroll&&!document.getElementById('sharedEcuPanel')){
  const panel=document.createElement('section');panel.id='sharedEcuPanel';panel.className='card';
  panel.style.cssText='border:1px solid #25dce5;background:linear-gradient(135deg,#102b45,#15172b);margin:12px 0;padding:16px';
- const heading=document.createElement('h2');heading.textContent='🔌 เชื่อมต่อ FT232R · V30.1';
+ const heading=document.createElement('h2');heading.textContent='เชื่อมต่อ ECU · 55 PERFORMANCE';
  const state=document.createElement('p');state.id='sharedEcuState';state.setAttribute('role','status');
  const connect=document.createElement('button');connect.className='btn ac';connect.textContent='เชื่อมต่อสาย USB';
  const disconnect=document.createElement('button');disconnect.className='btn';disconnect.textContent='ตัดการเชื่อมต่อ';
  const row=document.createElement('div');row.className='row';row.style.flexWrap='wrap';row.append(connect,disconnect);
- const note=document.createElement('p');note.className='mu sm';note.textContent='เปิดสายจากหน้าหลักครั้งเดียว • Live / DTC / Flash / Recovery ใช้สายร่วมกันและหยุด Live ก่อนส่งคำสั่ง';
+ const note=document.createElement('p');note.className='mu sm';note.textContent='เชื่อมต่อด้วยเส้นทาง FM_diag.cs ของ Live Data เพียงครั้งเดียว • Live / DTC / Flash / Recovery ใช้ FT232R ร่วมกันทีละระบบ • รุ่น ECU ยังต้องยืนยันจาก ID จริง';
  panel.append(heading,state,row,note);homeScroll.prepend(panel);
+ // Keep one visible cable owner: hide duplicate legacy connection buttons on the home page only.
+ const legacyConnectSelectors=['#homeConnect','#connectUsbHome','#homeUsbConnect'];
+ for(const selector of legacyConnectSelectors){const node=document.querySelector(selector);if(node&&node!==connect)node.hidden=true;}
  connect.onclick=()=>{void old.connect().then(updateSharedState)};
  disconnect.onclick=()=>{void reader.disconnect().then(updateSharedState)};
  function updateSharedState(){
