@@ -1,4 +1,13 @@
 // 55 PERFORMANCE Honda Flash C# port reproducible offline validation.
+// Node.js does not fetch file:// ECU catalog assets; browser fetch does.
+// Provide a local-file response only for isolated mock/source-parity tests.
+import {readFile as readLocalFixture} from 'node:fs/promises';
+const browserFetch=globalThis.fetch;
+globalThis.fetch=async(input,options)=>{
+ const url=input instanceof URL?input:new URL(String(input));
+ if(url.protocol==='file:')return new Response(await readLocalFixture(url),{status:200});
+ return browserFetch(input,options);
+};
 // Run: node tools/verify-honda-flash.mjs
 // This script never opens USB, never connects to a real ECU or writes firmware.
 import {hondaChecksum,baudDivisor,stripFtdiStatus,checkedHondaReply,READ_ONLY_COMMANDS,Ft232rWebUsb} from '../flash_port/ftdi-webusb.js';
