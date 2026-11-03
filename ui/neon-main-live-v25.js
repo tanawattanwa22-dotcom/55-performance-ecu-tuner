@@ -217,8 +217,8 @@ window.__55AutoEcu={
    const now=reader.status();
    if(page==='flash'){
     autoFlashSummary();
-    // Read-only automatic plan when a real ECU ID and a BIN have been selected.
-    if(now.connected&&now.ecuId&&window.__55FlashPreflight?.hasBin?.()){
+    // Read-only recovery/ECU-ID inspection on Flash entry even before a BIN is selected.
+    if(now.connected&&now.ecuId&&window.__55FlashPreflight?.autoPrepare){
      await window.__55FlashPreflight.autoPrepare();
      autoFlashSummary();
     }
