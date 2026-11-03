@@ -41,5 +41,5 @@ assert.equal(sent.length,4,'exactly four Main diagnostic request frames');
 assert.deepEqual(sent,MAIN_CAPTURE_COMMANDS[4],'no alternate commands');
 assert.equal(trace.length,4*(7+16),'captured original C# command/reply buffer');
 assert.equal(decodeMainDiagnosticTrace(trace,4).length,23,'source decoder consumes complete trace');
-await assert.rejects(()=>fake.setGroup(2),/Group|ไม่มี/); // sync throw checked below if needed
+assert.throws(()=>fake.setGroup(2),/Group|ไม่มี/);
 console.log('PASS — original Neon Live in-app + FT232R Main FM_diag 1/4/7 frames, actual parser mapping, A/F guard, no ADX, read-only.');
