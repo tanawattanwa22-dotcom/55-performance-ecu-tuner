@@ -254,7 +254,7 @@ table.g th,table.g td{border-right:1px solid rgba(255,255,255,.35);border-bottom
   <div class="card" id="modelCard"><h2>01 · เลือกรุ่นรถ</h2>
    <div class="row"><select id="sel"><option value="">เลือกรุ่นรถ…</option></select><button class="btn ac" id="goTune" disabled>เปิดหน้าจูน</button></div>
    <div style="margin:10px 0 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-    <a href="ktr/index.html?v=1" style="background:#472277;color:#f8dfff;border:1px solid #b86af0;border-radius:9px;padding:9px 12px;font:700 13px system-ui;text-decoration:none" target="_blank" rel="noopener">📚 ทะเบียน ECM Honda • KTR (152 รายการ)</a>
+    <a href="ktr/index.html?v=1" style="background:#472277;color:#f8dfff;border:1px solid #b86af0;border-radius:9px;padding:9px 12px;font:700 13px system-ui;text-decoration:none" target="_blank" rel="noopener">📚 ฐานข้อมูล ECM • 55 Performance (152 รายการ)</a>
     <details style="width:100%;font:12px system-ui"><summary style="cursor:pointer;color:#b8c8de">เครื่องมือช่างและทดสอบ (สำหรับตรวจปัญหา)</summary>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
       <a href="flash_port/bench.html" target="_blank" rel="noopener" style="color:#8bd1ff">ทดสอบ FTDI</a>
@@ -1385,7 +1385,7 @@ async function probeEcu(){
     K.ecu=true;
     const q=[0x72,0x05,0x71,0x00];q.push(hcs(q));await send(q);
     cableUi("ok","USB เชื่อมต่อแล้ว และ ECU ตอบกลับถูกต้อง (ตรวจเช็คซัมแล้ว)");
-    // Ask ECU for its actual five-byte ID. Translate it from KTR/C# catalogs
+    // Ask ECU for its actual five-byte ID. Translate it from 55 Performance reference/C# catalogs
     // automatically; NEVER derive ECU ID from selected BIN or tuning profile.
     const connectedTransport=K.t;
     try{
@@ -1408,7 +1408,7 @@ async function probeEcu(){
       const name=found.partCode?(found.partCode+(found.model?' • '+found.model:'')):id;
       cableUi("ok","อ่าน ECU ID "+id+" → "+(found.partCode||"ยังไม่พบ Part Code ในทะเบียน"),null,name);
       klog("ECU ID "+id+" | Part "+(found.partCode||"UNKNOWN")+" | "+(found.model||"UNKNOWN MODEL")+
-        " | KTR="+found.ktrMatched+" C#="+found.csharpMatched+" | "+found.status);
+        " | 55 Performance="+found.ktrMatched+" C#="+found.csharpMatched+" | "+found.status);
     }catch(e){
       const box=$("#autoEcuName");box.hidden=false;
       box.textContent=(K.ecuId?"อ่าน ECM ID "+K.ecuId+" ได้แล้ว แต่ยังแปล Part Code ไม่สำเร็จ: ":
