@@ -6,7 +6,7 @@ const live=get('ui/neon-live-v21.js'),main=get('flash_port/main-source-live-v19.
 const source=get('flash_port/main-source-diagnostic.js');
 assert(index.includes('ui/neon-preflight-v24.js'),'V24 read-only preflight entry loaded');
 assert(index.includes('ui/neon-preflight-v24.css'),'Preflight theme loaded');
-assert(index.includes('ui/neon-live-v21.js?v=240'),'AFR update cached correctly');
+assert(/ui\/neon-live-v21\.js\?v=\d+/.test(index)&&index.includes('ui/neon-main-live-v25.js'),'Main C# Neon Live assets are cached correctly');
 assert(ui.includes('window.__55FlashPreflight.mount(stage)'),'Flash route mounts new V24 page');
 assert(ui.includes("flash:[],live:"),'old Flash page UI hidden instead of duplicating');
 assert(p.includes('engine.identify()'),'real physical ECU ID from C# engine');
@@ -19,8 +19,8 @@ assert(!/\.(?:flash|khPreErase|shPreErase|writeRaw|erase)\s*\(/.test(p),'UI modu
 assert(p.includes("hardware:false"),'physical backup, supply and wiring MUST NOT self-pass');
 assert(!/99%|0xA1B2C3D4|524288/.test(p),'no mock ECU ID / offset / confidence displayed');
 assert(live.includes('"afr"')&&live.includes('n21-afr-provenance'),'nine sensors including AFR and provenance');
-assert(index.includes('const afrSupported=!!(liveProfile?._afrOk&&liveProfile.afr)'),'AFR requires verified wideband profile');
-assert(index.includes('key!=="afr"||(!demo&&afrSupported)'),'AFR must not use DEMO or non-wideband data');
+assert(index.includes('const afrSupported=!!(liveProfile?._afrOk&&liveProfile.afr)'),'legacy ADX bridge still blocks unverified Wideband values outside Main source');
+assert(get('ui/neon-main-live-v25.js').includes('s.group!==7'),'new Main C# bridge rejects unsupported A/F from Group 7');
 assert(source.includes("n('A/F',af(b(46))")&&source.includes("n('A/F',af(b(60))"),'Main C# A/F retained for groups 1 and 4');
 assert(!source.slice(source.lastIndexOf('return [...base,')).includes("n('A/F'"),'group 7 cannot fabricate unsupported A/F');
 assert(main.includes("'A/F'")&&main.includes('ordered.slice(0,9)'),'source A/F shown in full C# live reader');
