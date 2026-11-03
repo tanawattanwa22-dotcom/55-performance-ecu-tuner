@@ -340,15 +340,22 @@ function mount(host){
  stage.append(help);
  render();
 }
-let preparingAuto=false;
+let preparingAuto=false,lastAutoProbe=null;
 async function autoPrepare(){
  if(preparingAuto||working||INLINEFLASH.busy)return false;
  const shared=window.__55SharedEcu;
- if(!stage?.isConnected||!shared?.snapshot?.().connected||!shared.snapshot().ecuId||!current().valid)return false;
+ const snap=shared?.snapshot?.();
+ if(!stage?.isConnected||!snap?.connected||!snap.ecuId)return false;
+ const c=current();
+ if(recency()&&last?.identity?.ecuId===snap.ecuId&&last.saved===c.saved)return verified();
+ const key=snap.ecuId+'|'+(c.saved?.sha256||c.saved?.filename||'no-bin');
+ if(lastAutoProbe?.key===key&&Date.now()-lastAutoProbe.at<15000)return false;
+ lastAutoProbe={key,at:Date.now()};
  preparingAuto=true;
  try{
+  // Read ID/Boot session even without a BIN; only make a plan when a valid BIN exists.
   await readECU();
-  if(last?.identity?.sourceMatched)await runCheck();
+  if(current().valid&&last?.identity?.sourceMatched)await runCheck();
   return verified();
  }finally{preparingAuto=false;render()}
 }
