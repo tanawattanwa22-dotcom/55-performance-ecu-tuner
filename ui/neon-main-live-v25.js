@@ -2,7 +2,7 @@
  * Main FM_diag.cs reader is the sole source of real-time sensor values.
  * The legacy ADX/DEMO live engine is never called by this bridge.
  */
-import {MainLiveSession} from '../flash_port/main-live-session.js?v=301';
+import {MainLiveSession} from '../flash_port/main-live-session.js?v=312';
 const old=window.__55LiveBridge;
 if(!old)throw Error('Live UI bridge must be installed before Main V25');
 const originalSnapshot=old.snapshot.bind(old);
@@ -15,7 +15,10 @@ const phases=Object.freeze({
  LICENSE_CHECK:'ตรวจสิทธิ์ License ก่อนใช้ FT232R',
  USB_OPEN:'กำลังเปิด FT232R ผ่าน WebUSB (ยังไม่ติดต่อ ECU)',
  ECU_ID_PROBE:'เปิด FT232R แล้ว • กำลังปลุกและอ่าน ECU ID',
- DIAGNOSTIC_READY:'เปิด FT232R แล้ว • พร้อมตรวจ Diagnostic Group 7/4/1 (ยังไม่ยืนยัน ECU ID)',
+ DIAGNOSTIC_READY:'พร้อมใช้งาน • แสดงผลตรวจแยกตาม ECU ID / Live / DTC ด้านล่าง',
+ LIVE_GROUP_DETECT:'กำลังตรวจกลุ่ม Live 7/4/1 ตามคำตอบ ECU',
+ DTC_BANK_DETECT:'กำลังตรวจตาราง DTC 0x73/0x74 ด้วยคำสั่งอ่านอย่างเดียว',
+ AUTO_DETECT_PARTIAL:'พบข้อมูลบางส่วน • รายการที่ยังไม่ยืนยันจะไม่ขึ้นสีเขียว',
  LIVE_CAPTURE:'กำลังรับข้อมูลจริงจาก Main C#',
  USB_ACCESS_DENIED:'Android ปฏิเสธ USBDevice.open() ก่อนติดต่อ ECU'
 });
@@ -37,7 +40,12 @@ old.snapshot=()=>{
  // Read the chosen model directly. Never ask the legacy ADX/PROF decoder for
  // any sensor field while the original Neon gauge is active.
  if(!document.getElementById('live')?.classList.contains('n21-gauge'))
-  return {...originalSnapshot(),connected:reader.status().connected,cable:reader.status().cable,ecuId:reader.ecuId};
+  {
+   const st=reader.status();
+   return {...originalSnapshot(),connected:st.connected,cable:st.cable,connecting:st.connecting,
+    ecuId:st.ecuId,model:st.part?'ECU '+st.part:'',protocol:st.connected?'Honda K-Line / Main C#':'—',
+    group:st.group,catalogFamily:st.catalogFamily,part:st.part};
+  }
  // The stored model selection is NOT a vehicle identification.
  // Until the physical ECU ID is read and uniquely mapped to a verified profile,
  // show no model rather than a stale model such as K2TG-T21.
@@ -51,7 +59,7 @@ old.snapshot=()=>{
  return {
   mode:'gauge',source:s.running?'ecu':'idle',demo:false,run:s.running,
   connected:s.connected,cable:s.cable,connecting:s.connecting,
-  model:verifiedModel?.id||'',ecuId:s.ecuId,group:s.group,phase:s.phase,
+  model:s.part?('ECU '+s.part):verifiedModel?.id||'',ecuId:s.ecuId,group:s.group,phase:s.phase,
   protocol:s.connected?'Honda K-Line / Main FM_diag.cs':'—',
   profAvailable:true,afrSupported:s.group!==7,
   afrSource:s.group===7?'C# Group 7 ไม่มีช่อง A/F':
@@ -61,7 +69,7 @@ old.snapshot=()=>{
   message:s.error||lastConnectError||(
    s.connecting?(phases[s.phase]||'กำลังเปิด FT232R…'):
    s.running?'กำลังอ่านข้อมูลจาก FM_diag.cs Group '+s.group:
-   s.connected?'เชื่อมต่อแล้ว • เลือก Group และกดเริ่มอ่าน ECU':'เชื่อมต่อ FT232R ก่อนเริ่ม Diagnostic'
+   s.connected?'เชื่อมสายแล้ว • Live Group '+(s.liveGroupVerified?s.group:'ยังไม่ยืนยัน')+' • '+s.autoStatus:'เชื่อมต่อ FT232R ก่อนเริ่ม Diagnostic'
   )
  };
 };
@@ -92,12 +100,13 @@ window.__55SharedEcu={
  acquire:owner=>reader.acquire(owner),release:owner=>reader.release(owner),
  get owner(){return reader.owner;},
  snapshot:()=>reader.status(),connect:()=>old.connect(),disconnect:()=>reader.disconnect(),
+ readDtc:()=>reader.readDtc(),
  stop:()=>reader.stop(),get port(){return reader.port?.ready?reader.port:null;}
 };
 window.__55MainLive={
  ready:true,group:()=>reader.group,setGroup:g=>reader.setGroup(g),
  connect:old.connect,start:old.startEcu,stop:old.stopEcu,
- snapshot:()=>reader.status(),disconnect:()=>reader.disconnect()
+ snapshot:()=>reader.status(),readDtc:()=>reader.readDtc(),disconnect:()=>reader.disconnect()
 };
 // Main dashboard is the only place that opens/closes the USB cable.
 const home=document.getElementById('home');
@@ -111,17 +120,48 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
  const disconnect=document.createElement('button');disconnect.className='btn';disconnect.textContent='ตัดการเชื่อมต่อ';
  const row=document.createElement('div');row.className='row';row.style.flexWrap='wrap';row.append(connect,disconnect);
  const note=document.createElement('p');note.className='mu sm';note.textContent='เชื่อมต่อด้วยเส้นทาง FM_diag.cs ของ Live Data เพียงครั้งเดียว • Live / DTC / Flash / Recovery ใช้ FT232R ร่วมกันทีละระบบ • รุ่น ECU ยังต้องยืนยันจาก ID จริง';
- panel.append(heading,state,row,note);homeScroll.prepend(panel);
+ const checks=document.createElement('div');checks.id='sharedEcuAutoChecklist';
+ checks.style.cssText='display:grid;gap:7px;margin:14px 0 4px;';
+ panel.append(heading,state,row,checks,note);homeScroll.prepend(panel);
  // Keep one visible cable owner: hide duplicate legacy connection buttons on the home page only.
  const legacyConnectSelectors=['#homeConnect','#connectUsbHome','#homeUsbConnect'];
  for(const selector of legacyConnectSelectors){const node=document.querySelector(selector);if(node&&node!==connect)node.hidden=true;}
  connect.onclick=()=>{void old.connect().then(updateSharedState)};
  disconnect.onclick=()=>{void reader.disconnect().then(updateSharedState)};
  function updateSharedState(){
-  const st=reader.status();state.textContent=st.error||(
-   st.connecting?'กำลังเชื่อมต่อ: '+st.phase:
-   st.connected?'เชื่อมต่อ FT232R แล้ว • '+st.phase+' • ECU ID: '+(st.ecuId||'ยังไม่ยืนยัน'):
-   'ยังไม่ได้เชื่อมต่อ FT232R');
+  const st=reader.status();
+  state.textContent=st.connected?(st.connecting?'กำลังตรวจอัตโนมัติ: '+st.autoStatus:st.autoStatus):
+    (st.error||'ยังไม่ได้เชื่อมต่อ FT232R');
+  const fmt=n=>Number.isInteger(n)?'0x'+n.toString(16).toUpperCase().padStart(4,'0'):'';
+  const off=(n,raw)=>Number.isInteger(n)?fmt(n):raw==='auto'?'AUTO จาก BIN':'ยังไม่ระบุ';
+  const dtc=st.dtcSnapshot;
+  const ready=st.connected&&!st.connecting;
+  const idOK=ready&&/^[0-9A-F]{10}$/.test(st.ecuId);
+  const liveOK=ready&&st.liveGroupVerified;
+  const dtcOK=ready&&dtc?.success===true;
+  const records=[
+   [ready,'FT232R / USB',ready?'เชื่อมต่อแล้ว · ใช้สายร่วมกัน':'ยังไม่ได้ตรวจการเชื่อมต่อ'],
+   [idOK,'ECU ID จากกล่องจริง',idOK?st.ecuId:(st.idError||'รอคำตอบ ECU')],
+   [idOK&&st.catalogMatched,'พบในฐาน Main 290',st.catalogMatched?(st.part||'Part Code ไม่ระบุ')+' · '+st.catalogFamily:'ยังไม่พบรายการที่ตรง ECU ID'],
+   [liveOK,'ตาราง Live Data',liveOK?'Group '+st.group+' · ได้รับและถอดรหัสข้อมูลครบ':'รอยืนยัน Group 7 / 4 / 1'+(st.liveGroupError?' · '+st.liveGroupError:'')],
+   [dtcOK,'ตาราง DTC',dtc?(dtc.answered.length+'/6 คำสั่งตอบครบ'+(dtcOK?'':' · ผลยังไม่ครบ')):'ยังไม่ได้รับคำตอบ DTC'],
+   [false,'Start Offset / Checksum',st.catalogMatched?
+     'ค่าอ้างอิงฐาน: '+off(st.startOffset,st.startOffsetText)+' / '+off(st.checksumOffset,st.checksumOffsetText)+' · ยังไม่เทียบ BIN':
+     'รอ ECU ID และ BIN ที่เลือก · ยังไม่ยืนยันสำหรับเขียน']
+  ];
+  checks.replaceChildren();
+  for(const [ok,label,detail] of records){
+   const line=document.createElement('div');
+   line.style.cssText='border:1px solid '+(ok?'#267e69':'#4b617b')+';background:'+(ok?'#102f37':'#182b3e')+
+    ';border-radius:10px;padding:9px 10px;line-height:1.45;overflow-wrap:anywhere;';
+   const title=document.createElement('strong');
+   title.style.color=ok?'#76f2bd':'#e9d39d';
+   title.textContent=(ok?'✓ ':'○ ')+label;
+   const sub=document.createElement('div');
+   sub.style.cssText='font-size:12px;color:#bad0df;margin-top:3px';
+   sub.textContent=detail;
+   line.append(title,sub);checks.append(line);
+  }
   connect.disabled=st.connected||st.connecting;
   disconnect.disabled=!st.connected&&!st.connecting;
  }
