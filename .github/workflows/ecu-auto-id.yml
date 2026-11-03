@@ -7,20 +7,28 @@ on:
       - "index.html"
       - "flash_port/ecu-id-lookup.js"
       - "flash_port/ecu-id-ui.js"
+      - "flash_port/main-auto-metadata.js"
+      - "ui/neon-main-live-v25.js"
+      - "ui/shared-operations-v30.js"
       - "flash_port/bench.html"
       - "flash_port/flash-write-lab.html"
       - "ktr/ecm-catalog.js"
       - "tools/verify-ecu-id-autolookup.mjs"
+      - "tools/verify-main-auto-metadata.mjs"
       - ".github/workflows/ecu-auto-id.yml"
   pull_request:
     paths:
       - "index.html"
       - "flash_port/ecu-id-lookup.js"
       - "flash_port/ecu-id-ui.js"
+      - "flash_port/main-auto-metadata.js"
+      - "ui/neon-main-live-v25.js"
+      - "ui/shared-operations-v30.js"
       - "flash_port/bench.html"
       - "flash_port/flash-write-lab.html"
       - "ktr/ecm-catalog.js"
       - "tools/verify-ecu-id-autolookup.mjs"
+      - "tools/verify-main-auto-metadata.mjs"
   workflow_dispatch:
 
 permissions:
@@ -35,5 +43,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Test real ECU ID parsing and non-flashing metadata lookup
+      - name: Test real ECU ID parsing and reference lookup
         run: node tools/verify-ecu-id-autolookup.mjs
+      - name: Test BIN-independent Main.zip metadata display
+        run: node tools/verify-main-auto-metadata.mjs

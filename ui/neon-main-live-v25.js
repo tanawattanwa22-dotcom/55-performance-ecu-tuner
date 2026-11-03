@@ -3,6 +3,7 @@
  * The legacy ADX/DEMO live engine is never called by this bridge.
  */
 import {MainLiveSession} from '../flash_port/main-live-session.js?v=350';
+import {resolveMainAutoMetadata} from '../flash_port/main-auto-metadata.js?v=352';
 const old=window.__55LiveBridge;
 if(!old)throw Error('Live UI bridge must be installed before Main V25');
 const originalSnapshot=old.snapshot.bind(old);
@@ -173,14 +174,14 @@ function autoFlashSummary(){
  const st=reader.status();
  const b=window.__55QuickFlashBin?.bytes||window.__ecu?.S?.saved?.bytes||window.__ecu?.S?.bin;
  const binText=b instanceof Uint8Array&&b.length?'BIN ที่เลือก: '+b.length+' bytes (ยังต้องตรวจ ECU/BIN ID, checksum และ memory map ก่อนเขียน)':'ยังไม่ได้เลือก/บันทึก BIN สำหรับเขียน';
- const offset=n=>Number.isInteger(n)?'0x'+n.toString(16).toUpperCase():'ต้องตรวจจาก BIN';
+ const offset=(n,raw)=>Number.isInteger(n)?'0x'+n.toString(16).toUpperCase():raw==='auto'?'AUTO (Main.zip)': 'ไม่ระบุใน Main.zip';
  view.textContent='MAIN C# · AUTO ECU PREFLIGHT (READ ONLY)\n'+
   (st.connected?'FT232R: เชื่อมต่อแล้ว':'FT232R: ยังไม่เชื่อมต่อ')+
   '\nECU ID จริง: '+(st.ecuId||'ยังไม่ตอบ')+
   '\nPart Code ฐาน Main: '+(st.part||'ยังไม่ตรงฐาน')+
   '\nECU Family จากฐาน: '+(st.catalogFamily||'ยังไม่ระบุ')+
-  '\nStart Offset (ฐาน): '+offset(st.startOffset)+
-  '\nChecksum Offset (ฐาน): '+offset(st.checksumOffset)+
+  '\nStart Offset (ฐาน): '+offset(st.startOffset,st.startOffsetText)+
+  '\nChecksum Offset (ฐาน): '+offset(st.checksumOffset,st.checksumOffsetText)+
   '\nLive Group ที่อ่านตอบ: '+(st.liveGroupVerified?st.group:'ยังไม่ยืนยัน')+
   '\nDTC: '+(st.dtcSnapshot?.answered?.length??0)+'/6 ชุดที่ได้รับการตอบ'+
   '\n'+binText+'\n'+
@@ -246,6 +247,9 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
  panel.style.cssText='border:1px solid #25dce5;background:linear-gradient(135deg,#102b45,#15172b);margin:12px 0;padding:16px';
  const heading=document.createElement('h2');heading.textContent='เชื่อมต่อ ECU · 55 PERFORMANCE';
  const state=document.createElement('p');state.id='sharedEcuState';state.setAttribute('role','status');
+ const detected=document.createElement('section');detected.id='sharedEcuDetected';
+ detected.setAttribute('aria-label','ข้อมูล ECU อัตโนมัติจาก Main.zip');
+ detected.style.cssText='margin:10px 0 16px;padding:13px;background:#121e32;border:1px solid #3daab4;border-radius:12px';
  const connect=document.createElement('button');connect.className='btn ac';connect.textContent='เชื่อมต่อสาย USB';
  const disconnect=document.createElement('button');disconnect.className='btn';disconnect.textContent='ตัดการเชื่อมต่อ';
  const selectAgain=document.createElement('button');selectAgain.className='btn';
@@ -269,7 +273,7 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
   catch(e){window.prompt('คัดลอกข้อความผลตรวจ USB',debugText.textContent)}
  };
  debug.append(debugSummary,debugText,copyLog);
- panel.append(heading,state,row,checks,debug,note);homeScroll.prepend(panel);
+ panel.append(heading,state,detected,row,checks,debug,note);homeScroll.prepend(panel);
  // Keep one visible cable owner: hide duplicate legacy connection buttons on the home page only.
  const legacyConnectSelectors=['#homeConnect','#connectUsbHome','#homeUsbConnect'];
  for(const selector of legacyConnectSelectors){const node=document.querySelector(selector);if(node&&node!==connect)node.hidden=true;}
@@ -288,8 +292,43 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
  };
  rescan.onclick=()=>{void reader.rescan().then(updateSharedState).catch(e=>{state.textContent=e.message})};
  disconnect.onclick=()=>{void reader.disconnect().then(updateSharedState)};
+ let lastDetectedKey='';
+ function updateDetected(st){
+  // This reads metadata from the already-decoded physical Main C# catalog only.
+  // It never looks at the selected BIN and does not send a USB command.
+  const k=[st.connected,st.ecuId,st.catalogMatched,st.part,st.catalogFamily,
+   st.startOffset,st.checksumOffset,st.startOffsetText,st.checksumOffsetText].join('|');
+  if(lastDetectedKey===k)return;
+  lastDetectedKey=k;
+  const data=resolveMainAutoMetadata(st);
+  detected.replaceChildren();
+  const head=document.createElement('strong');head.textContent='ECU ID → Main.zip · ตรวจพบอัตโนมัติ';
+  head.style.cssText='display:block;color:#8cedf7;font-size:15px;margin-bottom:9px';
+  const grid=document.createElement('div');grid.style.cssText='display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px';
+  const items=[
+   ['ECU ID จากกล่อง',data.ecuId||'ยังไม่ได้อ่านจาก ECU'],
+   ['Part Code',data.partCode||'—'],
+   ['ECU Family',data.family||'—'],
+   ['Start Offset',data.startOffset],
+   ['Checksum Offset',data.checksumOffset]
+  ];
+  for(const [label,value] of items){
+   const cell=document.createElement('div');cell.style.cssText='border:1px solid #36526c;border-radius:8px;padding:8px;min-width:0';
+   const key=document.createElement('small');key.textContent=label;key.style.cssText='display:block;color:#b8ccdc;font-size:11px;margin-bottom:4px';
+   const val=document.createElement('b');val.textContent=value;val.style.cssText='display:block;color:#fff;font-size:14px;overflow-wrap:anywhere';
+   cell.append(key,val);grid.append(cell);
+  }
+  const status=document.createElement('p');status.textContent=data.message;
+  status.setAttribute('role','status');
+  status.style.cssText='margin:10px 0 0;color:'+(data.complete?'#83f1c4':'#ffd39a')+';font-size:12px;line-height:1.55';
+  const foot=document.createElement('small');
+  foot.textContent='แสดงค่าฐาน Main.zip เท่านั้น • ไม่ต้องเลือก BIN เพื่อดูข้อมูล • ไม่ใช่การอนุมัติ ERASE/WRITE';
+  foot.style.cssText='display:block;margin-top:7px;color:#a9c1d3;line-height:1.5';
+  detected.append(head,grid,status,foot);
+ }
  function updateSharedState(){
   const st=reader.status();
+  updateDetected(st);
   state.textContent=st.connected?
    ('✓ FT232R เปิดพอร์ตแล้ว · '+(st.ecuId?'ECU ID '+st.ecuId:'ยังไม่ได้ต่อหรืออ่าน ECU')+
     (st.error?' · การอ่าน ECU ล่าสุด: '+st.error:'')):
