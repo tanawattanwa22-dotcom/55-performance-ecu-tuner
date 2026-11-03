@@ -3,7 +3,7 @@
  * Never controls the existing online Flash Bench or the main tuning app.
  * Pin a complete coherent version of our flash JS for loss-of-network use.
  */
-const VERSION='55perf-offline-flash-v28.1';
+const VERSION='55perf-offline-flash-v28.2';
 const ASSETS=[
  './index.html',
  '../offline-license.js',
@@ -15,9 +15,6 @@ const ASSETS=[
  '../csharp-ecu-catalog.js',
  '../bin-tools.js',
  '../bin-id-table.js',
- '../ecu-id-lookup.js',
- '../ecu-id-ui.js',
- '../../ktr/ecm-catalog.js',
  '../../license-config.js',
  '../../license-client.js',
  '../../ui/neon-tools-v20.css'
