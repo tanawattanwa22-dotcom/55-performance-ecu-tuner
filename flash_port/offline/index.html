@@ -62,6 +62,7 @@ pre{background:#0b1827;border-radius:10px;padding:12px;font:12px ui-monospace,mo
 <input type="text" id="typed" placeholder="FLASH + ECU ID" autocomplete="off" spellcheck="false">
 <div class="progress"><div id="bar"></div></div><div id="percent" class="status">0% • ยังไม่ได้ส่งคำสั่งแฟลช</div>
 <button id="write" disabled>ERASE / WRITE (กล่องสำรองเท่านั้น)</button>
+<div id="flashGateReason" class="status" aria-live="polite">ปุ่มจะเปิดเมื่อผ่าน License, อ่าน ECU ID, ตรวจ BIN และยืนยันความพร้อมครบ</div>
 <hr><div class="step">ขั้นตอน 5 — หลังรีสตาร์ตกล่องสำรอง</div>
 <button id="postCheck" class="secondary" disabled>ตรวจ ECU ID หลังเขียน / รีสตาร์ต</button>
 <div id="postStatus" class="status">รอผล SOURCE FINAL ACK จากขั้นตอนที่ 4</div>
@@ -90,6 +91,22 @@ function refreshButtons(){
  $('write').disabled=busy||!authorized||!port?.ready||!plan||identity?.ecuId!==plan.ecuId||
   !$('backup').checked||!$('power').checked||!$('recovery').checked||
   $('typed').value.trim().toUpperCase()!=='FLASH '+identity.ecuId;
+
+ const missing=[];
+ if(!authorized)missing.push('สิทธิ์ Offline ยังไม่ผ่าน');
+ if(!bundleReady)missing.push('ไฟล์ Offline ยังเก็บไม่ครบ');
+ if(!port?.ready)missing.push('ยังไม่ได้เชื่อม FT232R');
+ if(!identity?.ecuId)missing.push('ยังไม่ได้อ่าน ECU ID');
+ if(!plan)missing.push('ยังไม่ได้ตรวจ BIN / Part Code / Checksum / Offset');
+ if(plan&&identity?.ecuId!==plan.ecuId)missing.push('ECU ID ไม่ตรงแผนเขียน');
+ if(!$('backup').checked)missing.push('ยังไม่ยืนยัน Backup');
+ if(!$('power').checked)missing.push('ยังไม่ยืนยันไฟเลี้ยงและ K-Line');
+ if(!$('recovery').checked)missing.push('ยังไม่ยืนยันเครื่องมือ Recovery');
+ if(identity?.ecuId&&$('typed').value.trim().toUpperCase()!=='FLASH '+identity.ecuId)missing.push('ยังไม่พิมพ์ FLASH + ECU ID');
+ if(busy)missing.push('ระบบกำลังทำงาน');
+ const explanation=$('flashGateReason');
+ explanation.textContent=missing.length?'ปุ่ม ERASE / WRITE ยังปิด: '+missing.join(' • '):'ผ่านเงื่อนไขหน้าเว็บแล้ว · การกดปุ่มจะส่ง ERASE / WRITE จริงหลังยืนยันอีกครั้ง (ยังไม่ยืนยันด้วย Readback)';
+ explanation.className='status '+(missing.length?'':'ok');
 }
 async function prepareOfflineAssets(){
  if(!('serviceWorker' in navigator))throw Error('Chrome ไม่รองรับ Service Worker');
@@ -261,6 +278,16 @@ $('write').onclick=async()=>{
    '\nStart Offset 0x'+plan.startOffset.toString(16)+
    '\n\nจะเข้าสู่ขั้นตอน ERASE/WRITE จริงและมีโอกาสทำ ECU เสีย ถ้ายังไม่พร้อมกด Cancel';
  if(!confirm(message))return;
+ try{
+  if(!bundleReady)throw Error('ไฟล์ Offline ไม่ครบ');
+  await verifySavedOfflinePermit(localStorage.getItem('55_device_id'));
+ }catch(e){
+  authorized=false;
+  $('offlineState').textContent='หยุดก่อน ERASE: '+e.message;
+  refreshButtons();
+  push('OFFLINE PERMIT PREFLIGHT STOP '+e.message);
+  return;
+ }
  flashOutcome='FLASH_STARTED_NOT_VERIFIED';
  busy=true;flashing=true;refreshButtons();
  $('percent').textContent='เริ่มขั้นตอนแฟลช ECU สำรอง • ห้ามปิดหน้าเว็บ';
