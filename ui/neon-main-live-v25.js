@@ -126,7 +126,20 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
  const note=document.createElement('p');note.className='mu sm';note.textContent='เชื่อมต่อด้วยเส้นทาง FM_diag.cs ของ Live Data เพียงครั้งเดียว • Live / DTC / Flash / Recovery ใช้ FT232R ร่วมกันทีละระบบ • รุ่น ECU ยังต้องยืนยันจาก ID จริง';
  const checks=document.createElement('div');checks.id='sharedEcuAutoChecklist';
  checks.style.cssText='display:grid;gap:7px;margin:14px 0 4px;';
- panel.append(heading,state,row,checks,note);homeScroll.prepend(panel);
+ const debug=document.createElement('details');
+ debug.style.cssText='margin-top:12px;padding:10px;border:1px solid #355a77;border-radius:10px;';
+ const debugSummary=document.createElement('summary');
+ debugSummary.textContent='รายละเอียดการเชื่อมต่อ USB / แก้ปัญหา';
+ const debugText=document.createElement('pre');
+ debugText.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;color:#bce2f3;max-height:240px;overflow:auto';
+ const copyLog=document.createElement('button');copyLog.className='btn';
+ copyLog.textContent='คัดลอกผลตรวจ USB';
+ copyLog.onclick=async()=>{
+  try{await navigator.clipboard.writeText(debugText.textContent);copyLog.textContent='คัดลอกแล้ว'}
+  catch(e){window.prompt('คัดลอกข้อความผลตรวจ USB',debugText.textContent)}
+ };
+ debug.append(debugSummary,debugText,copyLog);
+ panel.append(heading,state,row,checks,debug,note);homeScroll.prepend(panel);
  // Keep one visible cable owner: hide duplicate legacy connection buttons on the home page only.
  const legacyConnectSelectors=['#homeConnect','#connectUsbHome','#homeUsbConnect'];
  for(const selector of legacyConnectSelectors){const node=document.querySelector(selector);if(node&&node!==connect)node.hidden=true;}
@@ -178,6 +191,17 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
    sub.textContent=detail;
    line.append(title,sub);checks.append(line);
   }
+  debugText.textContent=JSON.stringify({
+   usbConnected:st.connected,usbPhase:st.phase,
+   permission:st.error||physicalConnectError||lastConnectError||null,
+   licenseVerified:st.licenseVerified,
+   licenseError:st.licenseError||null,
+   ecuId:st.ecuId||null,
+   ecuIdError:st.idError||null,
+   liveGroup:st.liveGroupVerified?st.group:null,
+   dtcAnswered:st.dtcSnapshot?.answered?.length??0,
+   lastTransportEvents:reader.port?.trace?.slice(-12)||[]
+  },null,2);
   connect.disabled=st.connected||st.connecting;
   rescan.disabled=!st.connected||st.licenseBusy||st.autoBusy||st.running||!!reader.owner;
   disconnect.disabled=!st.connected&&!st.connecting;
