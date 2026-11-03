@@ -111,7 +111,7 @@ export class MainLiveSession {
    this.error=denied?'Android/Chrome ไม่อนุญาตให้เปิด FT232R (USBDevice.open Access denied) • ปิดหน้าอื่นที่ใช้สายและเลือกพอร์ตจาก Chrome โดยตรง':
     'เชื่อมต่อไม่สำเร็จ ['+this.phase+']: '+String(e?.message||e);
    this.phase=denied?'USB_ACCESS_DENIED':'STOPPED';
-   if(port)try{await port.close()}catch{}
+   if(port)try{await TIME_LIMIT(Promise.resolve(port.close()),2500,'FT232R USB close timeout')}catch{}
    this.port=null;this.ecuId='';this.values=EMPTY();this.notify();
    return false;
   }finally{this.connecting=false;this.notify()}
