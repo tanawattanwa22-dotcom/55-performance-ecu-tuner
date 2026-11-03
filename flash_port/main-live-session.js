@@ -421,6 +421,10 @@ export class MainLiveSession {
    }else if(this.port?.ready&&this.phase==='LIVE_RX_FAILED'){
     this.phase='USB_READY_NO_ECU';
    }
+   if(this.port?.ready&&(this.phase==='LIVE_CAPTURE'||this.phase.startsWith('LIVE_PROBE_GROUP_'))){
+    this.phase='DIAGNOSTIC_READY';
+    this.autoStatus='FT232R ยังเชื่อมต่อ · หยุดอ่าน Live Data แล้ว';
+   }
    this.stopRequested=false;this.notify();
   }
  }
