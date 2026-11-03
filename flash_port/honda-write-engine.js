@@ -93,7 +93,7 @@ export class HondaFlashEngine {
   this.emit(name,{stage:'RX',status:reply[3]});
   return reply;
  }
- async identify(){
+ async identify({programmingPreflight=false}={}){
   if(!this.usb.ready)fail('USB_NOT_CONNECTED','เปิด FTDI กับ OTG ก่อน');
   if(this.state!=='idle'&&this.state!=='identified')fail('BUSY','มีโปรแกรมกำลังทำงาน');
   this.state='identifying';
@@ -101,7 +101,7 @@ export class HondaFlashEngine {
    // Diagnostic-first path matches the working Main FM_diag.cs Live Data wake.
    // A successful diagnostic ID is observational only, never a flash unlock.
    // The caller can inspect ECU identity without sending Keihin programming polls.
-   if(this.usb.diagnosticReady===true){
+   if(this.usb.diagnosticReady===true&&!programmingPreflight){
     this.emit('DIAGNOSTIC_SESSION_REUSED');
     const r=await this.x('READ_ECU_ID_DIAGNOSTIC',READ_ONLY_COMMANDS.ID,{timeoutMs:2300,afterWriteMs:50});
     if(r.length<11)fail('NO_ECU_ID','Diagnostic ID response too short');
@@ -114,7 +114,7 @@ export class HondaFlashEngine {
     this.emit('DIAGNOSTIC_ID_ONLY',this.identity);
     return this.identity;
    }
-   this.emit('FTDI_ISO_INIT');
+   this.emit('FTDI_ISO_INIT',{purpose:programmingPreflight?'PRE_WRITE_ID_VERIFICATION':'ECU_ID'});
    await this.usb.initializeIso();
    await this.usb.sendWake();
    let handshake='HELLO',idReply;
