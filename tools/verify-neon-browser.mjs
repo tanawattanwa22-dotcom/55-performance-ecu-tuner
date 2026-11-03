@@ -62,8 +62,10 @@ try{
   assert.equal(await page.locator('#n22Library').count(),1,'dedicated catalog page present');
   assert.equal(await page.locator('.n22-feature-card').count(),1,'featured master BIN card');
   assert.equal(await page.locator('#n22Library .n22-bin-row').count(),3,'only actual three installed models');
-  assert.equal(await page.locator('#n22Library .n22-brand-logo img[alt="Honda"]').count(),3,
-   'Honda logo present on every Honda BIN row');
+  assert.equal(await page.locator('#n22Library .n22-brand-logo').count(),3,
+   'Every BIN row has a manufacturer badge, including rows without verified make');
+  assert.equal(await page.locator('#n22Library .n22-brand-logo img[alt="Honda"]').count(),0,
+   'Do not falsely label an unknown manufacturer as Honda');
   assert.equal(await page.locator('#n22Library .n22-row-actions').count(),3,
    'every row has three actionable buttons');
   assert.equal(await page.locator('#n22Library .n22-filter-chip').count(),5,
@@ -83,7 +85,7 @@ try{
   await page.evaluate(()=>document.querySelector('.n22-view-switch button:first-child').click());
   const logos=await page.evaluate(()=>[...document.querySelectorAll('#n22Library .n22-brand-logo img')]
    .map(img=>({src:img.getAttribute('src'),complete:img.complete,loaded:img.naturalWidth>0})));
-  assert(logos.every(l=>l.loaded),'every local Honda logo loaded: '+JSON.stringify(logos));
+  assert(logos.every(l=>l.loaded),'every manufacturer image shown loaded: '+JSON.stringify(logos));
   const brandAssets=await page.evaluate(()=>[...document.querySelectorAll('#n22Library .n22-filter-vendor-logo, #n22Library .n22-row-vendor-logo')]
     .map(img=>({src:img.getAttribute('src'),loaded:img.complete&&img.naturalWidth>0})));
   assert(brandAssets.every(v=>v.loaded),'all ECU vendor logos loaded: '+JSON.stringify(brandAssets));
