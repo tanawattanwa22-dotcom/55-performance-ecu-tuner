@@ -2,7 +2,7 @@
 // Exact source: user-provided 38770-K26-901_unlock.xdf and 4000-FFFF 48KB BIN.
 // File-relative addresses. NEVER subtract 0x4000. No ECU USB calls in this tool.
 const $=id=>document.getElementById(id);
-const state={cfg:null,original:null,bytes:null,table:null,changes:[],verified:false,readonlyReason:''};
+const state={cfg:null,original:null,baseline:null,bytes:null,table:null,changes:[],verified:false,readonlyReason:''};
 const hex=(x,n=4)=>'0x'+x.toString(16).toUpperCase().padStart(n,'0');
 const field=(id,value)=>{$(id).textContent=String(value)};
 const note=(txt,kind='')=>{field('notice',txt);$('notice').dataset.kind=kind};
@@ -144,35 +144,61 @@ function filterTables(){
  select.value=items.some(t=>t.id===current)?current:items[0].id;
  showTable(select.value);
 }
-async function loadBin(file){
+function editableBytes(){
+ const allowed=new Set();
+ for(const t of state.cfg.tables.filter(t=>!locked(t)))for(let r=0;r<t.rows;r++)for(let c=0;c<t.cols;c++){
+  const at=cellOffset(t,r,c);for(let k=0;k<t.bits/8;k++)allowed.add(at+k);
+ }
+ return allowed;
+}
+function sameProtectedBytes(bytes){
+ if(!state.baseline||state.baseline.length!==bytes.length)return false;
+ const allowed=editableBytes();
+ for(let i=0;i<bytes.length;i++)if(bytes[i]!==state.baseline[i]&&!allowed.has(i))return false;
+ return true;
+}
+async function loadBinBytes(bytes,filename){
  state.bytes=null;state.original=null;state.verified=false;state.changes=[];
  $('save').disabled=true;
- if(!file)return;
- const bytes=new Uint8Array(await file.arrayBuffer());
  if(bytes.length!==state.cfg.size)throw Error('BIN ต้องมีขนาด 49,152 ไบต์ (48 KB) ไม่ใช่ '+bytes.length);
  const hash=await sha256(bytes);
- state.original=bytes.slice();state.bytes=bytes.slice();state.verified=hash===state.cfg.sha256;
+ state.original=bytes.slice();state.bytes=bytes.slice();
+ const exact=hash===state.cfg.sha256;
+ state.verified=exact||sameProtectedBytes(bytes);
  field('sha',hash);
  const rpm=tableById('0X2769'),tps=tableById('0X44F7');
  if(!rpm||!tps||Math.abs(getValue(rpm,0,0)-800)>20||Math.abs(getValue(tps,1,0)-0.3904)>0.01){
   state.verified=false;
-  note('ไม่พบ Breakpoint ในตำแหน่งตาม XDF · เปิดดูได้อย่างเดียว ห้ามบันทึก','bad');
+  note('Breakpoint ไม่ตรงตามตำแหน่ง XDF · ดูได้อย่างเดียว ไม่บันทึก','bad');
  }else if(state.verified){
-  note('✓ SHA-256 ตรงกับ BIN 38770-K26-901 ที่ส่งมา · 29 ตาราง / 9 แฟล็ก · พร้อมจูนแบบออฟไลน์','ok');
+  note(exact?'✓ โหลด BIN ต้นฉบับ K26-901 แล้ว · SHA-256 ตรง · จูนได้เลย':
+   '✓ BIN ที่แก้มาเดิมต่างเฉพาะตำแหน่งตาราง XDF ที่อนุญาต · ข้อมูล ECU ส่วนอื่นตรงต้นฉบับ','ok');
  }else{
-  note('BIN ขนาดถูก แต่ SHA-256 ไม่ตรงต้นฉบับ · เปิดอ่านอย่างเดียวเพื่อป้องกันแก้ไฟล์ผิดรุ่น','bad');
+  note('BIN ไม่ตรงต้นฉบับและมีไบต์เปลี่ยนนอกตาราง XDF · เปิดอ่านอย่างเดียว ป้องกันจูนผิดรุ่น','bad');
  }
- field('file',file.name+' · '+bytes.length.toLocaleString()+' bytes');
+ field('file',filename+' · '+bytes.length.toLocaleString()+' bytes');
  filterTables();
+}
+async function loadBin(file){
+ if(!file)return;
+ const bytes=new Uint8Array(await file.arrayBuffer());
+ await loadBinBytes(bytes,file.name);
+}
+async function loadBundled(){
+ if(!state.cfg)throw Error('XDF ยังไม่โหลด');
+ const response=await fetch('./msx-k26-901-bin.gz.b64?v=1',{cache:'no-store'});
+ if(!response.ok)throw Error('โหลดต้นฉบับ BIN จาก GitHub ไม่สำเร็จ '+response.status);
+ const b=await unzip(await response.text());
+ const hash=await sha256(b);
+ if(b.length!==49152||hash!==state.cfg.sha256)throw Error('BIN ที่ฝังไว้ใน GitHub ไม่ตรง SHA-256 ต้นฉบับ');
+ state.baseline=b.slice();
+ await loadBinBytes(b,'38770-K26-901_4000-FFFF.bin (ต้นฉบับ)');
 }
 function save(){
  if(!state.verified||!state.bytes||!countDiff())return;
  const file=state.bytes.slice();
  // Every changed address must be one of the unlocked XDF table cell bytes.
- const allowed=new Set();
- for(const t of state.cfg.tables.filter(t=>!locked(t)))for(let r=0;r<t.rows;r++)for(let c=0;c<t.cols;c++){
-  const at=cellOffset(t,r,c);for(let i=0;i<t.bits/8;i++)allowed.add(at+i);
- }
+ const allowed=editableBytes();
  for(let i=0;i<file.length;i++)if(file[i]!==state.original[i]&&!allowed.has(i))throw Error('พบบิตเปลี่ยนนอกตาราง XDF ที่อนุญาต: '+hex(i));
  const blob=new Blob([file],{type:'application/octet-stream'});
  const url=URL.createObjectURL(blob),a=document.createElement('a');
@@ -197,6 +223,7 @@ $('reset').onclick=()=>{
  state.bytes=state.original.slice();state.changes=[];showTable(state.table.id);note('คืนค่าตาม BIN ต้นฉบับแล้ว','ok');
 };
 $('save').onclick=save;
+$('loadSource').onclick=async()=>{try{await loadBundled()}catch(e){note('โหลด BIN ต้นฉบับไม่ได้: '+e.message,'bad')}};
 $('downloadAudit').onclick=()=>{
  const cfg=state.cfg;if(!cfg)return;
  const report={source:cfg.part,binSha256:cfg.sha256,xdfSha256:cfg.xdfSha256,tableCount:cfg.tables.length,flagCount:cfg.flags.length,
@@ -211,6 +238,8 @@ $('downloadAudit').onclick=()=>{
    const opt=document.createElement('option');opt.value=id;opt.textContent=name;sel.append(opt);
   }
   field('definition','XDF 29 ตาราง + 9 Flags · MSX Gen1 K26-901');
-  note('โหลดนิยาม XDF สำเร็จ · เลือกไฟล์ 38770-K26-901_4000-FFFF.bin จากโทรศัพท์เพื่อแสดงตาราง','ok');
+  $('bin').disabled=false;
+  note('โหลด XDF สำเร็จ · กำลังโหลด BIN ต้นฉบับ 48KB และตรวจ SHA-256...');
+  await loadBundled();
  }catch(err){note('ไม่สามารถโหลดนิยาม XDF: '+err.message,'bad');$('bin').disabled=true}
 })();
