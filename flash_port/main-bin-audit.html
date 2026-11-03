@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0c1930">
+<title>55 Performance · Main C# BIN Inspector</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,'Noto Sans Thai',sans-serif;color:#eaf4ff;background:#071327}
+*{box-sizing:border-box}
+body{margin:0;padding:12px 12px 80px;background:linear-gradient(160deg,#09233d,#071327)}
+main{max-width:820px;margin:auto}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+h1{font-size:23px;margin:4px 0}h2{font-size:17px;margin:0 0 10px}
+small,.muted{color:#b5c7d7;line-height:1.7}
+.card{border:1px solid #325c80;border-radius:16px;background:linear-gradient(120deg,#142b42,#151d38);padding:15px;margin:13px 0}
+#summary,#message,#result{white-space:pre-wrap;overflow-wrap:anywhere}
+label{display:block;color:#b6d3e5;font-size:13px;margin:10px 0 5px}
+input{width:100%;min-height:47px;border:1px solid #5985a5;border-radius:10px;background:#081b31;color:white;padding:10px;font:inherit}
+input[type=file]{min-height:auto}
+button,a.btn{min-height:45px;border:1px solid #387d9a;border-radius:12px;background:#0a4b6e;color:#fff;padding:10px 14px;font:700 14px system-ui;text-decoration:none;cursor:pointer}
+button:disabled{opacity:.45}
+.buttons{display:flex;flex-wrap:wrap;gap:9px;margin:12px 0}
+pre{font:12px/1.7 ui-monospace,monospace;background:#071424;padding:12px;border-radius:12px;max-height:55vh;overflow:auto;color:#b4f6dc}
+.good{color:#65e5b3}.warn{color:#ffd38e}
+table{width:100%;border-collapse:collapse;font-size:12px}th,td{padding:8px 5px;border-bottom:1px solid #36516b;overflow-wrap:anywhere;text-align:left}
+</style></head>
+<body><main>
+<header><div><small>MAIN.ZIP · FORMMMAIN.CS PORT</small><h1>55 PERFORMANCE BIN INSPECTOR</h1><small>ค้น BIN ID · ตรวจ Signature · Checksum · ฐาน ECU 290 รายการ</small></div><a class="btn" href="../index.html">หน้าแรก</a></header>
+<section class="card">
+<h2>1 · ตรวจไฟล์ BIN ในโทรศัพท์</h2>
+<p class="muted">ทำงานบนเครื่องคุณ ไม่ส่งข้อมูล BIN ไปยังเซิร์ฟเวอร์ และไม่สั่งลบ/เขียน ECU</p>
+<label for="bin">เลือก BIN / ROM</label>
+<input id="bin" type="file" accept=".bin,.rom,.hex,.dat,application/octet-stream">
+<label for="ecu">ECU ID จากรถจริง (ไม่บังคับ)</label>
+<input id="ecu" type="text" maxlength="10" inputmode="text" placeholder="เช่น 0101880D01" autocomplete="off" spellcheck="false">
+<div class="buttons"><button id="analyze" disabled>ตรวจ BIN ตาม Main C#</button><button id="export" disabled>ส่งออกผล JSON</button></div>
+<div id="message" role="status" class="muted">เลือกไฟล์เพื่อเริ่มตรวจ</div>
+</section>
+<section class="card"><h2>2 · ผลวิเคราะห์</h2><div id="summary" class="muted">ยังไม่ได้ตรวจ</div><div id="matched"></div></section>
+<section class="card"><h2>3 · รายละเอียดต้นฉบับ / Debug</h2><pre id="result">—</pre></section>
+<section class="card"><h2>การตรวจจาก Main.zip</h2>
+<p class="muted">พอร์ต SearchPattern32/48/56/64/96/128/256/384/512/768/1024KB, SearchEcmIdInBinFile, Sum8Bit, Sum32Bit, Checksum8BitHonda และ GetEcuType ผ่านโมดูล C# ที่มีอยู่ในแอป</p>
+<p class="warn">รหัสที่ค้นเจอใน BIN ไม่สามารถยืนยันว่าเป็น ECU ที่เสียบจริง การแสดง Part Code เป็นการจับคู่ฐานข้อมูลเท่านั้น ไม่อนุญาต ERASE/WRITE อัตโนมัติ</p></section>
+</main><script type="module" src="./main-bin-audit-ui.js?v=1"></script></body></html>
