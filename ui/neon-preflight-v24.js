@@ -249,7 +249,7 @@ function mount(host){
   try{
    const f=upload.files?.[0];
    if(!f){uploadStatus.textContent='ยังไม่ได้เลือกไฟล์';return}
-   const lengths=[32768,49152,57344,65536,98304,131072,262144,393216,524288,1048576];
+   const lengths=[32768,49152,57344,65536,98304,131072,262144,393216,524288,786432,1048576];
    if(!lengths.includes(f.size))throw Error('BIN ขนาด '+f.size+' bytes ไม่อยู่ในขนาดที่ Flash Engine รองรับ · ยังไม่อัด');
    const bytes=new Uint8Array(await f.arrayBuffer());
    const digest=await crypto.subtle.digest('SHA-256',bytes);
