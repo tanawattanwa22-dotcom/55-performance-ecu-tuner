@@ -48,11 +48,15 @@ export class MainLiveSession {
   this.recording=false;this.recordStart=0;this.records=[];this.error='';this.phase='IDLE';
   this.catalog=null;this.idError='';this.liveGroupError='';this.dtcError='';
   this.dtcSnapshot=null;this.autoStatus='ยังไม่ได้ตรวจ';this.autoComplete=false;this.autoBusy=false;
+  this.usbAttempts=0;this.usbLastPhase='IDLE';this.usbLastError='';this.usbDevice=null;this.usbTrace=[];
  }
  notify(){this.onUpdate(this);}
  status(){
   return {
    connected:!!this.port?.ready,
+   usbAttempts:this.usbAttempts,usbLastPhase:this.usbLastPhase,
+   usbLastError:this.usbLastError,usbDevice:this.usbDevice,
+   usbTrace:(this.port?.trace?.length?this.port.trace:this.usbTrace).slice(-16),
    cable:!!this.port?.ready,connecting:this.connecting||this.autoBusy,autoBusy:this.autoBusy,ecuId:this.ecuId,
    part:this.catalog?.part||null,catalogFamily:this.catalog?.family||null,
    startOffset:this.catalog?.startOffset??null,checksumOffset:this.catalog?.checksumOffset??null,
@@ -78,6 +82,7 @@ export class MainLiveSession {
  }
  async connect(){
   if(this.connecting||this.running||this.port?.ready)return false;
+  this.usbAttempts++;this.usbLastPhase='USB_CHOOSER';this.usbLastError='';this.usbTrace=[];
   this.connecting=true;this.error='';this.phase='USB_CHOOSER';
   this.disconnectRequested=false;this.stopRequested=false;
   this.autoComplete=false;this.autoBusy=false;this.notify();
@@ -88,6 +93,7 @@ export class MainLiveSession {
    // Never perform a network/License check in a WebUSB user gesture.
    // Must run directly inside the user click: no awaited work before picker.
    const device=await Ft232rWebUsb.choose();
+   this.usbDevice=Number(device?.vendorId||0).toString(16).padStart(4,'0')+':'+Number(device?.productId||0).toString(16).padStart(4,'0');
    if(this.disconnectRequested)return false;
    this.phase='USB_OPEN';this.notify();
    port=new Ft232rWebUsb();this.port=port;
@@ -102,10 +108,12 @@ export class MainLiveSession {
    // No background ECU probe, wake, DTC bank scan or bulk RX here.
    this.ecuId='';this.catalog=null;this.detectedGroup=null;
    this.dtcSnapshot=null;this.values=EMPTY();
-   this.phase='USB_CONNECTED';this.error='';
+   this.phase='USB_CONNECTED';this.error='';this.usbLastPhase='USB_CONNECTED';this.usbTrace=port.trace?.slice(-16)||[];
    this.autoStatus='✓ FT232R เปิดพอร์ตแล้ว • ใช้ Live Data หรือกดสแกน ECU ได้ • ยังไม่ส่งคำสั่งอ่าน ECU';
    this.notify();return true;
   }catch(e){
+   this.usbLastPhase=this.phase;this.usbLastError=String(e?.message||e);
+   this.usbTrace=port?.trace?.slice(-16)||this.usbTrace;
    const denied=e?.name==='SecurityError'||/Access denied|SecurityError/.test(String(e?.message||''));
    this.error=denied?
     'Android ไม่อนุญาตเปิด FT232R • ปิดแอปอื่นที่ใช้สาย USB แล้วเลือกพอร์ตใหม่':
