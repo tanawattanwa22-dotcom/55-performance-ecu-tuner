@@ -15,10 +15,15 @@ must(index,"identity.ecuId?.endsWith('0000')",'Normal Flash detects boot ID befo
 must(index,"inlineFlashRecovery('BOOT',detail,identity.ecuId)",'Normal Flash displays Recovery route when boot ID detected');
 must(index,"inlineFlashRecovery('FAILED',e.message,INLINEFLASH.ecuId)",'Normal Flash reports possible Recovery after write failure');
 must(index,"sessionStorage.setItem('55_flash_recovery_hint'",'Failure hint survives panel switching');
-must(index,'const approvals=await inlineFlashConfirm(plan)','Flash needs explicit approvals');
-must(index,'confirmation:approvals.confirmation,physicalBackupConfirmed:approvals.backup','Actual user approvals forwarded to engine');
-must(index,'externalPowerConfirmed:approvals.power,recoveryReady:approvals.recovery','Power and recovery approvals forwarded');
-assert(!index.includes('physicalBackupConfirmed:true,\n    externalPowerConfirmed:true,recoveryReady:true'),'Never hardcode three user approvals to true');
+// Normal Flash is now connect cable, choose BIN, tap Flash: no checkbox/typed modal.
+must(index,'operatorClickConfirmed:true','Normal Flash passes a single explicit operator click to the engine');
+assert(!index.includes('inlineFlashConfirm('),'Normal Flash no longer opens manual approval dialog');
+assert(!index.includes("prompt('BIN ไม่มี Part Code"),'Normal Flash stops ambiguous BIN instead of asking the operator to type a guessed Part Code');
+must(index,'AUTO_PART_MATCH ECU_ID','Exact embedded BIN ECU ID can supply automatic part match');
+must(engine,'if(!operatorClickConfirmed||plan.recovery)','Recovery keeps its existing manual approvals');
+must(engine,'(!plan.recovery&&!this.identity.sourceMatched)','Normal Flash requires C#-sourced physical ECU identification');
+must(preflight,"const flash=btn('⇧ อัดไฟล์ ECU'","Simple UI offers one Flash button");
+must(preflight,'easy.append(uploadLabel,upload,uploadNote,uploadStatus,flash,recovery,miniBar,miniProgress)','Fast mode is not a mandatory front-page checkbox');
 must(bench,"const boot=!!identity?.ecuId?.endsWith('0000')",'Advanced Flash detects recovery');
 must(bench,"engine.identify({programmingPreflight:true})",'Advanced Flash requires programming probe');
 must(bench,"(!recoveryMode&&identity?.ecuId?.endsWith('0000'))",'Advanced Flash blocks normal write on boot');
@@ -56,4 +61,20 @@ flash.identity={ecuId:'0102030000',family:'UNVERIFIED',handshake:'KEIHIN_POLL'};
 assert.throws(()=>flash.makePlan(new Uint8Array(65536),{filename:'test.bin',recovery:false}),e=>e.code==='BOOT_ID_REQUIRES_RECOVERY');
 await assert.rejects(flash.flash({ecuId:'0102030000',profile:'KEIHINOTHER',recovery:false}),e=>e.code==='BOOT_ID_REQUIRES_RECOVERY');
 assert.equal(rawTx,0,'Boot ID must not send even one USB command on normal Flash');
-console.log('PASS: Recovery auto detection, explicit confirmation, page/JS syntax and ZERO destructive/USB traffic for Boot ID normal Flash');
+// One tap is authorized only on the normal path with a real source-matched ECU.
+// No physical USB communications are issued in either mocked test.
+const noUsb=new HondaFlashEngine({ready:false});
+noUsb.state='identified';
+noUsb.identity={ecuId:'0101880D01',family:'KEIHIN',sourceMatched:true};
+await assert.rejects(
+  noUsb.flash({ecuId:'0101880D01',profile:'KEIHINOTHER',recovery:false},{operatorClickConfirmed:true}),
+  e=>e.code==='USB_LOST'
+);
+const unknownId=new HondaFlashEngine({ready:true});
+unknownId.state='identified';
+unknownId.identity={ecuId:'0101880D01',family:'KEIHIN',sourceMatched:false};
+await assert.rejects(
+  unknownId.flash({ecuId:'0101880D01',profile:'KEIHINOTHER',recovery:false},{operatorClickConfirmed:true}),
+  e=>e.code==='PLAN_INVALID'
+);
+console.log('PASS: one-tap normal Flash, Recovery manual gates, ECU source/Boot ID checks and JS syntax (no ECU)');
