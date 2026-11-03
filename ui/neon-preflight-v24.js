@@ -132,7 +132,7 @@ async function readECU(){
   if(typeof api!=='function')throw Error('ไม่พบตัวตรวจ License');
   const license=await api('check',{device:localStorage.getItem('55_device_id')});
   if(!license?.active)throw Error('License ไม่ได้เปิดใช้งาน');
-  port=shared.port;
+  port=await shared.acquire("PREFLIGHT");
   if(!port?.ready)throw Error('สายหลักถูกตัดการเชื่อมต่อแล้ว');
   const engine=new HondaFlashEngine(port,()=>{});
   message='กำลังอ่าน ECU ID และ Flash Count ด้วย FormMain C#…';render();
@@ -146,6 +146,7 @@ async function readECU(){
   last=null;
   error=e?.message||String(e);
  }finally{
+  shared.release("PREFLIGHT");
   // Shared port belongs to the home dashboard. Never close it here.
   working=false;render();
  }

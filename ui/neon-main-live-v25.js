@@ -37,7 +37,7 @@ old.snapshot=()=>{
  // Read the chosen model directly. Never ask the legacy ADX/PROF decoder for
  // any sensor field while the original Neon gauge is active.
  if(!document.getElementById('live')?.classList.contains('n21-gauge'))
-  return originalSnapshot(); // Other modes, especially legacy DTC only.
+  return {...originalSnapshot(),connected:reader.status().connected,cable:reader.status().cable,ecuId:reader.ecuId};
  // The stored model selection is NOT a vehicle identification.
  // Until the physical ECU ID is read and uniquely mapped to a verified profile,
  // show no model rather than a stale model such as K2TG-T21.
@@ -89,6 +89,8 @@ old.mode=(mode)=>{
  return originalMode(mode);
 };
 window.__55SharedEcu={
+ acquire:owner=>reader.acquire(owner),release:owner=>reader.release(owner),
+ get owner(){return reader.owner;},
  snapshot:()=>reader.status(),connect:()=>old.connect(),disconnect:()=>reader.disconnect(),
  stop:()=>reader.stop(),get port(){return reader.port?.ready?reader.port:null;}
 };
@@ -108,7 +110,7 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
  const connect=document.createElement('button');connect.className='btn ac';connect.textContent='เชื่อมต่อสาย USB';
  const disconnect=document.createElement('button');disconnect.className='btn';disconnect.textContent='ตัดการเชื่อมต่อ';
  const row=document.createElement('div');row.className='row';row.style.flexWrap='wrap';row.append(connect,disconnect);
- const note=document.createElement('p');note.className='mu sm';note.textContent='เปิดสายจากหน้าหลักครั้งเดียว สถานะการเชื่อมต่อใช้ร่วมกันในแอป • ก่อนใช้ระบบที่ยังเปิด FTDI แยก ให้ตัดสายหลักก่อน';
+ const note=document.createElement('p');note.className='mu sm';note.textContent='เปิดสายจากหน้าหลักครั้งเดียว • Live / DTC / Flash / Recovery ใช้สายร่วมกันและหยุด Live ก่อนส่งคำสั่ง';
  panel.append(heading,state,row,note);homeScroll.prepend(panel);
  connect.onclick=()=>{void old.connect().then(updateSharedState)};
  disconnect.onclick=()=>{void reader.disconnect().then(updateSharedState)};

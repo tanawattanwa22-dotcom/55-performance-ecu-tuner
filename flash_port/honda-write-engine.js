@@ -127,6 +127,9 @@ export class HondaFlashEngine {
    let family='UNVERIFIED',count=null;
    try{
     const isSh=source?.family==='SHINDENGEN';
+    // Recovery ID has no normal catalog/count session. Do not send a Keihin
+    // count probe to an unknown Shindengen bootloader (timeout closes USB).
+    if(/0000$/.test(ecuId)){family='SHINDENGEN';throw new Error('Recovery boot ID: normal flash count unavailable');}
     const label=isSh?'SHINDENGEN_FLASH_COUNT':'KEIHIN_FLASH_COUNT';
     const command=isSh?CMD.shPoll:CMD.khCount;
     const r=await this.x(label,command,{timeoutMs:1800});
@@ -284,6 +287,8 @@ export class HondaFlashEngine {
    current=next;
   }
   if(!lastFrame)fail('NO_WRITE','No flash blocks sent');
+  // FormMain.WriteFlash sends one additional H8C flush before FINAL1.
+  if(plan.blockBytes===64){await this.x('KH_H8C_FINAL_FLUSH',CMD.kh64Flush,{timeoutMs:3000});await this.wait(100);}
   return sent;
  }
  async shPreErase(plan){

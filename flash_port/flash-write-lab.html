@@ -121,20 +121,19 @@ $('connect').onclick=async()=>{
   // Standalone tabs cannot share a WebUSB interface across documents.
   const shared=window.parent!==window?window.parent.__55SharedEcu:window.__55SharedEcu;
   if(!shared?.port?.ready)throw Error('กรุณากลับหน้าหลัก เชื่อมต่อ FT232R แล้วเปิด Flash จากหน้าเดียวกัน');
-  if(shared.snapshot()?.running)throw Error('หยุดอ่าน Live Data ก่อนใช้ Flash / Recovery');
-  port=shared.port;identity=null;plan=null;$('ecuMatch').hidden=true;engine=new HondaFlashEngine(port,ev=>{
+  port=await shared.acquire('FLASH_PANEL');identity=null;plan=null;$('ecuMatch').hidden=true;engine=new HondaFlashEngine(port,ev=>{
    const detail=Object.fromEntries(Object.entries(ev).filter(([k])=>k!=='at'&&k!=='phase'));
    if(ev.phase==='WRITE_PROGRESS'){$('bar').style.width=ev.percent+'%';$('percent').textContent=ev.percent+'% • '+ev.bytesCovered+'/'+ev.totalBytes+' bytes acknowledged'}
    push(ev.phase+' '+JSON.stringify(detail));
   });
   $('usb').textContent='FT232R เปิดสำเร็จ → ยังไม่ได้อ่าน ECU';
   push('FT232R connected; flash session not started');
- }catch(e){$('usb').textContent='USB ERROR: '+e.message;push(e.message)}
+ }catch(e){(window.parent!==window?window.parent:window).__55SharedEcu?.release('FLASH_PANEL');$('usb').textContent='USB ERROR: '+e.message;push(e.message)}
  finally{busy=false;refreshButtons()}
 };
 $('disconnect').onclick=async()=>{
  if(flashing)return;busy=true;refreshButtons();
- try{if(port&&port!==((window.parent!==window?window.parent:window).__55SharedEcu?.port))await port.close()}finally{
+ try{(window.parent!==window?window.parent:window).__55SharedEcu?.release('FLASH_PANEL')}finally{
   port=null;engine=null;identity=null;plan=null;$('ecuMatch').hidden=true;
   $('usb').textContent='ตัดสายแล้ว';$('ecu').textContent='ยังไม่ได้อ่าน ECU';
   busy=false;refreshButtons();
@@ -306,4 +305,6 @@ $('saveLog').onclick=()=>{
 
 window.addEventListener('beforeunload',e=>{if(flashing){e.preventDefault();e.returnValue='ECU FLASH IN PROGRESS'}});
 license();
+window.__55PanelBusy=()=>busy||flashing;
+window.__55ReleasePanel=()=>{if(busy||flashing)return false;(window.parent!==window?window.parent:window).__55SharedEcu?.release('FLASH_PANEL');return true;};
 </script></body></html>

@@ -1,3 +1,4 @@
+import {isSourceResetCountFrame} from './main-reset-count.js';
 /*
  * 55 PERFORMANCE — FT232R WebUSB transport, for controlled bench validation.
  * Protocol basis: owner's C# InitFtdiIso/SendCommand (not a Windows D2XX DLL).
@@ -152,7 +153,7 @@ export class Ft232rWebUsb {
       throw err;
     }finally{clearTimeout(timer)}
   }
-  async sourceDiagnosticWake(){
+  async sourceDiagnosticWake(session="diagnostic"){
     // FM_diag.cs method_25(): SerialPort 10400 8N1, Break 100/70/5/145,
     // FE 04 72 8C, then 72 05 71 00 18. Diagnostic ONLY, no flash commands.
     if(!this.ready)throw Error('FT232R must be open before Main diagnostic wake');
@@ -171,7 +172,7 @@ export class Ft232rWebUsb {
       this._log('MAIN DIAG TX WAKE FE 04 72 8C');
       await sleep(30);
       await this.purge(); // C# discards output and ReadExisting before next write
-      await this._write([0x72,0x05,0x71,0x00,0x18]);
+      await this._write(session==="dtc"?[0x72,0x05,0x00,0xf0,0x99]:[0x72,0x05,0x71,0x00,0x18]);
       this._log('MAIN DIAG TX SESSION 72 05 71 00 18');
       await sleep(50);
       // Do not await transferIn here: Chrome has no cancellable bulk read.
@@ -207,7 +208,7 @@ export class Ft232rWebUsb {
     // The ONE non-framed command in the C# source (Keihin Fast Write baud switch,
     // FormMain.cs WriteFlash) is accepted only as an exact byte match.
     const isFastSwitch=bytes.length===FAST_SWITCH_COMMAND.length&&FAST_SWITCH_COMMAND.every((v,i)=>bytes[i]===v);
-    if(!isFastSwitch){
+    if(!isFastSwitch&&!isSourceResetCountFrame(bytes)){
       if(bytes.length<3||bytes.length>256||bytes[1]!==bytes.length)
         throw Error('Invalid framed command length');
       if(hondaChecksum(bytes)!==0)throw Error('Incorrect command checksum');

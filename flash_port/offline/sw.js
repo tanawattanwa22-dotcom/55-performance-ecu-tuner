@@ -3,7 +3,7 @@
  * Never controls the existing online Flash Bench or the main tuning app.
  * Pin a complete coherent version of our flash JS for loss-of-network use.
  */
-const VERSION='55perf-offline-flash-v29.0';
+const VERSION='55perf-offline-flash-v30.0';
 const ASSETS=[
  './index.html',
  './manifest.webmanifest',
@@ -11,6 +11,7 @@ const ASSETS=[
  '../../icons/icon-512.png',
  '../offline-license.js',
  '../ftdi-webusb.js',
+ '../main-reset-count.js',
  '../honda-write-engine.js',
  '../flash-frames.js',
  '../csharp-logic.js',

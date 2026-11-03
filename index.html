@@ -1072,7 +1072,7 @@ function inlineFlashConfirm(plan){
  });
 }
 async function inlineFlashClose(){
- if(INLINEFLASH.port){try{await INLINEFLASH.port.close()}catch(e){inlineFlashLog('USB close: '+e.message)}}
+ window.__55SharedEcu?.release('INLINE_FLASH');
  INLINEFLASH.port=null;INLINEFLASH.engine=null;INLINEFLASH.postCheck=false;
 }
 async function inlineFlashStart(){
@@ -1100,21 +1100,12 @@ async function inlineFlashStart(){
  inlineFlashProgress(0);inlineFlashRefresh();
  let erasedOrSent=false;
  try{
-  // Request the USB device synchronously from this click before awaiting
-  // dynamic imports; WebUSB requestDevice requires transient user activation.
-  if(!navigator.usb)throw Error('เบราว์เซอร์นี้ไม่รองรับ WebUSB');
-  const dev=await navigator.usb.requestDevice({filters:[{vendorId:0x0403,productId:0x6001}]});
-  const [{Ft232rWebUsb},{HondaFlashEngine}]=await Promise.all([
-   import('./flash_port/ftdi-webusb.js'),import('./flash_port/honda-write-engine.js')]);
+  const shared=window.__55SharedEcu;
+  if(!shared)throw Error('ระบบสายหลักยังไม่พร้อม');
+  INLINEFLASH.port=await shared.acquire('INLINE_FLASH');
+  const {HondaFlashEngine}=await import('./flash_port/honda-write-engine.js');
   const activeLicense=await api('check',{device:localStorage.getItem('55_device_id')});
   if(!activeLicense?.active)throw Error('License ไม่ได้เปิดใช้งาน');
-  if(typeof lvStop==='function'&&typeof LV!=='undefined'&&LV.run)lvStop();
-  // The tuner uses its own background reader. It MUST release the USB
-  // interface before the V18 D2XX-equivalent flash transport claims it.
-  if(K.t){const old=K.t;K.t=null;K.ecu=false;K.ecuId=null;
-   await old.close();cableUi('','เปลี่ยนเป็นการเชื่อมต่อ Flash Engine V18','กำลังเปิดใหม่','รออ่าน ID')}
-  INLINEFLASH.port=new Ft232rWebUsb(v=>inlineFlashLog('FTDI '+v));
-  await INLINEFLASH.port.openSelected(dev);
   INLINEFLASH.engine=new HondaFlashEngine(INLINEFLASH.port,ev=>{
    inlineFlashLog('ENGINE '+JSON.stringify(ev));
    if(ev.phase==='WRITE_PROGRESS'){erasedOrSent=true;inlineFlashProgress(ev.percent)}
@@ -2730,7 +2721,7 @@ function v3Draw(){
 <script src="ui/neon-v20.js?v=250"></script>
 <script src="ui/neon-live-v21.js?v=250"></script>
 <script src="ui/neon-dtc-v23.js?v=232"></script>
-<script type="module" src="ui/neon-main-live-v25.js?v=261"></script>
+<script type="module" src="ui/neon-main-live-v25.js?v=300"></script>
 
 <style>#licenseGate{position:fixed;inset:0;z-index:2147483647;background:#0b1220;color:white;display:flex;align-items:center;justify-content:center;font:16px system-ui}#licenseGate .wrap{width:min(94vw,440px);padding:25px;background:#1b2b40;border:1px solid #536783;border-radius:16px}#licenseGate input,#licenseGate button{box-sizing:border-box;width:100%;margin:5px 0;padding:12px;border-radius:9px;background:#243a55;color:white;border:1px solid #6c7e9d}#licenseGate button{background:#b65720}#licenseGate small{color:#c5d2e2}</style>
 <div id="licenseGate"><div class="wrap"><h2>55 PERFORMANCE ECU TUNER</h2><p>เปิดใช้งานด้วย License Key • 1 คีย์ / 1 เครื่อง</p><input id="licEmail" type="email" placeholder="อีเมล"><input id="licPass" type="password" placeholder="รหัสผ่าน"><button id="licLogin">เข้าสู่ระบบ</button><small style="display:block;margin:2px 0 8px;color:#8fd6ff;font-weight:700">ระบบสมัครสมาชิก V10 • แก้ตรวจอีเมลและแคชแล้ว</small><button id="licSignup" type="button" style="background:#284660;border-color:#6c7e9d">สมัครบัญชีลูกค้าใหม่ (ฟรี)</button><small style="display:block;line-height:1.5;margin:5px 0 9px">ลูกค้าใหม่กรอกอีเมลของตนเองและตั้งรหัสผ่านอย่างน้อย 8 ตัวอักษรเพื่อสมัคร หากมีบัญชีอยู่แล้วให้กดเข้าสู่ระบบ ไม่ต้องสมัครซ้ำ ระบบอาจส่งอีเมลยืนยัน</small><input id="licKey" placeholder="กรอก License Key"><button id="licActivate">เปิดใช้งานคีย์</button><button id="licCheck">ตรวจสิทธิ์อีกครั้ง</button><small id="licMsg">กรุณาเข้าสู่ระบบก่อนใช้งาน</small></div></div>
@@ -2741,5 +2732,6 @@ document.getElementById('licSignup').onclick=async()=>{const el=document.getElem
 document.getElementById('licActivate').onclick=async()=>{try{await api('activate',{key:document.getElementById('licKey').value,device});await check()}catch(e){message(e)}};
 document.getElementById('licCheck').onclick=()=>check().catch(message);check().catch(message);
 window.__ecuLicenseLogout=logout;
-})();</script></body>
+})();</script><script type="module" src="ui/shared-operations-v30.js"></script>
+</body>
 </html>

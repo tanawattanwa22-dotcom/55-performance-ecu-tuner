@@ -14,7 +14,7 @@ export function getShindengenRecoveryKey(bin, seed, signature) {
     const b=(bin[i+3]<<8)|bin[i+2];
     const c=(bin[i+5]<<8)|bin[i+4];
     const v=(Math.imul(b,(n+a)&0xffff)&0xffff);
-    const result=(v+(c>0?n%c:0))&0xffff;
+    const result=(v+(c>0?n%c:n))&0xffff;
     return Uint8Array.of(result>>>8,result&255);
   }
   return null;

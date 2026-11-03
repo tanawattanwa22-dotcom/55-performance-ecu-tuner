@@ -89,7 +89,7 @@ note.append(ul);pane.append(note);
 const actions=create('div','n23-actions');
 function delegate(id){
  if(pending)return;
- let state;try{state=api.snapshot()}catch{return}
+ let state;try{state=window.__55SharedEcu?.snapshot?.()||api.snapshot()}catch{return}
  if(!state.connected){msg.textContent='ยังไม่ได้เชื่อมต่อ ECU จริง กรุณาเชื่อมต่อ FTDI และอ่าน ECU ID ก่อน';return}
  const b=$(id);if(b&&!b.disabled)b.click();
 }
@@ -109,12 +109,9 @@ function refreshConnection(){
  cell.ecu.textContent=s.ecuId||'ยังไม่ยืนยัน ECU ID';
  cell.protocol.textContent=s.connected?s.protocol||'Honda K-Line / FTDI':'—';
  cell.speed.textContent='ไม่ได้ตรวจวัด';
- // Shared FTDI is available, but the legacy DTC transport has not been
- // migrated. Do not claim a successful ECU diagnostic connection.
- const legacyReady=!!window.__ecu?.K?.t;
- read.disabled=pending||!legacyReady;
- clear.disabled=pending||!legacyReady;
- if(s.connected&&!legacyReady&&!pending)msg.textContent='สายหลักเชื่อมต่อแล้ว แต่คำสั่ง DTC ยังใช้ระบบเก่า ไม่สามารถอ่านผ่านสายหลักได้ในเวอร์ชันนี้';
+ const ready=!!s.connected&&!window.__55SharedEcu?.owner;
+ read.disabled=pending||!ready;
+ clear.disabled=pending||!ready;
 }
 function makeCode(v){
  const outer=create('details','n23-code-card'),summary=create('summary','n23-code-summary');

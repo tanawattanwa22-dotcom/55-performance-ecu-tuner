@@ -35,7 +35,7 @@ export class MainLiveSession {
  constructor(onUpdate=()=>{},onSample=()=>{}){
   this.onUpdate=onUpdate;this.onSample=onSample;
   this.group='auto';this.detectedGroup=null;this.group4Variant=null;
-  this.port=null;this.ecuId='';this.connecting=false;
+  this.port=null;this.ecuId='';this.connecting=false;this.owner=null;
   this.running=false;this.stopRequested=false;this.disconnectRequested=false;
   this.sampleSeq=0;this.sampleAt=0;this.hz=null;this.values=EMPTY();
   this.recording=false;this.recordStart=0;this.records=[];this.error='';this.phase='IDLE';
@@ -150,7 +150,19 @@ export class MainLiveSession {
   }
   return capture;
  }
+ async acquire(owner){
+  if(this.owner)throw Error("สายกำลังใช้งานโดย "+this.owner);
+  this.owner=owner;this.stop();
+  try{
+   const deadline=Date.now()+10000;
+   while(this.running){if(Date.now()>deadline)throw Error("Live Data ยังไม่หยุด");await WAIT(20);}
+   if(!this.port?.ready)throw Error("เชื่อมต่อสายจากหน้าหลักก่อน");
+   return this.port;
+  }catch(e){this.owner=null;throw e;}
+ }
+ release(owner){if(this.owner===owner){this.owner=null;this.notify();}}
  async start(){
+  if(this.owner){this.error="สายกำลังใช้งานโดย "+this.owner;this.notify();return false;}
   if(this.connecting||this.running||!this.port?.ready)return false;
   this.running=true;this.phase='LIVE_CAPTURE';this.stopRequested=false;this.disconnectRequested=false;
   this.error='';this.values=EMPTY();this.sampleSeq=0;this.sampleAt=0;this.hz=null;
@@ -161,6 +173,7 @@ export class MainLiveSession {
  }
  async _loop(){
   try{
+   await this.port.sourceDiagnosticWake();
    const group=this.group==='auto'?await this.detectGroup():this.group;
    if(group===null)return;
    while(this.running&&!this.stopRequested&&!this.disconnectRequested){
@@ -194,6 +207,7 @@ export class MainLiveSession {
  }
  stop(){this.stopRequested=true;this.recording=false;this.notify()}
  async disconnect(){
+  if(this.owner){this.error="หยุดงาน "+this.owner+" ก่อนตัดสาย";this.notify();return false;}
   this.disconnectRequested=true;this.stopRequested=true;this.recording=false;
   if(!this.running&&!this.connecting){
    const port=this.port;this.port=null;this.ecuId='';
