@@ -91,6 +91,16 @@ function delegate(id){
  if(pending)return;
  let state;try{state=window.__55SharedEcu?.snapshot?.()||api.snapshot()}catch{return}
  if(!state.connected){msg.textContent='ยังไม่ได้เชื่อมต่อ ECU จริง กรุณาเชื่อมต่อ FTDI และอ่าน ECU ID ก่อน';return}
+ const shared=window.__55SharedEcu;
+ if(id==='dtcRead'&&shared?.readDtc){
+  if(shared.snapshot()?.connecting){msg.textContent='ระบบกำลังตรวจอัตโนมัติจากการเชื่อมสาย กรุณาให้การตรวจครั้งนี้เสร็จก่อน';return}
+  void shared.readDtc().catch(e=>{msg.textContent='อ่าน DTC จากสายร่วมไม่สำเร็จ: '+String(e?.message||e)});
+  return;
+ }
+ if(id==='dtcClr'&&shared?.port?.ready){
+  msg.textContent='ระบบ DTC ที่ใช้สายร่วมยังไม่ได้ยืนยันชุดคำสั่งลบรหัสกับ ECU นี้ จึงเปิดเฉพาะการอ่าน DTC โดยไม่ลบ';
+  return;
+ }
  const b=$(id);if(b&&!b.disabled)b.click();
 }
 const read=press('อ่าน DTC',()=>delegate('dtcRead'),'n23-action n23-read');
@@ -106,12 +116,12 @@ function refreshConnection(){
  cstate.classList.toggle('n23-connected',!!s.connected);
  cstate.classList.toggle('n23-disconnected',!s.connected);
  cstate.textContent=s.connected?(s.ecuId?'● ECU ยืนยันตัวตนแล้ว':'● FT232R เชื่อมต่อแล้ว · ยังไม่ยืนยัน ECU ID'):s.cable?'ต่อสายแล้ว · รอ ECU ID':'ยังไม่เชื่อมต่อ FT232R';
- cell.ecu.textContent=s.ecuId||'ยังไม่ยืนยัน ECU ID';
+ cell.ecu.textContent=s.ecuId?(s.ecuId+(s.part?' · '+s.part:'')):'ยังไม่ยืนยัน ECU ID';
  cell.protocol.textContent=s.connected?s.protocol||'Honda K-Line / FTDI':'—';
  cell.speed.textContent='ไม่ได้ตรวจวัด';
- const ready=!!s.connected&&!window.__55SharedEcu?.owner;
+ const ready=!!s.connected&&!s.connecting&&!window.__55SharedEcu?.owner;
  read.disabled=pending||!ready;
- clear.disabled=pending||!ready;
+ clear.disabled=pending||!ready||!!window.__55SharedEcu?.port?.ready;
 }
 function makeCode(v){
  const outer=create('details','n23-code-card'),summary=create('summary','n23-code-summary');
@@ -135,7 +145,9 @@ function render(){
   sectionTitle.textContent='ข้อมูลระบบ ECU';count.textContent='ข้อมูลจากกล่อง / ผลอ่านล่าสุด';
   const s=api.snapshot(),grid=create('div','n23-system-grid');
   const fields=[
-   ['รุ่นที่เลือก',s.model||'ไม่ระบุ'],
+   ['กล่องจาก ECU ID จริง',s.part||'ยังไม่ยืนยันรุ่น ECU'],
+   ['ECU Family จากฐาน Main',s.catalogFamily||'ยังไม่ระบุ'],
+   ['Live Group ที่ตรวจจาก ECU',s.liveGroupVerified?'Group '+s.group:'ยังไม่ยืนยัน'],
    ['สถานะ ECU',s.ecuId?'ยืนยัน ECU ID แล้ว':s.connected?'เปิด FT232R แล้ว · ยังไม่ยืนยัน ECU':'ยังไม่เชื่อมต่อ'],
    ['โปรโตคอล',s.connected?s.protocol||'Honda K-Line / FTDI':'—'],
    ['ความเร็วบัส','ไม่ได้ตรวจวัด'],
@@ -165,7 +177,7 @@ function render(){
  else {atitle.textContent='ไม่พบรหัสปัจจุบัน';anote.textContent='อ่านครบทุกตาราง ไม่พบรหัสในผลตอบกลับ'}
  if(clearState)msg.textContent=clearState;
  else if(result)msg.textContent=(result.error||'')+(result.success?' อ่านเมื่อ '+new Date(result.timestamp).toLocaleTimeString('th-TH'):'');
- else msg.textContent='เชื่อมต่อ ECU แล้วกด อ่าน DTC เพื่ออ่านค่าจริง';
+ else msg.textContent='เมื่อเชื่อมสายจากหน้าแรก ระบบจะอ่านตาราง DTC อัตโนมัติ · กด อ่าน DTC เพื่อสแกนซ้ำ';
 }
 window.addEventListener('55:dtc-read-start',()=>{pending=true;result=null;clearState='';render();msg.textContent='กำลังอ่าน DTC จากกล่อง ECU จริง…'});
 window.addEventListener('55:dtc-result',e=>{pending=false;const x=e.detail;if(x&&Array.isArray(x.current)&&Array.isArray(x.stored)){result=x;clearState=''}render()});
@@ -180,6 +192,14 @@ window.__55DtcV23={
   const trigger=$('mtDtc');if(!trigger)return false;
   trigger.click();
   if(!live.classList.contains('n23-dtc'))api.mode('dtc');
+  const shared=window.__55SharedEcu;
+  if(shared?.port?.ready&&!shared.snapshot()?.connecting){
+   const cached=shared.snapshot()?.dtcSnapshot;
+   if(cached&&cached.ecuId===shared.snapshot()?.ecuId)
+    window.dispatchEvent(new CustomEvent('55:dtc-result',{detail:cached}));
+   else if(shared.readDtc)
+    void shared.readDtc().catch(e=>{msg.textContent='ตรวจ DTC อัตโนมัติไม่สำเร็จ: '+String(e?.message||e)});
+  }
   return live.classList.contains('on')&&live.classList.contains('n23-dtc');
  },
  modeChanged:m=>{live.classList.toggle('n23-dtc',m==='dtc');if(m==='dtc'){active='current';render()}},
