@@ -18,6 +18,34 @@ const icons={
 };
 const press=(title,fn,cls)=>{const b=create('button',cls,title);b.type='button';b.onclick=fn;return b};
 const pane=create('div','n23-pane');pane.id='n23Pane';
+// Dedicated DTC header. Old Live Data header and tabs are hidden only in DTC mode.
+const brand=create('header','n23-brand');
+const returnHome=()=>api.home('dashboard');
+const logo=doc.querySelector('#neonShell .n20-icon')||doc.querySelector('#home .top img.lg');
+const goHome=press('',returnHome,'n23-brand-home');
+goHome.setAttribute('aria-label','กลับหน้าหลัก');
+if(logo){const img=logo.cloneNode(true);img.className='n23-brand-logo';goHome.append(img)}
+const wordmark=create('span','n23-brand-name');
+wordmark.append(create('strong','','55 PERFORMANCE'),create('small','','ECU TUNER'));
+brand.append(goHome,wordmark);
+const menu=press('☰',()=>{if(!menuDialog.open)menuDialog.showModal()},'n23-brand-menu');
+menu.setAttribute('aria-label','เมนูหมวดทั้งหมด');
+brand.append(menu);pane.append(brand);
+const menuDialog=create('dialog','n23-menu-dialog');
+menuDialog.setAttribute('aria-label','เมนูนำทาง DTC');
+const menuHeading=create('h2','','55 PERFORMANCE · เมนูหลัก');
+menuDialog.append(menuHeading);
+menuDialog.append(press('✕ ปิด',()=>menuDialog.close(),'n23-menu-dismiss'));
+for(const [id,label] of [
+ ['dashboard','หน้าหลัก'],['library','คลังรุ่น / BIN หลัก'],
+ ['tune','จูน BIN'],['flash','อัดไฟล์ ECU'],
+ ['live','Live Data'],['dtc','DTC / วินิจฉัย'],
+ ['tools','เครื่องมือ C#'],['settings','ตั้งค่า / License']]){
+ const button=press(label,()=>{menuDialog.close();if(id==='dtc')return;api.home(id)},'n23-menu-item');
+ menuDialog.append(button);
+}
+menuDialog.addEventListener('click',event=>{if(event.target===menuDialog)menuDialog.close()});
+pane.append(menuDialog);
 const hero=create('div','n23-hero');
 const headline=create('div','n23-page-title');
 headline.append(create('span','n23-slash'),create('h1','','DTC / วินิจฉัย'));
@@ -143,7 +171,18 @@ window.addEventListener('55:dtc-clear-start',()=>{pending=true;clearState='ก�
 window.addEventListener('55:dtc-clear-result',e=>{pending=false;const x=e.detail;
  clearState=x?.error?'ลบไม่สำเร็จ: '+x.error:x?.ok===3?'ส่งคำสั่งลบครบ 3 ตารางแล้ว · อ่าน DTC อีกครั้งเพื่อยืนยัน':'ลบไม่ครบ ('+(x?.ok??0)+'/3) · ตรวจสอบสาย';
  result=null;render()});
-window.__55DtcV23={modeChanged:m=>{live.classList.toggle('n23-dtc',m==='dtc');if(m==='dtc'){active='current';render()}},render};
+window.__55DtcV23={
+ open(){
+  // Use the original ECU diagnosis entry only as a navigation/handler bridge.
+  // The visible page is exclusively the new DTC pane; never show legacy UI.
+  const trigger=$('mtDtc');if(!trigger)return false;
+  trigger.click();
+  if(!live.classList.contains('n23-dtc'))api.mode('dtc');
+  return live.classList.contains('on')&&live.classList.contains('n23-dtc');
+ },
+ modeChanged:m=>{live.classList.toggle('n23-dtc',m==='dtc');if(m==='dtc'){active='current';render()}},
+ render
+};
 setInterval(()=>{if(live.classList.contains('on')&&live.classList.contains('n23-dtc'))refreshConnection()},800);
 render();
 })();
