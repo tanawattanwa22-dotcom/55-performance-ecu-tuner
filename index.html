@@ -525,7 +525,8 @@ let DEFS={},BINS={};
 const MODELS=[
  {id:"K2J-T01",sub:"ตระกูล ECU K2J",fam:"K1MA",ck:"sum0"},
  {id:"K2J-TH1",sub:"ตระกูล ECU K2J",fam:"K1MA",ck:"sum0"},
- {id:"K03-H01",sub:"ตระกูล ECU K03",fam:"K03S",ck:"sum0"}];
+ {id:"K03-H01",sub:"ตระกูล ECU K03",fam:"K03S",ck:"sum0"},
+ {id:"MSX-GEN1-K26-901",sub:"Honda MSX125 เจนแรก · 38770-K26-901 · ตาราง XDF 29 ชุด",fam:"",ck:"none",xdf:true}];
 const curCk=()=>{const m=S.mi>=0?MODELS[S.mi]:null;return m?m.ck:"sum0"};
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -693,7 +694,7 @@ function setLed(id,st){const e=$(id);e.className="led"+(st?" "+st:"")}
 function home(){
   const m=S.mi>=0?MODELS[S.mi]:null;
   $("#sModel").textContent=m?m.id:"-";
-  $("#goTune").disabled=!m||!DEFS[m.id]||(!BINS[m.id]&&!S.custom);
+  $("#goTune").disabled=!m||(!m.xdf&&(!DEFS[m.id]||(!BINS[m.id]&&!S.custom)));
   if(S.bin){
     $("#sId").textContent=S.idStr||"-";
     $("#sFile").textContent=(S.bin.length/1024).toFixed(0)+" KB";
@@ -704,6 +705,7 @@ function home(){
   let step;
   if(S.flash)step="เปิด BIN ที่จูนเสร็จไว้ แล้วกดปุ่มอัดไฟล์เดิม ระบบจะอ่าน ECU ID ใหม่ ตรวจ Part Code/Checksum/Offset และยืนยันก่อน ERASE";
   else if(!m)step="เลือกรุ่นรถก่อน";
+  else if(m.xdf)step="MSX เจนแรก K26-901 พร้อมเข้าเครื่องมือ XDF ตารางจูน 29 รายการ • ต้องเปิด BIN ที่ตรง SHA-256 เท่านั้น";
   else if(!DEFS[m.id])step="ตารางจูนเดิมยังเข้ารหัสและไม่ได้ย้ายมาระบบใหม่ จึงยังไม่สามารถเปิดตารางจูนรุ่นนี้ได้ (USB/DTC ยังใช้งานได้)";
   else step="พร้อมแล้ว กดปุ่ม จูน ได้เลย (หรือกด Read file เพื่อใช้ไฟล์ของลูกค้า)";
   $("#stepTxt").textContent=step;
@@ -717,7 +719,7 @@ function fillSel(){
   s.onchange=()=>{
     const old=S.mi,nw=s.value===""?-1:+s.value;
     if(nw!==old&&S.undo.length&&!confirm("เปลี่ยนรุ่น ค่าที่แก้ไว้จะหาย ใช่ไหม?")){s.value=old<0?"":old;return}
-    S.mi=nw;if(nw>=0){LS.set("m",nw);if(!(S.custom&&S.idStr.slice(0,4)===MODELS[nw].fam)&&BINS[MODELS[nw].id])useEmbedded()}
+    S.mi=nw;if(nw>=0){LS.set("m",nw);if(MODELS[nw].xdf){S.bin=null;S.orig=null;S.custom=false;S.fname="";M=null;S.flash=false;}else if(!(S.custom&&S.idStr.slice(0,4)===MODELS[nw].fam)&&BINS[MODELS[nw].id])useEmbedded()}
     else{S.bin=null;S.custom=false}
     checkFam();home();try{guardDraw()}catch(e){}
   };
@@ -762,6 +764,7 @@ function useEmbedded(){
   return true;
 }
 function openTune(){
+  if(S.mi>=0&&MODELS[S.mi]?.xdf){location.href=new URL("flash_port/msx-k26-901-tuner.html",document.baseURI).href;return;}
   if(S.mi<0){toast("เลือกรุ่นรถก่อน");return}
   if(!DEFS[MODELS[S.mi].id]){toast("ตารางจูนยังไม่พร้อม กรุณาย้ายข้อมูลตารางจากระบบเดิมก่อน");return}
   if(!S.bin&&!useEmbedded())return;
