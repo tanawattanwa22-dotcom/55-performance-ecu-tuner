@@ -123,10 +123,14 @@ el('id').onclick=async()=>{
  busy(true);
  try{
   el('ecu').textContent='กำลัง Init FTDI ISO / WAKE / HELLO...';
+  log('ECU READ STEP 1/4: FTDI ISO INIT');
   await port.initializeIso();
+  log('ECU READ STEP 2/4: WAKE (C# original, no confirmed ECU reply)');
   await port.sendWake();
+  log('ECU READ STEP 3/4: HELLO / waiting for UART echo and ECU reply');
   const hello=await port.command('HELLO',{timeoutMs:900});
   log('HELLO reply '+toHex(hello.reply));
+  log('ECU READ STEP 4/4: Request ECU ID');
   const identity=await port.command('ID',{timeoutMs:900});
   const response=identity.reply;
   const ecuId=parseEcmIdReply(response);
@@ -141,7 +145,13 @@ el('id').onclick=async()=>{
  }catch(e){
   log('ECU PROBE STOPPED: '+e.message);
   el('ecu').className='status bad';
-  el('ecu').textContent='หยุดทดสอบ: '+e.message;
+  const noRx=/NO_UART_RX/.test(e.message);
+  const partial=/PARTIAL_ECHO|ECHO_ONLY|PARTIAL_ECU_REPLY/.test(e.message);
+  const explain=noRx?'ไม่พบข้อมูล UART ขากลับจากสายระหว่างรอคำตอบ โปรดตรวจวงจรแปลงระดับ K-Line, ไฟ ECU, กุญแจ ON และขั้วต่อก่อน':
+    partial?'ได้รับข้อมูลจาก USB/สายบางส่วน แต่ยังไม่มีคำตอบ ECU ที่สมบูรณ์ ห้ามสรุปว่า ECU เสีย ตรวจ TX/RX Log และระบบสายก่อน':'';
+  el('ecu').textContent='หยุดทดสอบ: '+e.message+
+    (explain?'\\n'+explain:'')+
+    '\\nขั้นนี้ยังไม่มีการ ERASE / WRITE';
   if(port&&!port.ready){port=null;el('usb').textContent='USB ปิดเพื่อป้องกันคำสั่งค้าง'}
  }finally{busy(false)}
 };
