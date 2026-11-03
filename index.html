@@ -301,7 +301,7 @@ table.g th,table.g td{border-right:1px solid rgba(255,255,255,.35);border-bottom
      <button class="btn" id="mtReadEcu" type="button">อ่าน ECU ID / Count</button>
      <button class="btn" id="mtDiag" type="button">Diagnostic / Live</button>
      <button class="btn" id="mtDtc" type="button">อ่าน/ลบ DTC</button>
-     <a class="btn" href="flash_port/main-source-live.html?v=1" target="_blank" rel="noopener" style="text-decoration:none;background:#345163;color:#fff">Diagnostic C# ผ่าน WebUSB</a>
+     <a class="btn" href="flash_port/main-source-live.html?v=260" target="_blank" rel="noopener" style="text-decoration:none;background:#345163;color:#fff">Diagnostic C# ผ่าน WebUSB</a>
     </div>
     <div class="row" style="flex-wrap:wrap;margin:8px 0">
       <input id="mtEcuId" type="text" inputmode="text" maxlength="10" placeholder="ECU ID 10 หลัก" aria-label="ECU ID สำหรับค้นฐาน C#" style="min-width:0;flex:1;background:#202027;border:1px solid #555;color:white;border-radius:9px;padding:10px">
@@ -1222,7 +1222,7 @@ mainToolsAction('mtDatSearch',()=>{
  const rows=MAINTOOLS.datRows.filter(r=>(r.ecuId+' '+r.part+' '+r.model).toUpperCase().includes(q)).slice(0,30);
  mainToolsOut('ECU DATA: '+rows.length+' รายการที่แสดง (สูงสุด 30)\n'+rows.map(r=>r.ecuId+' | '+r.part+' | '+r.model).join('\n'));
 });
-mainToolsAction('mtDiag',()=>{openLive();mainToolsOut('เปิดหน้าวิเคราะห์ Live Data แล้ว')});
+mainToolsAction('mtDiag',()=>{location.assign(new URL('flash_port/main-source-live.html?v=260',document.baseURI).href)});
 mainToolsAction('mtDtc',()=>{openLive();lvMode('dtc');mainToolsOut('เปิด DTC ในหน้า Live Data แล้ว')});
 mainToolsAction('mtReadEcu',async()=>{
  if(MAINTOOLS.busy||INLINEFLASH.busy)throw Error('กำลังเชื่อมต่อ ECU อยู่แล้ว');
@@ -1688,7 +1688,9 @@ $("#lvConn").onclick=async()=>{
   else if(!was&&K.t)lvMsg("USB ต่อแล้วแต่ ECU ไม่ตอบ ตรวจว่าเปิดกุญแจ (ON) แล้วกดเชื่อมต่ออีกครั้ง");
   else if(was)lvMsg("ตัดการเชื่อมต่อแล้ว");
 };
-$("#goLive").onclick=openLive;
+// Primary Live Data navigation now always uses the purchased FM_diag.cs decoder.
+ // Keep openLive() itself available only for the DTC compatibility backend.
+ $("#goLive").onclick=()=>{location.assign(new URL("flash_port/main-source-live.html?v=260",document.baseURI).href)};
 $("#lvBack").onclick=()=>history.back();
 $("#lvRun").onclick=()=>{if(LV.run){lvStop();lvMsg("หยุดแล้ว")}else lvStart(K.t&&K.ecu?"ecu":"demo")};
 $("#lvDemo").onclick=()=>lvStart("demo");
@@ -2715,7 +2717,7 @@ function v3Draw(){
 </script>
 
 <script src="ui/neon-preflight-v24.js?v=240"></script>
-<script src="ui/neon-v20.js?v=251"></script>
+<script src="ui/neon-v20.js?v=260"></script>
 <script src="ui/neon-live-v21.js?v=240"></script>
 <script src="ui/neon-dtc-v23.js?v=231"></script>
 
