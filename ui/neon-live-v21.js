@@ -113,17 +113,18 @@
   if(mode!=="gauge")return;
   $("n21ModelTxt").textContent=s.model||"เลือกรุ่น";
   $("n21Connection").classList.toggle("n21-linked",!!s.connected);
-  $("n21ConnTitle").textContent=s.demo?"DEMO (จำลอง)":s.connected?"● ECU เชื่อมต่อแล้ว":s.cable?"ต่อสายแล้ว · รอ ECU ID":"ยังไม่เชื่อมต่อ ECU";
+  $("n21ConnTitle").textContent=s.demo?"DEMO (จำลอง)":s.connected?
+  (s.ecuId?"● FT232R เชื่อมต่อ · ECU ตอบแล้ว":"● FT232R / USB เชื่อมต่อแล้ว"):
+  "ยังไม่ได้เชื่อมต่อสาย FT232R";
   const activeStage=s.phase==='USB_CHOOSER'?'เลือก FT232R ในหน้าต่าง Android':
-   s.phase==='LICENSE_CHECK'?'กำลังตรวจ License':
    s.phase==='USB_OPEN'?'กำลังขอเปิด USB จาก Android':
    s.phase==='ECU_ID_PROBE'?'เปิด USB แล้ว · กำลังอ่าน ECU ID':
    'กำลังเชื่อมต่อ FT232R / ECU ID';
-  $("n21ConnSub").textContent=s.connected?"ECU ID "+(s.ecuId||"—")+" · Main FM_diag.cs":
+  $("n21ConnSub").textContent=s.connected?
+   (s.ecuId?"ECU ID "+s.ecuId+" · Main FM_diag.cs":"สายเปิดพอร์ตแล้ว · ยังไม่ได้อ่าน/ต่อรถ"):
    s.connecting?activeStage:
    s.phase==='USB_ACCESS_DENIED'?'USB Access denied • ดูข้อความข้อผิดพลาด':
-   s.phase==='STOPPED'?'เชื่อมต่อไม่สำเร็จ • ดูรายละเอียดด้านล่าง':
-   'แตะเพื่อเชื่อมต่อ FT232R';
+   "แตะเพื่อเลือกสายและเปิด USB เท่านั้น";
   $("n21Protocol").textContent=s.demo?"DEMO":s.protocol||"—";
   while(frames.length&&frames[0]<now-4000)frames.shift();
   const isReal=s.run&&s.source==="ecu"&&s.connected;
@@ -133,7 +134,8 @@
   $("n21RecordBtn").querySelector("b").textContent=s.recording?"หยุดบันทึก":"เริ่มบันทึก";
   $("n21RecordBtn").querySelector("small").textContent=s.recording?"Stop":"Record";
   $("n21RecordBtn").disabled=!s.recording&&!isReal;$("n21Csv").disabled=!s.hasLog&&!s.recording;
-  $("n21Read").textContent=isReal?"■ หยุดอ่าน ECU":s.connecting?"กำลังเชื่อมต่อ…":s.connected?"▶ เริ่มอ่านจาก ECU":"⇄ เชื่อมต่อ FT232R / ECU";
+  $("n21Read").textContent=isReal?"■ หยุดอ่าน ECU":s.connecting?"กำลังเปิด USB…":
+   s.connected?"▶ เริ่มอ่าน ECU (หลังเสียบรถ)":"⇄ เชื่อมต่อสาย FT232R เท่านั้น";
   $("n21Read").disabled=!!s.connecting;
   $("n21MainGroup").disabled=!!s.connecting||!!s.run;
   $("n21MainGroup").value=String(s.group||1);
@@ -163,7 +165,12 @@
    navDialog.close();api.home(destination);
  },true);
  $("n21Model").onclick=()=>api.home("library");
- $("n21Connection").onclick=()=>api.connect();
+ $("n21Connection").onclick=()=>{
+  // Reuse the same port on Home and Live. A connected indicator is not a
+  // request to probe ECU or open a second USB session.
+  if(api.snapshot().connected)return;
+  void api.connect().then(render).catch(()=>render());
+ };
  $("n21GraphMetric").onchange=e=>{selected=e.target.value;render();requestAnimationFrame(draw)};
  $("n21Real").onclick=()=>{requestAnimationFrame(draw)};
  $("n21Range").onclick=()=>{windowMs=windowMs===30000?60000:windowMs===60000?120000:30000;$("n21Range").textContent="◷ "+windowMs/1000+" วินาที";requestAnimationFrame(draw)};
@@ -173,7 +180,16 @@
  $("n21RecordBtn").onclick=()=>{api.record();render()};
  $("n21Reset").onclick=()=>{samples.length=0;stats.clear();lastSample=0;render()};
  $("n21Csv").onclick=()=>{api.exportCsv();render()};
- $("n21Read").onclick=async()=>{const s=api.snapshot();if(s.source==="ecu"&&s.run)api.stopEcu();else if(s.connected)api.startEcu();else{const ok=await api.connect();if(ok)api.startEcu()}render()};
+ $("n21Read").onclick=async()=>{
+  const s=api.snapshot();
+  if(s.source==="ecu"&&s.run){api.stopEcu();render();return;}
+  if(s.connecting){render();return;}
+  // Phase 1 only opens FT232R. Do not send a single K-Line command:
+  // a cable without a motorcycle must still report USB connected.
+  if(!s.connected){await api.connect();render();return;}
+  // Phase 2 is an explicit operator action after plugging the bike in.
+  api.startEcu();render();
+ };
  $("n21MainGroup").onchange=e=>{window.__55MainLive?.setGroup(e.target.value);samples.length=0;stats.clear();render()};
  window.__55LiveV21={
   render,
