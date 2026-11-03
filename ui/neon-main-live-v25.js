@@ -2,7 +2,7 @@
  * Main FM_diag.cs reader is the sole source of real-time sensor values.
  * The legacy ADX/DEMO live engine is never called by this bridge.
  */
-import {MainLiveSession} from '../flash_port/main-live-session.js?v=322';
+import {MainLiveSession} from '../flash_port/main-live-session.js?v=325';
 const old=window.__55LiveBridge;
 if(!old)throw Error('Live UI bridge must be installed before Main V25');
 const originalSnapshot=old.snapshot.bind(old);
@@ -36,6 +36,7 @@ if(gs&&!gs.querySelector('option[value="auto"]')){
  gs.prepend(opt);gs.value='auto';
 }
 let lastConnectError='';
+let physicalConnectError='';
 old.snapshot=()=>{
  // Read the chosen model directly. Never ask the legacy ADX/PROF decoder for
  // any sensor field while the original Neon gauge is active.
@@ -79,7 +80,7 @@ old.connect=async()=>{
   lastConnectError='มีการเชื่อมต่อ FTDI ผ่านหน้าระบบเก่าอยู่ • ตัดการเชื่อมต่อนั้นก่อน แล้วกลับมาเชื่อมจาก Live Data';
   notify();return false;
  }
- lastConnectError='';
+ lastConnectError='';physicalConnectError='';
  const connected=await reader.connect();
  notify();return connected;
 };
@@ -133,24 +134,29 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
   connect.disabled=true;
   state.textContent='กำลังเลือกและเปิดพอร์ต FT232R…';
   void old.connect().then(updateSharedState).catch(e=>{
-   state.textContent='เปิด USB ไม่สำเร็จ: '+String(e?.message||e);
+   physicalConnectError='เปิด USB ไม่สำเร็จ: '+String(e?.message||e);
+   updateSharedState();
   }).finally(()=>{connect.disabled=false;updateSharedState();});
  };
  rescan.onclick=()=>{void reader.rescan().then(updateSharedState).catch(e=>{state.textContent=e.message})};
  disconnect.onclick=()=>{void reader.disconnect().then(updateSharedState)};
  function updateSharedState(){
   const st=reader.status();
-  state.textContent=st.connected?(st.connecting?'กำลังตรวจอัตโนมัติ: '+st.autoStatus:st.autoStatus):
-    (st.error||lastConnectError||'ยังไม่ได้เชื่อมต่อ FT232R · กดเชื่อมต่อเพื่อเลือกพอร์ต');
+  state.textContent=st.connected?(st.autoStatus||'FT232R เปิดพอร์ตแล้ว'):
+   (st.error||physicalConnectError||lastConnectError||'ยังไม่ได้เชื่อมต่อ FT232R · กดเชื่อมต่อเพื่อเลือกพอร์ต');
   const fmt=n=>Number.isInteger(n)?'0x'+n.toString(16).toUpperCase().padStart(4,'0'):'';
   const off=(n,raw)=>Number.isInteger(n)?fmt(n):raw==='auto'?'AUTO จาก BIN':'ยังไม่ระบุ';
   const dtc=st.dtcSnapshot;
-  const ready=st.connected&&!st.connecting;
+  const usbOK=st.connected;
+  const ready=st.connected&&!st.connecting&&st.licenseVerified;
   const idOK=ready&&/^[0-9A-F]{10}$/.test(st.ecuId);
   const liveOK=ready&&st.liveGroupVerified;
   const dtcOK=ready&&dtc?.success===true;
   const records=[
-   [ready,'FT232R / USB',ready?'เชื่อมต่อแล้ว · ใช้สายร่วมกัน':'ยังไม่ได้ตรวจการเชื่อมต่อ'],
+   [usbOK,'FT232R / USB',usbOK?'✓ เปิดพอร์ตผ่าน WebUSB สำเร็จ':'เปิด USB ไม่สำเร็จ หรือยังไม่ได้เลือกสาย'],
+   [usbOK&&st.licenseVerified,'License สำหรับอ่าน ECU',
+    st.licenseVerified?'ผ่านการยืนยันสิทธิ์':st.licenseBusy?'กำลังตรวจ License…':
+    st.licenseError||'ยังไม่ผ่าน License · ยังไม่ส่งคำสั่ง ECU'],
    [idOK,'ECU ID จากกล่องจริง',idOK?st.ecuId:(st.idError||'รอคำตอบ ECU')],
    [idOK&&st.catalogMatched,'พบในฐาน Main 290',st.catalogMatched?(st.part||'Part Code ไม่ระบุ')+' · '+st.catalogFamily:'ยังไม่พบรายการที่ตรง ECU ID'],
    [liveOK,'ตาราง Live Data',liveOK?'Group '+st.group+' · ได้รับและถอดรหัสข้อมูลครบ':'รอยืนยัน Group 7 / 4 / 1'+(st.liveGroupError?' · '+st.liveGroupError:'')],
@@ -173,7 +179,7 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
    line.append(title,sub);checks.append(line);
   }
   connect.disabled=st.connected||st.connecting;
-  rescan.disabled=!st.connected||st.connecting||st.running||!!reader.owner;
+  rescan.disabled=!st.connected||st.licenseBusy||st.autoBusy||st.running||!!reader.owner;
   disconnect.disabled=!st.connected&&!st.connecting;
  }
  const oldNotify=reader.onUpdate;
@@ -183,7 +189,7 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
 // Connecting a physical K-Line socket does not raise a WebUSB device event.
 // Poll gently only if FT232R is open, ECU is unidentified, and the app is visible.
 setInterval(()=>{
- if(document.visibilityState==='hidden'||!reader.port?.ready||reader.ecuId||
+ if(document.visibilityState==='hidden'||!reader.port?.ready||!reader.licenseVerified||reader.ecuId||
     reader.owner||reader.running||reader.connecting||reader.autoBusy)return;
  void reader.rescan();
 },15000);
