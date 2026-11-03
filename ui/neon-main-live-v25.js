@@ -145,7 +145,7 @@ window.__55SharedEcu={
  acquire:owner=>reader.acquire(owner),release:owner=>reader.release(owner),
  get owner(){return reader.owner;},
  snapshot:()=>reader.status(),connect:()=>old.connect(),disconnect:()=>reader.disconnect(),
- rescan:()=>reader.rescan(),
+ rescan:()=>reader.rescan(),restoreCable:()=>reader.restoreCable(),
  readDtc:()=>reader.readDtc(),
  stop:()=>reader.stop(),get port(){return reader.port?.ready?reader.port:null;}
 };
@@ -338,6 +338,7 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
  reader.onUpdate=(...args)=>{
   oldNotify(...args);
   updateSharedState();
+  if(document.getElementById('home')?.dataset.neonPage==='flash')autoFlashSummary();
   window.__55SyncLegacyUsb?.(reader.status());
  };
  updateSharedState();
