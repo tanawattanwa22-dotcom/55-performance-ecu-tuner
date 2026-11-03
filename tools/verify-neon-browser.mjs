@@ -142,10 +142,22 @@ try{
   assert.equal(await page.locator('#n21RecordBtn').isDisabled(),true,'demo cannot be recorded as a real ECU log');
   await page.evaluate(()=>document.getElementById('n21Back').click());
   await overflowing('Live real dashboard '+width);
-  await page.evaluate(()=>document.querySelector('#v20Nav [data-cat="live"]').click());
-    await page.evaluate(()=>document.querySelector('#v20Nav [data-cat="dtc"]').click());
-  assert.equal(await page.locator('#liveCard').evaluate(el=>el.classList.contains('n20-hidden')),false);
-  await overflowing('DTC entry '+width);
+  await page.evaluate(()=>document.querySelector('#v20Nav [data-cat="dtc"]').click());
+  assert.equal(await page.locator('#live').evaluate(el=>el.classList.contains('on')),true,'DTC menu opens real full-screen diagnostic page');
+  assert.equal(await page.locator('#n23Pane').count(),1,'DTC reference UI installed');
+  assert.equal(await page.locator('#n23Pane .n23-tab').count(),3,'current/history/system tabs');
+  assert.equal(await page.locator('#n23Pane .n23-action').count(),3,'read/clear/system actions');
+  assert.equal(await page.locator('#n23Pane .n23-read').isDisabled(),true,'no DTC read before real ECU connection');
+  assert.equal(await page.locator('#n23Pane .n23-clear').isDisabled(),true,'no DTC clear before real ECU connection');
+  assert((await page.locator('#n23Pane .n23-alert').innerText()).includes('ยังไม่ได้อ่าน'),'no mocked DTC errors');
+  await overflowing('DTC real dashboard '+width);
+  await page.evaluate(()=>document.querySelector('#n23Pane [data-tab="history"]').click());
+  assert((await page.locator('#n23Pane .n23-section-head').innerText()).includes('หน่วยความจำ'),'stored/history tab works');
+  await page.evaluate(()=>document.querySelector('#n23Pane [data-tab="system"]').click());
+  assert((await page.locator('#n23Pane .n23-system-grid').innerText()).includes('Honda 0x73'),'real ECU system info tab works');
+  await page.evaluate(()=>document.querySelector('#n23Pane [data-tab="current"]').click());
+  if(width===393)await page.screenshot({path:path.join(root,'test-reports','neon-dtc-v23-393.png'),fullPage:false});
+  await page.evaluate(()=>window.__55LiveBridge.home('dashboard'));
   if(width===393)await page.screenshot({path:path.join(root,'test-reports','neon-flash-393.png'),fullPage:false});
   await page.evaluate(()=>document.querySelector('#v20Nav [data-cat="tools"]').click());
   assert.equal(await page.locator('#mainSourceTools').evaluate(el=>el.classList.contains('n20-hidden')),false);
@@ -163,6 +175,18 @@ try{
    assert.equal(await page.locator('#n21Pane .n21-metric').count(),8,'reference-matched sensor cards present');
    await page.evaluate(()=>document.querySelector('#live .lvtabs [data-m="dtc"]').click());
    assert.equal(await page.locator('#vDtc').evaluate(el=>el.style.display==='none'),false,'original DTC mode opens');
+   assert.equal(await page.locator('#n23Pane').count(),1,'real DTC panel preserved in Live mode');
+   // UI-only fixture: simulate a diagnostic result event without connecting to or clearing an ECU.
+   await page.evaluate(()=>window.dispatchEvent(new CustomEvent('55:dtc-result',{detail:{
+    current:[{k:'1-1',known:true,txt:'MAP ต่ำ'},{k:'8-1',known:true,txt:'TP ต่ำ'}],
+    stored:[{k:'7-1',known:true,txt:'ECT ต่ำ'}],missing:0,error:'',success:true,timestamp:Date.now()
+   }})));
+   assert.equal(await page.locator('#n23Pane .n23-code-card').count(),2,'real event populates current DTC cards');
+   assert((await page.locator('#n23Pane .n23-alert').innerText()).includes('2 รายการ'),'DTC count comes from event');
+   await page.evaluate(()=>document.querySelector('#n23Pane [data-tab="history"]').click());
+   assert.equal(await page.locator('#n23Pane .n23-code-card').count(),1,'stored DTC codes isolated from current');
+   await page.evaluate(()=>window.dispatchEvent(new Event('55:dtc-read-start')));
+   assert.equal(await page.locator('#n23Pane .n23-code-card').count(),0,'new read clears prior code display');
    await page.screenshot({path:path.join(root,'test-reports','neon-live-dtc-393.png'),fullPage:false});
    await page.evaluate(()=>{document.getElementById('live').classList.remove('on');
     document.getElementById('home').classList.add('on')});
