@@ -125,9 +125,13 @@ export class MainLiveSession {
      this.notify();return candidate;
     }
    }catch(error){
-    // An unsupported group may time out. Restore a clean, identified session
-    // before the next read. If recovery is unsuccessful, fail closed.
-    if(!this.port?.ready)throw Error('Diagnostic probe timeout: FTDI closed; ตรวจ Echo/RX และ K-Line ก่อนลองใหม่');
+    // Preserve the actual transport failure. A closed FTDI interface cannot
+    // safely continue probing another group without a new diagnostic wake.
+    const reason=String(error?.message||error);
+    this.error='Diagnostic Group '+candidate+' RX failure: '+reason;
+    this.phase='DIAGNOSTIC_RX_FAILED';this.notify();
+    if(!this.port?.ready)throw Error('Diagnostic Group '+candidate+' RX timeout / FTDI closed: '+reason);
+    throw Error('Diagnostic Group '+candidate+' invalid reply: '+reason);
    }
   }
   if(!this.port?.ready)throw Error('FT232R ไม่พร้อมหลังตรวจกลุ่ม Live');
