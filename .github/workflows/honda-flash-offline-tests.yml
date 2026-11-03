@@ -8,7 +8,9 @@ on:
       - "ui/**"
       - "index.html"
       - "tools/verify-ui-v19.mjs"
+      - "tools/verify-main-diagnostic.mjs"
       - "tools/verify-honda-flash.mjs"
+      - "tools/verify-main-diagnostic.mjs"
       - "package.json"
       - ".github/workflows/honda-flash-offline-tests.yml"
   pull_request:
