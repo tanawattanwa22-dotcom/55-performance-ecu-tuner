@@ -14,6 +14,14 @@ const MAPPING=Object.freeze({
  bat:'Battery',inj:'Injection',ign:'Ignition',afr:'A/F'
 });
 const FRAME_ALLOWLIST=new Set(Object.values(MAIN_CAPTURE_COMMANDS).flat().map(a=>a.join(',')));
+// FM_diag.cs method_96 probes Group 7 and then 4 before falling back to Group 1.
+// Probes only use the existing read-only 0x72 command allowlist.
+export const SOURCE_AUTO_PROBE_ORDER=Object.freeze([7,4]);
+export function acceptedSourceProbe(reply,echoOK){
+ // Source tests captured hex string length > 30 (7 echo bytes + >=9 reply bytes).
+ // A Honda reply must already have passed transport checksum/length checks.
+ return echoOK===true&&reply instanceof Uint8Array&&reply.length>8;
+}
 const EMPTY=()=>Object.fromEntries(KEYS.map(k=>[k,null]));
 const realNum=v=>typeof v==='number'&&Number.isFinite(v)?v:null;
 export function diagnosticToNeon(values,group){
@@ -26,7 +34,8 @@ export function diagnosticToNeon(values,group){
 export class MainLiveSession {
  constructor(onUpdate=()=>{},onSample=()=>{}){
   this.onUpdate=onUpdate;this.onSample=onSample;
-  this.group=1;this.port=null;this.ecuId='';this.connecting=false;
+  this.group='auto';this.detectedGroup=null;this.group4Variant=null;
+  this.port=null;this.ecuId='';this.connecting=false;
   this.running=false;this.stopRequested=false;this.disconnectRequested=false;
   this.sampleSeq=0;this.sampleAt=0;this.hz=null;this.values=EMPTY();
   this.recording=false;this.recordStart=0;this.records=[];this.error='';
@@ -36,17 +45,20 @@ export class MainLiveSession {
   return {
    connected:!!this.port?.ready&&!!this.ecuId,
    cable:!!this.port?.ready,connecting:this.connecting,ecuId:this.ecuId,
-   running:this.running,group:this.group,sampleSeq:this.sampleSeq,sampleAt:this.sampleAt,
+   running:this.running,group:this.detectedGroup??this.group,groupMode:this.group,
+   group4Variant:this.group4Variant,sampleSeq:this.sampleSeq,sampleAt:this.sampleAt,
    hz:this.hz,values:{...this.values},recording:this.recording,
    recordSeconds:this.recording?(Date.now()-this.recordStart)/1000:0,
    hasLog:this.records.length>0,error:this.error
   };
  }
  setGroup(group){
-  const n=Number(group);
-  if(!Object.hasOwn(MAIN_CAPTURE_COMMANDS,n))throw Error('Main C# ไม่มี Group นี้');
+  const auto=String(group)==='auto';
+  const n=auto?'auto':Number(group);
+  if(!auto&&!Object.hasOwn(MAIN_CAPTURE_COMMANDS,n))throw Error('Main C# ไม่มี Group นี้');
   if(this.connecting||this.running)throw Error('หยุดอ่านข้อมูลก่อนเปลี่ยน Group');
-  this.group=n;this.values=EMPTY();this.sampleSeq=0;this.sampleAt=0;this.hz=null;
+  this.group=n;this.detectedGroup=null;this.group4Variant=null;
+  this.values=EMPTY();this.sampleSeq=0;this.sampleAt=0;this.hz=null;
   this.error='';this.notify();
  }
  async connect(){
@@ -77,6 +89,43 @@ export class MainLiveSession {
    return false;
   }finally{this.connecting=false;this.notify()}
  }
+ async _restoreAfterProbeLoss(expectedId){
+  // exchangeRaw fail-closes the USB device on ambiguous response. Never retry
+  // against a lost session: reopen the same user-selected FT232R and re-ID it.
+  const device=this.port?.lastDevice;
+  if(!device)throw Error('ไม่มี FT232R เดิมสำหรับกู้คืน session หลัง probe');
+  if(this.port?.ready)try{await this.port.close()}catch{}
+  const replacement=new Ft232rWebUsb();
+  this.port=replacement;
+  await replacement.openSelected(device);
+  const info=await new HondaFlashEngine(replacement).identify();
+  if(info.ecuId!==expectedId){await replacement.close();throw Error('ECU ID เปลี่ยนหลัง probe; หยุดอ่านข้อมูล');}
+ }
+ async detectGroup(){
+  if(!this.port?.ready||!this.ecuId)throw Error('ต้องอ่าน ECU ID ก่อนตรวจกลุ่ม Live');
+  const expectedId=this.ecuId;
+  this.detectedGroup=null;this.group4Variant=null;
+  for(const candidate of SOURCE_AUTO_PROBE_ORDER){
+   if(this.stopRequested||this.disconnectRequested)return null;
+   const frame=MAIN_CAPTURE_COMMANDS[candidate][0];
+   if(!FRAME_ALLOWLIST.has(frame.join(',')))throw Error('Frame probe ไม่อยู่ใน allowlist');
+   try{
+    const {reply,echoOK}=await this.port.exchangeRaw(frame,{timeoutMs:1700,afterWriteMs:50});
+    if(acceptedSourceProbe(reply,echoOK)){
+     this.detectedGroup=candidate;
+     if(candidate===4&&reply.length>10)
+      this.group4Variant=reply[9]===255&&reply[10]===255?4:8;
+     this.notify();return candidate;
+    }
+   }catch(error){
+    // An unsupported group may time out. Restore a clean, identified session
+    // before the next read. If recovery is unsuccessful, fail closed.
+    if(!this.port?.ready)await this._restoreAfterProbeLoss(expectedId);
+   }
+  }
+  if(!this.port?.ready)throw Error('FT232R ไม่พร้อมหลังตรวจกลุ่ม Live');
+  this.detectedGroup=1;this.notify();return 1;
+ }
  async _cycle(group){
   const frames=MAIN_CAPTURE_COMMANDS[group],capture=[];
   for(let i=0;i<frames.length;i++){
@@ -96,14 +145,14 @@ export class MainLiveSession {
   this.running=true;this.stopRequested=false;this.disconnectRequested=false;
   this.error='';this.values=EMPTY();this.sampleSeq=0;this.sampleAt=0;this.hz=null;
   this.notify();
-  const group=this.group;
-  // Intentionally no await of the loop: returns immediately and leaves a single
-  // serial owner to finish one in-flight read before a stop or disconnect.
-  void this._loop(group);
+  // Intentionally return immediately: one owner probes/reads serially.
+  void this._loop();
   return true;
  }
- async _loop(group){
+ async _loop(){
   try{
+   const group=this.group==='auto'?await this.detectGroup():this.group;
+   if(group===null)return;
    while(this.running&&!this.stopRequested&&!this.disconnectRequested){
     const capture=await this._cycle(group);
     if(!capture||this.stopRequested||this.disconnectRequested)break;
