@@ -5,10 +5,10 @@
 <p>ทดสอบโค้ด/โปรไฟล์แบบออฟไลน์ ไม่ต่อ USB และไม่ส่ง ERASE/WRITE</p><b id="sum">กำลังทดสอบ...</b><pre id="out"></pre>
 <script type="module">
 import {loadCSharpCatalog,findCSharpEcuId} from './csharp-ecu-catalog.js?v=302';
-import {csharpOffsetInference} from './csharp-offsets.js?v=313';
+import {csharpOffsetInference} from './csharp-offsets.js?v=317';
 import {inspectCSharpEcuType,correctKeihinChecksum,correctShindengenChecksum,deriveShindengenWriteKey} from './csharp-logic.js';
 import {createWriteFrame} from './flash-frames.js?v=315';
-import {HondaFlashEngine} from './honda-write-engine.js?v=315';
+import {HondaFlashEngine} from './honda-write-engine.js?v=317';
 import {hondaChecksum} from './ftdi-webusb.js';
 import {SOURCE_SIZES,scanMainBinIds,findMainEcuPrefixInBin,sourceSums} from './main-bin-audit.js?v=2';
 const checks=[];
