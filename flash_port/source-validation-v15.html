@@ -8,7 +8,7 @@ import {loadCSharpCatalog,findCSharpEcuId} from './csharp-ecu-catalog.js?v=302';
 import {csharpOffsetInference} from './csharp-offsets.js?v=305';
 import {inspectCSharpEcuType,correctKeihinChecksum,correctShindengenChecksum,deriveShindengenWriteKey} from './csharp-logic.js';
 import {createWriteFrame} from './flash-frames.js';
-import {HondaFlashEngine} from './honda-write-engine.js?v=303';
+import {HondaFlashEngine} from './honda-write-engine.js?v=309';
 import {hondaChecksum} from './ftdi-webusb.js';
 import {SOURCE_SIZES,scanMainBinIds,findMainEcuPrefixInBin,sourceSums} from './main-bin-audit.js?v=2';
 const checks=[];
@@ -143,6 +143,23 @@ await t('C# 1024 KB SH705X / default checksum offsets',()=>{
 await t('C# 128 KB offset out of range is flagged',()=>{
  const a=csharpOffsetInference(new Uint8Array(131072));
  return a.startOffset>=131072&&a.warnings.some(x=>x.includes('exceeds BIN length'));
+});
+await t('Main C# shared diagnostic stays read-only for ordinary ECU ID',async()=>{
+ const usb=fake('0101880D01');usb.diagnosticReady=true;
+ let init=0;usb.initializeIso=async()=>{init++;usb.diagnosticReady=false};
+ const e=new HondaFlashEngine(usb),id=await e.identify();
+ return id.handshake==='DIAGNOSTIC_ONLY'&&id.sourceMatched===false&&init===0;
+});
+await t('Main C# one-click flash explicitly confirms programming family after diagnostic wake',async()=>{
+ const usb=fake('0101880D01');usb.diagnosticReady=true;
+ let init=0;usb.initializeIso=async()=>{init++;usb.diagnosticReady=false};
+ const e=new HondaFlashEngine(usb),id=await e.identify({programmingPreflight:true});
+ return id.ecuId==='0101880D01'&&id.family==='KEIHIN'&&id.sourceMatched&&init===1;
+});
+await t('Fast Write flag carried into validated Keihin plan',async()=>{
+ const e=new HondaFlashEngine(fake('0101880D01'));await e.identify({programmingPreflight:true});
+ const p=e.makePlan(new Uint8Array(65536),{filename:'K03-H01.bin',fast:true});
+ return p.fast===true&&p.ecuId==='0101880D01';
 });
 const passed=checks.filter(x=>x[1]).length;document.getElementById('sum').textContent=passed+'/'+checks.length+' PASS (offline only)';
 document.getElementById('sum').style.color=passed===checks.length?'#7aebb0':'#ffa09b';
