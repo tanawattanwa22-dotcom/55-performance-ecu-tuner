@@ -56,17 +56,18 @@ try{
   await overflowing('Dashboard '+width);
   await page.evaluate(()=>document.querySelector('#v20Nav [data-cat="library"]').click());
   assert.equal(await page.locator('#n20Model').count(),1);
-  assert.equal(await page.locator('#n20Stage .n20-model-row').count(),3,'3 actual bundled models, no fabricated 50');
+  const installedModels=await page.evaluate(()=>MODELS.length);
+  assert.equal(await page.locator('#n20Stage .n20-model-row').count(),installedModels,'all actual bundled models, no fabricated catalog');
   assert.equal(await page.locator('#modelCard').evaluate(el=>el.classList.contains('n20-hidden')),true,'old model selector hidden behind new full BIN library');
   assert.equal(await page.locator('#flashCard').evaluate(el=>el.classList.contains('n20-hidden')),true);
   assert.equal(await page.locator('#n22Library').count(),1,'dedicated catalog page present');
   assert.equal(await page.locator('.n22-feature-card').count(),1,'featured master BIN card');
-  assert.equal(await page.locator('#n22Library .n22-bin-row').count(),3,'only actual three installed models');
-  assert.equal(await page.locator('#n22Library .n22-brand-logo').count(),3,
+  assert.equal(await page.locator('#n22Library .n22-bin-row').count(),installedModels,'only actual installed models');
+  assert.equal(await page.locator('#n22Library .n22-brand-logo').count(),installedModels,
    'Every BIN row has a manufacturer badge, including rows without verified make');
   assert.equal(await page.locator('#n22Library .n22-brand-logo img[alt="Honda"]').count(),0,
    'Do not falsely label an unknown manufacturer as Honda');
-  assert.equal(await page.locator('#n22Library .n22-row-actions').count(),3,
+  assert.equal(await page.locator('#n22Library .n22-row-actions').count(),installedModels,
    'every row has three actionable buttons');
   assert.equal(await page.locator('#n22Library .n22-filter-chip').count(),5,
    'full brand and ECU vendor filter bar');
