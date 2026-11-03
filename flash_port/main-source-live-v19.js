@@ -46,11 +46,12 @@ function getMetrics(values){
 function renderMetrics(values){
  const metrics=getMetrics(values);
  STATE.latest=metrics;
- const picks=['RPM','Throttle TPS','Injection','Ignition','Battery','ECT','IAT','MAP'];
+ const picks=['RPM','Throttle TPS','Injection','Ignition','Battery','ECT','IAT','MAP','A/F'];
  const ordered=[...picks.filter(name=>metrics.has(name)).map(name=>metrics.get(name)),...values.filter(v=>!picks.includes(v.name))];
  const tiles=$('tiles');tiles.replaceChildren();
- for(const v of ordered.slice(0,8)){
-  const card=document.createElement('div');card.className='value';
+ for(const v of ordered.slice(0,9)){
+  const card=document.createElement('div');card.className='value'+(v.name==='A/F'?' main-af':'');
+  if(v.name==='A/F')card.title='A/F คำนวณด้วยสูตรใน FM_diag.cs (กลุ่ม 1/4) ไม่ใช่การรับรองว่า ECU มีเซนเซอร์ Wideband';
   const name=document.createElement('div');name.className='name';name.textContent=v.name;
   const number=document.createElement('div');number.className='big';number.textContent=fmt(v.value);
   const unit=document.createElement('div');unit.className='unit';unit.textContent=v.unit||'สถานะ';
@@ -71,6 +72,7 @@ function renderMetrics(values){
  }
  if(metrics.has(current)&&STATE.history.has(current))options.value=current;
  $('dataBadge').textContent='C# GROUP '+STATE.group+' · '+values.length+' ค่า';
+ $('dataBadge').title=STATE.group===7?'C# Group 7 ไม่มีฟิลด์ A/F':'A/F คำนวณจากไบต์ ECU จริงตาม FM_diag.cs; ไม่ยืนยันเป็นเซนเซอร์ Wideband';
  $('dataBadge').className='badge on';
  $('updated').textContent=date();
  drawChart();
