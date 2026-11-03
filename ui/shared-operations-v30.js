@@ -1,5 +1,6 @@
-// The shared FT232R owner is created exactly once by index.html (neon-main-live-v25.js).
-// Do not import a second URL/version here: it creates a second MainLiveSession and stale UI status.
+// Reuse the SAME absolute ESM module URL as index.html to guarantee one FT232R owner.
+// Exact matching query strings are essential: v301 would create a second session.
+import './neon-main-live-v25.js?v=344';
 import {readSharedDtc,clearSharedDtc} from '../flash_port/shared-dtc.js?v=301';
 const $=id=>document.getElementById(id);
 let dtcBusy=false;
