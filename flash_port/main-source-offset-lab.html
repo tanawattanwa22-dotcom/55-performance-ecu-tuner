@@ -11,7 +11,7 @@
 <p class="subtitle" style="margin-top:12px">ต้องยืนยัน ECU ID จากกล่องจริง รหัส Part Code ไฟล์และผังหน่วยความจำตรงกันก่อนอัดไฟล์ ค่า Offset ที่คาดจากขนาด BIN อย่างเดียวไม่เพียงพอ</p></section></main>
 <script type="module">
 import {readBinId} from './bin-tools.js';
-import {csharpOffsetInference} from './csharp-offsets.js?v=313';
+import {csharpOffsetInference} from './csharp-offsets.js?v=317';
 import {findCSharpEcuId} from './csharp-ecu-catalog.js';
 const $=id=>document.getElementById(id),fmt=n=>Number.isInteger(n)?'0x'+n.toString(16).toUpperCase():'ไม่ทราบ';
 let current=null;
