@@ -10,9 +10,9 @@
 import {READ_ONLY_COMMANDS,toHex,hondaChecksum,FAST_SWITCH_COMMAND} from './ftdi-webusb.js?v=301';
 import {createWriteFrame,resolveWriteProfile} from './flash-frames.js?v=315';
 import {inspectCSharpEcuType,correctKeihinChecksum,correctShindengenChecksum,deriveShindengenWriteKey} from './csharp-logic.js';
-import {csharpOffsetInference,catalogLookup} from './csharp-offsets.js?v=313';
+import {csharpOffsetInference,catalogLookup} from './csharp-offsets.js?v=317';
 import {findCSharpEcuId} from './csharp-ecu-catalog.js?v=302';
-import {readBinId} from './bin-tools.js';
+import {readBinId} from './bin-tools.js?v=317';
 const sleep=ms=>new Promise(ok=>setTimeout(ok,ms));
 function bytes(list){
  const b=Uint8Array.from(list);
