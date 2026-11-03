@@ -14,15 +14,16 @@
   bat:line('<rect x="2" y="7" width="19" height="12" rx="2"/><path d="M6 7V5h4v2M14 7V5h4v2M7 13h4m-2-2v4m6-2h4"/>'),
   inj:line('<path d="m6 17 11-11m-3-2 6 6M4 14l6 6m-7 1 4-4M16 2l6 6"/>'),
   ign:line('<path d="m6 16 10-10 3 3-10 10-3-3ZM17 3l4 4M4 20l3-3"/>'),
+  afr:line('<path d="M4 17a8 8 0 1 1 16 0M12 17l3-7M4 21h16"/>'),
   reset:line('<path d="M3 11a9 9 0 1 1 3 7M3 4v7h7"/>'),
   csv:line('<path d="M12 3v12m-5-5 5 5 5-5M4 17v4h16v-4"/>'),
   record:line('<rect x="6" y="6" width="12" height="12" rx="2"/>')
  };
- const keys=["rpm","tps","map","ect","iat","bat","inj","ign"];
- const names={rpm:"RPM",tps:"TPS",map:"MAP",ect:"ECT",iat:"IAT",bat:"Battery",inj:"Injection",ign:"Ignition"};
- const units={rpm:"รอบ/นาที",tps:"%",map:"kPa",ect:"°C",iat:"°C",bat:"V",inj:"ms",ign:"°BTDC"};
- const descriptions={rpm:"ความเร็วรอบเครื่องยนต์",tps:"ตำแหน่งลิ้นเร่ง",map:"ความดันไอดี",ect:"อุณหภูมิน้ำหล่อเย็น",iat:"อุณหภูมิไอดี",bat:"แรงดันแบตเตอรี่",inj:"ระยะเวลาฉีดน้ำมัน",ign:"องศาจุดระเบิด"};
- const groups={engine:keys,fuel:["inj","tps","map"],electric:["bat","ign","ect"],sensors:["tps","map","ect","iat"]};
+ const keys=["rpm","tps","map","ect","iat","bat","inj","ign","afr"];
+ const names={rpm:"RPM",tps:"TPS",map:"MAP",ect:"ECT",iat:"IAT",bat:"Battery",inj:"Injection",ign:"Ignition",afr:"AFR / A/F"};
+ const units={rpm:"รอบ/นาที",tps:"%",map:"kPa",ect:"°C",iat:"°C",bat:"V",inj:"ms",ign:"°BTDC",afr:"AFR"};
+ const descriptions={rpm:"ความเร็วรอบเครื่องยนต์",tps:"ตำแหน่งลิ้นเร่ง",map:"ความดันไอดี",ect:"อุณหภูมิน้ำหล่อเย็น",iat:"อุณหภูมิไอดี",bat:"แรงดันแบตเตอรี่",inj:"ระยะเวลาฉีดน้ำมัน",ign:"องศาจุดระเบิด",afr:"อัตราส่วนอากาศ/เชื้อเพลิง (เฉพาะโปรไฟล์ที่ยืนยัน)"};
+ const groups={engine:keys,fuel:["inj","tps","map","afr"],electric:["bat","ign","ect"],sensors:["tps","map","ect","iat","afr"]};
  const icon=document.querySelector("#tune img.lg");
  const header=document.createElement("div");header.id="n21Header";
  header.innerHTML=`<div class="n21-brand">${icon?`<img alt="55 PERFORMANCE" src="${icon.src}">`:'<span class="n21-brand-icon">55</span>'}<span class="n21-brand-text"><b>55 PERFORMANCE</b><em>ECU TUNER</em></span></div><button type="button" id="n21Menu" class="n21-icon-button" aria-label="เมนูทั้งหมด">☰</button>`;
@@ -55,6 +56,7 @@
   </div>
  </div>
  <div class="n21-metric-grid">${keys.map(k=>`<button type="button" class="n21-metric n21-${k}" data-n21-key="${k}" aria-label="${names[k]}"><span class="n21-metric-icon">${icons[k]}</span><span class="n21-metric-name"><b>${names[k]}</b><small>${descriptions[k]}</small></span><span class="n21-metric-right"><span class="n21-signal">▁▃▅</span><strong id="n21Value-${k}">—</strong><small>${units[k]}</small></span></button>`).join("")}</div>
+ <div id="n21AfrNote" class="n21-afr-provenance" role="note">AFR แสดงเฉพาะเมื่อมีโปรไฟล์ Wideband ที่ยืนยัน</div>
  <div class="n21-summary-head"><div class="n21-section-title"><span class="n21-slash"></span><b>สรุปค่า</b><small>(Min / Max / ปัจจุบัน)</small></div><span id="n21SummaryTime">ไม่มีข้อมูลบันทึก</span></div>
  <div class="n21-summary"><div class="n21-summary-name"><b id="n21SummaryName">RPM</b><small id="n21SummaryUnit">รอบ/นาที</small></div><div><small>ต่ำสุด (Min)</small><strong id="n21Min" class="n21-cyan">—</strong></div><div><small>สูงสุด (Max)</small><strong id="n21Max" class="n21-pink">—</strong></div><div class="n21-summary-now"><small>ปัจจุบัน (Now)</small><strong id="n21SummaryNow">—</strong></div></div>
  <div class="n21-actions">
@@ -69,7 +71,7 @@
  const meterEls=Object.fromEntries(keys.map(k=>[k,$("n21Value-"+k)]));
  let selected="rpm",windowMs=30000,expanded=false,lastSource="idle",lastSample=0,lastRender=0;
  const samples=[],stats=new Map(),frames=[];
- const fmt=(v,k)=>v==null||!Number.isFinite(v)?"—":v.toLocaleString("en-US",{maximumFractionDigits:({bat:1,inj:2,ign:1,tps:1,map:1,ect:0,iat:0,rpm:0})[k]??1});
+ const fmt=(v,k)=>v==null||!Number.isFinite(v)?"—":v.toLocaleString("en-US",{maximumFractionDigits:({bat:1,inj:2,ign:1,tps:1,map:1,ect:0,iat:0,rpm:0,afr:2})[k]??1});
  const hhmmss=sec=>{const n=Math.max(0,Math.floor(sec));return[Math.floor(n/3600),Math.floor(n/60)%60,n%60].map(x=>String(x).padStart(2,"0")).join(":")};
  function category(which){for(const b of pane.querySelectorAll("[data-n21-cat]"))b.classList.toggle("active",b.dataset.n21Cat===which);
   for(const b of pane.querySelectorAll("[data-n21-key]"))b.hidden=!groups[which].includes(b.dataset.n21Key)}
@@ -97,7 +99,8 @@
   const [x,y]=pts[pts.length-1];c.beginPath();c.arc(x,y,4.5,0,Math.PI*2);c.shadowColor="#21f0ff";c.shadowBlur=9;c.fillStyle="#fff";c.fill();c.shadowBlur=0;
  }
  function render(){
-  const s=api.snapshot(),now=Date.now(),values=s.values||{},mode=s.mode||"gauge";
+  const s=api.snapshot(),now=Date.now(),values={...(s.values||{})},mode=s.mode||"gauge";
+  if(s.demo||!s.afrSupported)values.afr=null;
   live.classList.toggle("n21-gauge",mode==="gauge");
   if(s.source!==lastSource){samples.length=0;stats.clear();frames.length=0;lastSample=0;lastSource=s.source}
   if(s.run&&now-lastSample>=120&&keys.some(k=>values[k]!=null)){
@@ -126,7 +129,10 @@
    isReal?(s.profAvailable?"LIVE ECU — แสดงเฉพาะค่าที่อ่านได้จริง":"เชื่อมต่อ ECU แล้ว แต่รุ่นนี้ไม่มีผังเซ็นเซอร์ที่ยืนยัน ค่าที่ไม่มีจะแสดง —"):
    s.connected?"เชื่อมต่อแล้ว · กดเริ่มอ่านข้อมูล ECU":"ยังไม่เชื่อมต่อ ECU • ค่าที่ไม่มีจะแสดง — ไม่ใส่ตัวเลขตัวอย่าง";
   $("n21SourceNotice").classList.toggle("n21-demo-note",s.demo);
-  for(const k of keys){meterEls[k].textContent=fmt(values[k],k);pane.querySelector(`[data-n21-key="${k}"]`).classList.toggle("n21-missing",values[k]==null)}
+  $("n21AfrNote").textContent=s.demo?"AFR ไม่ใช้ตัวเลขจำลอง":s.afrSupported?
+   "AFR: ใช้ค่าที่อ่านจากผัง Wideband ECU ที่ยืนยัน · ไม่ใช่ค่า O2 โวลต์":
+   "AFR: รุ่นนี้ยังไม่มีผัง Wideband ที่ยืนยัน (Main C# มี A/F เฉพาะกลุ่ม 1/4) จึงแสดง —";
+  for(const k of keys){const value=k==="afr"&&(s.demo||!s.afrSupported)?null:values[k];meterEls[k].textContent=fmt(value,k);pane.querySelector(`[data-n21-key="${k}"]`).classList.toggle("n21-missing",value==null)}
   $("n21NowName").textContent=names[selected]+" (ปัจจุบัน)";$("n21NowValue").textContent=fmt(values[selected],selected);$("n21NowUnit").textContent=units[selected];
   $("n21SummaryName").textContent=names[selected];$("n21SummaryUnit").textContent=units[selected];
   const r=stats.get(selected);$("n21Min").textContent=fmt(r?.min,selected);$("n21Max").textContent=fmt(r?.max,selected);
