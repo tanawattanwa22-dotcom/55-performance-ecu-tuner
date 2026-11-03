@@ -50,7 +50,7 @@ const CMD=Object.freeze({
  shFinish4:bytes([124,5,2,12,113]),
  shFinish5:bytes([124,5,2,13,112])
 });
-export const CSHARP_ECU_CATALOG_ROWS=288;
+export const CSHARP_ECU_CATALOG_ROWS=290;
 export const FLASH_ENGINE_VERSION='csharp-keihin-shindengen-bench-v15';
 export class HondaFlashError extends Error{
  constructor(code,message){super(message);this.name='HondaFlashError';this.code=code}
