@@ -17,6 +17,12 @@ const reader=new MainLiveSession(notify,()=>{
  window.__55LiveV21?.received?.(1);
  notify();
 });
+const gs=document.getElementById('n21MainGroup');
+if(gs&&!gs.querySelector('option[value="auto"]')){
+ const opt=document.createElement('option');
+ opt.value='auto';opt.textContent='Auto · Main C# Group 7 / 4 / 1';
+ gs.prepend(opt);gs.value='auto';
+}
 let lastConnectError='';
 old.snapshot=()=>{
  // Read the chosen model directly. Never ask the legacy ADX/PROF decoder for
