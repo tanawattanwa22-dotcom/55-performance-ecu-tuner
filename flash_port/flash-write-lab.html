@@ -71,6 +71,44 @@ import {HondaFlashEngine} from './honda-write-engine.js?v=319';
 import {lookupEcmId} from './ecu-id-lookup.js?v=251';
 import {renderEcmIdentification,showEcmPopup} from './ecu-id-ui.js?v=251';
 const $=id=>document.getElementById(id);
+const recoveryMode=new URLSearchParams(location.search).get('mode')==='recovery';
+let recoveryStatus=null;
+if(recoveryMode){
+ document.title='55 PERFORMANCE | Recovery ECU';
+ const heading=document.querySelector('main h1');
+ if(heading)heading.textContent='55 PERFORMANCE • RECOVERY ECU';
+ const banner=document.createElement('section');banner.className='card';banner.id='recoveryAutoPanel';
+ const label=document.createElement('h2');label.textContent='Recovery อัตโนมัติ · ตรวจ ECU ก่อนเลือกแผน';
+ const hint=document.createElement('p');hint.textContent='ใช้ FT232R จากหน้าแรกเส้นเดียว ตรวจ ECU ID และ Session จริงก่อนเลือก Recovery สำหรับ Keihin/Shindengen ไม่ส่งคำสั่ง ERASE/WRITE ระหว่างตรวจ';
+ recoveryStatus=document.createElement('div');recoveryStatus.id='recoveryModeStatus';
+ recoveryStatus.className='status';recoveryStatus.setAttribute('role','status');recoveryStatus.setAttribute('aria-live','polite');
+ recoveryStatus.textContent='กำลังตรวจสิทธิ์และสถานะ USB ที่เชื่อมจากหน้าแรก…';
+ banner.append(label,hint,recoveryStatus);heading?.after(banner);
+ $('optRecovery').checked=true;$('optRecovery').disabled=true;
+ $('optFast').checked=false;$('optFast').disabled=true;
+ $('optRecovery').closest('label').hidden=true;
+ $('optFast').closest('label').hidden=true;
+ $('write').textContent='ยืนยัน ERASE / WRITE • Recovery ECU สำรอง';
+ $('prepare').textContent='ตรวจ BIN / Flash Count และสร้างแผน Recovery';
+}
+function renderRecoveryDecision(error=''){
+ if(!recoveryMode||!recoveryStatus)return;
+ let value='',ok=false;
+ if(error)value='หยุดตรวจ Recovery: '+error+' • ไม่ส่ง ERASE / WRITE';
+ else if(!identity)value='รออ่าน ECU ID และสถานะตอบกลับจริงจาก ECU • ไม่ส่ง ERASE / WRITE';
+ else if(identity.handshake==='DIAGNOSTIC_ONLY')
+  value='ECU ID '+identity.ecuId+' • DIAGNOSTIC ONLY: ยังไม่ยืนยัน Boot/Programming session หยุด Recovery ไม่ส่ง ERASE / WRITE';
+ else if(!identity.ecuId.endsWith('0000'))
+  value='ECU ID '+identity.ecuId+' • โหมด '+identity.handshake+' • '+(identity.sourceMatched?'ตอบกลับแบบ NORMAL ECU: ให้ใช้เมนู Flash ปกติ ไม่เลือก Recovery':'ไม่พบ Recovery Boot ID ที่รองรับ: หยุด Recovery');
+ else if(identity.recoveryFamilyVerified){
+  value='ECU ID '+identity.ecuId+' • RECOVERY BOOT • '+identity.family+' • Flash Count ACK จากกล่องจริง ('+identity.count+') • ขั้นต่อไปตรวจแผน BIN/Offset/Checksum และยืนยันก่อนเขียน';
+  ok=true;
+ }else {
+  value='ECU ID '+identity.ecuId+' • RECOVERY BOOT ID พบแล้ว ('+identity.handshake+') แต่ตระกูลยังไม่ยืนยัน • เลือก BIN ที่ตรงกล่องและกดตรวจ เพื่อทดสอบ Flash Count แบบไม่ลบ/เขียน';
+ }
+ recoveryStatus.textContent=value;
+ recoveryStatus.className='status '+(ok?'ok':error?'bad':'');
+}
 let authorized=false,port=null,engine=null,identity=null,plan=null,busy=false,flashing=false,wakeLock=null;
 let lastPlanEvidence=null,flashOutcome='NOT_STARTED'; // immutable evidence survives plan reset after Final ACK
 const logs=[];
@@ -79,9 +117,10 @@ function refreshButtons(){
  $('connect').disabled=busy||!authorized||!!port;
  $('disconnect').disabled=busy||!port;
  $('probe').disabled=busy||!authorized||!port;
- $('prepare').disabled=busy||!authorized||!identity||!$('bin').files?.length;
+ $('prepare').disabled=busy||!authorized||!identity||!$('bin').files?.length||(recoveryMode&&(!identity.ecuId?.endsWith('0000')||identity.handshake==='DIAGNOSTIC_ONLY'));
  $('postCheck').disabled=busy||!authorized||!port?.ready||engine?.state!=='finished';
  $('write').disabled=busy||!authorized||!port?.ready||!plan||identity?.ecuId!==plan.ecuId||
+  (recoveryMode&&(!plan?.recovery||!identity?.recoveryFamilyVerified||!identity?.ecuId?.endsWith('0000')))||
   !$('backup').checked||!$('power').checked||!$('recovery').checked||
   $('typed').value.trim().toUpperCase()!=='FLASH '+identity.ecuId;
 
@@ -92,6 +131,9 @@ function refreshButtons(){
  if(!identity?.ecuId)missing.push('ยังไม่ได้อ่าน ECU ID');
  if(!plan)missing.push('ยังไม่ได้ตรวจ BIN / Part Code / Checksum / Offset');
  if(plan&&identity?.ecuId!==plan.ecuId)missing.push('ECU ID ไม่ตรงแผนเขียน');
+ if(recoveryMode&&!identity?.ecuId?.endsWith('0000'))missing.push('Recovery ต้องเป็น Boot ID จาก ECU จริง');
+ if(recoveryMode&&identity?.handshake==='DIAGNOSTIC_ONLY')missing.push('ยังเป็น Diagnostic Session');
+ if(recoveryMode&&!identity?.recoveryFamilyVerified)missing.push('ยังไม่มีหลักฐาน Flash Count ตรงตระกูล');
  if(!$('backup').checked)missing.push('ยังไม่ยืนยัน Backup');
  if(!$('power').checked)missing.push('ยังไม่ยืนยันไฟเลี้ยงและ K-Line');
  if(!$('recovery').checked)missing.push('ยังไม่ยืนยันเครื่องมือ Recovery');
@@ -113,7 +155,7 @@ async function license(){
  refreshButtons();
 }
 $('check').onclick=license;
-$('connect').onclick=async()=>{
+const connectEcu=async()=>{
  if(!authorized)return;
  busy=true;refreshButtons();
  try{
@@ -131,6 +173,7 @@ $('connect').onclick=async()=>{
  }catch(e){(window.parent!==window?window.parent:window).__55SharedEcu?.release('FLASH_PANEL');$('usb').textContent='USB ERROR: '+e.message;push(e.message)}
  finally{busy=false;refreshButtons()}
 };
+$('connect').onclick=connectEcu;
 $('disconnect').onclick=async()=>{
  if(flashing)return;busy=true;refreshButtons();
  try{(window.parent!==window?window.parent:window).__55SharedEcu?.release('FLASH_PANEL')}finally{
@@ -139,8 +182,9 @@ $('disconnect').onclick=async()=>{
   busy=false;refreshButtons();
  }
 };
-$('probe').onclick=async()=>{
+const probeEcu=async()=>{
  if(!port||flashing)return;
+ identity=null;plan=null;renderRecoveryDecision();
  busy=true;refreshButtons();
  $('ecu').textContent='กำลัง Init FTDI และอ่าน ECU ID...';
  try{
@@ -163,9 +207,11 @@ $('probe').onclick=async()=>{
     push('ECU NAME LOOKUP ERROR '+lookupError.message);
   }
   push('ECU ID '+identity.ecuId);
- }catch(e){$('ecu').textContent='ไม่สำเร็จ: '+e.message;push('ECU PROBE STOP: '+e.message)}
+  renderRecoveryDecision();
+ }catch(e){identity=null;plan=null;$('ecu').textContent='ไม่สำเร็จ: '+e.message;renderRecoveryDecision(e.message);push('ECU PROBE STOP: '+e.message)}
  finally{busy=false;refreshButtons()}
 };
+$('probe').onclick=probeEcu;
 $('prepare').onclick=async()=>{
  plan=null;busy=true;refreshButtons();
  try{
@@ -175,10 +221,12 @@ $('prepare').onclick=async()=>{
   const recHex=$('recStart').value.trim(),recCkHex=$('recChecksum').value.trim();
   if(recHex&&!/^[0-9a-fA-F]+$/.test(recHex))throw Error('Start Offset ไม่ใช่ HEX');
   if(recCkHex&&!/^[0-9a-fA-F]+$/.test(recCkHex))throw Error('Checksum Offset ไม่ใช่ HEX');
+  if(recoveryMode&&(!identity?.ecuId?.endsWith('0000')||identity?.handshake==='DIAGNOSTIC_ONLY'))throw Error('ไม่พบ Recovery Boot Session ที่รองรับจาก ECU จริง');
   if($('optRecovery').checked){
    $('plan').textContent='ตรวจ Recovery Flash Count ไม่มีคำสั่ง Erase...';
    identity=await engine.confirmRecoveryFamily(data);
    push('RECOVERY FAMILY '+identity.family+' · '+identity.recoveryFamilyEvidence);
+   renderRecoveryDecision();
   }
    plan=engine.makePlan(data,{filename:file.name,confirmedPart:$('part').value,fast:$('optFast').checked,recovery:$('optRecovery').checked,
     startOffsetOverride:recHex?parseInt(recHex,16):null,
@@ -195,7 +243,7 @@ $('prepare').onclick=async()=>{
    checksumOffset:plan.checksumOffset,binBytes:plan.size,expectedBlocks:plan.expectedBlockCount,checks:plan.checks,
    note:'ผ่านเฉพาะ source mapping / ECU ID ไม่ใช่ความปลอดภัยของแฟลช'},null,2);
   push('BIN PREFLIGHT PASS: '+file.name+' '+sha);
- }catch(e){$('plan').textContent='ห้ามเขียน: '+e.message;push('PREFLIGHT STOP: '+e.message)}
+ }catch(e){$('plan').textContent='ห้ามเขียน: '+e.message;if(recoveryMode)renderRecoveryDecision(e.message);push('PREFLIGHT STOP: '+e.message)}
  finally{busy=false;refreshButtons()}
 };
 for(const id of ['backup','power','recovery','typed'])$(id).addEventListener('input',refreshButtons);
@@ -312,7 +360,16 @@ $('saveLog').onclick=()=>{
 };
 
 window.addEventListener('beforeunload',e=>{if(flashing){e.preventDefault();e.returnValue='ECU FLASH IN PROGRESS'}});
-license();
+async function startPage(){
+ await license();
+ if(!recoveryMode)return;
+ if(!authorized){renderRecoveryDecision('License ไม่ผ่าน กรุณาเข้าสู่ระบบที่หน้าหลัก');return}
+ // Read-only automatic workflow: reuse the single FT232R already opened on the homepage.
+ await connectEcu();
+ if(port?.ready)await probeEcu();
+ else renderRecoveryDecision('ยังไม่มีการเชื่อมต่อ FT232R ที่หน้าแรก');
+}
+void startPage();
 window.__55PanelBusy=()=>busy||flashing;
 window.__55ReleasePanel=()=>{if(busy||flashing)return false;(window.parent!==window?window.parent:window).__55SharedEcu?.release('FLASH_PANEL');return true;};
 </script></body></html>
