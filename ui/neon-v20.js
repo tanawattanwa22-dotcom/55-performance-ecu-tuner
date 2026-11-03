@@ -78,10 +78,14 @@ shell.append(top,hero,stats,nav);sc.prepend(shell);
 const stage=mk('div','n20-stage');stage.id='n20Stage';sc.insertBefore(stage,shell.nextSibling);
 let selected='dashboard',searchText='',activeFilter='all';
 function status(){
- try{if(INLINEFLASH.busy)return ['ECU กำลังดำเนินการ',false];
-  if(K.ecu)return ['ECU ตอบแล้ว',true];
-  if(K.t)return ['สายเชื่อมต่อแล้ว',false];}catch{}
- return ['ยังไม่เชื่อมต่อ',false];
+ try{
+  if(INLINEFLASH.busy)return ['ECU กำลังดำเนินการ',false];
+  const physical=window.__55SharedEcu?.snapshot?.();
+  if(physical?.connected)return [physical.ecuId?'FT232R + ECU '+physical.ecuId:'✓ FT232R / USB เชื่อมต่อแล้ว',true];
+  if(physical?.connecting)return ['กำลังเปิด USB FT232R…',false];
+  if(physical?.error)return ['FT232R เปิดไม่สำเร็จ · ดูรายละเอียด USB',false];
+ }catch{}
+ return ['ยังไม่ได้เปิด FT232R',false];
 }
 function refreshStatus(){
  const [t,ok]=status();$('n20Connection').textContent=t;$('n20Connection').classList.toggle('ok',ok);
@@ -91,6 +95,7 @@ function refreshStatus(){
  try{saved=!!S.saved&&TuneBinFlow.matches(S.saved,S.bin,{model:m?.id,sourceName:S.fname,customerBin:S.custom})}catch{}
  $('n20Save').textContent=saved?'บันทึก BIN แล้ว':'ยังไม่บันทึก';
 }
+window.__55V20RefreshStatus=refreshStatus;
 function heading(t,desc){
  stage.append(mk('h2','n20-stage-title',t));
  if(desc)stage.append(mk('p','n20-stage-sub',desc));
