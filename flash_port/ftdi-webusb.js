@@ -120,6 +120,7 @@ export class Ft232rWebUsb {
     if(!this.ready)throw Error('FTDI not open');
     // Exact FT_SetBitMode and baud sequence from C# InitFtdiIso().
     // Do not run against ECU until electrical interface/pinout has been verified.
+    this.diagnosticReady=false;
     await this.purge();
     await this.ctl(0x0b,0);
     await this.ctl(0x04,0x0008);
@@ -178,6 +179,7 @@ export class Ft232rWebUsb {
       // Do not await transferIn here: Chrome has no cancellable bulk read.
       // The C# code reads only currently available bytes and can discard them.
       // A fresh group probe validates the next reply, not this wake alone.
+      this.diagnosticReady=true;
       this._log('MAIN DIAG wake sequence sent; ECU response NOT YET VERIFIED');
     }catch(error){
       this._log('MAIN DIAG wake failed: '+String(error?.message||error));
@@ -301,7 +303,7 @@ export class Ft232rWebUsb {
     throw Error('Honda ECU response timed out');
   }
   async close(){
-    const d=this.dev;this.ready=false;this.dev=null;
+    const d=this.dev;this.ready=false;this.diagnosticReady=false;this.dev=null;
     if(d){
       try{if(d.opened)await d.controlTransferOut({requestType:'vendor',recipient:'device',request:0x0b,value:0,index:0})}catch{}
       try{if(this.itf!==null&&d.opened)await d.releaseInterface(this.itf)}catch{}
