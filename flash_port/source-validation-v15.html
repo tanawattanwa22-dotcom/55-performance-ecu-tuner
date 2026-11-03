@@ -5,10 +5,10 @@
 <p>ทดสอบโค้ด/โปรไฟล์แบบออฟไลน์ ไม่ต่อ USB และไม่ส่ง ERASE/WRITE</p><b id="sum">กำลังทดสอบ...</b><pre id="out"></pre>
 <script type="module">
 import {loadCSharpCatalog,findCSharpEcuId} from './csharp-ecu-catalog.js?v=302';
-import {csharpOffsetInference} from './csharp-offsets.js?v=305';
+import {csharpOffsetInference} from './csharp-offsets.js?v=313';
 import {inspectCSharpEcuType,correctKeihinChecksum,correctShindengenChecksum,deriveShindengenWriteKey} from './csharp-logic.js';
 import {createWriteFrame} from './flash-frames.js';
-import {HondaFlashEngine} from './honda-write-engine.js?v=309';
+import {HondaFlashEngine} from './honda-write-engine.js?v=314';
 import {hondaChecksum} from './ftdi-webusb.js';
 import {SOURCE_SIZES,scanMainBinIds,findMainEcuPrefixInBin,sourceSums} from './main-bin-audit.js?v=2';
 const checks=[];
@@ -160,6 +160,46 @@ await t('Fast Write flag carried into validated Keihin plan',async()=>{
  const e=new HondaFlashEngine(fake('0101880D01'));await e.identify({programmingPreflight:true});
  const p=e.makePlan(new Uint8Array(65536),{filename:'K03-H01.bin',fast:true});
  return p.fast===true&&p.ecuId==='0101880D01';
+});
+
+const MAIN_SOURCE_FRAME_FIXTURES=[
+ ['KEIHINOTHER',0x8000,128,'7E8B010608000001','7D7E7F0810E02010'],
+ ['KEIHINH8C',0,64,'7E4B010600000001','3D3E3F0008F81838'],
+ ['KEIHINM32R',0,128,'7E8B010600000001','7D7E7F0010E03010'],
+ ['SHINDENGENV850',0x10000,128,'7C8B020610000001','7D7E7F1010E01011'],
+ ['SHINDENGENRH850',0x10000,128,'7C8B020610000001','7D7E7F1010E01011'],
+ ['SHINDENGENRH850B',0xA000,128,'7C8B02060A000001','7D7E7F0A10E01C11']
+];
+for(const [profile,startOffset,size,head,tail] of MAIN_SOURCE_FRAME_FIXTURES){
+ await t('Main C# exact frame bytes: '+profile,()=>{
+  const block=Uint8Array.from({length:size},(_,i)=>i);
+  const frame=createWriteFrame(block,{profile,startOffset,blockIndex:0,nextBlockIndex:2});
+  const hex=b=>Array.from(b,x=>x.toString(16).toUpperCase().padStart(2,'0')).join('');
+  return hex(frame.subarray(0,8))===head&&hex(frame.subarray(frame.length-8))===tail&&
+   hondaChecksum(frame)===0&&frame.length===size+11;
+ });
+}
+await t('Main C# final write pointer is zero',()=>{
+ const frame=createWriteFrame(new Uint8Array(128),{
+  profile:'KEIHINOTHER',startOffset:0x8000,blockIndex:1,nextBlockIndex:2,isFinal:true
+ });
+ return frame[134]===0&&frame[135]===0&&hondaChecksum(frame)===0;
+});
+await t('Main C# GetEcuType overrides size heuristic for Shindengen RH850B',()=>{
+ const b=new Uint8Array(65536);
+ b.set([83,72,56,53,48],96);
+ b.set([165,165,165,165,0],40960);
+ b.set([90,90,90,90],b.length-4);
+ const r=csharpOffsetInference(b);
+ return r.csharpClassHint==='SHINDENGENRH850B'&&r.startOffset===0xA000;
+});
+await t('Main C# Shindengen RH850/V850 starts at 0x10000',()=>{
+ for(const sig of [[83,72,56,53,48],[83,86,56,53,48]]){
+  const b=new Uint8Array(262144);
+  b.set(sig,96);b.set([90,90,90,90],b.length-4);
+  if(csharpOffsetInference(b).startOffset!==0x10000)return false;
+ }
+ return true;
 });
 const passed=checks.filter(x=>x[1]).length;document.getElementById('sum').textContent=passed+'/'+checks.length+' PASS (offline only)';
 document.getElementById('sum').style.color=passed===checks.length?'#7aebb0':'#ffa09b';
