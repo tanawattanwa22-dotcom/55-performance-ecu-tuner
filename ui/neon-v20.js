@@ -7,7 +7,7 @@ if(!home||!sc||$('neonShell'))return;
 const cards=[...sc.children].filter(x=>x.classList.contains('card'));
 const memberships={
  dashboard:[],library:[],tune:['modelCard','binCard','guardCard'],
- flash:['ecuCard','cableCard','guardCard','flashCard'],live:['liveCard','cableCard'],
+ flash:[],live:['liveCard','cableCard'],
  dtc:['liveCard','cableCard'],tools:['mainSourceTools'],settings:[]};
 const cats=[
  ['dashboard','⌂','หน้าหลัก','ภาพรวม สถานะ งานปัจจุบัน','#38c5f8'],
@@ -483,7 +483,7 @@ function navigate(id){
   steps();const c=mk('div','n20-panel');c.append(mk('p','','กดเปิดตารางจูนด้านล่าง เมื่อเสร็จให้กดบันทึก BIN ก่อนเข้าสู่หน้าอัด'));
   c.append(action('▦ เปิดตารางจูน',()=>click('goTune'),'btn ac'));stage.append(c);
  }
- else if(id==='flash')flashStage();
+ else if(id==='flash'){if(window.__55FlashPreflight?.mount)window.__55FlashPreflight.mount(stage);else flashStage();}
  else if(id==='live'||id==='dtc')liveOrDtc(id);
  else if(id==='tools')toolsStage();else if(id==='settings')settingsStage();
  refreshStatus();sc.scrollTo({top:0,behavior:'auto'});
