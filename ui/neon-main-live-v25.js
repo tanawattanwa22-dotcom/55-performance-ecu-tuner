@@ -215,7 +215,14 @@ window.__55AutoEcu={
     if(!done&&reader.status().connected)console.info('55 Performance: FT232R ready, ECU auto scan incomplete');
    }
    const now=reader.status();
-   if(page==='flash')autoFlashSummary();
+   if(page==='flash'){
+    autoFlashSummary();
+    // Read-only automatic plan when a real ECU ID and a BIN have been selected.
+    if(now.connected&&now.ecuId&&window.__55FlashPreflight?.hasBin?.()){
+     await window.__55FlashPreflight.autoPrepare();
+     autoFlashSummary();
+    }
+   }
    if(page==='dtc')emitCachedDtc(now);
    if(page==='live'&&now.connected&&now.ecuId&&now.liveGroupVerified&&!reader.running&&!reader.owner)
     await reader.start();
