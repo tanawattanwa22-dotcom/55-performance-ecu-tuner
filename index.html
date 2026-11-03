@@ -254,7 +254,7 @@ table.g th,table.g td{border-right:1px solid rgba(255,255,255,.35);border-bottom
   <div class="card" id="modelCard"><h2>01 · เลือกรุ่นรถ</h2>
    <div class="row"><select id="sel"><option value="">เลือกรุ่นรถ…</option></select><button class="btn ac" id="goTune" disabled>เปิดหน้าจูน</button></div>
    <div style="margin:10px 0 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-    <a href="ktr/index.html?v=1" style="background:#472277;color:#f8dfff;border:1px solid #b86af0;border-radius:9px;padding:9px 12px;font:700 13px system-ui;text-decoration:none" target="_blank" rel="noopener">📚 ฐานข้อมูล ECM • 55 Performance (152 รายการ)</a>
+    <a href="ecm/index.html?v=1" style="background:#472277;color:#f8dfff;border:1px solid #b86af0;border-radius:9px;padding:9px 12px;font:700 13px system-ui;text-decoration:none" target="_blank" rel="noopener">📚 ฐานข้อมูล ECM • 55 Performance (152 รายการ)</a>
     <details style="width:100%;font:12px system-ui"><summary style="cursor:pointer;color:#b8c8de">เครื่องมือช่างและทดสอบ (สำหรับตรวจปัญหา)</summary>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
       <a href="flash_port/bench.html" target="_blank" rel="noopener" style="color:#8bd1ff">ทดสอบ FTDI</a>
@@ -1389,7 +1389,7 @@ async function probeEcu(){
     // automatically; NEVER derive ECU ID from selected BIN or tuning profile.
     const connectedTransport=K.t;
     try{
-      const {parseEcmIdReply,lookupEcmId}=await import('./flash_port/ecu-id-lookup.js');
+      const {parseEcmIdReply,lookupEcmId}=await import('./flash_port/ecu-id-lookup.js?v=251');
       // Mirror the purchased C# WorkerThread double HELLO confirmation before
       // ECU ID, but do not break existing Live Data if a legacy ECU rejects it.
       const workerConfirmation=await send(init);
@@ -1402,7 +1402,7 @@ async function probeEcu(){
       K.ecuId=id;
       const found=await lookupEcmId(id);
       if(!K.t||K.t!==connectedTransport)return;
-      const {renderEcmIdentification,showEcmPopup}=await import('./flash_port/ecu-id-ui.js');
+      const {renderEcmIdentification,showEcmPopup}=await import('./flash_port/ecu-id-ui.js?v=251');
       renderEcmIdentification($("#autoEcuName"),found);
       showEcmPopup(found);
       const name=found.partCode?(found.partCode+(found.model?' • '+found.model:'')):id;
@@ -2715,7 +2715,7 @@ function v3Draw(){
 </script>
 
 <script src="ui/neon-preflight-v24.js?v=240"></script>
-<script src="ui/neon-v20.js?v=240"></script>
+<script src="ui/neon-v20.js?v=251"></script>
 <script src="ui/neon-live-v21.js?v=240"></script>
 <script src="ui/neon-dtc-v23.js?v=231"></script>
 
