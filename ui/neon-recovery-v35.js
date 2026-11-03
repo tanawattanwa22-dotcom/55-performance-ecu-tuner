@@ -190,6 +190,21 @@
    const bt=el('div','n24-panel-title');bt.append(el('span','n24-panel-icon','▧'),el('b','','เลือก BIN สำรองสำหรับกู้'));section.append(bt);
    ui.upload=el('input','n24-file-input');ui.upload.type='file';ui.upload.accept='.bin,.rom,application/octet-stream';
    ui.upload.setAttribute('aria-label','เลือกไฟล์ BIN สำรองสำหรับ Recovery');section.append(ui.upload);
+   ui.upload.onchange=async()=>{
+     if(busy)return;
+     const file=ui.upload.files?.[0];if(!file)return;
+     try{
+       const valid=new Set([32768,49152,57344,65536,98304,131072,262144,393216,524288,786432,1048576]);
+       if(!valid.has(file.size))throw Error('ขนาดไฟล์ไม่ใช่ขนาด BIN ที่ Main C# รองรับ');
+       const data=new Uint8Array(await file.arrayBuffer());
+       bin={name:file.name,data};
+       release();lastFailure='';phase='BIN_SELECTED';
+       log('RECOVERY BIN CHOSEN '+file.name+' '+data.length+' bytes');
+       note('เลือก BIN สำรองแล้ว • ระบบจะตรวจ Boot/Family/Flash Count/Offset ก่อนสร้างแผน Recovery');
+       update();
+       if(identity?.ecuId?.endsWith('0000'))await prepare();
+     }catch(e){bin=null;lastFailure=e.message;note('อ่าน BIN ไม่สำเร็จ: '+e.message,true);update()}
+   };
    ui.fileState=el('p','n24-upload-status','ยังไม่ได้เลือก BIN');section.append(ui.fileState);
    const advanced=el('details','n24-advanced');advanced.append(el('summary','','Offset HEX ขั้นสูง • ใช้เมื่อมีค่าที่ตรวจสอบจากต้นฉบับเท่านั้น'));
    for(const [key,label] of [['manualStart','Start Offset (HEX)'],['manualChecksum','Checksum Offset (HEX)']]){
