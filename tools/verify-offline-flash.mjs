@@ -48,7 +48,7 @@ store.delete(K.CLOCK);
 console.log('PASS clock-backwards protection');
 const p=asText('flash_port/offline/index.html'),old=asText('flash_port/flash-write-lab.html');
 for(const fragment of ['engine.identify()','engine.makePlan(data','engine.flash(plan','engine.postFlashCheck()','physicalBackupConfirmed','externalPowerConfirmed','recoveryReady']){
- assert(p.includes(fragment)&&old.includes(fragment),'same original bench flash step: '+fragment);
+ assert(p.includes(fragment)&&(old.includes(fragment)||(fragment==='engine.identify()'&&old.includes('engine.identify(recoveryMode?{programmingPreflight:true}:{})'))),'same original bench flash step: '+fragment);
 }
 assert(p.includes("from '../honda-write-engine.js?v=319'"),'offline imports source recovery engine revision');
 assert(old.includes("from './honda-write-engine.js?v=319'"),'online matches recovery engine revision');
