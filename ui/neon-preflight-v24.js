@@ -18,6 +18,8 @@ const quickBin=()=>window.__55QuickFlashBin?.bytes instanceof Uint8Array?window.
 const catalogRecord=identity=>identity?.ecuId?(catalog290.rows?.get(String(identity.ecuId).toUpperCase())||identity.catalog||null):null;
 const sourceOffset=(n,raw)=>Number.isInteger(n)?X(n):raw==='auto'?'AUTO (Main C#)':raw===''?'ไม่ระบุใน Main C#':'—';
 const current=()=>{
+ const quick=quickBin();
+ if(quick)return {saved:quick,model:null,valid:true,bytes:quick.bytes};
  const s=S.saved,m=S.mi>=0&&MODELS[S.mi]?MODELS[S.mi]:null;
  let valid=false;
  try{valid=!!s&&S.bin instanceof Uint8Array&&TuneBinFlow.matches(s,S.bin,{model:m?.id,sourceName:S.fname,customerBin:S.custom})}catch{}
@@ -147,6 +149,7 @@ async function saveHash(c){
  if(!crypto?.subtle?.digest)throw Error('เบราว์เซอร์ไม่รองรับ SHA-256');
  const digest=new Uint8Array(await crypto.subtle.digest('SHA-256',c.bytes));
  const hex=Array.from(digest,b=>b.toString(16).padStart(2,'0')).join('');
+ if(quickBin()===c.saved&&c.saved.sha256&&c.saved.sha256.toLowerCase()!==hex)throw Error('SHA-256 ของ BIN ที่เลือกเปลี่ยนก่อนตรวจ Preflight');
  hash={saved:c.saved,hex};return hex;
 }
 async function readECU(){
@@ -170,7 +173,7 @@ async function readECU(){
   if(!port?.ready)throw Error('สายหลักถูกตัดการเชื่อมต่อแล้ว');
   const engine=new HondaFlashEngine(port,()=>{});
   message='กำลังอ่าน ECU ID และ Flash Count ด้วย FormMain C#…';render();
-  const identity=await engine.identify();
+  const identity=await engine.identify({programmingPreflight:true});
   const c=current();
   last={identity,engine,at:Date.now(),saved:c.valid?c.saved:null,model:c.model,plan:null};
   const found=catalogRecord(identity);
@@ -204,7 +207,15 @@ async function runCheck(){
   }
   await saveHash(c);
   // makePlan() is a strict calculation only: no USB communication, no erase, no write.
-  const plan=last.engine.makePlan(c.bytes.slice(),{filename:c.saved.filename,fast:false,recovery:false});
+  let plan;
+   try{plan=last.engine.makePlan(c.bytes.slice(),{filename:c.saved.filename,fast:false,recovery:false})}
+   catch(e){
+    if(e.code!=='PART_NOT_CONFIRMED')throw e;
+    const {readBinId}=await import(new URL('flash_port/bin-tools.js?v=317',document.baseURI).href);
+    const embedded=readBinId(c.bytes);
+    if(!embedded.ok||String(embedded.id).toUpperCase()!==last.identity.ecuId)throw e;
+    plan=last.engine.makePlan(c.bytes.slice(),{filename:c.saved.filename,confirmedPart:last.identity.sourcePart,fast:false,recovery:false});
+   }
   if(!Number.isInteger(plan.startOffset)||!Number.isInteger(plan.checksumOffset)||!Number.isInteger(plan.blockBytes))
    throw Error('Memory Map ไม่ครบ จึงไม่ผ่าน Preflight');
   if(!plan.checks?.physicalIdMatched||!plan.checks?.offsetsFromCSharp)
@@ -258,7 +269,7 @@ function mount(host){
    uploadStatus.textContent='✓ '+f.name+' • '+(f.size/1024).toFixed(0)+' KB · พร้อมตรวจ ECU';
    message='เลือก BIN แล้ว · เชื่อมสายจากหน้าแรกและกดปุ่มอัด เพื่อให้ระบบตรวจ ECU/Checksum/Offset';
   }catch(e){uploadStatus.textContent='เลือกไฟล์ไม่สำเร็จ: '+e.message;error=e.message}
-  finally{window.__55refreshFlashButton?.();render();upload.value=''}
+  finally{window.__55refreshFlashButton?.();render();upload.value='';if(window.__55SharedEcu?.snapshot?.().ecuId)void autoPrepare();}
  };
  const flash=btn('⇧ ตรวจอัตโนมัติและอัดไฟล์','n24-btn n24-flash n24-easy-flash',startFlash);dom.flash=flash;
  const miniProgress=make('p','n24-mini-progress','พร้อมเริ่มตรวจ');dom.miniProgress=miniProgress;
@@ -315,7 +326,19 @@ function mount(host){
  stage.append(help);
  render();
 }
-window.__55FlashPreflight={mount,render,readECU,runCheck,ready:verified};
+let preparingAuto=false;
+async function autoPrepare(){
+ if(preparingAuto||working||INLINEFLASH.busy)return false;
+ const shared=window.__55SharedEcu;
+ if(!stage?.isConnected||!shared?.snapshot?.().connected||!shared.snapshot().ecuId||!current().valid)return false;
+ preparingAuto=true;
+ try{
+  await readECU();
+  if(last?.identity?.sourceMatched)await runCheck();
+  return verified();
+ }finally{preparingAuto=false;render()}
+}
+window.__55FlashPreflight={mount,render,readECU,runCheck,autoPrepare,hasBin:()=>current().valid,ready:verified};
 ['btnSave','sel','btnAutoOffset','btnRead','goTune'].forEach(id=>$(id)?.addEventListener('click',()=>queueMicrotask(render)));
 window.addEventListener('55:bin-changed',render);
  const stepBox=$('stepTxt');
