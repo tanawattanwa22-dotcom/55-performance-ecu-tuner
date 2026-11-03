@@ -1,0 +1,72 @@
+/* 55 PERFORMANCE V25 — keep the Neon Live UI; replace only its data source.
+ * Main FM_diag.cs reader is the sole source of real-time sensor values.
+ * The legacy ADX/DEMO live engine is never called by this bridge.
+ */
+import {MainLiveSession} from '../flash_port/main-live-session.js';
+const old=window.__55LiveBridge;
+if(!old)throw Error('Live UI bridge must be installed before Main V25');
+const originalSnapshot=old.snapshot.bind(old);
+const originalHome=old.home.bind(old);
+const originalMode=old.mode.bind(old);
+const keys=['rpm','tps','map','ect','iat','bat','inj','ign','afr'];
+const empty=()=>Object.fromEntries(keys.map(k=>[k,null]));
+const notify=()=>{
+ window.__55LiveV21?.render?.();
+};
+const reader=new MainLiveSession(notify,()=>{
+ window.__55LiveV21?.received?.(1);
+ notify();
+});
+let lastConnectError='';
+old.snapshot=()=>{
+ const original=originalSnapshot();
+ if(original.mode!=='gauge')return original; // Preserve DTC old command backend.
+ const s=reader.status();
+ const values=s.running&&s.connected?{...s.values}:empty();
+ return {
+  ...original,source:s.running?'ecu':'idle',demo:false,run:s.running,
+  connected:s.connected,cable:s.cable,connecting:s.connecting,
+  model:original.model,ecuId:s.ecuId,group:s.group,
+  protocol:s.connected?'Honda K-Line / Main FM_diag.cs':'—',
+  profAvailable:true,afrSupported:s.group!==7,
+  afrSource:s.group===7?'C# Group 7 ไม่มีช่อง A/F':
+   'A/F คำนวณตาม FM_diag.cs Group '+s.group+' ไม่ได้ยืนยันว่าเป็นค่า Wideband ที่วัดจริง',
+  values,refreshHz:s.hz,sampleSeq:s.sampleSeq,sampleAt:s.sampleAt,
+  recording:s.recording,recordSeconds:s.recordSeconds,hasLog:s.hasLog,
+  message:s.error||lastConnectError||(
+   s.connecting?'กำลังเชื่อมต่อ FT232R และอ่าน ECU ID จริง…':
+   s.running?'กำลังอ่านข้อมูลจาก FM_diag.cs Group '+s.group:
+   s.connected?'เชื่อมต่อแล้ว • เลือก Group และกดเริ่มอ่าน ECU':'เชื่อมต่อ FT232R และอ่าน ECU ID ก่อน'
+  )
+ };
+};
+old.connect=async()=>{
+ const legacy=originalSnapshot();
+ if(legacy.cable){
+  lastConnectError='มีการเชื่อมต่อ FTDI ผ่านหน้าระบบเก่าอยู่ • ตัดการเชื่อมต่อนั้นก่อน แล้วกลับมาเชื่อมจาก Live Data';
+  notify();return false;
+ }
+ lastConnectError='';
+ const connected=await reader.connect();
+ notify();return connected;
+};
+old.startEcu=()=>reader.start();
+old.stopEcu=()=>reader.stop();
+old.demo=()=>{lastConnectError='หน้า Live Data นี้ไม่ใช้ DEMO — อ่านข้อมูลจาก ECU จริงเท่านั้น';notify();return false;};
+old.record=()=>reader.record();
+old.exportCsv=()=>reader.exportCsv();
+old.home=(category='dashboard')=>{
+ void reader.disconnect();
+ return originalHome(category);
+};
+old.mode=(mode)=>{
+ if(mode!=='gauge')void reader.disconnect();
+ return originalMode(mode);
+};
+window.__55MainLive={
+ ready:true,group:()=>reader.group,setGroup:g=>reader.setGroup(g),
+ connect:old.connect,start:old.startEcu,stop:old.stopEcu,
+ snapshot:()=>reader.status(),disconnect:()=>reader.disconnect()
+};
+window.addEventListener('pagehide',()=>{void reader.disconnect()});
+notify();
