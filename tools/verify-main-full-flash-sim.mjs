@@ -104,7 +104,9 @@ await check('Shindengen Normal: source Seed/Key, erase, 128-byte blocks, finish'
 await check('Shindengen Recovery source BIN: offline-only plan and Seed/Key path',async()=>{
  const {engine,device}=setup('ABCDEF0000');
  await engine.identify();
- const plan=engine.makePlan(shBin(),{filename:'recovery.bin',recovery:true});
+ const recoveryBin=shBin();
+ recoveryBin.set([1,2,3,4,5,6,145,145,13,0,158,141],500);
+ const plan=engine.makePlan(recoveryBin,{filename:'recovery.bin',recovery:true});
  assert.equal(plan.recovery,true);
  assert.equal(plan.profile,'SHINDENGENV850');
  assert.equal(plan.startOffset,65536);
