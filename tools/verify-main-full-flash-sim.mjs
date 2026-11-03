@@ -1,4 +1,13 @@
 // V27 full-session Honda Main C# flash simulation: NO USB and NO physical ECU.
+// Node.js does not fetch file:// ECU catalog assets; browser fetch does.
+// Provide a local-file response only for isolated mock/source-parity tests.
+import {readFile as readLocalFixture} from 'node:fs/promises';
+const browserFetch=globalThis.fetch;
+globalThis.fetch=async(input,options)=>{
+ const url=input instanceof URL?input:new URL(String(input));
+ if(url.protocol==='file:')return new Response(await readLocalFixture(url),{status:200});
+ return browserFetch(input,options);
+};
 // Pure in-memory responder validates phases, checksums, write order, fail-stop.
 import assert from 'node:assert/strict';
 import {HondaFlashEngine} from '../flash_port/honda-write-engine.js';
