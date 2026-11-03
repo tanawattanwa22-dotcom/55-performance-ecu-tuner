@@ -245,10 +245,11 @@ function startFlash(){
  if(!quickBin()&&!current().valid&&!INLINEFLASH.postCheck)return errorOut('กรุณาเลือก BIN จากเครื่องหรือบันทึก BIN ที่จูนก่อน');
  if(!window.__55SharedEcu?.port?.ready&&!INLINEFLASH.postCheck)return errorOut('กรุณาเชื่อม FT232R จากหน้าแรกก่อน');
  const target=$('btnFlash');if(!target||target.hidden||target.disabled)return errorOut('ระบบ Flash Engine เดิมยังไม่อนุญาตให้อัด');
- // Only the existing button invokes the engine's physical re-identification,
- // original backup/power/recovery confirmations, and original erase/write.
+ // One tap on the normal Flash button: the engine automatically re-identifies
+ // the physical ECU and checks source/BIN/offset before any erase/write.
+ // This click does not electronically verify external voltage or backup.
  error='';target.click();
- message=INLINEFLASH.postCheck?'กำลังตรวจ ECU ID หลังเปิดกุญแจใหม่':'กำลังตรวจ ECU ID, Family, Part Code, BIN, Checksum และ Offset อัตโนมัติ ก่อนยืนยัน ERASE/WRITE';
+ message=INLINEFLASH.postCheck?'กำลังตรวจ ECU ID หลังเปิดกุญแจใหม่':'กำลังตรวจ ECU ID, Family, Part Code, BIN, Checksum และ Offset อัตโนมัติ ก่อน ERASE/WRITE';
  render();
 }
 function mount(host){
@@ -286,7 +287,7 @@ function mount(host){
   }catch(e){uploadStatus.textContent='เลือกไฟล์ไม่สำเร็จ: '+e.message;error=e.message}
   finally{window.__55refreshFlashButton?.();render();upload.value='';if(window.__55SharedEcu?.snapshot?.().ecuId)void autoPrepare();}
  };
- const flash=btn('⇧ ตรวจอัตโนมัติและอัดไฟล์','n24-btn n24-flash n24-easy-flash',startFlash);dom.flash=flash;
+ const flash=btn('⇧ อัดไฟล์ ECU','n24-btn n24-flash n24-easy-flash',startFlash);dom.flash=flash;
  const recovery=btn('⟳ เข้าสู่ Recovery · ตรวจ ECU อีกครั้ง','n24-btn n24-read',()=>{
   if(INLINEFLASH.busy)return errorOut('รอการทำงาน Flash ให้จบก่อน');
   if(window.__55OpenRecoveryPanel)window.__55OpenRecoveryPanel();
@@ -294,7 +295,7 @@ function mount(host){
  });dom.recovery=recovery;recovery.hidden=true;
  const miniProgress=make('p','n24-mini-progress','พร้อมเริ่มตรวจ');dom.miniProgress=miniProgress;
  const miniBar=make('div','n24-mini-bar');const miniFill=make('i','');dom.miniBar=miniFill;miniBar.append(miniFill);
- easy.append(uploadLabel,upload,uploadNote,fastLabel,uploadStatus,flash,recovery,miniBar,miniProgress);
+ easy.append(uploadLabel,upload,uploadNote,uploadStatus,flash,recovery,miniBar,miniProgress);
  stage.append(easy);
  const file=card('n24-bin','▧','ไฟล์ที่จะอัด (BIN)');
  file.append(line('filename','ชื่อไฟล์'),line('source','ประเภทไฟล์'),line('size','ขนาดไฟล์'),line('sha','Checksum (SHA-256)'));stage.append(file);
@@ -305,7 +306,7 @@ function mount(host){
  map.append(line('start','Start Offset'),line('checksum','Checksum Offset'),line('block','Block Size'),line('profile','C# ECU Profile'),line('offsetState','สถานะตรวจ'));stage.append(map);
  const h=make('h3','n24-section-head','ขั้นตอนการอัดไฟล์ (Workflow)');stage.append(h);
  const steps=make('div','n24-workflow');
- for(const [n,label] of ['บันทึก BIN','อ่าน ECU ID','ตรวจ Offset','ยืนยันอัดไฟล์'].entries()){
+ for(const [n,label] of ['เลือก BIN','อ่าน ECU ID','ตรวจ Offset','อัดไฟล์'].entries()){
   const x=make('div','n24-step');x.append(make('b','',String(n+1)),make('span','',label));
   steps.append(x);dom['step'+n]=x;
  }stage.append(steps);
@@ -322,7 +323,7 @@ function mount(host){
  const check=btn('▱ ตรวจ Preflight','n24-btn n24-verify',runCheck);dom.check=check;
  actions.append(read,check);
  const advanced=make('details','n24-advanced');
- advanced.append(make('summary','','การตรวจละเอียด / อ่าน ECU ID แยก (ไม่จำเป็นต้องกดก่อนอัด)'),actions);
+ advanced.append(make('summary','','ตัวเลือกขั้นสูง / Fast Write / ตรวจละเอียด (ไม่จำเป็นต้องกดก่อนอัด)'),fastLabel,actions);
  stage.append(advanced);
  const gate=make('p','n24-help','');gate.setAttribute('role','status');dom.gateReason=gate;stage.append(gate);
  // The user's Main.zip FormMain.cs SHA-256 matches the source already ported
