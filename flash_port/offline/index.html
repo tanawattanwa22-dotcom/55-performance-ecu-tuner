@@ -76,8 +76,6 @@ pre{background:#0b1827;border-radius:10px;padding:12px;font:12px ui-monospace,mo
 import {verifySavedOfflinePermit,provisionOfflinePermit} from '../offline-license.js';
 import {Ft232rWebUsb} from '../ftdi-webusb.js';
 import {HondaFlashEngine} from '../honda-write-engine.js';
-import {lookupEcmId} from '../ecu-id-lookup.js?v=251';
-import {renderEcmIdentification,showEcmPopup} from '../ecu-id-ui.js?v=251';
 const $=id=>document.getElementById(id);
 let authorized=false,bundleReady=false,port=null,engine=null,identity=null,plan=null,busy=false,flashing=false,wakeLock=null;
 let lastPlanEvidence=null,flashOutcome='NOT_STARTED'; // immutable evidence survives plan reset after Final ACK
@@ -187,18 +185,12 @@ $('probe').onclick=async()=>{
     (identity.family==='KEIHIN'?' | FLASH COUNT '+identity.count:'');
   $('ecu').className='status '+(identity.sourceMatched?'ok':'bad');
   $('part').placeholder=identity.sourcePart||'ยังไม่พบรหัสอะไหล่ในฐาน C#';
-  // KTR is a DISPLAY lookup; the actual C# identity/flash allowlist is unchanged.
-  try{
-    const translated=await lookupEcmId(identity.ecuId);
-    renderEcmIdentification($('ecuMatch'),translated);
-    showEcmPopup(translated);
-    push('ECU ID MATCH '+JSON.stringify({id:translated.ecuId,part:translated.partCode,
-      model:translated.model,candidates:translated.candidates.length,status:translated.status,source:translated.source}));
-  }catch(lookupError){
-    $('ecuMatch').hidden=false;
-    $('ecuMatch').textContent='อ่าน ECU ID ได้แล้ว แต่ดึงชื่อ Part Code ไม่สำเร็จ: '+lookupError.message;
-    push('ECU NAME LOOKUP ERROR '+lookupError.message);
-  }
+  // Offline ECU identification uses the SAME physical ID and C# catalog as online.
+  // No additional cloud request is attempted while diagnosing a spare ECU.
+  $('ecuMatch').hidden=false;
+  $('ecuMatch').textContent='ECU ID จากกล่องจริง: '+identity.ecuId+
+    ' · Main C# Part Code: '+(identity.sourcePart||'ไม่พบในฐาน')+
+    ' · Family: '+identity.family;
   push('ECU ID '+identity.ecuId);
  }catch(e){$('ecu').textContent='ไม่สำเร็จ: '+e.message;push('ECU PROBE STOP: '+e.message)}
  finally{busy=false;refreshButtons()}
