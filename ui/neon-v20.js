@@ -462,9 +462,14 @@ function settingsStage(){
 }
 function navigate(id){
  if(!Object.prototype.hasOwnProperty.call(memberships,id))return;
- // DTC has a full-screen dashboard, not an intermediary home card.
- // The legacy entry already opens Live and selects the real DTC mode.
- if(id==='dtc'&&$('mtDtc')){$('mtDtc').click();return;}
+ // The homepage DTC tile opens the dedicated redesigned page immediately.
+ // Original hidden command buttons remain solely as the diagnostic transport backend.
+ if(id==='dtc'){
+  if(!window.__55DtcV23?.open?.()){
+   alert('หน้า DTC ใหม่ยังโหลดไม่สำเร็จ กรุณารีเฟรชเว็บ');
+  }
+  return;
+ }
  selected=id;
  home.dataset.neonPage=id;
  for(const card of cards)card.classList.toggle('n20-hidden',!memberships[id].includes(card.id));
