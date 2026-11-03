@@ -26,7 +26,7 @@ FormMain SHA-256: `50e13192164e25493fffb1babd5baa580902d0a14a09452a3279cf7515759
 
 ## What is NOT verified / not safe to claim complete
 1. A real bench flash for every supported Keihin/Shindengen ECU, including models advertised as 110–160.
-2. Recovery/bootloader identity and family determination: current recovery handling has not been proven on real failed ECUs. Do not assume an ID ending in 0000 identifies a Shindengen unit on its own.
+2. Recovery/bootloader identity and family determination: recovery has not been proven on real failed ECUs. V318 now explicitly blocks ERASE for a boot ID ending in 0000 until its physical Keihin/Shindengen family is positively verified; the suffix alone never authorizes Shindengen programming.
 3. Full readback/byte-by-byte firmware verification. The purchased `FormMain.cs` checks ECU final ACK but does not implement a full flash-memory readback verification.
 4. A complete firmware-version compatibility database for every ECU. ECU ID and Part Code alone do not prove that a different calibration revision is safe to write.
 5. Power/ground/K-Line electrical conditions are not sensed by the HTML UI; the operator must verify them with external instruments.
