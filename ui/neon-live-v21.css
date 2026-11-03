@@ -160,3 +160,16 @@
 #live .n21-metric.n21-afr{--n21-edge:#ffad55;--n21-glow:#d86b3757}
 #live .n21-metric.n21-afr .n21-metric-icon{color:#ffd58b}
 #live .n21-afr-provenance{padding:9px 12px;margin:-5px 2px 18px;color:#f7da9f;font-size:12px;line-height:1.5;border-radius:12px;border:1px solid #916a43;background:linear-gradient(120deg,#352b25,#1e2540)}
+
+/* Main C# FM_diag source-group choice: only read-only real ECU sessions. */
+#live .n21-main-group-label{display:flex;align-items:center;justify-content:space-between;gap:9px;flex:1 1 190px;min-width:0;
+ padding:8px 10px;border:1px solid #2c91b6;border-radius:12px;background:linear-gradient(135deg,#112f4e,#221944);
+ color:#b9e9ff;font-size:12px;font-weight:800}
+#live #n21MainGroup{flex:1;min-width:125px;max-width:195px;min-height:39px;padding:6px 8px;border:1px solid #416d90!important;
+ border-radius:10px;background:#081b30!important;color:white!important;font-size:12px}
+#live #n21MainGroup:disabled{opacity:.65}
+#live #n21Pane .n21-source-notice{overflow-wrap:anywhere}
+@media(max-width:380px){
+ #live .n21-main-group-label{flex-basis:100%;flex-wrap:wrap}
+ #live #n21MainGroup{max-width:100%}
+}
