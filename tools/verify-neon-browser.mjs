@@ -68,6 +68,10 @@ try{
    'every row has three actionable buttons');
   assert.equal(await page.locator('#n22Library .n22-filter-chip').count(),5,
    'full brand and ECU vendor filter bar');
+  assert.equal(await page.locator('#n22Library .n22-filter-vendor-logo').count(),2,
+   'Keihin and Shindengen vendor wordmarks are present');
+  assert.equal(await page.locator('#n22Library .n22-row-vendor-logo').count(),1,
+   'validated K03 Keihin row has vendor badge');
   await page.evaluate(()=>document.querySelector('#n22Library .n22-bin-row .n22-action-info').click());
   assert.equal(await page.locator('#n22InfoDialog').evaluate(d=>d.open),true,'BIN details dialog opens');
   assert((await page.locator('#n22InfoDialog').innerText()).includes('ECU'));
@@ -80,6 +84,9 @@ try{
   const logos=await page.evaluate(()=>[...document.querySelectorAll('#n22Library .n22-brand-logo img')]
    .map(img=>({src:img.getAttribute('src'),complete:img.complete,loaded:img.naturalWidth>0})));
   assert(logos.every(l=>l.loaded),'every local Honda logo loaded: '+JSON.stringify(logos));
+  const brandAssets=await page.evaluate(()=>[...document.querySelectorAll('#n22Library .n22-filter-vendor-logo, #n22Library .n22-row-vendor-logo')]
+    .map(img=>({src:img.getAttribute('src'),loaded:img.complete&&img.naturalWidth>0})));
+  assert(brandAssets.every(v=>v.loaded),'all ECU vendor logos loaded: '+JSON.stringify(brandAssets));
   await overflowing('Library '+width);
   if(width===393){
    await page.screenshot({path:path.join(root,'test-reports','neon-library-v22-393.png'),fullPage:false});
