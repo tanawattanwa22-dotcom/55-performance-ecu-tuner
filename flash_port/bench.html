@@ -40,10 +40,17 @@ hr{border:0;border-top:1px solid #42556c;margin:14px 0}
 <h2>2. เชื่อมต่อ FT232R ด้วย Chrome Android</h2>
 <p>ขั้นนี้เสียบเฉพาะสาย FTDI + OTG กับมือถือได้ ยังไม่ต้องต่อกล่อง ECU</p>
 <div class="row">
-<button id="pick" disabled>เลือกสาย FTDI</button>
+<button id="pick" disabled>เลือกสายใหม่ผ่าน Android</button>
 <button class="secondary" id="disconnect" disabled>ตัดสาย</button>
 </div>
+<p class="note">หาก Android แสดงชื่อซ้ำ ให้เลือกรายการที่มีรหัสท้ายชื่อเดียวกับสายที่เปิดสำเร็จก่อนหน้านี้ ไม่ใช่รายการว่าง และไม่ต้องเปิด USB พร้อมกันหลายหน้า</p>
+<div class="row">
+<button id="scanUsb" class="secondary" disabled>แสดงสายที่เคยอนุญาต</button>
+<select id="usbList" aria-label="เลือก FT232R ที่เคยอนุญาต" disabled style="flex:1;min-width:200px;width:auto;margin:4px 0"><option>กดแสดงสายก่อน</option></select>
+<button id="connectKnown" class="secondary" disabled>เชื่อมต่อสายที่เลือก</button>
+</div>
 <div class="status" id="usb">ยังไม่เชื่อมต่อ</div>
+<div class="status" id="usbHint" role="status">รายการสายที่เคยอนุญาตอ่านจาก Chrome โดยไม่เปิด USB หรือส่งข้อมูลไป ECU</div>
 <small>รองรับชิป FT232R VID 0403 PID 6001 ที่ยืนยันการเข้ารหัส Baud Rate แล้ว ชิปตระกูลอื่นต้องตรวจแยก</small>
 </div>
 <div class="card">
@@ -85,10 +92,15 @@ import {csharpOffsetInference} from './csharp-offsets.js';
 import {lookupEcmId,parseEcmIdReply} from './ecu-id-lookup.js?v=251';
 import {renderEcmIdentification,showEcmPopup} from './ecu-id-ui.js?v=251';
 const el=id=>document.getElementById(id);
-let port=null,active=false;
+let port=null,active=false,approvedUsb=[];
 const logs=[];
 function log(s){const text=new Date().toLocaleTimeString('th-TH')+' '+s;logs.push(text);el('logs').textContent=logs.join('\n');console.log(text)}
-function busy(v){['pick','id','disconnect'].forEach(id=>el(id).disabled=v||!active||(id==='pick'?!!port:!port))}
+function busy(v){
+ ['pick','id','disconnect'].forEach(id=>el(id).disabled=v||!active||(id==='pick'?!!port:!port));
+ el('scanUsb').disabled=v||!active||!!port;
+ el('usbList').disabled=v||!active||!!port||approvedUsb.length===0;
+ el('connectKnown').disabled=v||!active||!!port||approvedUsb.length===0;
+}
 async function checkLicense(){
  active=false;busy(false);
  const device=localStorage.getItem('55_device_id');
@@ -103,18 +115,62 @@ async function checkLicense(){
  busy(false);
 }
 el('recheck').onclick=()=>checkLicense();
+const usbId=d=>'0x'+d.vendorId.toString(16).padStart(4,'0')+':0x'+d.productId.toString(16).padStart(4,'0');
+const usbLabel=d=>(d.productName||'FT232R')+' ('+(d.serialNumber||'ไม่มีรหัส Serial')+') · '+usbId(d);
+async function listApproved(){
+ if(!navigator.usb)throw Error('Chrome ไม่รองรับ WebUSB');
+ approvedUsb=(await navigator.usb.getDevices()).filter(d=>d.vendorId===0x0403&&d.productId===0x6001);
+ const list=el('usbList');list.replaceChildren();
+ if(!approvedUsb.length){
+  list.add(new Option('ไม่พบ FT232R ที่ได้รับอนุญาต',''));
+  el('usbHint').textContent='ยังไม่มีสาย FT232R ในรายการที่เคยอนุญาต กรุณากด เลือกสายใหม่ผ่าน Android';
+ }else{
+  approvedUsb.forEach((device,i)=>list.add(new Option(usbLabel(device),String(i))));
+  el('usbHint').textContent='Chrome พบ FT232R ที่เคยอนุญาต '+approvedUsb.length+
+   ' รายการ · โปรดเลือกรหัส Serial ของสายที่ต้องการก่อนเชื่อมต่อ';
+ }
+ busy(false);
+}
+el('scanUsb').onclick=async()=>{
+ if(!active||port)return;
+ busy(true);
+ try{await listApproved()}catch(e){el('usbHint').textContent='อ่านรายการสายไม่ได้: '+e.message;log('USB LIST ERROR '+e.message)}
+ finally{busy(false)}
+};
+async function openUsb(device){
+ const x=new Ft232rWebUsb(log);
+ try{
+  await x.openSelected(device);
+  port=x;
+  el('usb').textContent='FT232R opened · 10400 baud, 8N1 (ยังไม่สื่อสาร ECU) · '+usbLabel(device);
+  el('usbHint').textContent='เปิดพอร์ตสำเร็จแล้ว ขั้นนี้ยังไม่ได้ทดสอบ ECU';
+ }catch(e){
+  const denied=/Access denied|NotAllowedError|SecurityError/i.test(e.message+' '+e.name);
+  log('USB OPEN ERROR: '+e.name+' '+e.message);
+  el('usb').textContent='เชื่อมต่อไม่ได้: '+e.message;
+  el('usbHint').textContent=denied?
+   'Access denied: ปิดแท็บ/แอปอื่นที่ใช้ FTDI ให้หมด ถอดและเสียบ OTG ใหม่ แล้วเลือกสายอีกครั้ง ห้ามเปิดสายเดียวกันพร้อมกันหลายโปรแกรม':
+   'เปิดสายไม่สำเร็จ กรุณาตรวจ USB OTG, สิทธิ์ Chrome และชื่ออุปกรณ์ก่อน';
+  port=null;
+ }
+}
+el('connectKnown').onclick=async()=>{
+ if(!active||port)return;
+ const i=Number(el('usbList').value);
+ if(!Number.isInteger(i)||!approvedUsb[i])return;
+ busy(true);try{await openUsb(approvedUsb[i])}finally{busy(false)}
+};
 el('pick').onclick=async()=>{
- // requestDevice must be invoked by direct user click; license was pre-checked.
- if(!active)return;
+ // requestDevice must be invoked by a direct user click.
+ if(!active||port)return;
  busy(true);
  try{
   const device=await Ft232rWebUsb.choose();
-  const x=new Ft232rWebUsb(log);
-  await x.openSelected(device);
-  port=x;
-  el('usb').textContent='FT232R opened · 10400 baud, 8N1 (ยังไม่สื่อสาร ECU)';
- }catch(e){log('USB ERROR: '+e.message);el('usb').textContent='เชื่อมต่อไม่ได้: '+e.message}
- finally{busy(false)}
+  await openUsb(device);
+ }catch(e){
+  log('USB CHOOSER ERROR: '+e.message);
+  el('usb').textContent='เลือกสายไม่สำเร็จ: '+e.message;
+ }finally{busy(false)}
 };
 el('disconnect').onclick=async()=>{busy(true);try{if(port)await port.close()}finally{port=null;el('usb').textContent='ตัดสายแล้ว';el('ecu').textContent='ไม่ได้เชื่อมต่อ';el('ecuMatch').hidden=true;busy(false)}};
 el('id').onclick=async()=>{
