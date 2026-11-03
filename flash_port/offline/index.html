@@ -76,7 +76,7 @@ pre{background:#0b1827;border-radius:10px;padding:12px;font:12px ui-monospace,mo
 <script type="module">
 import {verifySavedOfflinePermit,provisionOfflinePermit} from '../offline-license.js';
 import {Ft232rWebUsb} from '../ftdi-webusb.js?v=301';
-import {HondaFlashEngine} from '../honda-write-engine.js?v=320';
+import {HondaFlashEngine} from '../honda-write-engine.js?v=321';
 const $=id=>document.getElementById(id);
 let authorized=false,bundleReady=false,port=null,engine=null,identity=null,plan=null,busy=false,flashing=false,wakeLock=null;
 let lastPlanEvidence=null,flashOutcome='NOT_STARTED'; // immutable evidence survives plan reset after Final ACK
