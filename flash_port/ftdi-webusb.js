@@ -152,6 +152,41 @@ export class Ft232rWebUsb {
       throw err;
     }finally{clearTimeout(timer)}
   }
+  async sourceDiagnosticWake(){
+    // FM_diag.cs method_25(): SerialPort 10400 8N1, Break 100/70/5/145,
+    // FE 04 72 8C, then 72 05 71 00 18. Diagnostic ONLY, no flash commands.
+    if(!this.ready)throw Error('FT232R must be open before Main diagnostic wake');
+    if(this.exchangeBusy)throw Error('Another FTDI exchange is active');
+    this.exchangeBusy=true;
+    try{
+      await this.setBaud(10400);
+      await this.ctl(0x04,0x0008); // 8N1, break off
+      await sleep(100);
+      await this.ctl(0x04,0x4008); // FTDI SIO_SET_DATA: BREAK ON
+      await sleep(70);
+      await this.ctl(0x04,0x0008); // BREAK OFF
+      await sleep(5);
+      await sleep(145);
+      await this._write([0xfe,0x04,0x72,0x8c]);
+      this._log('MAIN DIAG TX WAKE FE 04 72 8C');
+      await sleep(30);
+      await this.purge(); // C# discards output and ReadExisting before next write
+      await this._write([0x72,0x05,0x71,0x00,0x18]);
+      this._log('MAIN DIAG TX SESSION 72 05 71 00 18');
+      await sleep(50);
+      // Do not await transferIn here: Chrome has no cancellable bulk read.
+      // The C# code reads only currently available bytes and can discard them.
+      // A fresh group probe validates the next reply, not this wake alone.
+      this._log('MAIN DIAG wake sequence sent; ECU response NOT YET VERIFIED');
+    }catch(error){
+      this._log('MAIN DIAG wake failed: '+String(error?.message||error));
+      await this.close();
+      throw error;
+    }finally{
+      if(this.dev?.opened)try{await this.ctl(0x04,0x0008)}catch{}
+      this.exchangeBusy=false;
+    }
+  }
   async sendWake(){
     if(!this.ready)throw Error('Connect FT232R first');
     const wake=Uint8Array.from(READ_ONLY_COMMANDS.WAKE);
