@@ -56,7 +56,7 @@ await test('Auto recovers closed FTDI after a timed-out Group 7 and picks Group 
  assert.deepEqual(b.calls.map(x=>x[3]),[0x13,0x17]);
 });
 await test('Auto chooses Group 1 after both Group 7 and Group 4 do not respond',async()=>{
- const b=bench({0x13:'TIMEOUT',0x17:'TIMEOUT'});
+ const b=bench({0x13:'TIMEOUT',0x17:'TIMEOUT',0x11:sourceReply(12)});
  assert.equal(await b.session.detectGroup(),1);
  assert.equal(b.restores,2);
  assert.equal(b.session.status().group,1);
