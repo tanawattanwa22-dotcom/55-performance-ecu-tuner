@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {webcrypto} from 'node:crypto';
 const crypto=globalThis.crypto??webcrypto;
-globalThis.crypto=crypto;
+// Node 22 provides a read-only global WebCrypto implementation.
 const store=new Map();
 globalThis.localStorage={
  getItem:key=>store.get(key)??null,
