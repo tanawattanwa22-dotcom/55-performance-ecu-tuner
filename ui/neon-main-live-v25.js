@@ -2,7 +2,7 @@
  * Main FM_diag.cs reader is the sole source of real-time sensor values.
  * The legacy ADX/DEMO live engine is never called by this bridge.
  */
-import {MainLiveSession} from '../flash_port/main-live-session.js?v=337';
+import {MainLiveSession} from '../flash_port/main-live-session.js?v=340';
 const old=window.__55LiveBridge;
 if(!old)throw Error('Live UI bridge must be installed before Main V25');
 const originalSnapshot=old.snapshot.bind(old);
@@ -160,7 +160,7 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
   state.textContent=st.connected?
    ('✓ FT232R เปิดพอร์ตแล้ว · '+(st.ecuId?'ECU ID '+st.ecuId:'ยังไม่ได้ต่อหรืออ่าน ECU')+
     (st.error?' · การอ่าน ECU ล่าสุด: '+st.error:'')):
-   (st.error||physicalConnectError||lastConnectError||
+   (st.error||st.usbLastError||physicalConnectError||lastConnectError||
     (st.usbAttempts?'เปิดพอร์ต FT232R ยังไม่สำเร็จ · ดูรายละเอียด USB ด้านล่าง':
      'ยังไม่ได้เลือกสาย FT232R · กดเชื่อมต่อเพื่อเปิด USB เท่านั้น'));
   const fmt=n=>Number.isInteger(n)?'0x'+n.toString(16).toUpperCase().padStart(4,'0'):'';
@@ -172,7 +172,9 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
   const liveOK=ready&&st.liveGroupVerified;
   const dtcOK=ready&&dtc?.success===true;
   const records=[
-   [usbOK,'FT232R / USB',usbOK?'✓ เปิดพอร์ตผ่าน WebUSB สำเร็จ':'เปิด USB ไม่สำเร็จ หรือยังไม่ได้เลือกสาย'],
+   [usbOK,'FT232R / USB',usbOK?'✓ เปิดพอร์ตผ่าน WebUSB สำเร็จ':
+    st.usbLastError?'เปิดไม่สำเร็จ: '+st.usbLastError:
+    'ยังไม่ได้เลือกอุปกรณ์ หรือ Android ไม่อนุญาตให้เปิด USB'],
    [idOK,'ECU ID จากกล่องจริง',idOK?st.ecuId:(st.idError||'รอคำตอบ ECU')],
    [idOK&&st.catalogMatched,'พบในฐาน Main 290',st.catalogMatched?(st.part||'Part Code ไม่ระบุ')+' · '+st.catalogFamily:'ยังไม่พบรายการที่ตรง ECU ID'],
    [liveOK,'ตาราง Live Data',liveOK?'Group '+st.group+' · ได้รับและถอดรหัสข้อมูลครบ':'รอยืนยัน Group 7 / 4 / 1'+(st.liveGroupError?' · '+st.liveGroupError:'')],
@@ -208,6 +210,7 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
    dtcAnswered:st.dtcSnapshot?.answered?.length??0,
    lastTransportEvents:st.usbTrace||[]
   },null,2);
+  if(st.usbLastError&&!st.connecting)debug.open=true;
   connect.disabled=st.connected||st.connecting;
   rescan.disabled=!st.connected||st.autoBusy||st.running||!!reader.owner;
   disconnect.disabled=!st.connected&&!st.connecting;
