@@ -23,6 +23,40 @@ const phases=Object.freeze({
 });
 const notify=()=>{
  window.__55LiveV21?.render?.();
+ // The original FM_diag.cs has 15/23 channels, not only the nine large Neon gauges.
+ const pane=document.getElementById('n21Pane');
+ if(!pane)return;
+ let extra=document.getElementById('n21MainSourceAll');
+ if(!extra){
+  extra=document.createElement('details');extra.id='n21MainSourceAll';
+  extra.open=true;
+  extra.style.cssText='margin:14px 2px;padding:13px;border:1px solid #346883;border-radius:12px;background:#102034';
+  const anchor=pane.querySelector('.n21-summary-head')||pane.querySelector('.n21-actions');
+  if(anchor)pane.insertBefore(extra,anchor);
+  else pane.append(extra);
+ }
+ const st=reader.status(),list=st.sourceReadings||[];
+ const summary=document.createElement('summary');
+ summary.style.cssText='font-weight:700;color:#8ddafa;cursor:pointer';
+ summary.textContent='ข้อมูลเซ็นเซอร์ FM_diag.cs ครบทุกช่อง · Group '+st.group+' ('+list.length+' ค่า)';
+ const rows=document.createElement('div');
+ rows.style.cssText='display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:7px;margin-top:11px';
+ for(const r of list){
+  const item=document.createElement('div');
+  item.style.cssText='background:#172d40;padding:8px;border-radius:9px;overflow-wrap:anywhere';
+  const name=document.createElement('small');name.textContent=r.name;name.style.color='#a2d3e5';
+  const value=document.createElement('div');
+  value.style.cssText='color:#f3f8ff;font-weight:700;font-size:15px';
+  value.textContent=(r.value===null||r.value===undefined?'—':String(r.value))+(r.unit?' '+r.unit:'');
+  item.append(name,value);rows.append(item);
+ }
+ if(!list.length){
+  rows.textContent='ยังไม่มีชุดข้อมูล ECU ที่อ่านและถอดรหัสสำเร็จ';
+  rows.style.color='#b9cedf';
+ }
+ const wasOpen=extra.open;
+ extra.replaceChildren(summary,rows);
+ extra.open=wasOpen;
 };
 const reader=new MainLiveSession(notify,()=>{
  window.__55LiveV21?.received?.(1);
