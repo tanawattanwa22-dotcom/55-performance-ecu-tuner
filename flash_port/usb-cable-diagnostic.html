@@ -11,8 +11,9 @@ button.secondary{background:#31465b;color:#f7fbff}pre{white-space:pre-wrap;overf
 <h1>55 PERFORMANCE — ตรวจสิทธิ์ USB ของ Android</h1>
 <p><strong>ทดสอบเฉพาะการเปิด/ปิด USB:</strong> อ่าน VID/PID แล้วทดลอง <code>USBDevice.open()</code> และ <code>close()</code> โดยไม่ Claim Interface ไม่ตั้ง Baud ไม่ส่ง Wake/READ/ERASE/WRITE และไม่สื่อสารกับ ECU หรือ K-Line</p>
 <p class="note">ให้ถอดสายที่ต่อเข้า ECU ออกก่อนทดสอบ หน้านี้ใช้ตรวจเฉพาะ FT232R + OTG กับมือถือ</p>
+<p class="note"><strong>จากภาพ Honda Tuner:</strong> Chrome แสดง FT232R (A965S6NF) (0) และ (2) แม้ Serial ซ้ำกัน ให้ปิดพอร์ตในเว็บ Honda Tuner ก่อน แล้วเลือกอุปกรณ์แถว (2) ในหน้าต่าง Android เอง (JavaScript อ่านหมายเลขรายการ Android ไม่ได้)</p>
 <section><p id="state" role="status">ยังไม่ได้ตรวจสาย USB</p>
-<button id="choose">เลือกสาย USB เพื่อดู VID/PID</button>
+<button id="choose">เปิดรายการ USB → เลือก FT232R (2)</button>
 <button id="previous" class="secondary">ตรวจสายที่เคยอนุญาต</button>
 <button id="openCheck" disabled>ทดสอบสิทธิ์เปิด USB (ไม่ส่ง ECU)</button>
 <button id="copy" class="secondary">คัดลอกผล</button>
@@ -46,7 +47,7 @@ async function pick(all){
  try{
   let dev;
   if(all){const list=await navigator.usb.getDevices();if(!list.length){show('ยังไม่มี USB ที่เคยอนุญาต','กดปุ่ม เลือกสาย USB เพื่อดู VID/PID');return}dev=list.find(d=>d.vendorId===0x0403)||list[0]}
-  else dev=await navigator.usb.requestDevice({filters:[]});
+  else dev=await navigator.usb.requestDevice({filters:[{vendorId:0x0403,productId:0x6001}]});
   selected=dev;
   document.getElementById('openCheck').disabled=false;
   const v=describe(dev);
