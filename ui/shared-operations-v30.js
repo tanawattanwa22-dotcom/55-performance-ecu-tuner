@@ -40,7 +40,9 @@ async function dtc(clear=false){
   $('dtcOut').replaceChildren();
   if(clear)event('dtc-clear-result',{ok:0,error:e.message});
  }finally{
-  shared?.release('DTC');event('dtc-result',diag);
+  shared?.release('DTC');
+  if(shared?.snapshot&&!shared.snapshot().connected)await shared.restoreCable?.();
+  event('dtc-result',diag);
   $('dtcRead').disabled=$('dtcClr').disabled=false;dtcBusy=false;
  }
 }
