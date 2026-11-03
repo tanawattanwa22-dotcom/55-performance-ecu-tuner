@@ -1,0 +1,166 @@
+/* 55 PERFORMANCE — Main FM_diag.cs real-time session for the existing Neon UI.
+ * No ADX, demo, calibration or ECU erase/write calls. Main C# diagnostic
+ * groups 1/4/7 are the only read commands allowed by this module.
+ * This cannot prove hardware accuracy without verified bench ECU traces.
+ */
+import {MAIN_CAPTURE_COMMANDS,decodeMainDiagnosticTrace} from './main-source-diagnostic.js';
+import {Ft232rWebUsb} from './ftdi-webusb.js';
+import {HondaFlashEngine} from './honda-write-engine.js';
+
+const WAIT=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+const KEYS=['rpm','tps','map','ect','iat','bat','inj','ign','afr'];
+const MAPPING=Object.freeze({
+ rpm:'RPM',tps:'Throttle TPS',map:'MAP',ect:'ECT',iat:'IAT',
+ bat:'Battery',inj:'Injection',ign:'Ignition',afr:'A/F'
+});
+const FRAME_ALLOWLIST=new Set(Object.values(MAIN_CAPTURE_COMMANDS).flat().map(a=>a.join(',')));
+const EMPTY=()=>Object.fromEntries(KEYS.map(k=>[k,null]));
+const realNum=v=>typeof v==='number'&&Number.isFinite(v)?v:null;
+export function diagnosticToNeon(values,group){
+ const map=new Map(values.map(v=>[v.name,v]));
+ const result=EMPTY();
+ for(const key of KEYS)result[key]=realNum(map.get(MAPPING[key])?.value);
+ if(![1,4].includes(Number(group)))result.afr=null;
+ return result;
+}
+export class MainLiveSession {
+ constructor(onUpdate=()=>{},onSample=()=>{}){
+  this.onUpdate=onUpdate;this.onSample=onSample;
+  this.group=1;this.port=null;this.ecuId='';this.connecting=false;
+  this.running=false;this.stopRequested=false;this.disconnectRequested=false;
+  this.sampleSeq=0;this.sampleAt=0;this.hz=null;this.values=EMPTY();
+  this.recording=false;this.recordStart=0;this.records=[];this.error='';
+ }
+ notify(){this.onUpdate(this);}
+ status(){
+  return {
+   connected:!!this.port?.ready&&!!this.ecuId,
+   cable:!!this.port?.ready,connecting:this.connecting,ecuId:this.ecuId,
+   running:this.running,group:this.group,sampleSeq:this.sampleSeq,sampleAt:this.sampleAt,
+   hz:this.hz,values:{...this.values},recording:this.recording,
+   recordSeconds:this.recording?(Date.now()-this.recordStart)/1000:0,
+   hasLog:this.records.length>0,error:this.error
+  };
+ }
+ setGroup(group){
+  const n=Number(group);
+  if(!Object.hasOwn(MAIN_CAPTURE_COMMANDS,n))throw Error('Main C# ไม่มี Group นี้');
+  if(this.connecting||this.running)throw Error('หยุดอ่านข้อมูลก่อนเปลี่ยน Group');
+  this.group=n;this.values=EMPTY();this.sampleSeq=0;this.sampleAt=0;this.hz=null;
+  this.error='';this.notify();
+ }
+ async connect(){
+  if(this.connecting||this.running||this.port?.ready)return false;
+  this.connecting=true;this.error='';this.disconnectRequested=false;this.notify();
+  let port=null;
+  try{
+   if(!navigator.usb)throw Error('Chrome/Android ต้องรองรับ WebUSB และเปิดผ่าน HTTPS');
+   // User-gesture WebUSB picker: no await before the chooser.
+   const device=await Ft232rWebUsb.choose();
+   if(typeof window.api!=='function')throw Error('ยังไม่พร้อมตรวจ License โปรดเข้าสู่ระบบก่อน');
+   const deviceId=localStorage.getItem('55_device_id');
+   const license=await window.api('check',{device:deviceId});
+   if(!license?.active)throw Error('License ยังไม่พร้อม: โปรดตรวจสิทธิ์ก่อนเชื่อมต่อ');
+   if(this.disconnectRequested)return false;
+   port=new Ft232rWebUsb();this.port=port;
+   await port.openSelected(device);
+   const engine=new HondaFlashEngine(port);
+   const info=await engine.identify();
+   if(!info?.ecuId)throw Error('ECU ไม่ตอบ ID ที่ยืนยันได้');
+   if(this.disconnectRequested){await port.close();this.port=null;return false;}
+   this.ecuId=info.ecuId;this.values=EMPTY();this.notify();
+   return true;
+  }catch(e){
+   this.error='เชื่อมต่อไม่สำเร็จ: '+String(e?.message||e);
+   if(port)try{await port.close()}catch{}
+   this.port=null;this.ecuId='';this.values=EMPTY();this.notify();
+   return false;
+  }finally{this.connecting=false;this.notify()}
+ }
+ async _cycle(group){
+  const frames=MAIN_CAPTURE_COMMANDS[group],capture=[];
+  for(let i=0;i<frames.length;i++){
+   if(this.stopRequested||this.disconnectRequested)return null;
+   const frame=frames[i];
+   if(!FRAME_ALLOWLIST.has(frame.join(','))||frame[2]!==0x72)
+    throw Error('คำสั่งไม่ได้อยู่ในรายการ FM_diag.cs ที่อนุญาต');
+   const {reply,echoOK}=await this.port.exchangeRaw(frame,{timeoutMs:2300,afterWriteMs:50});
+   if(!echoOK)throw Error('ECU echo ไม่ตรงกับคำสั่งอ่าน Group '+group);
+   capture.push(...frame,...reply);
+   if(i<frames.length-1)await WAIT(50);
+  }
+  return capture;
+ }
+ async start(){
+  if(this.connecting||this.running||!this.port?.ready||!this.ecuId)return false;
+  this.running=true;this.stopRequested=false;this.disconnectRequested=false;
+  this.error='';this.values=EMPTY();this.sampleSeq=0;this.sampleAt=0;this.hz=null;
+  this.notify();
+  const group=this.group;
+  // Intentionally no await of the loop: returns immediately and leaves a single
+  // serial owner to finish one in-flight read before a stop or disconnect.
+  void this._loop(group);
+  return true;
+ }
+ async _loop(group){
+  try{
+   while(this.running&&!this.stopRequested&&!this.disconnectRequested){
+    const capture=await this._cycle(group);
+    if(!capture||this.stopRequested||this.disconnectRequested)break;
+    const readings=decodeMainDiagnosticTrace(Uint8Array.from(capture),group);
+    const values=diagnosticToNeon(readings,group);
+    if(!Number.isFinite(values.rpm))throw Error('Main C# ไม่พบข้อมูล RPM ในชุดตอบกลับ');
+    const now=Date.now();
+    if(this.sampleAt){const dt=now-this.sampleAt;this.hz=dt>0?Math.round(1000/dt*10)/10:null}
+    this.sampleAt=now;this.sampleSeq++;this.values=values;
+    if(this.recording){
+     this.records.push({timestamp:new Date(now).toISOString(),ecuId:this.ecuId,group,values:{...values}});
+     if(this.records.length>10000)this.records.shift();
+    }
+    this.onSample(values,this.sampleSeq);this.notify();
+    await WAIT(80);
+   }
+  }catch(e){
+   this.error='Live Data หยุด: '+String(e?.message||e);
+   this.disconnectRequested=true;
+  }finally{
+   this.running=false;this.recording=false;this.stopRequested=false;
+   if(this.disconnectRequested){
+    const port=this.port;this.port=null;this.ecuId='';
+    if(port)try{await port.close()}catch{}
+    this.values=EMPTY();this.hz=null;this.disconnectRequested=false;
+   }
+   this.notify();
+  }
+ }
+ stop(){this.stopRequested=true;this.recording=false;this.notify()}
+ async disconnect(){
+  this.disconnectRequested=true;this.stopRequested=true;this.recording=false;
+  if(!this.running&&!this.connecting){
+   const port=this.port;this.port=null;this.ecuId='';
+   if(port)try{await port.close()}catch{}
+   this.values=EMPTY();this.hz=null;this.disconnectRequested=false;
+  }
+  this.notify();
+ }
+ record(){
+  if(this.recording){this.recording=false;this.notify();return false}
+  if(!this.running||!this.port?.ready)throw Error('เริ่มอ่าน ECU จริงก่อนบันทึก');
+  this.records=[];this.recordStart=Date.now();this.recording=true;this.notify();return true;
+ }
+ exportCsv(){
+  if(!this.records.length){this.error='ยังไม่มีข้อมูลที่บันทึกจาก ECU จริง';this.notify();return false}
+  const quote=x=>'"'+String(x??'').replaceAll('"','""')+'"';
+  const keys=KEYS;
+  const header=['timestamp','ECU_ID','Main_CSharp_group',...keys];
+  const rows=[header.map(quote).join(',')];
+  for(const item of this.records){
+   rows.push([item.timestamp,item.ecuId,item.group,...keys.map(k=>item.values[k]??'')].map(quote).join(','));
+  }
+  const url=URL.createObjectURL(new Blob(['\ufeff'+rows.join('\r\n')],{type:'text/csv;charset=utf-8'}));
+  const a=document.createElement('a');a.href=url;a.download='55_performance_main_live_'+Date.now()+'.csv';
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),3000);
+  return true;
+ }
+}
