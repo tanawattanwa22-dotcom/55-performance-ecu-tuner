@@ -25,8 +25,8 @@ function bench(answers){
    if(!chosen) return {reply:sourceReply(7),echoOK:true};
    return {reply:chosen,echoOK:true};
  }};
- session._restoreAfterProbeLoss=async id=>{
-  assert.equal(id,'0101880D01');
+ session._reopenDiagnostic=async()=>{
+  // Mock reopening the previously authorized FTDI after a timeout.
   restores++;session.port.ready=true;
  };
  return {session,calls,get restores(){return restores}};
