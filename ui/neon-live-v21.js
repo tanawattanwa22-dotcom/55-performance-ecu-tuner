@@ -21,8 +21,8 @@
  };
  const keys=["rpm","tps","map","ect","iat","bat","inj","ign","afr"];
  const names={rpm:"RPM",tps:"TPS",map:"MAP",ect:"ECT",iat:"IAT",bat:"Battery",inj:"Injection",ign:"Ignition",afr:"AFR / A/F"};
- const units={rpm:"รอบ/นาที",tps:"%",map:"kPa",ect:"°C",iat:"°C",bat:"V",inj:"ms",ign:"°BTDC",afr:"AFR"};
- const descriptions={rpm:"ความเร็วรอบเครื่องยนต์",tps:"ตำแหน่งลิ้นเร่ง",map:"ความดันไอดี",ect:"อุณหภูมิน้ำหล่อเย็น",iat:"อุณหภูมิไอดี",bat:"แรงดันแบตเตอรี่",inj:"ระยะเวลาฉีดน้ำมัน",ign:"องศาจุดระเบิด",afr:"อัตราส่วนอากาศ/เชื้อเพลิง (เฉพาะโปรไฟล์ที่ยืนยัน)"};
+ const units={rpm:"รอบ/นาที",tps:"°",map:"kPa",ect:"°C",iat:"°C",bat:"V",inj:"ms",ign:"°BTDC",afr:"AFR"};
+ const descriptions={rpm:"ความเร็วรอบเครื่องยนต์",tps:"มุมลิ้นเร่งจาก Main C#",map:"ความดันไอดี",ect:"อุณหภูมิน้ำหล่อเย็น",iat:"อุณหภูมิไอดี",bat:"แรงดันแบตเตอรี่",inj:"ระยะเวลาฉีดน้ำมัน",ign:"องศาจุดระเบิด",afr:"ค่า A/F ที่คำนวณตาม FM_diag.cs (ไม่ใช่ Wideband ที่ยืนยันแล้ว)"};
  const groups={engine:keys,fuel:["inj","tps","map","afr"],electric:["bat","ign","ect"],sensors:["tps","map","ect","iat","afr"]};
  const icon=document.querySelector("#tune img.lg");
  const header=document.createElement("div");header.id="n21Header";
@@ -56,7 +56,7 @@
   </div>
  </div>
  <div class="n21-metric-grid">${keys.map(k=>`<button type="button" class="n21-metric n21-${k}" data-n21-key="${k}" aria-label="${names[k]}"><span class="n21-metric-icon">${icons[k]}</span><span class="n21-metric-name"><b>${names[k]}</b><small>${descriptions[k]}</small></span><span class="n21-metric-right"><span class="n21-signal">▁▃▅</span><strong id="n21Value-${k}">—</strong><small>${units[k]}</small></span></button>`).join("")}</div>
- <div id="n21AfrNote" class="n21-afr-provenance" role="note">AFR แสดงเฉพาะเมื่อมีโปรไฟล์ Wideband ที่ยืนยัน</div>
+ <div id="n21AfrNote" class="n21-afr-provenance" role="note">A/F อ้างอิงสูตร FM_diag.cs • ไม่รับรองว่าเป็นเซนเซอร์ Wideband</div>
  <div class="n21-summary-head"><div class="n21-section-title"><span class="n21-slash"></span><b>สรุปค่า</b><small>(Min / Max / ปัจจุบัน)</small></div><span id="n21SummaryTime">ไม่มีข้อมูลบันทึก</span></div>
  <div class="n21-summary"><div class="n21-summary-name"><b id="n21SummaryName">RPM</b><small id="n21SummaryUnit">รอบ/นาที</small></div><div><small>ต่ำสุด (Min)</small><strong id="n21Min" class="n21-cyan">—</strong></div><div><small>สูงสุด (Max)</small><strong id="n21Max" class="n21-pink">—</strong></div><div class="n21-summary-now"><small>ปัจจุบัน (Now)</small><strong id="n21SummaryNow">—</strong></div></div>
  <div class="n21-actions">
@@ -64,12 +64,12 @@
   <button type="button" id="n21Reset" class="n21-action n21-action-reset">${icons.reset}<span><b>รีเซ็ตค่า Min-Max</b><small>Reset Min-Max</small></span></button>
   <button type="button" id="n21Csv" class="n21-action n21-action-csv">${icons.csv}<span><b>ส่งออก CSV</b><small>Export CSV</small></span></button>
  </div>
- <div class="n21-live-controls"><button type="button" id="n21Read" class="n21-secondary">⇄ เชื่อมต่อ / เริ่มอ่าน ECU</button><button type="button" id="n21Demo" class="n21-secondary">ดูโหมดจำลอง (DEMO)</button><button type="button" id="n21Advanced" class="n21-secondary">ตั้งค่า / เครื่องมือเพิ่มเติม ⌄</button></div>
+ <div class="n21-live-controls"><button type="button" id="n21Read" class="n21-secondary">⇄ เชื่อมต่อ / เริ่มอ่าน ECU</button><label class="n21-main-group-label">รูปแบบข้อมูลจาก Main C# <select id="n21MainGroup" aria-label="เลือกรูปแบบ Live Data ของ Main C#"><option value="1">Group 1 · A/F คำนวณ</option><option value="4">Group 4 · A/F คำนวณ</option><option value="7">Group 7 · ไม่มี A/F</option></select></label></div>
  <div id="n21SourceNotice" class="n21-source-notice">ยังไม่ได้เชื่อมต่อ ECU • ค่าจะเป็น — จนกว่าจะอ่านได้จริง</div>
- <div class="n21-advanced-links"><button type="button" data-n21-mode="afr">ทดสอบ AFR</button><button type="button" data-n21-mode="dtc">DTC / รหัสผิดพลาด</button><button type="button" data-n21-mode="log">Log ขั้นสูง</button><button type="button" data-n21-mode="tune">ช่วยจูนจาก Log</button></div>`;
+`;
  $("lvBody").insertBefore(pane,$("lvBody").firstElementChild);
  const meterEls=Object.fromEntries(keys.map(k=>[k,$("n21Value-"+k)]));
- let selected="rpm",windowMs=30000,expanded=false,lastSource="idle",lastSample=0,lastRender=0;
+ let selected="rpm",windowMs=30000,expanded=false,lastSource="idle",lastSample=0,lastProcessed=0,lastRender=0;
  const samples=[],stats=new Map(),frames=[];
  const fmt=(v,k)=>v==null||!Number.isFinite(v)?"—":v.toLocaleString("en-US",{maximumFractionDigits:({bat:1,inj:2,ign:1,tps:1,map:1,ect:0,iat:0,rpm:0,afr:2})[k]??1});
  const hhmmss=sec=>{const n=Math.max(0,Math.floor(sec));return[Math.floor(n/3600),Math.floor(n/60)%60,n%60].map(x=>String(x).padStart(2,"0")).join(":")};
@@ -102,8 +102,9 @@
   const s=api.snapshot(),now=Date.now(),values={...(s.values||{})},mode=s.mode||"gauge";
   if(s.demo||!s.afrSupported)values.afr=null;
   live.classList.toggle("n21-gauge",mode==="gauge");
-  if(s.source!==lastSource){samples.length=0;stats.clear();frames.length=0;lastSample=0;lastSource=s.source}
-  if(s.run&&now-lastSample>=120&&keys.some(k=>values[k]!=null)){
+  if(s.source!==lastSource){samples.length=0;stats.clear();frames.length=0;lastSample=0;lastProcessed=0;lastSource=s.source}
+  if(s.run&&s.source==="ecu"&&s.sampleSeq>lastProcessed&&keys.some(k=>values[k]!=null)){
+   lastProcessed=s.sampleSeq;
    lastSample=now;const item={t:now};
    for(const k of keys){item[k]=values[k];if(values[k]!=null&&Number.isFinite(values[k])){
     const v=values[k],r=stats.get(k)||{min:v,max:v};r.min=Math.min(r.min,v);r.max=Math.max(r.max,v);stats.set(k,r)}}
@@ -113,32 +114,30 @@
   $("n21ModelTxt").textContent=s.model||"เลือกรุ่น";
   $("n21Connection").classList.toggle("n21-linked",!!s.connected);
   $("n21ConnTitle").textContent=s.demo?"DEMO (จำลอง)":s.connected?"● ECU เชื่อมต่อแล้ว":s.cable?"ต่อสายแล้ว · รอ ECU ID":"ยังไม่เชื่อมต่อ ECU";
-  $("n21ConnSub").textContent=s.demo?"ไม่ใช่ค่ากล่องจริง":s.connected?(s.model||"ECU")+(s.profAvailable?" · มีผังเซ็นเซอร์":" · ไม่มีผังเซ็นเซอร์"):"แตะเพื่อเชื่อมต่อ FTDI";
+  $("n21ConnSub").textContent=s.connected?"ECU ID "+(s.ecuId||"—")+" · Main FM_diag.cs":s.connecting?"กำลังเชื่อมต่อ FT232R / ECU ID":"แตะเพื่อเชื่อมต่อ FT232R";
   $("n21Protocol").textContent=s.demo?"DEMO":s.protocol||"—";
   while(frames.length&&frames[0]<now-4000)frames.shift();
   const isReal=s.run&&s.source==="ecu"&&s.connected;
-  $("n21Rate").textContent=isReal&&frames.length>1?(frames.length/4).toFixed(1)+" Hz":"— Hz";
+  $("n21Rate").textContent=isReal&&Number.isFinite(s.refreshHz)?s.refreshHz.toFixed(1)+" Hz":"— Hz";
   $("n21Rec").textContent=s.recording?"● REC":s.hasLog?"Log พร้อมส่งออก":"ยังไม่บันทึก";
   $("n21Rec").classList.toggle("recording",s.recording);$("n21Timer").textContent=hhmmss(s.recordSeconds||0);
   $("n21RecordBtn").querySelector("b").textContent=s.recording?"หยุดบันทึก":"เริ่มบันทึก";
   $("n21RecordBtn").querySelector("small").textContent=s.recording?"Stop":"Record";
   $("n21RecordBtn").disabled=!s.recording&&!isReal;$("n21Csv").disabled=!s.hasLog&&!s.recording;
-  $("n21Read").textContent=isReal?"■ หยุดอ่าน ECU":s.connected?"▶ เริ่มอ่านจาก ECU":"⇄ เชื่อมต่อ FTDI / ECU";
+  $("n21Read").textContent=isReal?"■ หยุดอ่าน ECU":s.connecting?"กำลังเชื่อมต่อ…":s.connected?"▶ เริ่มอ่านจาก ECU":"⇄ เชื่อมต่อ FT232R / ECU";
+  $("n21Read").disabled=!!s.connecting;
+  $("n21MainGroup").disabled=!!s.connecting||!!s.run;
+  $("n21MainGroup").value=String(s.group||1);
   $("n21SummaryTime").textContent=s.recording?"บันทึก "+hhmmss(s.recordSeconds):s.demo?"โหมดจำลอง":"ข้อมูล "+samples.length+" ชุด";
-  $("n21SourceNotice").textContent=s.demo?"DEMO — ตัวเลขจำลองเพื่อดูหน้าตา ไม่ใช่ข้อมูล ECU":
-   isReal?(s.profAvailable?"LIVE ECU — แสดงเฉพาะค่าที่อ่านได้จริง":"เชื่อมต่อ ECU แล้ว แต่รุ่นนี้ไม่มีผังเซ็นเซอร์ที่ยืนยัน ค่าที่ไม่มีจะแสดง —"):
-   s.connected?"เชื่อมต่อแล้ว · กดเริ่มอ่านข้อมูล ECU":"ยังไม่เชื่อมต่อ ECU • ค่าที่ไม่มีจะแสดง — ไม่ใส่ตัวเลขตัวอย่าง";
+  $("n21SourceNotice").textContent=s.message||"ยังไม่ได้เชื่อมต่อ ECU • ค่าที่ไม่มีจะแสดง —";
   $("n21SourceNotice").classList.toggle("n21-demo-note",s.demo);
-  $("n21AfrNote").textContent=s.demo?"AFR ไม่ใช้ตัวเลขจำลอง":s.afrSupported?
-   "AFR: ใช้ค่าที่อ่านจากผัง Wideband ECU ที่ยืนยัน · ไม่ใช่ค่า O2 โวลต์":
-   "AFR: รุ่นนี้ยังไม่มีผัง Wideband ที่ยืนยัน (Main C# มี A/F เฉพาะกลุ่ม 1/4) จึงแสดง —";
+  $("n21AfrNote").textContent=s.afrSource||"Main C# Group 7 ไม่มีค่า A/F";
   for(const k of keys){const value=k==="afr"&&(s.demo||!s.afrSupported)?null:values[k];meterEls[k].textContent=fmt(value,k);pane.querySelector(`[data-n21-key="${k}"]`).classList.toggle("n21-missing",value==null)}
   $("n21NowName").textContent=names[selected]+" (ปัจจุบัน)";$("n21NowValue").textContent=fmt(values[selected],selected);$("n21NowUnit").textContent=units[selected];
   $("n21SummaryName").textContent=names[selected];$("n21SummaryUnit").textContent=units[selected];
   const r=stats.get(selected);$("n21Min").textContent=fmt(r?.min,selected);$("n21Max").textContent=fmt(r?.max,selected);
   $("n21SummaryNow").textContent=fmt(values[selected],selected);
-  $("n21ChartFoot").textContent=s.demo?"DEMO · ไม่ใช่ค่าจาก ECU":
-   samples.some(p=>p[selected]!=null)?"กราฟค่าที่อ่านได้ • ช่วง "+windowMs/1000+" วินาที":"รอข้อมูล "+names[selected]+" จาก ECU";
+  $("n21ChartFoot").textContent=samples.some(p=>p[selected]!=null)?"กราฟข้อมูล FM_diag.cs • ช่วง "+windowMs/1000+" วินาที":"รอข้อมูล "+names[selected]+" จาก ECU จริง";
   if(now-lastRender>=160){lastRender=now;requestAnimationFrame(draw)}
  }
  $("n21Back").onclick=()=>api.home("dashboard");
@@ -165,10 +164,8 @@
  $("n21RecordBtn").onclick=()=>{api.record();render()};
  $("n21Reset").onclick=()=>{samples.length=0;stats.clear();lastSample=0;render()};
  $("n21Csv").onclick=()=>{api.exportCsv();render()};
- $("n21Read").onclick=()=>{const s=api.snapshot();if(s.source==="ecu"&&s.run)api.stopEcu();else if(s.connected)api.startEcu();else api.connect();render()};
- $("n21Demo").onclick=()=>{api.demo();render()};
- $("n21Advanced").onclick=()=>{live.classList.toggle("n21-advanced");$("n21Advanced").textContent=live.classList.contains("n21-advanced")?"ซ่อนเครื่องมือเพิ่มเติม ⌃":"ตั้งค่า / เครื่องมือเพิ่มเติม ⌄"};
- for(const b of pane.querySelectorAll("[data-n21-mode]"))b.onclick=()=>{api.mode(b.dataset.n21Mode);render()};
+ $("n21Read").onclick=async()=>{const s=api.snapshot();if(s.source==="ecu"&&s.run)api.stopEcu();else if(s.connected)api.startEcu();else{const ok=await api.connect();if(ok)api.startEcu()}render()};
+ $("n21MainGroup").onchange=e=>{window.__55MainLive?.setGroup(e.target.value);samples.length=0;stats.clear();render()};
  window.__55LiveV21={
   render,
   modeChanged:m=>{live.classList.toggle("n21-gauge",m==="gauge");requestAnimationFrame(render)},
