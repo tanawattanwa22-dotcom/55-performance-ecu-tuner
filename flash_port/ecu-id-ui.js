@@ -13,7 +13,7 @@ export function ecmIdentificationLines(r){
  const lines=[
   ['ECM ID ที่อ่านได้',r.ecuId],
   ['Part Code',r.conflict?'ข้อมูลขัดแย้ง — กรุณาตรวจฉลาก ECU':(r.partCode||'ไม่พบรหัสในตาราง')],
-  ['รุ่นรถ',r.conflict||r.ambiguous?'ต้องเลือกจากข้อมูลที่ตรงกันก่อน':(r.model||'ไม่มีชื่อรุ่นจากภาพ KTR')],
+  ['รุ่นรถ',r.conflict||r.ambiguous?'ต้องเลือกจากข้อมูลที่ตรงกันก่อน':(r.model||'ไม่มีชื่อรุ่นในฐานข้อมูล 55 Performance')],
   ['ชนิด ECU',r.family||'ยังไม่ยืนยัน'],
   ['ขนาด BIN อ้างอิง',r.sizeKB?r.sizeKB+' KB':'ไม่มีข้อมูลยืนยัน'],
   ['แหล่งข้อมูล',r.source]
@@ -21,10 +21,10 @@ export function ecmIdentificationLines(r){
  return lines;
 }
 function status(r){
- if(r.conflict)return 'พบข้อมูลขัดแย้งระหว่าง C# กับตาราง KTR — ตรวจกล่องจริงก่อน';
+ if(r.conflict)return 'พบข้อมูลขัดแย้งระหว่าง C# กับฐานข้อมูล 55 Performance — ตรวจกล่องจริงก่อน';
  if(r.ambiguous)return 'หนึ่ง ECM ID พบหลาย Part Code — ห้ามเลือกอัตโนมัติ';
  if(!r.partCode)return 'ECU ตอบกลับแล้ว แต่ยังไม่พบรหัสนี้ในฐานที่อ่านได้';
- if(r.needsReview)return 'พบในตาราง KTR แต่ต้นฉบับบางส่วนต้องตรวจซ้ำ';
+ if(r.needsReview)return 'พบในฐานข้อมูล 55 Performance แต่ข้อมูลต้นฉบับบางส่วนต้องตรวจซ้ำ';
  return 'จับคู่รหัส ECM ID กับ Part Code ได้จากฐานอ้างอิง';
 }
 export function renderEcmIdentification(element,result){
@@ -43,7 +43,7 @@ export function renderEcmIdentification(element,result){
   'margin-top:10px;padding:9px;border-radius:9px;background:#304052;color:#f9dfb8;font-size:12px');
  element.append(msg);
  if(result.candidates.length>1){
-  const more=node('div','รายการจากตาราง KTR: '+result.candidates.map(x=>x.partCode+' / '+x.model).join(' • '),
+  const more=node('div','รายการจากฐานข้อมูล 55 Performance: '+result.candidates.map(x=>x.partCode+' / '+x.model).join(' • '),
    'color:#ffdca9;font-size:12px;margin-top:7px;overflow-wrap:anywhere');
   element.append(more);
  }
@@ -65,7 +65,7 @@ export function showEcmPopup(result){
  const summary=node('div');
  renderEcmIdentification(summary,result);
  const actions=node('div',null,'display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:16px');
- const openCatalog=node('a','เปิดทะเบียน ECM KTR',
+ const openCatalog=node('a','เปิดฐานข้อมูล ECM • 55 Performance',
   'color:#e8c8ff;padding:10px 12px;border:1px solid #7e73a8;border-radius:9px;text-decoration:none;font-weight:600');
  openCatalog.href=new URL('../ktr/index.html?q='+encodeURIComponent(result.ecuId),import.meta.url).href;
  openCatalog.target='_blank';openCatalog.rel='noopener';
