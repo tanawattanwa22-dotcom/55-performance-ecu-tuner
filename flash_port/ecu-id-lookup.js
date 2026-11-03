@@ -79,7 +79,7 @@ export function combineEcmSources(ecuId,{ktrRows=[],csharp=null,remoteUsed=false
     family,sizeKB:sizes.length===1?sizes[0]:null,
     candidates,ktrMatched:candidates.length>0,csharpMatched:matchedCSharp,
     csharpPart:matchedCSharp?csharp.part:null,
-    source:matchedCSharp?(candidates.length?'C# + KTR':'C# FormMain.cs'):(candidates.length?'KTR image':'NOT_FOUND'),
+    source:matchedCSharp?(candidates.length?'C# + 55 Performance':'C# FormMain.cs'):(candidates.length?'55 Performance • ฐานข้อมูล ECM':'NOT_FOUND'),
     ambiguous,conflict,needsReview:candidates.some(x=>x.reviewRequired),
     remoteUsed,flashApproved:false,
     status:conflict?'CONFLICT':ambiguous?'AMBIGUOUS':showPart?'MATCHED':'UNKNOWN'
