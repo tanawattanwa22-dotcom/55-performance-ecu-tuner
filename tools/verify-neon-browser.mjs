@@ -130,7 +130,7 @@ try{
   assert.equal(await page.locator('#live').evaluate(el=>el.classList.contains('on')),true,'main Live opens in original full-screen Neon page');
   assert.equal(await page.locator('#n21Pane').isVisible(),true,'original Live dashboard is visible');
   assert.equal(await page.locator('#n21Pane .n21-metric').count(),9,'nine original neon sensor tiles, including C# A/F');
-  assert.equal((await page.locator('#n21MainGroup option').count()),3,'Main source groups 1/4/7 selectable within Neon');
+  assert.equal((await page.locator('#n21MainGroup option').count()),4,'Main source groups 1/4/7 selectable within Neon');
   assert.equal(await page.locator('#n21Demo').count(),0,'no simulated sensor mode exposed');
   assert.equal((await page.locator('#n21ConnTitle').innerText()).includes('ยังไม่เชื่อมต่อ'),true,'no invented ECU connection');
   assert.equal((await page.locator('#n21Value-rpm').innerText()).trim(),'—','no invented ECU RPM');
