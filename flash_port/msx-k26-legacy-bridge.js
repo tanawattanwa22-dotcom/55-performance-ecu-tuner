@@ -138,7 +138,7 @@ function prepare(meta,bin){
   const oneBit=Number.isInteger(f.mask)&&f.mask>0&&(f.mask&(f.mask-1))===0;
   const addressOK=Number.isInteger(f.addr)&&f.addr>0&&f.addr<N;
   // Only edit one unambiguous bit outside identity/overlapping code.
-  const safe=oneBit&&addressOK&&!protectedBytes.has(f.addr)&&!occupied.has(f.addr);
+  const safe=oneBit&&addressOK&&!occupied.has(f.addr);
   if(safe)good.add(f.addr);
   const why=!addressOK?'XDF ไม่ได้ระบุที่อยู่สวิตช์ที่ใช้ได้':
    !oneBit?'XDF ใช้มาสก์หลายบิตหรือมาสก์ศูนย์ · ยังยืนยันไม่ได้':
