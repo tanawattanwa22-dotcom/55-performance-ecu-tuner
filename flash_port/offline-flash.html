@@ -1,0 +1,52 @@
+<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>55 PERFORMANCE · OFFLINE FLASH MODE</title>
+<style>:root{color-scheme:dark}body{margin:0;background:#091322;color:#e2eeff;font:15px system-ui}main{max-width:700px;margin:auto;padding:18px}h1{font-size:24px}section{border:1px solid #35516e;background:#12223b;border-radius:15px;padding:16px;margin:13px 0}.warn{background:#362517;border-color:#bf8245}button,a.link{display:block;width:100%;box-sizing:border-box;padding:13px;margin:9px 0;border-radius:11px;background:#25517c;color:white;text-align:center;border:1px solid #6589b1;font:inherit;text-decoration:none}button:disabled{opacity:.5}pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;background:#08111c;padding:12px;border-radius:8px}</style></head><body><main>
+<a href="../index.html">← กลับหน้าโปรแกรมหลัก</a><h1>55 PERFORMANCE · OFFLINE FLASH MODE</h1>
+<p>แยกจาก Flash Bench เดิม • ใช้ไลบรารีอ่าน ECU ID / คำนวณ BIN / จำลอง ERASE–WRITE เดียวกัน</p>
+<section class="warn"><b>สถานะ: Offline Bench / Read-only + Software Simulator</b><p>หน้านี้ไม่ส่ง ERASE/WRITE ไปยัง ECU จริง การอัดจริงยังอยู่ใน Flash Bench เดิมและต้องตรวจ License ออนไลน์ โปรแกรมออฟไลน์ไม่ได้ปลดล็อกสิทธิ์และไม่ยืนยันความปลอดภัยในการอัดกล่อง</p></section>
+<section><h2>1. ติดตั้งชุด Offline</h2><button id="install">ดาวน์โหลดไฟล์โปรแกรมลง Cache เครื่อง</button><pre id="installStatus">ยังไม่ติดตั้ง</pre><p>ติดตั้งครั้งแรกต้องมีอินเทอร์เน็ต หลังจากนั้นหน้านี้และชุดตรวจ BIN/จำลองจะเปิดได้จากแคช หาก Chrome ยังเก็บข้อมูลเว็บไซต์ไว้</p></section>
+<section><h2>2. อ่าน ECU ID ด้วย FT232R</h2><button id="connect">เชื่อมต่อ FT232R / K-Line</button><button id="identify" disabled>อ่าน ECU ID (ไม่ลบ/เขียน)</button><button id="disconnect" disabled>ตัดการเชื่อมต่อ</button><pre id="ecu">ยังไม่เชื่อมต่อ</pre></section>
+<section><h2>3. ตรวจ BIN จาก Main C#</h2><input id="bin" type="file" accept=".bin,application/octet-stream"><button id="inspect">ตรวจ BIN ID / ประเภท ECU / Offset</button><pre id="result">ยังไม่ได้เลือก BIN</pre></section>
+<section><h2>4. ทดสอบขั้นตอน Flash</h2><a class="link" href="./main-full-flash-simulator.html">เปิดตัวจำลอง Keihin / Shindengen / Recovery / 384 KB</a><p>ทดสอบด้วย ECU จำลองในเครื่อง ไม่ใช่กล่องจริง</p></section>
+<section><h2>Flash Bench เดิม (ออนไลน์)</h2><a class="link" href="./flash-write-lab.html">เปิดโหมดแฟลชเดิม — ต้องใช้ License ออนไลน์</a></section>
+</main><script type="module">
+import {Ft232rWebUsb} from './ftdi-webusb.js';
+import {HondaFlashEngine} from './honda-write-engine.js';
+import {readBinId} from './bin-tools.js';
+import {inspectCSharpEcuType} from './csharp-logic.js';
+import {csharpOffsetInference} from './csharp-offsets.js';
+const $=id=>document.getElementById(id);let port=null,engine=null,busy=false;
+const show=(id,s)=>$(id).textContent=s;
+function update(){$('connect').disabled=busy||!!port;$('identify').disabled=busy||!port?.ready;$('disconnect').disabled=busy||!port}
+$('install').onclick=async()=>{
+ try{if(!('serviceWorker' in navigator))throw Error('Chrome ไม่รองรับ Service Worker');
+ const reg=await navigator.serviceWorker.register('../sw.js');
+ await navigator.serviceWorker.ready;
+ const cache=await caches.open('55ecu-offline-flash-v28');
+ const files=['./offline-flash.html','./main-full-flash-simulator.html','./ftdi-webusb.js','./honda-write-engine.js','./flash-frames.js','./flash-profiles.js','./bin-tools.js','./bin-id-table.js','./csharp-logic.js','./csharp-offsets.js','./csharp-ecu-catalog.js','./main-source-diagnostic.js'];
+ const urls=files.map(x=>new URL(x,location.href).href);
+ await cache.addAll(urls);
+ show('installStatus','ติดตั้งสำเร็จ '+urls.length+' ไฟล์\nตรวจได้จาก Cache Storage ของ Chrome\nเปิดออฟไลน์ได้ตราบใดที่ Chrome ไม่ล้างข้อมูลเว็บไซต์');
+ }catch(e){show('installStatus','ติดตั้งไม่สำเร็จ: '+e.message)}
+};
+$('connect').onclick=async()=>{
+ busy=true;update();
+ try{const dev=await Ft232rWebUsb.choose();port=new Ft232rWebUsb();await port.openSelected(dev);
+ engine=new HondaFlashEngine(port);show('ecu','FT232R พร้อม · ยังไม่ได้อ่าน ECU ID');
+ }catch(e){port=null;engine=null;show('ecu','เชื่อมต่อไม่ได้: '+e.message)}
+ finally{busy=false;update()}
+};
+$('identify').onclick=async()=>{
+ busy=true;update();try{const info=await engine.identify();show('ecu',JSON.stringify(info,null,2))}
+ catch(e){show('ecu','อ่าน ECU ID ไม่สำเร็จ: '+e.message)}
+ finally{busy=false;update()}
+};
+$('disconnect').onclick=async()=>{busy=true;update();try{await port?.close()}catch{}port=null;engine=null;busy=false;update();show('ecu','ตัดสายแล้ว')};
+$('inspect').onclick=async()=>{
+ try{const f=$('bin').files?.[0];if(!f)throw Error('เลือกไฟล์ BIN ก่อน');
+ const data=new Uint8Array(await f.arrayBuffer());const id=readBinId(data);
+ const type=inspectCSharpEcuType(data);const offset=csharpOffsetInference(data);
+ show('result',JSON.stringify({filename:f.name,bytes:data.length,binId:id,ecuType:type,offset,hardwareFlashAllowed:false},null,2));
+ }catch(e){show('result','BIN ERROR: '+e.message)}
+};
+update();
+</script></body></html>
