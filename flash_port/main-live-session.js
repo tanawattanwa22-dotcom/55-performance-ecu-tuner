@@ -43,7 +43,7 @@ export class MainLiveSession {
  notify(){this.onUpdate(this);}
  status(){
   return {
-   connected:!!this.port?.ready&&!!this.ecuId,
+   connected:!!this.port?.ready,
    cable:!!this.port?.ready,connecting:this.connecting,ecuId:this.ecuId,
    running:this.running,group:this.detectedGroup??this.group,groupMode:this.group,
    group4Variant:this.group4Variant,sampleSeq:this.sampleSeq,sampleAt:this.sampleAt,
@@ -79,11 +79,13 @@ export class MainLiveSession {
    port=new Ft232rWebUsb();this.port=port;
    await port.openSelected(device);
    this.phase='ECU_ID_PROBE';this.notify();
-   const engine=new HondaFlashEngine(port);
-   const info=await engine.identify();
-   if(!info?.ecuId)throw Error('ECU ไม่ตอบ ID ที่ยืนยันได้');
+   // Read-only diagnostic mode: do not require a flash-session identity
+   // before attempting the Main C# diagnostic group probe. Flash paths
+   // retain their separate mandatory ECU ID / BIN compatibility checks.
+   this.ecuId='';
+   this.phase='DIAGNOSTIC_READY';this.notify();
    if(this.disconnectRequested){await port.close();this.port=null;return false;}
-   this.ecuId=info.ecuId;this.values=EMPTY();this.phase='ECU_IDENTIFIED';this.notify();
+   this.values=EMPTY();this.phase='DIAGNOSTIC_READY';this.notify();
    return true;
   }catch(e){
    const denied=e?.name==='SecurityError'||/Access denied|SecurityError/.test(String(e?.message||''));
@@ -108,8 +110,7 @@ export class MainLiveSession {
   if(info.ecuId!==expectedId){await replacement.close();throw Error('ECU ID เปลี่ยนหลัง probe; หยุดอ่านข้อมูล');}
  }
  async detectGroup(){
-  if(!this.port?.ready||!this.ecuId)throw Error('ต้องอ่าน ECU ID ก่อนตรวจกลุ่ม Live');
-  const expectedId=this.ecuId;
+  if(!this.port?.ready)throw Error('ต้องเปิด FT232R ก่อนตรวจกลุ่ม Live');
   this.detectedGroup=null;this.group4Variant=null;
   for(const candidate of SOURCE_AUTO_PROBE_ORDER){
    if(this.stopRequested||this.disconnectRequested)return null;
@@ -126,7 +127,7 @@ export class MainLiveSession {
    }catch(error){
     // An unsupported group may time out. Restore a clean, identified session
     // before the next read. If recovery is unsuccessful, fail closed.
-    if(!this.port?.ready)await this._restoreAfterProbeLoss(expectedId);
+    if(!this.port?.ready)throw Error('Diagnostic probe timeout: FTDI closed; ตรวจ Echo/RX และ K-Line ก่อนลองใหม่');
    }
   }
   if(!this.port?.ready)throw Error('FT232R ไม่พร้อมหลังตรวจกลุ่ม Live');
@@ -147,7 +148,7 @@ export class MainLiveSession {
   return capture;
  }
  async start(){
-  if(this.connecting||this.running||!this.port?.ready||!this.ecuId)return false;
+  if(this.connecting||this.running||!this.port?.ready)return false;
   this.running=true;this.phase='LIVE_CAPTURE';this.stopRequested=false;this.disconnectRequested=false;
   this.error='';this.values=EMPTY();this.sampleSeq=0;this.sampleAt=0;this.hz=null;
   this.notify();
