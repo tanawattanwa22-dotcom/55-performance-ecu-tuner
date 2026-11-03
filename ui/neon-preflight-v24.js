@@ -45,7 +45,8 @@ function addChecklist(box){
  const list=make('div','n24-check-list');const checks=[
   ['bin','BIN ที่บันทึกยังตรงกับตารางและรุ่น'],
   ['id','อ่าน ECU ID จากกล่องจริง'],
-  ['catalog','ECU ID / Family อยู่ในฐาน Main C#'],
+  ['catalog','ECU ID อยู่ในฐาน 290 รายการ'],
+  ['family','ยืนยัน Family จากเซสชัน ECU จริง'],
   ['offset','ตรวจ Memory Map / Offset / Checksum'],
   ['hardware','ตรวจไฟเลี้ยง สาย K-Line และวงจรกู้คืนด้วยตนเอง']
  ];
@@ -70,7 +71,7 @@ function render(){
  setItem('part',identity?(source?.part||identity.sourcePart||'ไม่ระบุใน Main C#'):'—');
  setItem('family',identity?(source?.family||identity.family||'ไม่ระบุ'):'—');
  setItem('flashcount',Number.isInteger(identity?.count)?identity.count+' ครั้ง':'อ่านไม่ได้');
- setItem('sourceMatch',identity?(identity.sourceMatched?'ECU ID + Family ยืนยันแล้ว':source?(source.part?'พบ ID ในฐาน · ยังไม่ยืนยัน Family':'พบ ID แต่ไม่มี Part Code'):'ไม่พบ ECU ID ในฐาน 290'):'รอ ECU');
+ setItem('sourceMatch',identity?(identity.sourceMatched?'ยืนยัน ID และ Family แล้ว':source?(source.part?'พบ ECU ID ในฐาน 290 · Family ยังไม่ยืนยัน':'พบ ECU ID แต่ไม่มี Part Code'):'ECU ID นี้ไม่พบในฐาน 290'):'รออ่าน ECU ID จริง');
  setItem('start',plan?X(plan.startOffset):source?sourceOffset(source.startOffset,source.startOffsetText):'—');
  setItem('checksum',plan?X(plan.checksumOffset):source?sourceOffset(source.checksumOffset,source.checksumOffsetText):'—');
  setItem('block',Number.isInteger(plan?.blockBytes)?plan.blockBytes.toLocaleString()+' bytes':'—');
@@ -81,13 +82,14 @@ function render(){
  const status={
   bin:c.valid,
   id:!!identity?.ecuId&&progress,
-  catalog:!!identity?.sourceMatched&&progress,
+  catalog:!!source&&progress,
+  family:!!identity?.sourceMatched&&progress,
   offset:!!plan,
   hardware:false
  };
  for(const [k,obj] of Object.entries(dom).filter(([k])=>k.startsWith('check_'))){
   const key=k.slice(6),ok=status[key];
-  obj.state.textContent=ok?'ผ่าน':key==='hardware'?'ต้องตรวจด้วยตนเอง':'รอตรวจ';
+  obj.state.textContent=ok?'ผ่าน':key==='hardware'?'ต้องตรวจด้วยตนเอง':key==='family'&&identity?.ecuId?'ยังไม่ยืนยัน':'รอตรวจ';
   obj.ico.textContent=ok?'✓':key==='hardware'?'!':'○';
   obj.row.classList.toggle('passed',ok);
  }
@@ -99,7 +101,9 @@ function render(){
   const blockers=[];
   if(!c.valid)blockers.push('ยังไม่ได้บันทึกไฟล์ BIN ที่ตรงกับรุ่น');
   if(!recency()||!last?.identity?.ecuId)blockers.push('ยังไม่มี ECU ID ล่าสุดจากสาย FT232R');
-  else if(!last.identity.sourceMatched)blockers.push('ECU ID ยังไม่ตรงฐาน Main C#');
+  else if(!catalogRecord(last.identity))blockers.push('ไม่พบ ECU ID '+last.identity.ecuId+' ในฐาน 290');
+  else if(!catalogRecord(last.identity)?.part)blockers.push('ต้นฉบับไม่มี Part Code สำหรับ ECU ID '+last.identity.ecuId);
+  else if(!last.identity.sourceMatched)blockers.push('พบ ECU ID ในฐานแล้ว แต่ Family ยังไม่ได้ยืนยันจากเซสชัน ECU จริง ('+last.identity.handshake+')');
   if(!last?.plan||!verified())blockers.push('ยังไม่ผ่านการตรวจ Offset/Checksum/Part');
   if($('btnFlash')?.hidden||$('btnFlash')?.disabled)blockers.push('ปุ่ม Flash เดิมยังถูกล็อกจากสถานะ BIN หรือ License');
   if(working||INLINEFLASH.busy)blockers.push('โปรแกรมกำลังทำงาน');
@@ -113,7 +117,7 @@ function render(){
  }
  const ready=verified();
  dom.title.textContent=ready?'ผ่านการตรวจซอฟต์แวร์ (ยังไม่ได้ ERASE)':
-  working?'กำลังอ่าน ECU / ตรวจ Preflight':'รอการตรวจ Preflight';
+  working?'กำลังอ่าน ECU / ตรวจ Preflight':identity?.ecuId&&source?.part&&!identity.sourceMatched?'พบ ECU ID ในฐาน · รอยืนยัน Family':'รอการตรวจ Preflight';
  dom.title.classList.toggle('ready',ready);
 }
 async function saveHash(c){
@@ -147,9 +151,11 @@ async function readECU(){
   const identity=await engine.identify();
   const c=current();
   last={identity,engine,at:Date.now(),saved:c.valid?c.saved:null,model:c.model,plan:null};
+  const found=catalogRecord(identity);
   message=identity.sourceMatched?
-   'อ่าน ECU ID จริงแล้ว · ใช้สายหลักร่วมกัน · กดตรวจ Preflight':
-   'อ่าน ECU ID แล้ว แต่ยังไม่ตรงฐาน C# · ไม่อนุญาตให้เตรียมอัด';
+   'อ่าน ECU ID '+identity.ecuId+' และยืนยัน Family แล้ว · กดตรวจ Preflight':
+   found?'อ่าน ECU ID '+identity.ecuId+' ได้จริง · พบในฐาน 290 ('+found.family+') แต่เซสชัน '+identity.handshake+' ยังไม่ยืนยัน Family สำหรับแฟลช':
+   'อ่าน ECU ID '+identity.ecuId+' ได้จริง แต่ไม่พบในฐาน 290 รายการ · ตรวจรุ่นกล่อง/คำตอบดิบก่อน';
  }catch(e){
   last=null;
   error=e?.message||String(e);
@@ -166,7 +172,14 @@ async function runCheck(){
   const c=current();
   if(!c.valid)throw Error('BIN ไม่ได้บันทึกหรือถูกแก้ภายหลัง · ต้องบันทึกใหม่');
   if(!last||!recency()||last.saved!==c.saved||last.model!==c.model)throw Error('ผล ECU ID หมดอายุหรือคนละไฟล์ · กรุณาอ่าน ECU ID ใหม่');
-  if(!last.identity.sourceMatched)throw Error('ECU ID หรือ Family ไม่ตรงฐานต้นฉบับ Main C#');
+  const catalog=catalogRecord(last.identity);
+  if(!catalog)throw Error('อ่าน ECU ID '+last.identity.ecuId+' แล้ว แต่ไม่มีรหัสนี้ในฐาน Main C# 290 รายการ');
+  if(!catalog.part)throw Error('ECU ID '+last.identity.ecuId+' อยู่ในฐาน แต่ต้นฉบับไม่มี Part Code · ใช้อ้างอิงเท่านั้น');
+  if(!last.identity.sourceMatched){
+   message='ตรวจฐาน Main C# ผ่าน: ECU ID '+last.identity.ecuId+' / '+catalog.part+' ('+catalog.family+') • ยังไม่ได้ยืนยัน Family จากเซสชัน '+last.identity.handshake+' จึงยังไม่อนุญาต ERASE/WRITE';
+   last.plan=null;
+   return;
+  }
   await saveHash(c);
   // makePlan() is a strict calculation only: no USB communication, no erase, no write.
   const plan=last.engine.makePlan(c.bytes.slice(),{filename:c.saved.filename,fast:false,recovery:false});
