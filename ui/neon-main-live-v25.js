@@ -2,7 +2,7 @@
  * Main FM_diag.cs reader is the sole source of real-time sensor values.
  * The legacy ADX/DEMO live engine is never called by this bridge.
  */
-import {MainLiveSession} from '../flash_port/main-live-session.js?v=326';
+import {MainLiveSession} from '../flash_port/main-live-session.js?v=329';
 const old=window.__55LiveBridge;
 if(!old)throw Error('Live UI bridge must be installed before Main V25');
 const originalSnapshot=old.snapshot.bind(old);
@@ -123,7 +123,7 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
  const rescan=document.createElement('button');rescan.className='btn';
  rescan.textContent='สแกน ECU อีกครั้ง';rescan.title='ใช้เมื่อเสียบสายที่รถหลังจากเชื่อม FT232R แล้ว';
  const row=document.createElement('div');row.className='row';row.style.flexWrap='wrap';row.append(connect,rescan,disconnect);
- const note=document.createElement('p');note.className='mu sm';note.textContent='เชื่อมต่อด้วยเส้นทาง FM_diag.cs ของ Live Data เพียงครั้งเดียว • Live / DTC / Flash / Recovery ใช้ FT232R ร่วมกันทีละระบบ • รุ่น ECU ยังต้องยืนยันจาก ID จริง';
+ const note=document.createElement('p');note.className='mu sm';note.textContent='เชื่อม USB เพียงครั้งเดียว • ไม่อ่าน ECU อัตโนมัติระหว่างเปิดพอร์ต • กดเริ่ม Live Data หรือสแกน ECU เมื่อเปิดกุญแจแล้ว • การเขียนแฟลชต้องตรวจแยก';
  const checks=document.createElement('div');checks.id='sharedEcuAutoChecklist';
  checks.style.cssText='display:grid;gap:7px;margin:14px 0 4px;';
  const debug=document.createElement('details');
@@ -210,12 +210,8 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
  reader.onUpdate=(...args)=>{oldNotify(...args);updateSharedState()};
  updateSharedState();
 }
-// Connecting a physical K-Line socket does not raise a WebUSB device event.
-// Poll gently only if FT232R is open, ECU is unidentified, and the app is visible.
-setInterval(()=>{
- if(document.visibilityState==='hidden'||!reader.port?.ready||!reader.licenseVerified||reader.ecuId||
-    reader.owner||reader.running||reader.connecting||reader.autoBusy)return;
- void reader.rescan();
-},15000);
+// Do not run ECU ID/Live/DTC probes in the background: this could close an
+// otherwise healthy WebUSB port while no motorcycle is attached.
+// The user can press Rescan or Start Live Data when the ECU is powered.
 window.addEventListener('pagehide',()=>{void reader.disconnect()});
 notify();
