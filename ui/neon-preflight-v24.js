@@ -119,21 +119,21 @@ async function readECU(){
  if(working||INLINEFLASH.busy)return;
  if(!navigator.usb) return errorOut('Chrome นี้ไม่รองรับ WebUSB / FT232R');
  if(document.getElementById('licenseGate'))return errorOut('กรุณาเข้าสู่ระบบ License ก่อนอ่าน ECU');
- if(window.__55SharedEcu?.snapshot?.().connected)return errorOut('FT232R กำลังใช้งานโดยสายหลัก: หน้าอ่าน ECU ID ยังไม่รองรับการส่งคำสั่งผ่านเซสชันร่วม กรุณาตัดการเชื่อมต่อสายหลักก่อนอ่าน ID เพื่อป้องกัน USB ชนกัน');
- if(K.t)return errorOut('มีการเชื่อมต่อ FTDI จากระบบเดิมอยู่ กรุณาตัดการเชื่อมต่อก่อนอ่าน ECU ID');
+ const shared=window.__55SharedEcu;
+ if(!shared?.port?.ready)return errorOut('กรุณาเชื่อมต่อ FT232R จากหน้าหลักก่อน • หน้าอัดไฟล์ไม่เปิดสายแยก');
+ if(shared.snapshot().running)return errorOut('กรุณาหยุดอ่าน Live Data ก่อนอ่าน ECU ID เพื่อใช้สายเดียวกัน');
+ if(K.t)return errorOut('ระบบ DTC เก่ากำลังใช้พอร์ต USB แยก กรุณาตัดการเชื่อมต่อเดิม');
  working=true;error='';message='กำลังเลือกอุปกรณ์ FT232R…';last=null;hash=null;render();
  let port=null;
  try{
-  // Must request the user-selected device synchronously from the click.
-  const device=await navigator.usb.requestDevice({filters:[{vendorId:0x0403,productId:0x6001}]});
-  const [{Ft232rWebUsb},{HondaFlashEngine}]=await Promise.all([
-   import(new URL('flash_port/ftdi-webusb.js?v=ecu-id-fix-2',location.origin+'/55-performance-ecu-tuner/').href),
+  // Reuse the physical FT232R opened from the home dashboard.
+  const [{HondaFlashEngine}]=await Promise.all([
    import(new URL('flash_port/honda-write-engine.js?v=ecu-id-fix-2',location.origin+'/55-performance-ecu-tuner/').href)]);
   if(typeof api!=='function')throw Error('ไม่พบตัวตรวจ License');
   const license=await api('check',{device:localStorage.getItem('55_device_id')});
   if(!license?.active)throw Error('License ไม่ได้เปิดใช้งาน');
-  port=new Ft232rWebUsb(()=>{});
-  await port.openSelected(device);
+  port=shared.port;
+  if(!port?.ready)throw Error('สายหลักถูกตัดการเชื่อมต่อแล้ว');
   const engine=new HondaFlashEngine(port,()=>{});
   message='กำลังอ่าน ECU ID และ Flash Count ด้วย FormMain C#…';render();
   const identity=await engine.identify();
@@ -146,7 +146,7 @@ async function readECU(){
   last=null;
   error=e?.message||String(e);
  }finally{
-  if(port)try{await port.close()}catch(e){error+=' · ปิด FTDI ไม่สำเร็จ: '+e.message}
+  // Shared port belongs to the home dashboard. Never close it here.
   working=false;render();
  }
 }
