@@ -1,0 +1,26 @@
+{
+  "name": "55 PERFORMANCE · OFFLINE FLASH",
+  "short_name": "55 OFFLINE",
+  "description": "ออฟไลน์ Honda ECU Flash Bench — ทำงานผ่านสาย FT232R โดยใช้ Main C# Flash Engine",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0e1521",
+  "theme_color": "#0e1521",
+  "lang": "th",
+  "icons": [
+    {
+      "src": "../../icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "../../icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

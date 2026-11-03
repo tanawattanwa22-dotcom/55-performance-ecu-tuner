@@ -9,6 +9,7 @@ on:
       - "flash_port/**/*.html"
       - "tools/verify-neon-browser.mjs"
       - "tools/verify-main-full-flash-browser.mjs"
+      - "tools/verify-offline-flash-browser.mjs"
       - ".github/workflows/neon-ui-mobile.yml"
   pull_request:
     paths:
@@ -40,6 +41,8 @@ jobs:
         run: node tools/verify-neon-browser.mjs
       - name: Exercise full CSharp flash software emulator in mobile Chrome
         run: node tools/verify-main-full-flash-browser.mjs
+      - name: V28 Offline Flash install SW then reload without network
+        run: node tools/verify-offline-flash-browser.mjs
       - name: Upload mobile UI screenshots
         if: always()
         uses: actions/upload-artifact@v4
