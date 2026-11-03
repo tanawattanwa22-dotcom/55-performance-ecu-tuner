@@ -8,7 +8,7 @@ const TTL=180000;
 const X=n=>Number.isInteger(n)?'0x'+n.toString(16).toUpperCase().padStart(8,'0'):'—';
 const make=(tag,cls,txt)=>{const el=document.createElement(tag);if(cls)el.className=cls;if(txt!==undefined)el.textContent=txt;return el};
 const btn=(txt,cls,fn)=>{const e=make('button',cls,txt);e.type='button';e.onclick=fn;return e};
-let stage=null,dom={},working=false,last=null,confirmAt=null,hash=null,error='',message='';
+let stage=null,dom={},working=false,last=null,confirmAt=null,hash=null,error='',message='',binOffsetHint=null;
 let catalog290={rows:null,error:null};
 import(new URL('flash_port/csharp-ecu-catalog.js?v=302',document.baseURI).href)
  .then(mod=>mod.loadCSharpCatalog())
@@ -17,6 +17,19 @@ import(new URL('flash_port/csharp-ecu-catalog.js?v=302',document.baseURI).href)
 const quickBin=()=>window.__55QuickFlashBin?.bytes instanceof Uint8Array?window.__55QuickFlashBin:null;
 const catalogRecord=identity=>identity?.ecuId?(catalog290.rows?.get(String(identity.ecuId).toUpperCase())||identity.catalog||null):null;
 const sourceOffset=(n,raw)=>Number.isInteger(n)?X(n):raw==='auto'?'AUTO (Main C#)':raw===''?'ไม่ระบุใน Main C#':'—';
+// A BIN-only estimate is shown before connecting, but NEVER permits writing.
+async function previewBinOffset(){
+ const item=current();
+ if(!item.valid||!(item.bytes instanceof Uint8Array)){binOffsetHint=null;render();return}
+ if(binOffsetHint?.saved===item.saved){render();return}
+ try{
+  const {csharpOffsetInference}=await import(new URL('flash_port/csharp-offsets.js?v=317',document.baseURI).href);
+  const estimated=csharpOffsetInference(item.bytes.slice());
+  const latest=current();
+  if(latest.saved===item.saved)binOffsetHint={saved:item.saved,estimated};
+ }catch(e){binOffsetHint={saved:item.saved,error:e.message}}
+ render();
+}
 const current=()=>{
  const quick=quickBin();
  if(quick)return {saved:quick,model:null,valid:true,bytes:quick.bytes};
@@ -83,6 +96,7 @@ function render(){
  const recoveryCandidate=!!identity?.ecuId?.endsWith('0000');
  const plan=inlineIdentity?.sourceMatched?INLINEFLASH.plan:verified()?last?.plan:null;
  const source=catalogRecord(identity);
+ const binEstimate=binOffsetHint?.saved===c.saved?binOffsetHint.estimated:null;
  const fileReady=!!quick||c.valid;
  const cableReady=!!window.__55SharedEcu?.port?.ready;
  const progress=!!inlineIdentity||!!connectedId||(c.valid&&last?.saved===c.saved&&recency()&&!staleId);
@@ -97,11 +111,16 @@ function render(){
  setItem('family',identity?(source?.family||identity.family||'ไม่ระบุ'):'—');
  setItem('flashcount',Number.isInteger(identity?.count)?identity.count+' ครั้ง':'อ่านไม่ได้');
  setItem('sourceMatch',identity?(identity.sourceMatched?'ยืนยัน ID และ Family แล้ว':source?(source.part?'✓ พบ ECU ID ในฐาน 290 · Family เป็นค่าจากฐาน ยังไม่ยืนยันเพื่อเขียน':'พบ ECU ID แต่ไม่มี Part Code'):'อ่าน ECU ID ได้ แต่ไม่พบในฐาน 290'):'รออ่าน ECU ID จริง');
- setItem('start',plan?X(plan.startOffset):source?sourceOffset(source.startOffset,source.startOffsetText):'—');
- setItem('checksum',plan?X(plan.checksumOffset):source?sourceOffset(source.checksumOffset,source.checksumOffsetText):'—');
+ setItem('start',plan?X(plan.startOffset):source?sourceOffset(source.startOffset,source.startOffsetText):
+  binEstimate?.startOffsetHex?binEstimate.startOffsetHex+' • BIN เท่านั้น':'—');
+ setItem('checksum',plan?X(plan.checksumOffset):source?sourceOffset(source.checksumOffset,source.checksumOffsetText):
+  binEstimate?.checksumOffsetHex?binEstimate.checksumOffsetHex+' • BIN เท่านั้น':'—');
  setItem('block',Number.isInteger(plan?.blockBytes)?plan.blockBytes.toLocaleString()+' bytes':'—');
  setItem('profile',plan?.profile||'ยังไม่มีแผนที่ยืนยัน');
- setItem('offsetState',plan?'ตรวจด้วย HondaFlashEngine / C# แล้ว':source?'✓ พบค่าฐาน Main C# · ต้องตรวจเทียบ BIN ก่อนเขียน':'ยังไม่มีค่า Offset ที่ยืนยัน');
+ setItem('offsetState',plan?'ตรวจด้วย HondaFlashEngine / C# แล้ว':
+  source?'✓ พบค่าฐาน Main C# · ต้องตรวจเทียบ BIN ก่อนเขียน':
+  binEstimate?'ประมาณจากขนาด/ลายเซ็น BIN เท่านั้น • ต้องเสียบ ECU ยืนยันก่อนอัด':
+  fileReady?'กำลังวิเคราะห์ BIN / ต้องอ่าน ECU ID จริง':'ยังไม่มีค่า Offset ที่ยืนยัน');
  dom.note.textContent=staleId?'ECU ID จากสายล่าสุดเปลี่ยนจาก '+last.identity.ecuId+' เป็น '+connectedId.ecuId+' • แผนเดิมใช้ไม่ได้ ต้องอ่าน ECU ID และตรวจ BIN ใหม่':error?'หยุดตรวจ: '+error:message||
   'การตรวจนี้อ่าน ECU ID และคำนวณแผนเท่านั้น ไม่มีคำสั่ง ERASE/WRITE · ขั้นตอนอัดจริงจะอ่าน ID ใหม่';
  const status={
@@ -121,7 +140,7 @@ function render(){
  dom.read.disabled=working||!!INLINEFLASH.busy||!!document.getElementById('licenseGate');
  dom.check.disabled=working||!c.valid||!identity||!recency()||last?.saved!==c.saved;
  dom.flash.disabled=working||!!INLINEFLASH.busy||(recoveryCandidate&&!INLINEFLASH.postCheck)||!(INLINEFLASH.postCheck||(fileReady&&cableReady))||!!$('btnFlash')?.hidden||!!$('btnFlash')?.disabled;
- dom.flash.textContent=INLINEFLASH.busy?'กำลังตรวจ / อัดไฟล์ ECU':INLINEFLASH.postCheck?'✓ ตรวจ ECU หลังเปิดกุญแจใหม่':recoveryCandidate?'⟳ พบ Recovery • หยุด Flash ปกติ':'⇧ ตรวจอัตโนมัติและอัดไฟล์';
+ dom.flash.textContent=INLINEFLASH.busy?'กำลังตรวจ / อัดไฟล์ ECU':INLINEFLASH.postCheck?'✓ ตรวจ ECU หลังเปิดกุญแจใหม่':recoveryCandidate?'⟳ พบ Recovery • หยุด Flash ปกติ':'⇧ อัดไฟล์ ECU';
  if(dom.recovery)dom.recovery.hidden=!(recoveryCandidate||window.__55RecoverySuggested);
  if(dom.miniProgress){const pct=$('pct')?.textContent||'0%';dom.miniProgress.textContent=INLINEFLASH.busy||INLINEFLASH.postCheck?'ความคืบหน้า '+pct+' · '+(INLINEFLASH.status||''):'พร้อมเริ่มตรวจ';}
  if(dom.miniBar){dom.miniBar.style.width=(INLINEFLASH.busy||INLINEFLASH.postCheck?$('barFill')?.style.width||'0%':'0%');}
@@ -176,7 +195,7 @@ async function readECU(){
  try{
   // Reuse the physical FT232R opened from the home dashboard.
   const [{HondaFlashEngine}]=await Promise.all([
-   import(new URL('flash_port/honda-write-engine.js?v=320',document.baseURI).href)]);
+   import(new URL('flash_port/honda-write-engine.js?v=321',document.baseURI).href)]);
   if(typeof api!=='function')throw Error('ไม่พบตัวตรวจ License');
   const license=await api('check',{device:localStorage.getItem('55_device_id')});
   if(!license?.active)throw Error('License ไม่ได้เปิดใช้งาน');
@@ -282,6 +301,8 @@ function mount(host){
    const digest=await crypto.subtle.digest('SHA-256',bytes);
    const sha256=[...new Uint8Array(digest)].map(b=>b.toString(16).padStart(2,'0')).join('');
    window.__55QuickFlashBin={filename:f.name,bytes,sha256,selectedAt:Date.now()};
+   binOffsetHint=null;
+   void previewBinOffset();
    uploadStatus.textContent='✓ '+f.name+' • '+(f.size/1024).toFixed(0)+' KB · พร้อมตรวจ ECU';
    message='เลือก BIN แล้ว · เชื่อมสายจากหน้าแรกและกดปุ่มอัด เพื่อให้ระบบตรวจ ECU/Checksum/Offset';
   }catch(e){uploadStatus.textContent='เลือกไฟล์ไม่สำเร็จ: '+e.message;error=e.message}
@@ -333,7 +354,7 @@ function mount(host){
  for(const [title,path] of [
   ['ตรวจสาย USB / VID-PID (ไม่ส่งข้อมูล ECU)','flash_port/usb-cable-diagnostic.html'],
   ['เปิด Real ECU Flash (ขั้นสูง)','flash_port/flash-write-lab.html'],
-  ['เปิด Recovery แยก (ตรวจ Boot/ECU อัตโนมัติ)','flash_port/flash-write-lab.html?mode=recovery'],
+  ['Recovery ขั้นสูง (Flash Lab เครื่องมือช่าง)','flash_port/flash-write-lab.html?mode=recovery'],
   ['เปิด Offline Flash V28','flash_port/offline/index.html'],
   ['ตรวจ BIN ID / Checksum ตาม Main C#','flash_port/main-bin-audit.html'],
   ['ค้นฐาน ECU 290 รายการ','flash_port/main-ecu-catalog.html']
@@ -347,6 +368,7 @@ function mount(host){
  const help=make('p','n24-help','ฐาน Main.zip มี 290 ECU ID: Keihin 232 + Shindengen 58 (2 ID ไม่มี Part Code ต้นฉบับ) • การแสดง ID/Offset เป็นข้อมูลอ้างอิง ไม่ได้ยืนยันว่า BIN ตรงกับกล่อง • การอ่านและ Preflight ไม่ลบ/เขียน ECU');
  stage.append(help);
  render();
+ void previewBinOffset();
 }
 let preparingAuto=false,lastAutoProbe=null;
 async function autoPrepare(){
