@@ -313,6 +313,22 @@ export class MainLiveSession {
    this.notify();
   }
  }
+ async restoreCable(){
+  if(this.port?.ready)return true;
+  if(this.owner||this.connecting||this.autoBusy)return false;
+  const dev=this.port?.lastDevice;
+  if(!dev)return false;
+  const restored=new Ft232rWebUsb();
+  try{
+   await TIME_LIMIT(restored.openSelected(dev),7000,'FT232R restore cable timeout');
+   this.port=restored;this.phase='USB_READY_NO_ECU';
+   this.autoStatus='FT232R เปิดใหม่จากสายที่เคยอนุญาตแล้ว • รอคำสั่ง ECU';
+   this.error='';this.notify();return true;
+  }catch(e){
+   this.error='คืนการเชื่อมต่อ FT232R ไม่สำเร็จ: '+String(e?.message||e);
+   this.notify();return false;
+  }
+ }
  async rescan(){
   if(!this.port?.ready||this.owner||this.running||this.connecting||this.autoBusy)return false;
   return this._autoDetect();
