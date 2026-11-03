@@ -97,5 +97,32 @@ window.__55MainLive={
  connect:old.connect,start:old.startEcu,stop:old.stopEcu,
  snapshot:()=>reader.status(),disconnect:()=>reader.disconnect()
 };
+// Main dashboard is the only place that opens/closes the USB cable.
+const home=document.getElementById('home');
+const homeScroll=home?.querySelector('.scroll');
+if(homeScroll&&!document.getElementById('sharedEcuPanel')){
+ const panel=document.createElement('section');panel.id='sharedEcuPanel';panel.className='card';
+ panel.style.cssText='border:1px solid #25dce5;background:linear-gradient(135deg,#102b45,#15172b);margin:12px 0;padding:16px';
+ const heading=document.createElement('h2');heading.textContent='🔌 เชื่อมต่อ FT232R · สายหลักของโปรแกรม';
+ const state=document.createElement('p');state.id='sharedEcuState';state.setAttribute('role','status');
+ const connect=document.createElement('button');connect.className='btn ac';connect.textContent='เชื่อมต่อสาย USB';
+ const disconnect=document.createElement('button');disconnect.className='btn';disconnect.textContent='ตัดการเชื่อมต่อ';
+ const row=document.createElement('div');row.className='row';row.style.flexWrap='wrap';row.append(connect,disconnect);
+ const note=document.createElement('p');note.className='mu sm';note.textContent='เปิดสายจากหน้าหลักครั้งเดียว สถานะการเชื่อมต่อใช้ร่วมกันในแอป • ก่อนใช้ระบบที่ยังเปิด FTDI แยก ให้ตัดสายหลักก่อน';
+ panel.append(heading,state,row,note);homeScroll.prepend(panel);
+ connect.onclick=()=>{void old.connect().then(updateSharedState)};
+ disconnect.onclick=()=>{void reader.disconnect().then(updateSharedState)};
+ function updateSharedState(){
+  const st=reader.status();state.textContent=st.error||(
+   st.connecting?'กำลังเชื่อมต่อ: '+st.phase:
+   st.connected?'เชื่อมต่อ FT232R แล้ว • '+st.phase+' • ECU ID: '+(st.ecuId||'ยังไม่ยืนยัน'):
+   'ยังไม่ได้เชื่อมต่อ FT232R');
+  connect.disabled=st.connected||st.connecting;
+  disconnect.disabled=!st.connected&&!st.connecting;
+ }
+ const oldNotify=reader.onUpdate;
+ reader.onUpdate=(...args)=>{oldNotify(...args);updateSharedState()};
+ updateSharedState();
+}
 window.addEventListener('pagehide',()=>{void reader.disconnect()});
 notify();
