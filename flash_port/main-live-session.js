@@ -122,7 +122,15 @@ export class MainLiveSession {
   if(this.port?.ready)await this.port.close();
   const restored=new Ft232rWebUsb();
   this.port=restored;
-  await TIME_LIMIT(restored.openSelected(dev),12000,'กู้คืนพอร์ต FT232R เกิน 12 วินาที');
+  let reopenExpired=false;
+  const reopening=restored.openSelected(dev);
+  reopening.then(()=>{if(reopenExpired)void restored.close()},()=>{});
+  try{await TIME_LIMIT(reopening,12000,'กู้คืนพอร์ต FT232R เกิน 12 วินาที');}
+  catch(error){
+   reopenExpired=true;
+   try{await TIME_LIMIT(Promise.resolve(restored.close()),2500,'USB close timeout')}catch{}
+   throw error;
+  }
   await restored.sourceDiagnosticWake();
  }
  async _checkIdentity(){
