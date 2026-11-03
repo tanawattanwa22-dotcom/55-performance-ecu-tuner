@@ -2,7 +2,7 @@
  * Main FM_diag.cs reader is the sole source of real-time sensor values.
  * The legacy ADX/DEMO live engine is never called by this bridge.
  */
-import {MainLiveSession} from '../flash_port/main-live-session.js?v=346';
+import {MainLiveSession} from '../flash_port/main-live-session.js?v=347';
 const old=window.__55LiveBridge;
 if(!old)throw Error('Live UI bridge must be installed before Main V25');
 const originalSnapshot=old.snapshot.bind(old);
@@ -107,7 +107,7 @@ old.snapshot=()=>{
   )
  };
 };
-old.connect=async()=>{
+old.connect=async({forcePicker=false}={})=>{
  // Opening USB is idempotent across Home and Live. Never open the FTDI
  // interface twice, and never start diagnostic probing as a side effect.
  if(reader.status().connected){notify();return true;}
@@ -117,7 +117,7 @@ old.connect=async()=>{
   notify();return false;
  }
  lastConnectError='';physicalConnectError='';
- const connected=await reader.connect();
+ const connected=await reader.connect({forcePicker});
  notify();
  // Read-only source ECU detection after FT232R opens. The USB owner remains shared.
  if(connected)queueMicrotask(()=>{
@@ -144,7 +144,7 @@ old.mode=(mode)=>{
 window.__55SharedEcu={
  acquire:owner=>reader.acquire(owner),release:owner=>reader.release(owner),
  get owner(){return reader.owner;},
- snapshot:()=>reader.status(),connect:()=>old.connect(),disconnect:()=>reader.disconnect(),
+ snapshot:()=>reader.status(),connect:options=>old.connect(options),disconnect:()=>reader.disconnect(),
  rescan:()=>reader.rescan(),restoreCable:()=>reader.restoreCable(),
  readDtc:()=>reader.readDtc(),
  stop:()=>reader.stop(),get port(){return reader.port?.ready?reader.port:null;}
@@ -241,10 +241,12 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
  const state=document.createElement('p');state.id='sharedEcuState';state.setAttribute('role','status');
  const connect=document.createElement('button');connect.className='btn ac';connect.textContent='เชื่อมต่อสาย USB';
  const disconnect=document.createElement('button');disconnect.className='btn';disconnect.textContent='ตัดการเชื่อมต่อ';
+ const selectAgain=document.createElement('button');selectAgain.className='btn';
+ selectAgain.textContent='เลือก FT232R ใหม่';selectAgain.title='เปิดรายการ Android USB เมื่อสายที่เคยเลือกไม่พร้อม';
  const rescan=document.createElement('button');rescan.className='btn';
  rescan.textContent='สแกน ECU อีกครั้ง';rescan.title='ใช้เมื่อเสียบสายที่รถหลังจากเชื่อม FT232R แล้ว';
- const row=document.createElement('div');row.className='row';row.style.flexWrap='wrap';row.append(connect,rescan,disconnect);
- const note=document.createElement('p');note.className='mu sm';note.textContent='เชื่อม USB เพียงครั้งเดียว • ไม่อ่าน ECU อัตโนมัติระหว่างเปิดพอร์ต • กดเริ่ม Live Data หรือสแกน ECU เมื่อเปิดกุญแจแล้ว • การเขียนแฟลชต้องตรวจแยก';
+ const row=document.createElement('div');row.className='row';row.style.flexWrap='wrap';row.append(connect,selectAgain,rescan,disconnect);
+ const note=document.createElement('p');note.className='mu sm';note.textContent='FT232R ชื่อซ้ำ (0), (1), (3) เป็นรายการที่ Android/Chrome แสดง ไม่ใช่สาย 3 เส้น • หากเคยอนุญาตเพียงรายการเดียวจะเชื่อมต่อโดยใช้สิทธิ์เดิม • เปิดหน้า Live / DTC / Flash เพื่อสแกน ECU แบบอ่านข้อมูล';
  const checks=document.createElement('div');checks.id='sharedEcuAutoChecklist';
  checks.style.cssText='display:grid;gap:7px;margin:14px 0 4px;';
  const debug=document.createElement('details');
@@ -271,6 +273,11 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
    physicalConnectError='เปิด USB ไม่สำเร็จ: '+String(e?.message||e);
    updateSharedState();
   }).finally(()=>{connect.disabled=false;updateSharedState();});
+ };
+ selectAgain.onclick=()=>{
+  selectAgain.disabled=true;state.textContent='เปิดหน้าต่างเลือก FT232R ของ Android';
+  void old.connect({forcePicker:true}).then(updateSharedState).catch(e=>{state.textContent=String(e?.message||e)})
+   .finally(()=>{selectAgain.disabled=false;updateSharedState()});
  };
  rescan.onclick=()=>{void reader.rescan().then(updateSharedState).catch(e=>{state.textContent=e.message})};
  disconnect.onclick=()=>{void reader.disconnect().then(updateSharedState)};
@@ -331,6 +338,7 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
   },null,2);
   if(st.usbLastError&&!st.connecting)debug.open=true;
   connect.disabled=st.connected||st.connecting;
+  selectAgain.disabled=st.connected||st.connecting;
   rescan.disabled=!st.connected||st.autoBusy||st.running||!!reader.owner;
   disconnect.disabled=!st.connected&&!st.connecting;
  }
