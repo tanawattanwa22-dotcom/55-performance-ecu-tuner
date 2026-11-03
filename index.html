@@ -1585,26 +1585,24 @@ mainToolsAction('mtDatSearch',()=>{
 mainToolsAction('mtDiag',()=>{openLive()});
 mainToolsAction('mtDtc',()=>{openLive();lvMode('dtc');mainToolsOut('เปิด DTC ในหน้า Live Data แล้ว')});
 mainToolsAction('mtReadEcu',async()=>{
- if(MAINTOOLS.busy||INLINEFLASH.busy)throw Error('กำลังเชื่อมต่อ ECU อยู่แล้ว');
- if(document.getElementById('licenseGate'))throw Error('ล็อกอินให้เสร็จก่อน');
- if(!navigator.usb)throw Error('ต้องใช้ Chrome Android และ OTG / WebUSB');
- // USB chooser must run immediately on the actual button tap.
- const device=await navigator.usb.requestDevice({filters:[{vendorId:0x0403,productId:0x6001}]});
- MAINTOOLS.busy=true;$('#mtReadEcu').disabled=true;let p=null;
+ if(MAINTOOLS.busy||INLINEFLASH.busy)throw Error('กำลังดำเนินการ ECU อยู่แล้ว');
+ if(document.getElementById('licenseGate'))throw Error('กรุณาล็อกอินก่อนใช้งาน');
+ const shared=window.__55SharedEcu;
+ if(!shared?.snapshot?.().connected)throw Error('กรุณาเปิด FT232R จากหน้าแรกก่อน • ไม่เปิดสาย USB ซ้ำในเครื่องมือนี้');
+ MAINTOOLS.busy=true;$('#mtReadEcu').disabled=true;
+ let owns=false;
  try{
-  const [{Ft232rWebUsb},{HondaFlashEngine}]=await Promise.all([
-   import('./flash_port/ftdi-webusb.js?v=301'),import('./flash_port/honda-write-engine.js?v=318')]);
-  // Login is already complete. Keep this button's WebUSB session local
-  // rather than making a second remote license request during ECU discovery.
-  if(typeof lvStop==='function'&&typeof LV!=='undefined'&&LV.run)lvStop();
-  if(K.t){const old=K.t;K.t=null;K.ecu=false;K.ecuId=null;await old.close();cableUi('','เปลี่ยนเป็นการอ่าน ECU ID','เชื่อมต่อใหม่','รอ ECU')}
-  p=new Ft232rWebUsb(v=>inlineFlashLog('MAIN READ '+v));await p.openSelected(device);
-  const engine=new HondaFlashEngine(p,ev=>inlineFlashLog('MAIN READ '+JSON.stringify(ev)));
-  mainToolsOut('กำลังอ่าน ECU ID และ Flash Count (อ่านอย่างเดียว)...');
+  const port=await shared.acquire('MAIN_TOOLS');owns=true;
+  const {HondaFlashEngine}=await import('./flash_port/honda-write-engine.js?v=318');
+  const engine=new HondaFlashEngine(port,ev=>inlineFlashLog('MAIN READ '+JSON.stringify(ev)));
+  mainToolsOut('กำลังอ่าน ECU ID และ Flash Count จาก FT232R สายกลาง…');
   const data=await engine.identify();MAINTOOLS.lastEcu=data;
   $('#mtEcuId').value=data.ecuId;
   mainToolsOut('ECU ID: '+data.ecuId+'\nPart: '+(data.sourcePart||'ไม่พบในฐาน C#')+'\nFAMILY: '+data.family+'\nFLASH COUNT: '+(data.count??'ไม่ทราบ')+'\nSOURCE MATCH: '+(data.sourceMatched?'ตรง':'ยังไม่ยืนยัน')+'\nไม่ได้ส่งคำสั่ง ERASE/WRITE');
- }finally{if(p)await p.close().catch(()=>{});MAINTOOLS.busy=false;$('#mtReadEcu').disabled=false}
+ }finally{
+  if(owns)shared.release('MAIN_TOOLS');
+  MAINTOOLS.busy=false;$('#mtReadEcu').disabled=false;
+ }
 });
 
 
@@ -1630,10 +1628,22 @@ function klog(s){const e=$("#klog"),t=new Date().toLocaleTimeString("th-TH",{hou
 const hex=a=>[...a].map(x=>x.toString(16).padStart(2,"0")).join(" ").toUpperCase();
 function cableUi(st,msg,usbTxt,ecuTxt){
   setLed("#ledCable",st);$("#cableMsg").textContent=msg;
-  $("#sCable").textContent=usbTxt||(K.t?"USB เชื่อมต่อแล้ว":st==="wn"?"กำลังเชื่อมต่อ…":"ยังไม่เชื่อมต่อ");
-  $("#sEcu").textContent=ecuTxt||(K.ecu?"ตอบแล้ว ✓":"ยังไม่ตอบ");
-  $("#btnCable").textContent=K.t?"ตัดการเชื่อมต่อ":"เชื่อมต่อสาย";
+  const stShared=window.__55SharedEcu?.snapshot?.();
+  const connected=!!stShared?.connected;
+  $("#sCable").textContent=usbTxt||(connected?"FT232R / USB เชื่อมต่อแล้ว":st==="wn"?"กำลังเปิด USB…":"ยังไม่เชื่อมต่อ");
+  $("#sEcu").textContent=ecuTxt||(stShared?.ecuId?stShared.ecuId:"ยังไม่อ่าน ECU");
+  $("#btnCable").textContent=connected?"ตัดการเชื่อมต่อ":"เชื่อมต่อสาย FT232R";
 }
+window.__55SyncLegacyUsb=function(st){
+  if(!st)return;
+  // The original BIN and tuning pages used the old K.t state. Read the
+  // actual shared physical USB port instead; never fabricate ECU identity.
+  const state=st.connected?'ok':st.connecting?'wn':st.error?'bd':'';
+  const msg=st.connected?'✓ FT232R เปิด USB แล้ว · '+(st.ecuId?'ECU ID '+st.ecuId:'ยังไม่ได้เชื่อม ECU'):
+   st.connecting?'กำลังเลือก/เปิด FT232R…':st.error||'ยังไม่ได้เชื่อมต่อ FT232R';
+  cableUi(state,msg,st.connected?'FT232R / USB เชื่อมต่อแล้ว':null,st.ecuId||'ยังไม่อ่าน ECU');
+  window.__55V20RefreshStatus?.();
+};
 /* ตัวหารบอดเรตของ FTDI (ฐาน 3 MHz, เศษ 1/8) */
 function ftdiDivisor(baud){
   const d8=Math.round(24000000/baud),frac=[0,3,2,4,1,5,6,7][d8&7];
@@ -1790,38 +1800,27 @@ async function probeEcu(){
   }
 }
 async function connectCable(){
-  if(K.t){const t=K.t;K.t=null;K.ecu=false;K.ecuId=null;$("#autoEcuName").hidden=true;await t.close();klog("ตัดการเชื่อมต่อ");cableUi("","ตัดการเชื่อมต่อแล้ว","ตัดการเชื่อมต่อ (Disconnected)");return}
-  let tr=null;
+  // Legacy buttons must NEVER create a second FTDI instance, USB chooser,
+  // read loop or immediate ECU probe. The shared Main reader owns WebUSB.
+  const shared=window.__55SharedEcu;
+  if(!shared){cableUi('bd','ตัวเชื่อม FT232R หลักยังไม่โหลด · กรุณาเปิดแอปใหม่');return false}
+  const st=shared.snapshot();
   try{
-    cableUi("wn","กำลังเชื่อมต่อ… เลือกอุปกรณ์ในหน้าต่างที่เด้งขึ้นมา",null,"ยังไม่ตอบ");
-    if(!navigator.usb&&!navigator.serial){cableUi("bd","เบราว์เซอร์นี้ไม่รองรับทั้ง WebUSB และ Web Serial ให้ใช้ Chrome บน Android และเปิดผ่าน https","ไม่รองรับ");klog("ไม่มี navigator.usb / navigator.serial");return}
-    if(K.mode!=="serial"&&navigator.usb){
-      // Do not auto-select the first cached FTDI. Android may expose duplicate
-      // FT232R entries (0)/(2) with the same serial; only one may be openable.
-      // A fresh user gesture lets the operator choose the working interface.
-      let dev;
-      try{dev=await navigator.usb.requestDevice({filters:FTDI_IDS})}
-      catch(e){
-        if(e.name==="NotFoundError"&&navigator.serial){K.mode="serial";klog("ไม่พบ FTDI ผ่าน WebUSB");cableUi("bd","ไม่พบสาย FTDI ผ่าน USB กดเชื่อมต่อสายอีกครั้งเพื่อลองโหมด Web Serial","ไม่พบอุปกรณ์");return}
-        throw e;
-      }
-      klog("ผู้ใช้เลือกสาย FTDI "+(dev.productName||"")+
-           " VID "+dev.vendorId.toString(16)+" PID "+dev.productId.toString(16)+
-           " (Android แยกรายการ 0/2 ไม่ได้จาก Serial เพียงอย่างเดียว)");
-      tr=new FtdiUsb(dev);
-    }else{
-      K.mode="usb";
-      tr=new SerialT(await navigator.serial.requestPort());
-    }
-    await tr.open();
-    K.t=tr;K.q=[];K.ecu=false;K.ecuId=null;$("#autoEcuName").hidden=true;
-    klog("ช่องทาง: "+tr.name);
-    await probeEcu();
+   if(st.connected){
+    if(st.running||shared.owner){cableUi('wn','หยุดการอ่าน ECU/งาน USB ก่อนตัดสาย');return false}
+    await shared.disconnect();
+    window.__55SyncLegacyUsb?.(shared.snapshot());
+    return true;
+   }
+   // Call connect synchronously in the button's real user gesture. Android's
+   // requestDevice picker cannot safely be preceded by unrelated awaits.
+   const pending=shared.connect();
+   const ok=await pending;
+   window.__55SyncLegacyUsb?.(shared.snapshot());
+   return ok;
   }catch(e){
-    klog("ผิดพลาด: "+(e&&e.name)+" "+(e&&e.message));
-    try{tr&&await tr.close()}catch(_){}
-    K.t=null;K.ecu=false;
-    const m=errMsg(e);cableUi("bd",m[0],m[1],"ยังไม่ตอบ");
+   cableUi('bd','USB FT232R เชื่อมไม่สำเร็จ: '+String(e?.message||e));
+   return false;
   }
 }
 $("#btnCable").onclick=connectCable;
@@ -2042,7 +2041,11 @@ function openLive(){
   show("live");history.pushState({p:"live"},"");lvMode("gauge");lvRender();
 }
 
-function lvConnUi(){const b=$("#lvConn");b.textContent=K.t?"ตัดการเชื่อมต่อ":"เชื่อมต่อสาย";b.classList.toggle("ac",!K.t)}
+function lvConnUi(){
+ const b=$("#lvConn");const connected=!!window.__55SharedEcu?.snapshot?.().connected;
+ b.textContent=connected?"ตัดการเชื่อมต่อ":"เชื่อมต่อสาย FT232R";
+ b.classList.toggle("ac",!connected);
+}
 function lvProfUi(){
   const id=profId(),p=id&&PROF[id],e=$("#lvProf");
   if(!id){e.textContent="ยังไม่ได้เลือกรุ่นรถ (เลือกที่หน้าแรก)";return}
@@ -2050,13 +2053,13 @@ function lvProfUi(){
   else{e.textContent="รุ่น "+id+": ยังไม่มีผังข้อมูลสดของรุ่นนี้ (ยังแสดงค่าสดไม่ได้)";e.style.color="var(--wn)"}
 }
 $("#lvConn").onclick=async()=>{
-  const was=!!K.t;if(LV.run)lvStop();
+  if(LV.run)lvStop();
   $("#lvConn").disabled=true;
-  try{await connectCable()}finally{$("#lvConn").disabled=false}
-  lvConnUi();
-  if(!was&&K.t&&K.ecu)lvStart("ecu");
-  else if(!was&&K.t)lvMsg("USB ต่อแล้วแต่ ECU ไม่ตอบ ตรวจว่าเปิดกุญแจ (ON) แล้วกดเชื่อมต่ออีกครั้ง");
-  else if(was)lvMsg("ตัดการเชื่อมต่อแล้ว");
+  try{
+   await connectCable();
+   const ready=!!window.__55SharedEcu?.snapshot?.().connected;
+   lvMsg(ready?'USB FT232R เชื่อมต่อแล้ว · ยังไม่ส่งคำสั่ง ECU':'ยังไม่ได้เปิด FT232R · ตรวจรายละเอียดบนหน้าแรก');
+  }finally{$("#lvConn").disabled=false;lvConnUi()}
 };
 // Primary Live Data opens the existing Neon dashboard; FM_diag.cs is its backend.
  // Never navigate to a separate C# page or start the legacy ADX reader.
