@@ -229,6 +229,21 @@ try{
   results.push({width,views:7,assets:'ok',overflow:'none',errors:jsErrors.slice(0,3)});
   await page.close();
  }
+ // The branded ECM library is real, backed by the untouched 152-row reference catalog.
+ const ecmPage=await browser.newPage({viewport:{width:393,height:820},isMobile:true,hasTouch:true});
+ await ecmPage.goto(new URL('/ecm/index.html',url).toString(),{waitUntil:'domcontentloaded',timeout:30000});
+ await ecmPage.waitForSelector('#results .entry',{timeout:10000});
+ assert((await ecmPage.locator('h1').innerText()).includes('55 Performance'),'ECM catalog must display the new brand');
+ assert.equal((await ecmPage.locator('#total').innerText()).trim(),'152','catalog must retain 152 rows');
+ assert(!(await ecmPage.locator('body').innerText()).includes('KTR Racing'),'old supplier branding must not appear in the UI');
+ await ecmPage.locator('#search').fill('0101C60D01');
+ assert((await ecmPage.locator('.entry').count())>=1,'search by genuine ECU ID still works');
+ assert((await ecmPage.locator('.entry').first().innerText()).includes('55 Performance #'),'reference row shows branded display ID');
+ await ecmPage.screenshot({path:path.join(root,'test-reports','55-performance-ecm-393.png'),fullPage:false});
+ await ecmPage.goto(new URL('/ktr/index.html?q=0101C60D01',url).toString(),{waitUntil:'domcontentloaded'});
+ await ecmPage.waitForURL(/\/ecm\/index\.html\?q=0101C60D01/,{timeout:10000});
+ await ecmPage.close();
+ console.log('PASS branded ECM page, 152 rows, searchable ECU ID and backward compatible redirect.');
  console.log('PASS Neon V20 Chrome mobile screens: '+JSON.stringify(results,null,2));
  console.log('Static visual regression screenshots saved under test-reports/. No hardware ECU tests.');
 }finally{if(browser)await browser.close();await new Promise(resolve=>server.close(resolve))}
