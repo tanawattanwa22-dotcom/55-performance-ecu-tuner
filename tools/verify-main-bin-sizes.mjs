@@ -20,5 +20,5 @@ assert.equal(frameAudit.sampleFrames.every(r=>r.checksumOK),true,'sample frames 
 const offset=csharpOffsetInference(bin384);
 assert.equal(offset.startOffset,null,'384KB file size alone must not invent a Start Offset');
 assert.equal(offset.eligibleForHardwareWrite,false,'file-only offset result must never enable ECU write');
-assert.equal(BIN_SIZES.includes(786432),false,'768KB ID may be decoded but current flash path does not support its address/profile');
-console.log('PASS 384KB BIN ID and frame math; 11 sizes catalogued; 768KB gap and unverified 384KB offset remain safely blocked.');
+assert.equal(BIN_SIZES.includes(786432),true,'768KB is in the source size list; flashing still requires ECU ID, memory map and address preflight');
+console.log('PASS 384KB BIN ID and frame math; 11 source sizes catalogued; 384KB offset remains unverified without ECU.');
