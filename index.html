@@ -355,7 +355,7 @@ table.g th,table.g td{border-right:1px solid rgba(255,255,255,.35);border-bottom
    <details class="raw"><summary>ข้อมูลดิบจากกล่อง (ไว้จับคู่ค่า)</summary>
     <div class="row" style="margin:8px 0"><label class="mu sm">ตารางที่ (hex)</label><input id="lvTbl" value="11" maxlength="2" style="width:70px;padding:8px;background:var(--p2);color:var(--tx);border:1px solid var(--ln);border-radius:8px"></div>
     <div id="rawB" class="rawb">-</div>
-    <div class="mu sm" id="rawNote">ไบต์ที่กระพริบสีส้ม = ค่าที่เปลี่ยน ใช้ดูว่าไบต์ไหนคือรอบ/คันเร่ง (ยังไม่มีผังไบต์ที่ยืนยันของรุ่นนี้ รอไฟล์ ADX)</div>
+    <div class="mu sm" id="rawNote">ไบต์ที่กระพริบสีส้ม = ค่า Raw ของเครื่องมือเดิม • การอ่าน RPM/TPS/เซนเซอร์จาก Main C# อยู่ในเมนู Live Data (ไม่ต้องใช้ ADX)</div>
    </details>
   </div>
   <div id="vAfr" style="display:none">
@@ -1981,12 +1981,9 @@ function guardRun(){
       else add("ตารางจาก XDF","MATCH",M.tables.length+" ตาราง อยู่ในขอบเขตไฟล์และค่าอยู่ในช่วงที่ XDF กำหนด");
     }catch(e){add("ตารางจาก XDF","UNKNOWN","ตรวจไม่ได้: "+(e&&e.message))}
   }
-  // ADX
-  const p=PROF[m.id];
-  if(!p)add("ข้อมูลสด (ADX)","UNKNOWN","รุ่นนี้ยังไม่มีไฟล์ ADX");
-  else if(GUARD.adx&&GUARD.adx[m.id]==="bad")add("ข้อมูลสด (ADX)","MISMATCH","ความยาวข้อมูลที่กล่องตอบไม่ตรงกับ ADX ของรุ่นนี้");
-  else if(GUARD.adx&&GUARD.adx[m.id]==="ok")add("ข้อมูลสด (ADX)","MATCH","ความยาวข้อมูลที่กล่องตอบตรงกับ ADX (ยังไม่ได้ยืนยันความถูกต้องของแต่ละค่า)");
-  else add("ข้อมูลสด (ADX)","WARNING","มี ADX ของรุ่นนี้ แต่ยังไม่ได้เทียบกับกล่องจริง (ต้องเชื่อมต่อและเริ่มอ่านค่าสด)");
+  // Main source live telemetry is a read-only diagnostic feature, not a flash safety criterion.
+  // Do not label missing ADX as a problem or allow sensor data to authorize ECU writes.
+  add("Live Data • Main C#","WARNING","อ่านค่าจาก FM_diag.cs ของโปรแกรม Main ที่ซื้อมาโดยตรงผ่าน FT232R / WebUSB; ต้องเลือกกลุ่ม 1/4/7 ให้ตรง ECU และยืนยันค่ากับกล่องจริง ไม่ต้องใช้ ADX");
   // O2
   const o2=m.o2||"";
   if(o2==="wide")add("ชนิด O2","MATCH","Wideband ตามที่แอดมินระบุ");
