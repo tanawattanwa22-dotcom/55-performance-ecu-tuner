@@ -1,0 +1,338 @@
+<!doctype html><html lang="th">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>55 PERFORMANCE | OFFLINE FLASH V28</title><meta name="theme-color" content="#0d1420">
+<style>
+*{box-sizing:border-box}body{margin:0;background:#0e1521;color:#ecf2ff;font:15px/1.55 system-ui}
+main{max-width:770px;margin:auto;padding:15px 13px 80px}a{color:#ffb67c}
+h1{font-size:25px;line-height:1.25}h2{font-size:19px;margin:0 0 12px}
+.card{border:1px solid #40536c;background:#1b2a40;border-radius:17px;margin:12px 0;padding:19px}
+.danger{border-left:5px solid #f59638}.step{font-size:13px;color:#9aafc6;font-weight:700}
+button{font:600 15px system-ui;border:1px solid #c67e4e;border-radius:11px;color:#fff;background:#bd5a21;padding:12px;min-height:44px}
+button:disabled{opacity:.35;cursor:not-allowed}button.secondary{background:#2e4b63;border-color:#7695b1}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+p,small{color:#b6c8da}small{display:block;margin:7px 0}
+input[type=text],input[type=file]{background:#0e192a;border:1px solid #637b98;border-radius:9px;padding:12px;color:white;font:inherit;width:100%;margin:8px 0}
+label{display:block;padding:6px 0}
+label input[type=checkbox]{accent-color:#ef8c39;width:18px;height:18px;vertical-align:middle;margin-right:8px}
+pre{background:#0b1827;border-radius:10px;padding:12px;font:12px ui-monospace,monospace;white-space:pre-wrap;overflow-wrap:anywhere;max-height:400px;overflow:auto}
+.status{padding:10px;border-radius:9px;background:#102138;margin:7px 0}
+.ok{color:#78edb2}.bad{color:#ffa19a}
+.progress{height:13px;border-radius:20px;background:#3b485b;overflow:hidden}
+.progress>div{height:100%;width:0%;background:linear-gradient(90deg,#3aa4ff,#64e3bc);transition:width .3s}
+</style><link rel="stylesheet" href="../../ui/neon-tools-v20.css?v=200"></head><body><main>
+<div class="row"><a href="../bench.html">← กลับ LAB V13</a><a href="../../index.html">โปรแกรมจูน</a><a href="../source-proof.html?v=16">หลักฐานโค้ด C#</a><a href="../main-full-flash-simulator.html">ทดสอบ Flash จำลองเต็มระบบ (ไม่ส่งคำสั่ง USB)</a><a href="../source-validation-v15.html?v=16">ทดสอบสูตรหน้าเว็บ 23 รายการ</a> <a href="https://github.com/tanawattanwa22-dotcom/55-performance-ecu-tuner/actions/workflows/honda-flash-offline-tests.yml" target="_blank" rel="noopener">GitHub Actions 29 รายการ</a></div>
+<h1>55 PERFORMANCE ECU FLASH<br><span style="color:#ffab69">OFFLINE FLASH V28 — โหมดแยก</span></h1>
+<div class="card danger"><b>มีการส่งคำสั่ง ERASE/WRITE จริง!</b>
+<p>เครื่องมือนี้ใช้โค้ด C# ที่ซื้อมาเป็นต้นแบบและเปิดเฉพาะ ECU ID ที่จับคู่กับฐานข้อมูลเดิมแล้วเท่านั้น พอร์ตฐานข้อมูล C# เดิม <b>288 รายการ</b> และอนุญาตทดลองเขียนเฉพาะกล่อง <b>Keihin</b> ที่อ่าน ECU ID ตรงฐานต้นฉบับ ผ่านการตรวจแฟลชเคานต์และโปรไฟล์ข้อมูล (ตัวอย่าง K03-H01 รหัส 0101880D01 • ทั้ง Keihin และ Shindengen ต้องผ่านการยืนยันรายรุ่น)</p>
+<p>ยังไม่เคยยืนยันเขียนบนกล่องจริงของนาย ฟังก์ชัน Verify ในซอร์สต้นฉบับเป็น ACK ปิดเซสชัน **ไม่ใช่การอ่านแฟลชกลับทั้งก้อน** อุปกรณ์สำรองก็สามารถเสียหายถาวรได้</p>
+<p>สาย FTDI TTL <b>ห้ามต่อเข้าขา K-Line 12V โดยตรง</b> ต้องมีวงจร K-Line transceiver/แหล่งจ่ายที่ถูกต้อง และอุปกรณ์กู้คืนที่ทดสอบแล้ว</p></div>
+<div class="card" style="border-color:#58b58b">
+ <div class="step">เตรียมครั้งแรกตอนมีอินเทอร์เน็ต</div><h2>55 PERFORMANCE · OFFLINE FLASH</h2>
+ <p>หน้านี้แยกจาก Flash Bench เดิม ใช้โค้ด Flash Engine ชุดเดียวกันสำหรับอ่าน ECU, สร้างแผน BIN, ERASE, WRITE และ Recovery</p>
+ <div id="offlineFiles" class="status">กำลังตรวจไฟล์ออฟไลน์...</div>
+ <div id="offlineState" class="status">ยังไม่ได้ตรวจใบอนุญาตออฟไลน์</div>
+ <div class="row"><button class="secondary" id="offlineActivate">เตรียม / ต่ออายุออฟไลน์ (ต้องมีเน็ต)</button><button class="secondary" id="offlineRecheck">ตรวจออฟไลน์</button></div>
+ <small>สิทธิ์ออฟไลน์ลงลายเซ็น มีอายุสูงสุด 72 ชั่วโมง หรือถึงวันสิ้นสุด License แล้วแต่ระยะไหนสั้นกว่า ต้องมีอินเทอร์เน็ตสำหรับต่ออายุ และการยกเลิกสิทธิ์ออนไลน์อาจยังไม่เกิดผลระหว่างออฟไลน์จนใบอนุญาตหมดอายุ</small>
+ </div>
+ <div class="card"><div class="step">ขั้นตอน 1</div><h2>ตรวจ License ออฟไลน์ / เชื่อมต่อสาย</h2>
+<div id="auth" class="status">กำลังตรวจใบอนุญาตที่เซ็นไว้ในมือถือ...</div>
+<div class="row"><button class="secondary" id="check">ตรวจสิทธิ์ออฟไลน์อีกครั้ง</button><button id="connect" disabled>เชื่อม FT232R</button><button class="secondary" id="disconnect" disabled>ตัดสาย</button></div>
+<div id="usb" class="status">ยังไม่เชื่อมต่อ FTDI</div></div>
+<div class="card"><div class="step">ขั้นตอน 2</div><h2>อ่านรหัส ECU สำรองจริง</h2>
+<button id="probe" disabled>ปลุก ECU / อ่าน ECU ID</button>
+<div id="ecu" class="status">ยังไม่ได้ตรวจรหัส ECU</div>
+<div id="ecuMatch" class="status" hidden style="margin-top:10px;border:1px solid #7b56aa;background:#202039"></div><small>ต้องระบุรหัสจากคำตอบจริง ไม่อนุญาตให้เลือก ECU Type เองเพื่อเขียนแฟลช</small></div>
+<div class="card"><div class="step">ขั้นตอน 3</div><h2>ตรวจไฟล์ BIN ก่อน ERASE</h2>
+<input id="bin" type="file" accept=".bin,application/octet-stream">
+<label for="part">ยืนยันรหัสอะไหล่ ECU ตามฐาน C# (กรอกเมื่อชื่อ BIN ไม่ระบุรุ่น)</label><input id="part" type="text" autocomplete="off" placeholder="เช่น 38770-K03-H01">
+<label><input type="checkbox" id="optFast">Fast Write (Keihin ทั่วไป: สลับเป็น 921600 baud / Shindengen: ตัดหน่วง 150 ms) — ยังไม่ผ่านทดสอบกล่องจริง</label>
+<label><input type="checkbox" id="optRecovery">Recovery Mode (Shindengen ที่ ECU ID ลงท้าย 0000 เท่านั้น ใช้คีย์ Recovery)</label>
+<input id="recStart" type="text" autocomplete="off" placeholder="Start Offset (HEX, ไม่บังคับ ใช้เฉพาะ Recovery) เช่น 10000">
+<button id="prepare" disabled>ตรวจ BIN และสร้างแผนเขียน</button>
+<pre id="plan">ต้องอ่าน ECU ID ก่อน • ไฟล์ไม่ถูกส่งไปที่เซิร์ฟเวอร์</pre></div>
+<div class="card"><div class="step">เครื่องมือ BIN (จาก Main)</div><h2>BIN ID / Lock Read / Lock Mode</h2>
+<div id="binInfo" class="status">เลือกไฟล์ BIN ในขั้นตอน 3 เพื่ออ่าน BIN ID</div>
+<div class="row"><button class="secondary" id="lockRead" disabled>Lock Read (48/64 KB) → ดาวน์โหลด</button><button class="secondary" id="lockMode" disabled>Lock Mode (48/64 KB) → ดาวน์โหลด</button></div>
+<small>ปุ่มเหล่านี้สร้างสำเนา BIN ที่แก้แล้วให้ดาวน์โหลด ไม่แก้ไฟล์เดิม และไม่ส่งเข้ากล่อง ถ้าจะเขียนไฟล์ที่แก้ ให้เลือกไฟล์ใหม่ในขั้นตอน 3 (ระบบจะคำนวณ Checksum ใหม่ตอนสร้างแผนเขียน)</small></div>
+<div class="card danger"><div class="step">ขั้นตอน 4 — มีความเสี่ยง</div><h2>ยืนยันก่อนส่งคำสั่งเขียนจริง</h2>
+<label><input type="checkbox" id="backup">มีไฟล์ BIN เดิมที่ถูกต้องจาก ECU รุ่นนี้ สำรองไว้นอกมือถือแล้ว</label>
+<label><input type="checkbox" id="power">ECU สำรองต่อไฟเลี้ยงนิ่ง มีวงจรป้องกันและสาย K-Line ที่ตรวจสอบแล้ว</label>
+<label><input type="checkbox" id="recovery">มีเครื่องมือกู้คืน ECU และรู้ขั้นตอนกู้ หาก ERASE/WRITE ล้มเหลว</label>
+<label for="typed">พิมพ์ FLASH ตามด้วยรหัส ECU 10 หลักที่อ่านได้ เช่น <code>FLASH 0101880D01</code></label>
+<input type="text" id="typed" placeholder="FLASH + ECU ID" autocomplete="off" spellcheck="false">
+<div class="progress"><div id="bar"></div></div><div id="percent" class="status">0% • ยังไม่ได้ส่งคำสั่งแฟลช</div>
+<button id="write" disabled>ERASE / WRITE (กล่องสำรองเท่านั้น)</button>
+<hr><div class="step">ขั้นตอน 5 — หลังรีสตาร์ตกล่องสำรอง</div>
+<button id="postCheck" class="secondary" disabled>ตรวจ ECU ID หลังเขียน / รีสตาร์ต</button>
+<div id="postStatus" class="status">รอผล SOURCE FINAL ACK จากขั้นตอนที่ 4</div>
+<small>รีสตาร์ต ECU ตามขั้นตอนรุ่นที่ทดสอบแล้วกดตรวจรหัสเดิม ไม่ใช่การอ่าน BIN กลับมา Verify</small>
+<small>เมื่อลบแฟลชแล้ว ห้ามตัดไฟหรือถอดสายกลางคัน การรายงาน 100% หมายถึง ACK ของโปรโตคอล C# ไม่ใช่ Verify Memory อ่านกลับ</small>
+</div>
+<div class="card"><h2>Flash TX/RX Log</h2>
+<div class="row"><button class="secondary" id="copy">คัดลอก Log</button><button class="secondary" id="saveLog">บันทึก Log TXT ลงมือถือ</button></div><pre id="log">ยังไม่มี Log</pre></div>
+</main>
+<script src="../../license-config.js"></script><script src="../../license-client.js"></script>
+<script type="module">
+import {verifySavedOfflinePermit,provisionOfflinePermit} from '../offline-license.js';
+import {Ft232rWebUsb} from '../ftdi-webusb.js';
+import {HondaFlashEngine} from '../honda-write-engine.js';
+import {lookupEcmId} from './ecu-id-lookup.js?v=251';
+import {renderEcmIdentification,showEcmPopup} from './ecu-id-ui.js?v=251';
+const $=id=>document.getElementById(id);
+let authorized=false,bundleReady=false,port=null,engine=null,identity=null,plan=null,busy=false,flashing=false,wakeLock=null;
+let lastPlanEvidence=null,flashOutcome='NOT_STARTED'; // immutable evidence survives plan reset after Final ACK
+const logs=[];
+const push=(v)=>{const s=new Date().toLocaleTimeString('th-TH')+' '+v;logs.push(s);if(logs.length%5===0||!flashing){$('log').textContent=logs.slice(-130).join('\n');$('log').scrollTop=$('log').scrollHeight}};
+function refreshButtons(){
+ $('connect').disabled=busy||!authorized||!!port;
+ $('disconnect').disabled=busy||!port;
+ $('probe').disabled=busy||!authorized||!port;
+ $('prepare').disabled=busy||!authorized||!identity||!$('bin').files?.length;
+ $('postCheck').disabled=busy||!authorized||!port?.ready||engine?.state!=='finished';
+ $('write').disabled=busy||!authorized||!port?.ready||!plan||identity?.ecuId!==plan.ecuId||
+  !$('backup').checked||!$('power').checked||!$('recovery').checked||
+  $('typed').value.trim().toUpperCase()!=='FLASH '+identity.ecuId;
+}
+async function prepareOfflineAssets(){
+ if(!('serviceWorker' in navigator))throw Error('Chrome ไม่รองรับ Service Worker');
+ const reg=await navigator.serviceWorker.register('./sw.js',{scope:'./'});
+ if(!reg.active){
+  const worker=reg.installing||reg.waiting;
+  if(!worker)throw Error('Offline worker ติดตั้งไม่ได้');
+  await new Promise((resolve,reject)=>{
+   if(worker.state==='activated')return resolve();
+   const t=setTimeout(()=>reject(Error('Offline worker หมดเวลา')),20000);
+   worker.addEventListener('statechange',()=>{
+    if(worker.state==='activated'){clearTimeout(t);resolve()}
+    else if(worker.state==='redundant'){clearTimeout(t);reject(Error('โหลดไฟล์ออฟไลน์ไม่ครบ'))}
+   });
+  });
+ }
+ if(!reg.active)throw Error('Offline worker ไม่พร้อม');
+ const info=await new Promise((resolve,reject)=>{
+  const channel=new MessageChannel();
+  const t=setTimeout(()=>reject(Error('ตรวจแคชเกินเวลา')),7000);
+  channel.port1.onmessage=e=>{clearTimeout(t);resolve(e.data)};
+  reg.active.postMessage({type:'55_CHECK_OFFLINE_CACHE'},[channel.port2]);
+ });
+ if(!info?.ok)throw Error('ไฟล์ออฟไลน์ไม่ครบ: '+(info?.missing||[]).join(','));
+ bundleReady=true;
+ $('offlineFiles').className='status ok';
+ $('offlineFiles').textContent='เก็บไฟล์ออฟไลน์ครบ '+info.files+' ไฟล์ · '+info.version;
+}
+async function license(){
+ authorized=false;refreshButtons();
+ try{
+  const verified=await verifySavedOfflinePermit(localStorage.getItem('55_device_id'));
+  if(!bundleReady)throw Error('ยังไม่ได้จัดเก็บไฟล์โปรแกรมออฟไลน์ครบ');
+  authorized=true;
+  $('auth').textContent='ตรวจลายเซ็น License ในมือถือผ่าน · ไม่เรียกเซิร์ฟเวอร์';
+  $('offlineState').className='status ok';
+  $('offlineState').textContent='OFFLINE READY · สิทธิ์ถึง '+new Date(verified.expiresAt).toLocaleString('th-TH');
+ }catch(e){
+  $('auth').textContent='สิทธิ์ออฟไลน์ยังไม่พร้อม: '+e.message;
+  $('offlineState').className='status bad';
+  $('offlineState').textContent='OFFLINE BLOCKED · '+e.message;
+ }
+ refreshButtons();
+}
+$('offlineRecheck').onclick=async()=>{
+ try{await prepareOfflineAssets()}catch(e){bundleReady=false;$('offlineFiles').textContent=e.message}
+ await license();
+};
+$('offlineActivate').onclick=async()=>{
+ const button=$('offlineActivate');button.disabled=true;
+ $('offlineState').textContent='กำลังเตรียมไฟล์และขอสิทธิ์จาก Supabase...';
+ try{
+  await prepareOfflineAssets();
+  const receipt=await provisionOfflinePermit(localStorage.getItem('55_device_id'));
+  $('offlineState').textContent='ออกใบอนุญาตสำเร็จ '+new Date(receipt.expiresAt).toLocaleString('th-TH');
+ }catch(e){$('offlineState').textContent='เตรียมออฟไลน์ไม่ผ่าน: '+e.message}
+ finally{button.disabled=false;await license()}
+};
+$('check').onclick=license;
+$('connect').onclick=async()=>{
+ if(!authorized)return;
+ busy=true;refreshButtons();
+ try{
+  const device=await Ft232rWebUsb.choose(); // Direct tap grants WebUSB chooser.
+  const p=new Ft232rWebUsb(push);
+  await p.openSelected(device);
+  port=p;identity=null;plan=null;$('ecuMatch').hidden=true;engine=new HondaFlashEngine(port,ev=>{
+   const detail=Object.fromEntries(Object.entries(ev).filter(([k])=>k!=='at'&&k!=='phase'));
+   if(ev.phase==='WRITE_PROGRESS'){$('bar').style.width=ev.percent+'%';$('percent').textContent=ev.percent+'% • '+ev.bytesCovered+'/'+ev.totalBytes+' bytes acknowledged'}
+   push(ev.phase+' '+JSON.stringify(detail));
+  });
+  $('usb').textContent='FT232R เปิดสำเร็จ → ยังไม่ได้อ่าน ECU';
+  push('FT232R connected; flash session not started');
+ }catch(e){$('usb').textContent='USB ERROR: '+e.message;push(e.message)}
+ finally{busy=false;refreshButtons()}
+};
+$('disconnect').onclick=async()=>{
+ if(flashing)return;busy=true;refreshButtons();
+ try{if(port)await port.close()}finally{
+  port=null;engine=null;identity=null;plan=null;$('ecuMatch').hidden=true;
+  $('usb').textContent='ตัดสายแล้ว';$('ecu').textContent='ยังไม่ได้อ่าน ECU';
+  busy=false;refreshButtons();
+ }
+};
+$('probe').onclick=async()=>{
+ if(!port||flashing)return;
+ busy=true;refreshButtons();
+ $('ecu').textContent='กำลัง Init FTDI และอ่าน ECU ID...';
+ try{
+  identity=await engine.identify();
+  $('ecu').textContent='ECU ID = '+identity.ecuId+' | family = '+identity.family+
+    ' | C# source = '+(identity.sourcePart||'ไม่พบในฐานเดิม')+
+    (identity.family==='KEIHIN'?' | FLASH COUNT '+identity.count:'');
+  $('ecu').className='status '+(identity.sourceMatched?'ok':'bad');
+  $('part').placeholder=identity.sourcePart||'ยังไม่พบรหัสอะไหล่ในฐาน C#';
+  // KTR is a DISPLAY lookup; the actual C# identity/flash allowlist is unchanged.
+  try{
+    const translated=await lookupEcmId(identity.ecuId);
+    renderEcmIdentification($('ecuMatch'),translated);
+    showEcmPopup(translated);
+    push('ECU ID MATCH '+JSON.stringify({id:translated.ecuId,part:translated.partCode,
+      model:translated.model,candidates:translated.candidates.length,status:translated.status,source:translated.source}));
+  }catch(lookupError){
+    $('ecuMatch').hidden=false;
+    $('ecuMatch').textContent='อ่าน ECU ID ได้แล้ว แต่ดึงชื่อ Part Code ไม่สำเร็จ: '+lookupError.message;
+    push('ECU NAME LOOKUP ERROR '+lookupError.message);
+  }
+  push('ECU ID '+identity.ecuId);
+ }catch(e){$('ecu').textContent='ไม่สำเร็จ: '+e.message;push('ECU PROBE STOP: '+e.message)}
+ finally{busy=false;refreshButtons()}
+};
+$('prepare').onclick=async()=>{
+ plan=null;busy=true;refreshButtons();
+ try{
+  const file=$('bin').files[0];
+  const data=new Uint8Array(await file.arrayBuffer());
+  const sha=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',data)),b=>b.toString(16).padStart(2,'0')).join('');
+  const recHex=$('recStart').value.trim();
+   plan=engine.makePlan(data,{filename:file.name,confirmedPart:$('part').value,fast:$('optFast').checked,recovery:$('optRecovery').checked,
+    startOffsetOverride:/^[0-9A-Fa-f]+$/.test(recHex)?parseInt(recHex,16):null});
+  const writeSha=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',plan.bin)),b=>b.toString(16).padStart(2,'0')).join('');
+  lastPlanEvidence=Object.freeze({createdAt:new Date().toISOString(),ecuId:plan.ecuId,part:plan.part,
+   filename:plan.filename,originalSha256:sha,actualWriteSha256:writeSha,
+   originalBinBytes:data.length,actualWriteBinBytes:plan.bin.length,checksumChanged:plan.checksumChanged,
+   profile:plan.profile,startOffset:plan.startOffset,checksumOffset:plan.checksumOffset,
+   expectedBlockCount:plan.expectedBlockCount});
+  flashOutcome='PREFLIGHT_ONLY_NO_FLASH';
+  $('plan').textContent=JSON.stringify({ecuId:plan.ecuId,part:plan.part,fileName:plan.filename,
+   originalSha256:sha,actualWriteSha256:writeSha,checksumChanged:plan.checksumChanged,profile:plan.profile,fast:plan.fast,recovery:plan.recovery,startOffset:'0x'+plan.startOffset.toString(16).toUpperCase(),
+   checksumOffset:plan.checksumOffset,binBytes:plan.size,expectedBlocks:plan.expectedBlockCount,checks:plan.checks,
+   note:'ผ่านเฉพาะ source mapping / ECU ID ไม่ใช่ความปลอดภัยของแฟลช'},null,2);
+  push('BIN PREFLIGHT PASS: '+file.name+' '+sha);
+ }catch(e){$('plan').textContent='ห้ามเขียน: '+e.message;push('PREFLIGHT STOP: '+e.message)}
+ finally{busy=false;refreshButtons()}
+};
+for(const id of ['backup','power','recovery','typed'])$(id).addEventListener('input',refreshButtons);
+$('bin').addEventListener('change',()=>{plan=null;refreshButtons()});
+import {readBinId,findEcmIdInBin,lockRead,lockMode} from '../bin-tools.js';
+async function refreshBinInfo(){
+ const f=$('bin').files?.[0];
+ $('lockRead').disabled=$('lockMode').disabled=true;
+ if(!f){$('binInfo').textContent='เลือกไฟล์ BIN ในขั้นตอน 3 เพื่ออ่าน BIN ID';return}
+ const data=new Uint8Array(await f.arrayBuffer());
+ const id=readBinId(data);
+ let txt='ขนาด '+(data.length/1024)+' KB | BIN ID: '+(id.ok?id.id+' (offset '+id.at+')':'ไม่พบ ('+id.reason+')');
+ if(identity?.ecuId){const m=findEcmIdInBin(data,identity.ecuId);txt+=' | ECM ID ในไฟล์: '+(m.ok?'พบที่ '+m.index:'ไม่พบ')}
+ $('binInfo').textContent=txt;
+ const ok=data.length===49152||data.length===65536;
+ $('lockRead').disabled=$('lockMode').disabled=!ok;
+}
+function downloadPatched(kind,fn){
+ const f=$('bin').files[0];if(!f)return;
+ f.arrayBuffer().then(buf=>{
+  const r=fn(new Uint8Array(buf));
+  if(!r.ok){push(kind+' STOP: '+r.error);$('binInfo').textContent=r.error;return}
+  const url=URL.createObjectURL(new Blob([r.bytes],{type:'application/octet-stream'}));
+  const a=document.createElement('a');a.href=url;a.download=f.name.replace(/\.bin$/i,'')+'_'+kind+'.bin';a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1500);
+  push(kind+' OK: '+r.hits+' hit(s), file '+a.download);
+ });
+}
+$('lockRead').onclick=()=>downloadPatched('lockread',lockRead);
+$('lockMode').onclick=()=>downloadPatched('lockmode',lockMode);
+$('bin').addEventListener('change',refreshBinInfo);
+
+$('part').addEventListener('input',()=>{plan=null;refreshButtons()});
+for(const id of ['optFast','optRecovery','recStart'])$(id).addEventListener('input',()=>{plan=null;refreshButtons()});
+$('write').onclick=async()=>{
+ if(!plan||flashing||!authorized)return;
+ // A signed permit must remain valid when we start ERASE, not only on page load.
+ try{await verifySavedOfflinePermit(localStorage.getItem('55_device_id'))}
+ catch(e){authorized=false;refreshButtons();$('percent').textContent='หยุดก่อน ERASE: '+e.message;return}
+ const message='กล่องสำรอง '+plan.part+' ECU ID '+plan.ecuId+
+   '\nBIN '+plan.filename+' ('+plan.size+' bytes)'+
+   '\nStart Offset 0x'+plan.startOffset.toString(16)+
+   '\n\nจะเข้าสู่ขั้นตอน ERASE/WRITE จริงและมีโอกาสทำ ECU เสีย ถ้ายังไม่พร้อมกด Cancel';
+ if(!confirm(message))return;
+ flashOutcome='FLASH_STARTED_NOT_VERIFIED';
+ busy=true;flashing=true;refreshButtons();
+ $('percent').textContent='เริ่มขั้นตอนแฟลช ECU สำรอง • ห้ามปิดหน้าเว็บ';
+ try{
+  if(navigator.wakeLock?.request){try{wakeLock=await navigator.wakeLock.request('screen')}catch(e){push('Screen WakeLock unavailable: '+e.message)}}
+  const result=await engine.flash(plan,{confirmation:$('typed').value.trim().toUpperCase(),
+   physicalBackupConfirmed:$('backup').checked,externalPowerConfirmed:$('power').checked,
+   recoveryReady:$('recovery').checked});
+  $('percent').textContent='ได้รับ SOURCE FINAL ACK • โปรดรีสตาร์ต ECU และตรวจซ้ำ • ยังไม่ได้ Readback VERIFY';
+  $('percent').className='status ok';
+  flashOutcome='SOURCE_FINAL_ACK_NO_READBACK';
+  $('postStatus').textContent='ได้รับ Final ACK แล้ว • รีสตาร์ต ECU สำรองก่อนกดตรวจ ECU ID อีกครั้ง';
+  push('SOURCE COMPLETE (not full readback verification) '+JSON.stringify(result));
+ }catch(e){
+  $('percent').textContent='หยุดอัดไฟล์: '+e.message+
+   '\nห้ามสันนิษฐานว่ากล่องยังใช้ได้ หากเข้าสู่ ERASE แล้วต้องใช้ขั้นตอนกู้คืน';
+  $('percent').className='status bad';
+  flashOutcome='FLASH_STOPPED_MAY_REQUIRE_ECU_RECOVERY';
+  push('FLASH STOP: '+e.message);
+ }finally{
+  flashing=false;busy=false;
+  if(wakeLock){try{await wakeLock.release()}catch{}wakeLock=null}
+  if(engine?.state==='finished'){plan=null}
+  refreshButtons();
+ }
+};
+$('postCheck').onclick=async()=>{
+  if(!authorized||busy||flashing||!port?.ready||engine?.state!=='finished')return;
+  if(!confirm('ได้รีสตาร์ต ECU สำรองและต่อไฟ/สายพร้อมแล้วใช่หรือไม่? จะตรวจเฉพาะ ECU ID และการตอบกลับ ไม่อ่าน BIN กลับ'))return;
+  busy=true;refreshButtons();
+  $('postStatus').textContent='กำลังตรวจรหัส ECU หลังรีสตาร์ต...';
+  try{
+    const result=await engine.postFlashCheck();
+    $('postStatus').className='status ok';
+    $('postStatus').textContent='ECU ตอบกลับหลังรีสตาร์ต: '+result.ecuId+
+      ' | '+(result.sourcePart||'')+
+      ' | ยังไม่ได้ Verify เนื้อหา BIN ใน Flash';
+    flashOutcome='POST_RESTART_ID_OK_NO_FIRMWARE_READBACK';
+    push('POST FLASH CHECK '+JSON.stringify(result));
+    plan=null;identity=engine.identity;
+  }catch(e){
+    $('postStatus').className='status bad';
+    $('postStatus').textContent='ตรวจ ECU หลังรีสตาร์ตไม่ผ่าน: '+e.message+
+      ' | ตรวจไฟเลี้ยง/สายและใช้เครื่องมือกู้คืนตามความจำเป็น';
+    flashOutcome='POST_RESTART_ECU_CHECK_FAILED';
+    push('POST FLASH STOP '+e.message);
+  }finally{busy=false;refreshButtons()}
+};
+$('copy').onclick=()=>navigator.clipboard.writeText(logs.join('\n')).catch(e=>push('Clipboard failed '+e.message));
+$('saveLog').onclick=()=>{
+ const safeId=identity?.ecuId?.replace(/[^0-9A-F]/g,'')||'NO_ID';
+ const timestamp=new Date().toISOString().replace(/[:.]/g,'-');
+ const report=['55 PERFORMANCE OFFLINE FLASH V28','Source: C# FormMain.cs SHA256 50e13192164e25493fffb1babd5baa580902d0a14a09452a3279cf75157594f1',
+  'ECU ID: '+safeId,'ECU family: '+(identity?.family||'UNKNOWN'),
+  'ECU Part: '+(identity?.sourcePart||'UNKNOWN'),
+  'Plan evidence (kept after flash): '+(lastPlanEvidence?JSON.stringify(lastPlanEvidence):'not yet prepared'),
+  'Run outcome: '+flashOutcome,
+  'NOTE: Final ACK and post-restart ECU ID are not firmware readback verification.','',...logs].join('\n');
+ const url=URL.createObjectURL(new Blob([report],{type:'text/plain;charset=utf-8'}));
+ const a=document.createElement('a');a.href=url;a.download='55_ECU_FLASH_LOG_'+safeId+'_'+timestamp+'.txt';a.click();
+ setTimeout(()=>URL.revokeObjectURL(url),1500);
+ push('Flash log downloaded to phone');
+};
+
+window.addEventListener('beforeunload',e=>{if(flashing){e.preventDefault();e.returnValue='ECU FLASH IN PROGRESS'}});
+(async()=>{try{await prepareOfflineAssets()}catch(e){bundleReady=false;$('offlineFiles').className='status bad';$('offlineFiles').textContent='ไฟล์ออฟไลน์ยังไม่พร้อม: '+e.message}await license()})();
+</script></body></html>
