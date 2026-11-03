@@ -105,7 +105,7 @@
    setTimeout(()=>{
      home();
      window.__55NeonNavigate?.("flash");
-     el("flashCard").scrollIntoView({behavior:"smooth",block:"center"});
+     el("n20Stage")?.scrollIntoView({behavior:"smooth",block:"start"});
    },100);
  };
  el("btnReturnTune").onclick=()=>openTune();
