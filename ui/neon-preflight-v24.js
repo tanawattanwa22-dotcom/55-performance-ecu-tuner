@@ -245,7 +245,8 @@ function mount(host){
   ['ตรวจสาย USB / VID-PID (ไม่ส่งข้อมูล ECU)','flash_port/usb-cable-diagnostic.html'],
   ['เปิด Real ECU Flash (ขั้นสูง)','flash_port/flash-write-lab.html'],
   ['เปิด Offline Flash V28','flash_port/offline/index.html'],
-  ['ตรวจ BIN ID / Checksum ตาม Main C#','flash_port/main-bin-audit.html']
+  ['ตรวจ BIN ID / Checksum ตาม Main C#','flash_port/main-bin-audit.html'],
+  ['ค้นฐาน ECU 290 รายการ','flash_port/main-ecu-catalog.html']
  ]){
   const a=make('a','n24-btn',title);
   a.href=new URL(path,document.baseURI).href;
