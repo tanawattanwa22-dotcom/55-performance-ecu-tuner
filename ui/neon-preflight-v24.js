@@ -99,7 +99,9 @@ function render(){
  dom.read.disabled=working||!!INLINEFLASH.busy||!!document.getElementById('licenseGate');
  dom.check.disabled=working||!c.valid||!identity||!recency()||last?.saved!==c.saved;
  dom.flash.disabled=working||!!INLINEFLASH.busy||!(INLINEFLASH.postCheck||(fileReady&&cableReady))||!!$('btnFlash')?.hidden||!!$('btnFlash')?.disabled;
- dom.flash.textContent=INLINEFLASH.busy?'กำลังอัด • อย่าถอดสาย':INLINEFLASH.postCheck?'✓ ตรวจ ECU หลังเปิดกุญแจใหม่':'⇧ ตรวจอัตโนมัติและอัดไฟล์';
+ dom.flash.textContent=INLINEFLASH.busy?'กำลังตรวจ / อัดไฟล์ ECU':INLINEFLASH.postCheck?'✓ ตรวจ ECU หลังเปิดกุญแจใหม่':'⇧ ตรวจอัตโนมัติและอัดไฟล์';
+ if(dom.miniProgress){const pct=$('pct')?.textContent||'0%';dom.miniProgress.textContent=INLINEFLASH.busy||INLINEFLASH.postCheck?'ความคืบหน้า '+pct+' · '+(INLINEFLASH.status||''):'พร้อมเริ่มตรวจ';}
+ if(dom.miniBar){dom.miniBar.style.width=(INLINEFLASH.busy||INLINEFLASH.postCheck?$('barFill')?.style.width||'0%':'0%');}
  dom.flash.title=dom.flash.disabled?'ต้องบันทึก BIN อ่าน ECU ID และตรวจ Preflight ให้ผ่านก่อน':'ใช้ Flash Engine เดิมซึ่งอ่าน ECU ID ใหม่ก่อน ERASE';
  if(dom.gateReason){
   const blockers=[];
@@ -148,7 +150,7 @@ async function readECU(){
  try{
   // Reuse the physical FT232R opened from the home dashboard.
   const [{HondaFlashEngine}]=await Promise.all([
-   import(new URL('flash_port/honda-write-engine.js?v=303',location.origin+'/55-performance-ecu-tuner/').href)]);
+   import(new URL('flash_port/honda-write-engine.js?v=309',document.baseURI).href)]);
   if(typeof api!=='function')throw Error('ไม่พบตัวตรวจ License');
   const license=await api('check',{device:localStorage.getItem('55_device_id')});
   if(!license?.active)throw Error('License ไม่ได้เปิดใช้งาน');
@@ -246,7 +248,9 @@ function mount(host){
   finally{window.__55refreshFlashButton?.();render();upload.value=''}
  };
  const flash=btn('⇧ ตรวจอัตโนมัติและอัดไฟล์','n24-btn n24-flash n24-easy-flash',startFlash);dom.flash=flash;
- easy.append(uploadLabel,upload,uploadNote,fastLabel,uploadStatus,flash);
+ const miniProgress=make('p','n24-mini-progress','พร้อมเริ่มตรวจ');dom.miniProgress=miniProgress;
+ const miniBar=make('div','n24-mini-bar');const miniFill=make('i','');dom.miniBar=miniFill;miniBar.append(miniFill);
+ easy.append(uploadLabel,upload,uploadNote,fastLabel,uploadStatus,flash,miniBar,miniProgress);
  stage.append(easy);
  const file=card('n24-bin','▧','ไฟล์ที่จะอัด (BIN)');
  file.append(line('filename','ชื่อไฟล์'),line('source','ประเภทไฟล์'),line('size','ขนาดไฟล์'),line('sha','Checksum (SHA-256)'));stage.append(file);
@@ -303,5 +307,7 @@ window.__55FlashPreflight={mount,render,readECU,runCheck,ready:verified};
 window.addEventListener('55:bin-changed',render);
  const stepBox=$('stepTxt');
  if(stepBox)new MutationObserver(()=>{if(INLINEFLASH.busy||INLINEFLASH.postCheck){message=stepBox.textContent;render()}}).observe(stepBox,{childList:true,subtree:true,characterData:true});
+ const pct=$('pct');
+ if(pct)new MutationObserver(()=>render()).observe(pct,{childList:true,characterData:true,subtree:true});
 setInterval(()=>{if(stage?.isConnected)render()},1500);
 })();
