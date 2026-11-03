@@ -73,7 +73,7 @@ export class MainLiveSession {
  }
  async connect(){
   if(this.connecting||this.running||this.port?.ready)return false;
-  this.connecting=true;this.error='';this.phase='USB_CHOOSER';this.disconnectRequested=false;this.notify();
+  this.connecting=true;this.error='';this.phase='USB_CHOOSER';this.disconnectRequested=false;this.stopRequested=false;this.notify();
   let port=null;
   try{
    if(!navigator.usb)throw Error('Chrome/Android ต้องรองรับ WebUSB และเปิดผ่าน HTTPS');
