@@ -1,15 +1,18 @@
-name: KTR Honda ECM Catalog — Integrity
+name: 55 Performance — ECM Catalog Integrity
 
 on:
   push:
     branches: [main]
     paths:
       - "ktr/**"
+      - "ecm/**"
       - "tools/verify-ktr-catalog.mjs"
+      - "tools/verify-55-performance-brand.mjs"
       - ".github/workflows/ktr-catalog-verify.yml"
   pull_request:
     paths:
       - "ktr/**"
+      - "ecm/**"
       - "tools/verify-ktr-catalog.mjs"
   workflow_dispatch:
 
@@ -18,7 +21,7 @@ permissions:
 
 jobs:
   validate-catalog:
-    name: Verify KTR 152-row reference integrity (NO ECU)
+    name: Verify 55 Performance 152-row ECM data (NO ECU)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -26,5 +29,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Validate KTR Honda ECM reference records
+      - name: Validate ECM reference records (original IDs intact)
         run: node tools/verify-ktr-catalog.mjs
+      - name: Verify 55 Performance UI branding without changing ECM lookup IDs
+        run: node tools/verify-55-performance-brand.mjs
