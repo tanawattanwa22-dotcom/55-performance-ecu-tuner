@@ -128,7 +128,7 @@ async function readECU(){
  try{
   // Reuse the physical FT232R opened from the home dashboard.
   const [{HondaFlashEngine}]=await Promise.all([
-   import(new URL('flash_port/honda-write-engine.js?v=ecu-id-fix-2',location.origin+'/55-performance-ecu-tuner/').href)]);
+   import(new URL('flash_port/honda-write-engine.js?v=301',location.origin+'/55-performance-ecu-tuner/').href)]);
   if(typeof api!=='function')throw Error('ไม่พบตัวตรวจ License');
   const license=await api('check',{device:localStorage.getItem('55_device_id')});
   if(!license?.active)throw Error('License ไม่ได้เปิดใช้งาน');
@@ -140,7 +140,7 @@ async function readECU(){
   const c=current();
   last={identity,engine,at:Date.now(),saved:c.valid?c.saved:null,model:c.model,plan:null};
   message=identity.sourceMatched?
-   'อ่าน ECU ID จริงแล้ว · ปิดการเชื่อมต่ออ่านชั่วคราว · กดตรวจ Preflight':
+   'อ่าน ECU ID จริงแล้ว · ใช้สายหลักร่วมกัน · กดตรวจ Preflight':
    'อ่าน ECU ID แล้ว แต่ยังไม่ตรงฐาน C# · ไม่อนุญาตให้เตรียมอัด';
  }catch(e){
   last=null;

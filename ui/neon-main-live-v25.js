@@ -2,7 +2,7 @@
  * Main FM_diag.cs reader is the sole source of real-time sensor values.
  * The legacy ADX/DEMO live engine is never called by this bridge.
  */
-import {MainLiveSession} from '../flash_port/main-live-session.js';
+import {MainLiveSession} from '../flash_port/main-live-session.js?v=301';
 const old=window.__55LiveBridge;
 if(!old)throw Error('Live UI bridge must be installed before Main V25');
 const originalSnapshot=old.snapshot.bind(old);
@@ -105,7 +105,7 @@ const homeScroll=home?.querySelector('.scroll');
 if(homeScroll&&!document.getElementById('sharedEcuPanel')){
  const panel=document.createElement('section');panel.id='sharedEcuPanel';panel.className='card';
  panel.style.cssText='border:1px solid #25dce5;background:linear-gradient(135deg,#102b45,#15172b);margin:12px 0;padding:16px';
- const heading=document.createElement('h2');heading.textContent='🔌 เชื่อมต่อ FT232R · สายหลักของโปรแกรม';
+ const heading=document.createElement('h2');heading.textContent='🔌 เชื่อมต่อ FT232R · V30.1';
  const state=document.createElement('p');state.id='sharedEcuState';state.setAttribute('role','status');
  const connect=document.createElement('button');connect.className='btn ac';connect.textContent='เชื่อมต่อสาย USB';
  const disconnect=document.createElement('button');disconnect.className='btn';disconnect.textContent='ตัดการเชื่อมต่อ';

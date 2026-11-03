@@ -1,5 +1,5 @@
-import './neon-main-live-v25.js?v=300';
-import {readSharedDtc,clearSharedDtc} from '../flash_port/shared-dtc.js';
+import './neon-main-live-v25.js?v=301';
+import {readSharedDtc,clearSharedDtc} from '../flash_port/shared-dtc.js?v=301';
 const $=id=>document.getElementById(id);
 let dtcBusy=false;
 const event=(name,detail)=>window.dispatchEvent(new CustomEvent('55:'+name,{detail}));
@@ -65,8 +65,8 @@ reset.onclick=async()=>{
  const shared=window.__55SharedEcu;let port;
  try{
   port=await shared.acquire('RESET_SH_COUNT');reset.disabled=true;
-  const {HondaFlashEngine}=await import('../flash_port/honda-write-engine.js');
-  const {resetShindengenCount}=await import('../flash_port/main-reset-count.js');
+  const {HondaFlashEngine}=await import('../flash_port/honda-write-engine.js?v=301');
+  const {resetShindengenCount}=await import('../flash_port/main-reset-count.js?v=301');
   const identity=await new HondaFlashEngine(port).identify();
   if(!identity.sourceMatched||identity.family!=='SHINDENGEN')throw Error('ใช้ได้เฉพาะ Shindengen ที่ยืนยัน ID แล้ว');
   if(!confirm('รีเซ็ตจำนวนครั้งแฟลชของ '+identity.ecuId+'?\nตาม Main: ปิด–เปิดกุญแจ 5 วินาที แล้วกดตกลงเพื่อส่งคำสั่ง'))return;

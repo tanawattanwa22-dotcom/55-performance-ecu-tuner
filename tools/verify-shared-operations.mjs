@@ -37,3 +37,6 @@ await assert.rejects(()=>resetShindengenCount(resetPort,{family:'KEIHIN',sourceM
 const resetResult=await resetShindengenCount(resetPort,{family:'SHINDENGEN',sourceMatched:true},async()=>{});
 assert.deepEqual(resets,RESET_SH_COUNT_FRAMES);assert.equal(resetResult.verified,false);
 console.log('PASS exact Shindengen reset frames, mutation rejection, family guard and no unverified success');
+const failed=new HondaFlashEngine({exchangeRaw:async()=>{throw Error('USB timeout')}});
+await assert.rejects(()=>failed.x('READ_ECU_ID',Uint8Array.of(0x72,7,0x72,0,0,5,0x10)),/READ_ECU_ID \| TX 72 07 72 00 00 05 10 \| USB timeout/);
+console.log('PASS timeout preserves failing protocol step and transmitted frame');

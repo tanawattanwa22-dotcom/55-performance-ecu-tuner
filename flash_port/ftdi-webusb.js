@@ -1,4 +1,4 @@
-import {isSourceResetCountFrame} from './main-reset-count.js';
+import {isSourceResetCountFrame} from './main-reset-count.js?v=301';
 /*
  * 55 PERFORMANCE — FT232R WebUSB transport, for controlled bench validation.
  * Protocol basis: owner's C# InitFtdiIso/SendCommand (not a Windows D2XX DLL).

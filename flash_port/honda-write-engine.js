@@ -7,7 +7,7 @@
  * Deliberately DISABLED for undocumented ECU IDs and Shindengen until exact
  * source catalog entry and ECU response are verified. This is not a simulator.
  */
-import {READ_ONLY_COMMANDS,toHex,hondaChecksum,FAST_SWITCH_COMMAND} from './ftdi-webusb.js';
+import {READ_ONLY_COMMANDS,toHex,hondaChecksum,FAST_SWITCH_COMMAND} from './ftdi-webusb.js?v=301';
 import {createWriteFrame,resolveWriteProfile} from './flash-frames.js';
 import {inspectCSharpEcuType,correctKeihinChecksum,correctShindengenChecksum,deriveShindengenWriteKey} from './csharp-logic.js';
 import {csharpOffsetInference,catalogLookup} from './csharp-offsets.js';
@@ -83,7 +83,13 @@ export class HondaFlashEngine {
  }
  async x(name,frame,opts={}){
   this.emit(name,{stage:'TX'});
-  const reply=ack(await this.usb.exchangeRaw(frame,opts),name);
+  let reply;
+  try{reply=ack(await this.usb.exchangeRaw(frame,opts),name);}
+  catch(error){
+   const detail=name+' | TX '+toHex(frame)+' | '+error.message;
+   this.emit('COMMAND_FAILED',{command:name,tx:toHex(frame),error:error.message});
+   throw new HondaFlashError(error.code||'COMMAND_FAILED',detail);
+  }
   this.emit(name,{stage:'RX',status:reply[3]});
   return reply;
  }

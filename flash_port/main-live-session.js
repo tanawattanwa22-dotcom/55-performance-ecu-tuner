@@ -4,8 +4,8 @@
  * This cannot prove hardware accuracy without verified bench ECU traces.
  */
 import {MAIN_CAPTURE_COMMANDS,decodeMainDiagnosticTrace} from './main-source-diagnostic.js';
-import {Ft232rWebUsb} from './ftdi-webusb.js';
-import {HondaFlashEngine} from './honda-write-engine.js';
+import {Ft232rWebUsb} from './ftdi-webusb.js?v=301';
+import {HondaFlashEngine} from './honda-write-engine.js?v=301';
 
 const WAIT=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const KEYS=['rpm','tps','map','ect','iat','bat','inj','ign','afr'];

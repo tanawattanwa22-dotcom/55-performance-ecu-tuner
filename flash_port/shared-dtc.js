@@ -1,5 +1,5 @@
-import {MAIN_DTC_READ_FRAMES,decodeMainDtcReplies} from './main-source-dtc.js';
-import {MAIN_DTC_CLEAR_SOURCE} from './main-dtc-clear-source.js';
+import {MAIN_DTC_READ_FRAMES,decodeMainDtcReplies} from './main-source-dtc.js?v=301';
+import {MAIN_DTC_CLEAR_SOURCE} from './main-dtc-clear-source.js?v=301';
 export async function readSharedDtc(port){
  const entries=[];
  for(const frame of MAIN_DTC_READ_FRAMES){
