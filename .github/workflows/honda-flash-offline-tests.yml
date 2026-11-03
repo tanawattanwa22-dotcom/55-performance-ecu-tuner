@@ -11,6 +11,7 @@ on:
       - "tools/verify-main-neon-v25.mjs"
       - "tools/verify-honda-flash.mjs"
       - "tools/verify-main-diagnostic.mjs"
+      - "tools/verify-main-auto-group.mjs"
       - "package.json"
       - ".github/workflows/honda-flash-offline-tests.yml"
   pull_request:
@@ -54,3 +55,5 @@ jobs:
         run: node tools/verify-preflight-afr-v24.mjs
       - name: Verify Neon Main C# V25 groups, FT232R read-only framing and no ADX
         run: node tools/verify-main-neon-v25.mjs
+      - name: Verify source Main C# auto-group selection and fail-stop
+        run: node tools/verify-main-auto-group.mjs
