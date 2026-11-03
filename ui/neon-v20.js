@@ -133,7 +133,7 @@ function library(){
   const file=ready?BINS[m.id]:null;
   const bytes=typeof file==='string'?Math.max(0,Math.floor(file.length/4)*3-(file.endsWith('==')?2:file.endsWith('=')?1:0)):0;
   const meta=m.meta&&typeof m.meta==='object'?m.meta:{};
-  const manufacturer=String(m.brand||meta.brand||meta.manufacturer||meta.make||'Honda').trim();
+  const manufacturer=String(m.brand||meta.brand||meta.manufacturer||meta.make||'ไม่ระบุยี่ห้อ').trim();
   const vendor=String(m.ecuVendor||meta.ecuVendor||meta.ecuManufacturer||meta.ecuType||meta.vendor||(m.id==='K03-H01'?'Keihin':'')).trim();
   return {m,i,ready,bytes,manufacturer,vendor};
  });
@@ -325,6 +325,9 @@ function library(){
   const chip=mk('div','n22-feature-chip');
   const svg='<svg viewBox="0 0 120 110" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs><linearGradient id="b" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#21f4fc"/><stop offset="1" stop-color="#ee4fef"/></linearGradient></defs><path d="M27 13h70l21 19v57l-21 20H27L5 89V32Z" stroke="url(#b)" stroke-width="4" fill="#17204b"/><path d="M28 33h70v53H28z" stroke="#50dfff" fill="#29174d"/><path d="M10 30 2 30 M10 48 2 48 M10 65 2 65 M10 82 2 82 M113 30h6 M113 48h6 M113 65h6 M113 82h6" stroke="#df55ff" stroke-width="3"/></svg>';
   chip.innerHTML=svg;chip.append(mk('span','',r.m.id));
+  const featureBrand=logoFor(r,'n22-feature-brand');featureBrand.title=r.manufacturer;
+  const featureVendor=/^keihin$/i.test(r.vendor)?'ui/assets/keihin-badge.svg':/^shindengen$/i.test(r.vendor)?'ui/assets/shindengen-badge.svg':null;
+  if(featureVendor){const badge=document.createElement('img');badge.src=featureVendor;badge.alt=r.vendor;badge.className='n22-feature-vendor';chip.append(badge)}
   const details=mk('div','n22-feature-detail');
   const heading=mk('div','n22-feature-title');
   heading.append(mk('b','',r.m.id),mk('span','n22-state-pill main',r.m.id===master?'♛ ไฟล์หลัก':'✓ พร้อมจูน'));
@@ -336,7 +339,7 @@ function library(){
    btnSmall('♛ เลือกเป็นไฟล์หลัก',()=>toggleMaster(r),'n22-action-master'));
   const bike=document.createElement('img');bike.className='n22-feature-bike';
   bike.src='ui/assets/neon-bike.svg';bike.alt='ภาพประกอบรถจักรยานยนต์';bike.loading='lazy';
-  featureCard.append(chip,details,bike,buttons);
+  featureCard.append(chip,featureBrand,details,bike,buttons);
   for(let d=0;d<Math.min(5,all.length);d++){
    const dot=mk('span','n22-dot'+(d===i?' active':''));
    dots.append(dot);
