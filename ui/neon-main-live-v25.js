@@ -207,7 +207,7 @@ window.__55AutoEcu={
   }
   if(reader.owner||reader.connecting)return false;
   if(reader.running&&page==='live')return true;
-  const recent=st.autoComplete&&st.ecuId&&Date.now()-autoScannedAt<45000;
+  const recent=page==='dashboard'&&st.autoComplete&&st.ecuId&&Date.now()-autoScannedAt<45000;
   const run=async()=>{
    if(!recent||force){
     const done=await reader.rescan();
