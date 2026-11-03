@@ -157,8 +157,12 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
  disconnect.onclick=()=>{void reader.disconnect().then(updateSharedState)};
  function updateSharedState(){
   const st=reader.status();
-  state.textContent=st.connected?(st.autoStatus||'FT232R เปิดพอร์ตแล้ว'):
-   (st.error||physicalConnectError||lastConnectError||'ยังไม่ได้เชื่อมต่อ FT232R · กดเชื่อมต่อเพื่อเลือกพอร์ต');
+  state.textContent=st.connected?
+   ('✓ FT232R เปิดพอร์ตแล้ว · '+(st.ecuId?'ECU ID '+st.ecuId:'ยังไม่ได้ต่อหรืออ่าน ECU')+
+    (st.error?' · การอ่าน ECU ล่าสุด: '+st.error:'')):
+   (st.error||physicalConnectError||lastConnectError||
+    (st.usbAttempts?'เปิดพอร์ต FT232R ยังไม่สำเร็จ · ดูรายละเอียด USB ด้านล่าง':
+     'ยังไม่ได้เลือกสาย FT232R · กดเชื่อมต่อเพื่อเปิด USB เท่านั้น'));
   const fmt=n=>Number.isInteger(n)?'0x'+n.toString(16).toUpperCase().padStart(4,'0'):'';
   const off=(n,raw)=>Number.isInteger(n)?fmt(n):raw==='auto'?'AUTO จาก BIN':'ยังไม่ระบุ';
   const dtc=st.dtcSnapshot;
@@ -191,13 +195,18 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
    line.append(title,sub);checks.append(line);
   }
   debugText.textContent=JSON.stringify({
-   usbConnected:st.connected,usbPhase:st.phase,
-   permission:st.error||physicalConnectError||lastConnectError||null,
+   usbConnected:st.connected,
+   usbPhase:st.phase,
+   usbAttempts:st.usbAttempts,
+   usbLastPhase:st.usbLastPhase,
+   usbDevice:st.usbDevice,
+   usbLastError:st.usbLastError||null,
+   portError:st.error||physicalConnectError||lastConnectError||null,
    ecuId:st.ecuId||null,
    ecuIdError:st.idError||null,
    liveGroup:st.liveGroupVerified?st.group:null,
    dtcAnswered:st.dtcSnapshot?.answered?.length??0,
-   lastTransportEvents:reader.port?.trace?.slice(-12)||[]
+   lastTransportEvents:st.usbTrace||[]
   },null,2);
   connect.disabled=st.connected||st.connecting;
   rescan.disabled=!st.connected||st.autoBusy||st.running||!!reader.owner;
