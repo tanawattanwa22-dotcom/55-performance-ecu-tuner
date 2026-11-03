@@ -1080,7 +1080,7 @@ function saveBin(){
   const name=`${M?M.id:"ECU"}_55ECU_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.bin`;
   const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([o],{type:"application/octet-stream"}));a.download=name;
   document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},4000);
-  toast("บันทึกแล้ว: "+name,3500);
+  toast(MODELS[S.mi]?.xdf?"บันทึก BIN แล้ว · ยังต้องตรวจ ECU ID / Checksum และ Offset ก่อนอัด":("บันทึกแล้ว: "+name),4500);
 }
 $("#btnSave").onclick=saveBin;
 $("#btnToFlash").onclick=()=>{S.flash=true;history.back();setTimeout(()=>{home();$("#flashCard").scrollIntoView({behavior:"smooth",block:"center"})},60)};
