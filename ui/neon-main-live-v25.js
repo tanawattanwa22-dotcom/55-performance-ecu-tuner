@@ -81,12 +81,16 @@ old.demo=()=>{lastConnectError='หน้า Live Data นี้ไม่ใช�
 old.record=()=>reader.record();
 old.exportCsv=()=>reader.exportCsv();
 old.home=(category='dashboard')=>{
- void reader.disconnect();
+ // One FT232R owner for the entire SPA. Navigation must not close USB.
  return originalHome(category);
 };
 old.mode=(mode)=>{
- if(mode!=='gauge')void reader.disconnect();
+ // Keep the Main C# diagnostic transport alive across tab changes.
  return originalMode(mode);
+};
+window.__55SharedEcu={
+ snapshot:()=>reader.status(),connect:()=>old.connect(),disconnect:()=>reader.disconnect(),
+ stop:()=>reader.stop(),get port(){return reader.port?.ready?reader.port:null;}
 };
 window.__55MainLive={
  ready:true,group:()=>reader.group,setGroup:g=>reader.setGroup(g),
