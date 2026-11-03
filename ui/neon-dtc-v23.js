@@ -192,13 +192,10 @@ window.__55DtcV23={
   const trigger=$('mtDtc');if(!trigger)return false;
   trigger.click();
   if(!live.classList.contains('n23-dtc'))api.mode('dtc');
-  const shared=window.__55SharedEcu;
-  if(shared?.port?.ready&&!shared.snapshot()?.connecting){
-   const cached=shared.snapshot()?.dtcSnapshot;
-   if(cached&&cached.ecuId===shared.snapshot()?.ecuId)
-    window.dispatchEvent(new CustomEvent('55:dtc-result',{detail:cached}));
-   else void window.__55AutoEcu?.enter('dtc');
-  }
+  // Never render DTC cached from the previously connected motorcycle.
+  result=null;pending=false;render();
+  const usb=!!window.__55SharedEcu?.snapshot?.().connected;
+  msg.textContent=usb?'กำลังตรวจ ECU ปัจจุบันและอ่าน DTC จากสายเดียวกัน…':'กรุณาเชื่อมต่อ FT232R ก่อนตรวจ DTC';
   void window.__55AutoEcu?.enter('dtc');
   return live.classList.contains('on')&&live.classList.contains('n23-dtc');
  },
