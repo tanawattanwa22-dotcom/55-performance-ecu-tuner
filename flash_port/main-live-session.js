@@ -11,6 +11,11 @@ import {MAIN_DTC_READ_FRAMES,decodeMainDtcReplies} from './main-source-dtc.js';
 
 const WAIT=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const KEYS=['rpm','tps','map','ect','iat','bat','inj','ign','afr'];
+const TIME_LIMIT=(promise,ms,reason)=>{
+ let timer;
+ return Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error(reason)),ms)})])
+  .finally(()=>clearTimeout(timer));
+};
 const MAPPING=Object.freeze({
  rpm:'RPM',tps:'Throttle TPS',map:'MAP',ect:'ECT',iat:'IAT',
  bat:'Battery',inj:'Injection',ign:'Ignition',afr:'A/F'
@@ -82,12 +87,17 @@ export class MainLiveSession {
    this.phase='LICENSE_CHECK';this.notify();
    if(typeof window.api!=='function')throw Error('ยังไม่พร้อมตรวจ License โปรดเข้าสู่ระบบก่อน');
    const deviceId=localStorage.getItem('55_device_id');
-   const license=await window.api('check',{device:deviceId});
+   const license=await TIME_LIMIT(Promise.resolve(window.api('check',{device:deviceId})),7000,'ตรวจ License เกิน 7 วินาที · โปรดตรวจอินเทอร์เน็ต/เข้าสู่ระบบ แล้วเชื่อมใหม่');
    if(!license?.active)throw Error('License ยังไม่พร้อม: โปรดตรวจสิทธิ์ก่อนเชื่อมต่อ');
    if(this.disconnectRequested)return false;
    this.phase='USB_OPEN';this.notify();
    port=new Ft232rWebUsb();this.port=port;
-   await port.openSelected(device);
+   let usbOpenTimedOut=false;
+   const opening=port.openSelected(device);
+   opening.then(()=>{if(usbOpenTimedOut)void port.close()},()=>{});
+   try{
+    await TIME_LIMIT(opening,12000,'เปิดพอร์ต FT232R เกิน 12 วินาที · ตรวจ OTG/สิทธิ์ USB แล้วกดเชื่อมใหม่');
+   }catch(openError){usbOpenTimedOut=true;throw openError}
    // Never block the USB chooser on ECU wake/ID. A cable without a car is
    // still a successful FT232R connection; identification is an asynchronous
    // read-only operation after returning control to the screen.
@@ -112,7 +122,7 @@ export class MainLiveSession {
   if(this.port?.ready)await this.port.close();
   const restored=new Ft232rWebUsb();
   this.port=restored;
-  await restored.openSelected(dev);
+  await TIME_LIMIT(restored.openSelected(dev),12000,'กู้คืนพอร์ต FT232R เกิน 12 วินาที');
   await restored.sourceDiagnosticWake();
  }
  async _checkIdentity(){
