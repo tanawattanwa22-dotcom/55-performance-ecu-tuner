@@ -1395,46 +1395,6 @@ function inlineFlashExportLog(){
  setTimeout(()=>URL.revokeObjectURL(url),4000);
 }
 $("#btnFlashLog").onclick=inlineFlashExportLog;
-function inlineFlashConfirm(plan){
- return new Promise(resolve=>{
-  const dialog=document.createElement('dialog');dialog.id='ecu-flash-confirm';
-  dialog.style.cssText='box-sizing:border-box;width:min(94vw,480px);max-height:90vh;overflow:auto;background:#15243a;color:white;border:1px solid #7891aa;border-radius:16px;padding:20px;font:14px/1.5 system-ui';
-  const title=document.createElement('h3');title.textContent='Preflight ผ่าน · ยืนยันทุกเงื่อนไขก่อน ERASE / WRITE';dialog.append(title);
-  if(!window.__55QuickFlashBin&&S.saved&&!S.saved.customerBin){
-   const warning=document.createElement('p');warning.style.cssText='padding:10px;background:#4c3016;color:#ffe2b8';
-   warning.textContent='BIN ในแอปอาจไม่ใช่ไฟล์ของ ECU คันนี้ ตรวจรุ่นและเฟิร์มแวร์ด้วยตัวเองก่อนยืนยัน';dialog.append(warning);
-  }
-  const summary=document.createElement('pre');summary.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;color:#e2f0ff;background:#091424;padding:12px;border-radius:9px';
-  summary.textContent='ECU ID: '+plan.ecuId+'\nPart: '+plan.part+'\nBIN: '+plan.filename+'\nขนาด: '+plan.size+' ไบต์\nStart: 0x'+plan.startOffset.toString(16).toUpperCase()+'\nโหมด: '+(plan.fast?'FAST':'NORMAL')+'\nRecovery: '+(plan.recovery?'ใช่':'ไม่ใช่')+'\nVERIFY: ไม่มี READBACK';
-  dialog.append(summary);
-  const flags={};
-  for(const [key,label] of [
-   ['backup','มีไฟล์ BIN สำรองของ ECU คันนี้ที่ตรวจแล้วและเก็บไว้นอกมือถือ'],
-   ['power','ตรวจไฟเลี้ยงนิ่ง วงจร K-Line และสายเชื่อมต่อแล้ว'],
-   ['recovery','มีอุปกรณ์และขั้นตอน Recovery สำหรับกล่องนี้หากการอัดล้มเหลว']
-  ]){
-   const row=document.createElement('label');row.style.cssText='display:flex;gap:10px;align-items:flex-start;padding:8px 4px;color:#eaf7ff';
-   const check=document.createElement('input');check.type='checkbox';check.style.cssText='width:22px;height:22px;min-width:22px;accent-color:#37dfbc';
-   flags[key]=check;row.append(check,document.createTextNode(label));dialog.append(row);
-  }
-  const instruction=document.createElement('label');instruction.textContent='พิมพ์ FLASH ตามด้วย ECU ID จริง ('+plan.ecuId+')';
-  const typed=document.createElement('input');typed.type='text';typed.autocomplete='off';typed.spellcheck=false;
-  typed.placeholder='FLASH '+plan.ecuId;typed.style.cssText='width:100%;padding:12px;background:#081425;border:1px solid #7891aa;border-radius:8px;color:white;font:inherit';
-  instruction.append(typed);dialog.append(instruction);
-  const row=document.createElement('div');row.style.cssText='display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:14px';
-  const cancel=document.createElement('button');cancel.textContent='ยกเลิก';cancel.style.cssText='padding:12px;background:#30445c;color:white;border:0;border-radius:8px';
-  const ok=document.createElement('button');ok.textContent='ยืนยัน ERASE / WRITE';ok.disabled=true;ok.style.cssText='padding:12px;background:#b65621;color:white;border:0;border-radius:8px';
-  const ready=()=>Object.values(flags).every(input=>input.checked)&&typed.value.trim().toUpperCase()==='FLASH '+plan.ecuId;
-  for(const input of Object.values(flags))input.addEventListener('change',()=>{ok.disabled=!ready()});
-  typed.addEventListener('input',()=>{ok.disabled=!ready()});
-  row.append(cancel,ok);dialog.append(row);
-  const finish=v=>{if(dialog.open)dialog.close();dialog.remove();resolve(v)};
-  cancel.onclick=()=>finish(null);
-  ok.onclick=()=>finish(ready()?{backup:flags.backup.checked,power:flags.power.checked,recovery:flags.recovery.checked,confirmation:typed.value.trim().toUpperCase()}:null);
-  dialog.oncancel=e=>{e.preventDefault();finish(null)};
-  document.body.append(dialog);dialog.showModal();
- });
-}
 function inlineFlashRecovery(kind,detail='',id=''){
  const box=$('#inlineRecoveryState'),open=$('#inlineRecoveryOpen');
  if(!box||!open)return;
@@ -1490,7 +1450,7 @@ async function inlineFlashStart(){
   const shared=window.__55SharedEcu;
   if(!shared)throw Error('ระบบสายหลักยังไม่พร้อม');
   INLINEFLASH.port=await shared.acquire('INLINE_FLASH');
-  const {HondaFlashEngine}=await import('./flash_port/honda-write-engine.js?v=320');
+  const {HondaFlashEngine}=await import('./flash_port/honda-write-engine.js?v=321');
   // The login screen checked the license when this app session started.
   // No network/license check may block physical ECU diagnostics or flash.
   INLINEFLASH.engine=new HondaFlashEngine(INLINEFLASH.port,ev=>{
@@ -1530,9 +1490,10 @@ async function inlineFlashStart(){
     inlineFlashLog('AUTO_PART_MATCH ECU_ID '+identity.ecuId+' equals BIN_ID '+embedded.id);
     plan=INLINEFLASH.engine.makePlan(bin,{filename:INLINEFLASH.filename,confirmedPart:identity.sourcePart,fast,recovery:false});
    }else{
-    const input=prompt('BIN ไม่มี Part Code ในชื่อไฟล์ และยังไม่พบ ECU ID เต็มที่ตรงกันใน BIN\\nECU: '+identity.ecuId+'\\nกรุณายืนยัน Part Code จากกล่องจริง: '+identity.sourcePart);
-    if(!input)throw Error('ยกเลิกการยืนยัน Part Code');
-    plan=INLINEFLASH.engine.makePlan(bin,{filename:INLINEFLASH.filename,confirmedPart:input.trim(),fast,recovery:false});
+    // One-tap flow never asks the operator to type a part code. Without a
+    // trustworthy filename/embedded full-ID match, stop before ERASE.
+    throw Error('BIN ยังยืนยัน Part Code '+(identity.sourcePart||'')+
+      ' ไม่ได้จากชื่อไฟล์หรือ ECU ID ใน BIN • หยุดก่อน ERASE เพื่อป้องกันอัดผิดกล่อง');
    }
   }
   INLINEFLASH.plan=plan;
@@ -1540,17 +1501,15 @@ async function inlineFlashStart(){
   inlineFlashLog('PLAN '+JSON.stringify({ecuId:plan.ecuId,part:plan.part,profile:plan.profile,
    offset:plan.startOffset,size:plan.size,frames:plan.expectedBlockCount,
    binBefore:INLINEFLASH.firstSha,binAfter:INLINEFLASH.writeSha}));
-  const approvals=await inlineFlashConfirm(plan);
-  if(!approvals){INLINEFLASH.status='USER_CANCELLED_BEFORE_ERASE';inlineFlashNote('ยกเลิกก่อนลบแฟลชแล้ว');return}
-  inlineFlashNote('กำลัง ERASE/WRITE จริง • ห้ามปิดแอป ถอดสายหรือปิดไฟ ECU');
+  // The operator explicitly initiated this flow with the Flash button.
+  // Hardware/firmware constraints stay in the engine, including a fresh
+  // ECU ID check immediately before sending any destructive command.
+  inlineFlashNote('Preflight ผ่าน • เริ่ม ERASE/WRITE ตามคำสั่งที่พอร์ตจาก Main.zip • ห้ามปิดแอปหรือถอดสาย');
   INLINEFLASH.flashAttempted=true;INLINEFLASH.status='WRITING_NO_READBACK';
   let wake=null;
   try{
    if(navigator.wakeLock?.request)wake=await navigator.wakeLock.request('screen').catch(()=>null);
-   const result=await INLINEFLASH.engine.flash(plan,{
-    confirmation:approvals.confirmation,physicalBackupConfirmed:approvals.backup,
-    externalPowerConfirmed:approvals.power,recoveryReady:approvals.recovery
-   });
+   const result=await INLINEFLASH.engine.flash(plan,{operatorClickConfirmed:true});
    INLINEFLASH.status='SOURCE_FINAL_ACK_NO_READBACK_VERIFIED';
    inlineFlashProgress(100);
    inlineFlashLog('SOURCE FINAL ACK '+JSON.stringify(result));
