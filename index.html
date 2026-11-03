@@ -1126,9 +1126,18 @@ async function inlineFlashStart(){
   try{plan=INLINEFLASH.engine.makePlan(bin,{filename:INLINEFLASH.filename,fast,recovery:false})}
   catch(e){
    if(e.code!=='PART_NOT_CONFIRMED')throw e;
-   const input=prompt('ไฟล์ BIN ไม่ระบุ Part Code ของ ECU นี้ในชื่อไฟล์\nECU: '+identity.ecuId+'\nพิมพ์ Part Code ที่อ่านจากกล่อง: '+identity.sourcePart);
-   if(!input)throw Error('ยกเลิกการยืนยัน Part Code');
-   plan=INLINEFLASH.engine.makePlan(bin,{filename:INLINEFLASH.filename,confirmedPart:input.trim(),fast,recovery:false});
+   // Source BIN ID scan may supply a full five-byte match; three-byte prefixes do not.
+   const {readBinId}=await import('./flash_port/bin-tools.js?v=309');
+   const embedded=readBinId(bin);
+   const exactId=embedded.ok&&embedded.id?.toUpperCase()===identity.ecuId;
+   if(exactId&&identity.sourcePart){
+    inlineFlashLog('AUTO_PART_MATCH ECU_ID '+identity.ecuId+' equals BIN_ID '+embedded.id);
+    plan=INLINEFLASH.engine.makePlan(bin,{filename:INLINEFLASH.filename,confirmedPart:identity.sourcePart,fast,recovery:false});
+   }else{
+    const input=prompt('BIN ไม่มี Part Code ในชื่อไฟล์ และยังไม่พบ ECU ID เต็มที่ตรงกันใน BIN\\nECU: '+identity.ecuId+'\\nกรุณายืนยัน Part Code จากกล่องจริง: '+identity.sourcePart);
+    if(!input)throw Error('ยกเลิกการยืนยัน Part Code');
+    plan=INLINEFLASH.engine.makePlan(bin,{filename:INLINEFLASH.filename,confirmedPart:input.trim(),fast,recovery:false});
+   }
   }
   INLINEFLASH.plan=plan;
   INLINEFLASH.writeSha=await inlineFlashHash(plan.bin);
