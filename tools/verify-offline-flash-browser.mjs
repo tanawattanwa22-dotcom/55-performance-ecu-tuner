@@ -72,4 +72,12 @@ try{
  assert.equal(await page.locator('#write').isDisabled(),true,'modified permit blocks erase');
  assert.deepEqual(errors,[],'no unhandled browser exceptions');
  console.log('PASS invalid permit blocks offline flash');
+ await ctx.setOffline(false);
+ await page.goto('http://127.0.0.1:'+srv.address().port+'/flash_port/flash-write-lab.html',{waitUntil:'domcontentloaded'});
+ assert.equal(await page.locator('#offlineActivate').count(),0,'original online Flash Bench remains an independent page');
+ assert.equal(await page.locator('#check').count(),1,'original online License button remains');
+ const controlling=await page.evaluate(()=>navigator.serviceWorker.controller?.scriptURL||'');
+ assert(!controlling.includes('/flash_port/offline/sw.js'),'offline worker MUST NOT control original bench');
+ console.log('PASS original Flash Bench remains separate and outside offline worker scope');
+
 }finally{await ctx?.close();await browser?.close();await new Promise(ok=>srv.close(ok))}
