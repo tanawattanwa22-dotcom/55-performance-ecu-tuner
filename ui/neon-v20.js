@@ -244,13 +244,13 @@ function library(){
   return sel.value===String(r.i)&&S.mi===r.i;
  };
  const toggleMaster=(r)=>{
-  if(r.m.xdf){alert('รุ่น MSX ใช้ XDF และต้องเลือก BIN ตรง SHA-256 จากหน้าเครื่องมือจูน ไม่ใช่ BIN หลักที่ฝังในแอป');return;}
+  // MSX XDF's source BIN is integrity checked before the built-in tuner opens.
   if(!r.ready){alert('รุ่นนี้ยังไม่มี BIN และตารางจูน');return}
   if(!selectModel(r))return;
   master=r.m.id;save(KMASTER,master);render();
  };
  const openTable=(r)=>{
-  if(r.m.xdf){markRecent(r.m.id);location.href=new URL('flash_port/msx-k26-901-tuner.html',document.baseURI).href;return;}
+  // MSX uses the same built-in TunePro-style grid; the XDF definitions are loaded on entry.
   if(!r.ready){alert('รุ่นนี้ยังไม่มี BIN พร้อมจูน');return}
   if(!selectModel(r))return;
   markRecent(r.m.id);click('goTune');
@@ -264,8 +264,8 @@ function library(){
    ['ตระกูล ECU',r.m.fam||'ไม่ระบุ'],
    ['ผู้ผลิต ECU',r.vendor||'ยังไม่มีข้อมูลยืนยัน'],
    ['ขนาด BIN',r.m.xdf?'48 KB (เลือกไฟล์และตรวจ SHA-256 ตอนเปิด XDF)':r.ready?r.bytes.toLocaleString('en-US')+' bytes ('+(r.bytes/1024).toFixed(2)+' KB)':'ยังไม่มี BIN'],
-   ['สถานะ',r.m.xdf?'มี XDF 29 ตาราง · BIN ต้องตรง SHA-256':r.ready?'มีไฟล์ BIN และตารางจูนจริง':'ยังไม่พร้อมจูน'],
-   ['ชนิดไฟล์',r.m.xdf?'XDF กำหนดตารางจาก MSX Gen1 K26-901 · เลือก BIN เอง':'ไฟล์หลักของแอป (ไม่ใช่ไฟล์ที่อ่านจาก ECU ลูกค้า)']
+   ['สถานะ',r.m.xdf?'XDF 29 ตาราง · BIN ต้นฉบับตรวจ SHA-256 ก่อนเปิด':r.ready?'มีไฟล์ BIN และตารางจูนจริง':'ยังไม่พร้อมจูน'],
+   ['ชนิดไฟล์',r.m.xdf?'XDF 29 ตาราง → หน้าจูนตารางเดิมของ 55 Performance':'ไฟล์หลักของแอป (ไม่ใช่ไฟล์ที่อ่านจาก ECU ลูกค้า)']
   ];
   for(const [key,val] of records){
    const row=mk('div','n22-detail-row');
@@ -435,7 +435,6 @@ const toolLinks=[
  ['🧰 DTC C# / 6-bank','flash_port/main-source-dtc.html'],
  ['🗂️ จัดการ ecuData.dat','flash_port/main-source-manager.html'],
  ['📋 ค้นฐาน ECU 290 รายการ (Main C#)','flash_port/main-ecu-catalog.html'],
- ['🏍️ MSX125 เจนแรก K26-901 · ตารางจูน XDF 29 ชุด','flash_port/msx-k26-901-tuner.html'],
  ['📦 ACG / ECU → BIN','flash_port/main-source-converter.html'],
  ['🧮 วิเคราะห์ Auto Offset','flash_port/main-source-offset-lab.html'],
  ['🔎 สแกน BIN ID + Checksum จาก Main C# (11 ขนาด)','flash_port/main-bin-audit.html'],
