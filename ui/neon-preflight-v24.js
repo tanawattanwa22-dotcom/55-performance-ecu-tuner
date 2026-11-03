@@ -14,6 +14,7 @@ import(new URL('flash_port/csharp-ecu-catalog.js?v=302',document.baseURI).href)
  .then(mod=>mod.loadCSharpCatalog())
  .then(rows=>{catalog290={rows,error:null};render()})
  .catch(e=>{catalog290={rows:null,error:e?.message||String(e)};render()});
+const quickBin=()=>window.__55QuickFlashBin?.bytes instanceof Uint8Array?window.__55QuickFlashBin:null;
 const catalogRecord=identity=>identity?.ecuId?(catalog290.rows?.get(String(identity.ecuId).toUpperCase())||identity.catalog||null):null;
 const sourceOffset=(n,raw)=>Number.isInteger(n)?X(n):raw==='auto'?'AUTO (Main C#)':raw===''?'ไม่ระบุใน Main C#':'—';
 const current=()=>{
@@ -59,14 +60,16 @@ function addChecklist(box){
 }
 function render(){
  if(!stage?.isConnected)return;
- const c=current(),identity=recency()?last?.identity:null,plan=verified()?last?.plan:null,source=catalogRecord(identity);
+ const c=current(),quick=quickBin(),identity=recency()?last?.identity:null,plan=verified()?last?.plan:null,source=catalogRecord(identity);
+ const fileReady=!!quick||c.valid;
+ const cableReady=!!window.__55SharedEcu?.port?.ready;
  const progress=c.valid&&last?.saved===c.saved&&recency();
- setItem('model',c.model||'ยังไม่เลือกรุ่น');
+ setItem('model',quick?'อ่านรุ่นจาก ECU จริงอัตโนมัติ':c.model||'ยังไม่เลือกรุ่น');
  setItem('dbcount',catalog290.rows?'290 รายการ · KEIHIN 232 / SHINDENGEN 58':catalog290.error?'โหลดฐาน ECU ไม่สำเร็จ: '+catalog290.error:'กำลังโหลดฐาน ECU 290 รายการ');
- setItem('filename',c.valid?c.saved.filename:'ยังไม่ได้บันทึก BIN');
- setItem('source',c.valid?(c.saved.customerBin?'BIN ที่นำเข้าจากเครื่อง':'Master BIN (จากแอป)'):'—');
- setItem('size',c.valid?c.bytes.length.toLocaleString('en-US')+' bytes ('+(c.bytes.length/1024).toFixed(2)+' KB)':'—');
- setItem('sha',hash&&hash.saved===c.saved&&c.valid?hash.hex.slice(0,20)+'…':'ยังไม่ได้คำนวณ');
+ setItem('filename',quick?quick.filename:c.valid?c.saved.filename:'ยังไม่ได้เลือก BIN');
+ setItem('source',quick?'BIN ที่เลือกจากโทรศัพท์':c.valid?(c.saved.customerBin?'BIN ที่นำเข้าจากเครื่อง':'Master BIN (จากแอป)'):'—');
+ setItem('size',quick?quick.bytes.length.toLocaleString('en-US')+' bytes ('+(quick.bytes.length/1024).toFixed(2)+' KB)':c.valid?c.bytes.length.toLocaleString('en-US')+' bytes ('+(c.bytes.length/1024).toFixed(2)+' KB)':'—');
+ setItem('sha',quick?(quick.sha256?.slice(0,20)+'…'||'กำลังตรวจ…'):hash&&hash.saved===c.saved&&c.valid?hash.hex.slice(0,20)+'…':'ยังไม่ได้คำนวณ');
  setItem('ecu',identity?.ecuId||'ยังไม่ได้อ่านจาก ECU');
  setItem('part',identity?(source?.part||identity.sourcePart||'ไม่ระบุใน Main C#'):'—');
  setItem('family',identity?(source?.family||identity.family||'ไม่ระบุ'):'—');
@@ -80,7 +83,7 @@ function render(){
  dom.note.textContent=error?'หยุดตรวจ: '+error:message||
   'การตรวจนี้อ่าน ECU ID และคำนวณแผนเท่านั้น ไม่มีคำสั่ง ERASE/WRITE · ขั้นตอนอัดจริงจะอ่าน ID ใหม่';
  const status={
-  bin:c.valid,
+  bin:fileReady,
   id:!!identity?.ecuId&&progress,
   catalog:!!source&&progress,
   family:!!identity?.sourceMatched&&progress,
@@ -95,29 +98,34 @@ function render(){
  }
  dom.read.disabled=working||!!INLINEFLASH.busy||!!document.getElementById('licenseGate');
  dom.check.disabled=working||!c.valid||!identity||!recency()||last?.saved!==c.saved;
- dom.flash.disabled=working||!verified()||!!INLINEFLASH.busy||!!$('btnFlash')?.hidden||!!$('btnFlash')?.disabled;
+ dom.flash.disabled=working||!!INLINEFLASH.busy||!(INLINEFLASH.postCheck||(fileReady&&cableReady))||!!$('btnFlash')?.hidden||!!$('btnFlash')?.disabled;
+ dom.flash.textContent=INLINEFLASH.busy?'กำลังอัด • อย่าถอดสาย':INLINEFLASH.postCheck?'✓ ตรวจ ECU หลังเปิดกุญแจใหม่':'⇧ ตรวจอัตโนมัติและอัดไฟล์';
  dom.flash.title=dom.flash.disabled?'ต้องบันทึก BIN อ่าน ECU ID และตรวจ Preflight ให้ผ่านก่อน':'ใช้ Flash Engine เดิมซึ่งอ่าน ECU ID ใหม่ก่อน ERASE';
  if(dom.gateReason){
   const blockers=[];
-  if(!c.valid)blockers.push('ยังไม่ได้บันทึกไฟล์ BIN ที่ตรงกับรุ่น');
-  if(!recency()||!last?.identity?.ecuId)blockers.push('ยังไม่มี ECU ID ล่าสุดจากสาย FT232R');
+  if(!fileReady)blockers.push('ยังไม่ได้เลือกไฟล์ BIN');
+  if(!cableReady)blockers.push('ยังไม่ได้เชื่อมต่อ FT232R จากหน้าแรก');
+  if(!recency()||!last?.identity?.ecuId){if(fileReady&&cableReady&&!INLINEFLASH.busy)blockers.push('กดปุ่มอัดเพื่อให้อ่าน ECU ID/Part/Family อัตโนมัติ');}
   else if(!catalogRecord(last.identity))blockers.push('ไม่พบ ECU ID '+last.identity.ecuId+' ในฐาน 290');
   else if(!catalogRecord(last.identity)?.part)blockers.push('ต้นฉบับไม่มี Part Code สำหรับ ECU ID '+last.identity.ecuId);
   else if(!last.identity.sourceMatched)blockers.push('พบ ECU ID ในฐานแล้ว แต่ Family ยังไม่ได้ยืนยันจากเซสชัน ECU จริง ('+last.identity.handshake+')');
-  if(!last?.plan||!verified())blockers.push('ยังไม่ผ่านการตรวจ Offset/Checksum/Part');
-  if($('btnFlash')?.hidden||$('btnFlash')?.disabled)blockers.push('ปุ่ม Flash เดิมยังถูกล็อกจากสถานะ BIN หรือ License');
+  if(last?.identity?.ecuId&&!last?.plan)blockers.push('ยังไม่ผ่านการตรวจ Offset/Checksum/Part');
+  if(($('btnFlash')?.hidden||$('btnFlash')?.disabled)&&!INLINEFLASH.busy)blockers.push('Flash Engine ยังไม่พร้อม หรือ License ไม่พร้อม');
   if(working||INLINEFLASH.busy)blockers.push('โปรแกรมกำลังทำงาน');
   dom.gateReason.textContent=blockers.length?'ยังเปิดปุ่ม ERASE / WRITE ไม่ได้: '+[...new Set(blockers)].join(' • '):
    'Preflight ผ่านแล้ว · กดเริ่มอัดเพื่อเข้า Flash Engine จริง (ยังต้องยืนยันและอ่าน ECU ID อีกครั้ง)';
  }
- const stepIndex=verified()?3:identity?2:c.valid?1:0;
+ const stepIndex=verified()?3:identity?2:fileReady?1:0;
  for(let n=0;n<4;n++){
   const item=dom['step'+n];item.classList.toggle('done',n<stepIndex);
   item.classList.toggle('active',n===stepIndex);
  }
  const ready=verified();
- dom.title.textContent=ready?'ผ่านการตรวจซอฟต์แวร์ (ยังไม่ได้ ERASE)':
-  working?'กำลังอ่าน ECU / ตรวจ Preflight':identity?.ecuId&&source?.part&&!identity.sourceMatched?'พบ ECU ID ในฐาน · รอยืนยัน Family':'รอการตรวจ Preflight';
+ dom.title.textContent=INLINEFLASH.postCheck?'อัดเสร็จ • ปิดกุญแจ OFF → เปิด ON':
+  INLINEFLASH.busy?'กำลังตรวจและอัดไฟล์ ECU':
+  ready?'ผ่านการตรวจซอฟต์แวร์ (ยังไม่ได้ ERASE)':
+  fileReady&&cableReady?'พร้อมกดตรวจอัตโนมัติและอัดไฟล์':
+  working?'กำลังอ่าน ECU / ตรวจ Preflight':identity?.ecuId&&source?.part&&!identity.sourceMatched?'พบ ECU ID ในฐาน · รอยืนยัน Family':'รอเลือก BIN และเชื่อม FT232R';
  dom.title.classList.toggle('ready',ready);
 }
 async function saveHash(c){
@@ -194,12 +202,13 @@ async function runCheck(){
 }
 function errorOut(s){error=s;message='';render()}
 function startFlash(){
- if(!verified())return errorOut('ต้องอ่าน ECU ID และตรวจ Preflight ให้ผ่านก่อน');
+ if(!quickBin()&&!current().valid&&!INLINEFLASH.postCheck)return errorOut('กรุณาเลือก BIN จากเครื่องหรือบันทึก BIN ที่จูนก่อน');
+ if(!window.__55SharedEcu?.port?.ready&&!INLINEFLASH.postCheck)return errorOut('กรุณาเชื่อม FT232R จากหน้าแรกก่อน');
  const target=$('btnFlash');if(!target||target.hidden||target.disabled)return errorOut('ระบบ Flash Engine เดิมยังไม่อนุญาตให้อัด');
  // Only the existing button invokes the engine's physical re-identification,
  // original backup/power/recovery confirmations, and original erase/write.
  target.click();
- message='ส่งต่อไป Flash Engine เดิม · ระบบอ่าน ECU ID ใหม่และถามยืนยัน ERASE/WRITE อีกครั้ง';
+ message=INLINEFLASH.postCheck?'กำลังตรวจ ECU ID หลังเปิดกุญแจใหม่':'กำลังตรวจ ECU ID, Family, Part Code, BIN, Checksum และ Offset อัตโนมัติ ก่อนยืนยัน ERASE/WRITE';
  render();
 }
 function mount(host){
@@ -210,6 +219,35 @@ function mount(host){
  const choose=make('div','n24-model');
  choose.append(make('span','','รุ่นที่เลือก'));const model=make('strong','','—');dom.model=model;choose.append(model);
  choose.append(btn('เปลี่ยนรุ่น ›','n24-model-change',()=>window.__55NeonNavigate?.('library')));stage.append(choose);
+ const easy=card('n24-easy','⚡','อัดไฟล์ ECU แบบง่าย');
+ const uploadLabel=make('label','n24-upload-label','1. เลือก BIN ที่จูนเสร็จแล้ว');
+ uploadLabel.htmlFor='n24QuickBin';
+ const upload=make('input','n24-file-input');upload.type='file';upload.id='n24QuickBin';upload.accept='.bin,.rom,application/octet-stream';
+ const uploadNote=make('p','n24-help','เลือกไฟล์จากโทรศัพท์ได้เลย ไม่ต้องเลือกรุ่นรถเอง · ระบบจะอ่านรหัสกล่องจริงก่อนอัด');
+ const fastLabel=make('label','n24-fast-label');const fast=make('input','');fast.type='checkbox';fast.id='n24FastWrite';fast.checked=!!window.__55QuickFlashFast;
+ fastLabel.append(fast,document.createTextNode(' เขียนเร็ว (Fast Write · ใช้เฉพาะโปรไฟล์ที่รองรับ)'));
+ fast.onchange=()=>{window.__55QuickFlashFast=fast.checked;message=fast.checked?'เปิด Fast Write แล้ว · Flash Engine จะเลือกวิธีตาม ECU ที่ตรวจได้':'ใช้โหมดเขียนปกติ';render()};
+ const uploadStatus=make('p','n24-upload-status','ยังไม่ได้เลือกไฟล์');dom.quickStatus=uploadStatus;
+ upload.onchange=async()=>{
+  if(INLINEFLASH.busy){upload.value='';return}
+  window.__55QuickFlashBin=null;
+  try{
+   const f=upload.files?.[0];
+   if(!f){uploadStatus.textContent='ยังไม่ได้เลือกไฟล์';return}
+   const lengths=[32768,49152,57344,65536,98304,131072,262144,393216,524288,1048576];
+   if(!lengths.includes(f.size))throw Error('BIN ขนาด '+f.size+' bytes ไม่อยู่ในขนาดที่ Flash Engine รองรับ · ยังไม่อัด');
+   const bytes=new Uint8Array(await f.arrayBuffer());
+   const digest=await crypto.subtle.digest('SHA-256',bytes);
+   const sha256=[...new Uint8Array(digest)].map(b=>b.toString(16).padStart(2,'0')).join('');
+   window.__55QuickFlashBin={filename:f.name,bytes,sha256,selectedAt:Date.now()};
+   uploadStatus.textContent='✓ '+f.name+' • '+(f.size/1024).toFixed(0)+' KB · พร้อมตรวจ ECU';
+   message='เลือก BIN แล้ว · เชื่อมสายจากหน้าแรกและกดปุ่มอัด เพื่อให้ระบบตรวจ ECU/Checksum/Offset';
+  }catch(e){uploadStatus.textContent='เลือกไฟล์ไม่สำเร็จ: '+e.message;error=e.message}
+  finally{window.__55refreshFlashButton?.();render();upload.value=''}
+ };
+ const flash=btn('⇧ ตรวจอัตโนมัติและอัดไฟล์','n24-btn n24-flash n24-easy-flash',startFlash);dom.flash=flash;
+ easy.append(uploadLabel,upload,uploadNote,fastLabel,uploadStatus,flash);
+ stage.append(easy);
  const file=card('n24-bin','▧','ไฟล์ที่จะอัด (BIN)');
  file.append(line('filename','ชื่อไฟล์'),line('source','ประเภทไฟล์'),line('size','ขนาดไฟล์'),line('sha','Checksum (SHA-256)'));stage.append(file);
  const ecu=card('n24-ecu','▣','ข้อมูล ECU (Identification)');
@@ -234,8 +272,10 @@ function mount(host){
  const actions=make('div','n24-actions');
  const read=btn('▣ อ่าน ECU ID','n24-btn n24-read',readECU);dom.read=read;
  const check=btn('▱ ตรวจ Preflight','n24-btn n24-verify',runCheck);dom.check=check;
- const flash=btn('⇧ เริ่มอัดไฟล์','n24-btn n24-flash',startFlash);dom.flash=flash;
- actions.append(read,check,flash);stage.append(actions);
+ actions.append(read,check);
+ const advanced=make('details','n24-advanced');
+ advanced.append(make('summary','','การตรวจละเอียด / อ่าน ECU ID แยก (ไม่จำเป็นต้องกดก่อนอัด)'),actions);
+ stage.append(advanced);
  const gate=make('p','n24-help','');gate.setAttribute('role','status');dom.gateReason=gate;stage.append(gate);
  // The user's Main.zip FormMain.cs SHA-256 matches the source already ported
  // into the shared real-write engine. These are separate navigation routes,
@@ -261,5 +301,7 @@ function mount(host){
 window.__55FlashPreflight={mount,render,readECU,runCheck,ready:verified};
 ['btnSave','sel','btnAutoOffset','btnRead','goTune'].forEach(id=>$(id)?.addEventListener('click',()=>queueMicrotask(render)));
 window.addEventListener('55:bin-changed',render);
+ const stepBox=$('stepTxt');
+ if(stepBox)new MutationObserver(()=>{if(INLINEFLASH.busy||INLINEFLASH.postCheck){message=stepBox.textContent;render()}}).observe(stepBox,{childList:true,subtree:true,characterData:true});
 setInterval(()=>{if(stage?.isConnected)render()},1500);
 })();
