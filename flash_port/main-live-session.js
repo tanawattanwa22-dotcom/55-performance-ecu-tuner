@@ -4,7 +4,7 @@
  * This cannot prove hardware accuracy without verified bench ECU traces.
  */
 import {MAIN_CAPTURE_COMMANDS,decodeMainDiagnosticTrace} from './main-source-diagnostic.js';
-import {Ft232rWebUsb} from './ftdi-webusb.js?v=342';
+import {Ft232rWebUsb} from './ftdi-webusb.js?v=347';
 import {HondaFlashEngine} from './honda-write-engine.js?v=309';
 import {loadCSharpCatalog} from './csharp-ecu-catalog.js?v=302';
 import {MAIN_DTC_READ_FRAMES,decodeMainDtcReplies} from './main-source-dtc.js';
@@ -80,7 +80,7 @@ export class MainLiveSession {
   this.values=EMPTY();this.sampleSeq=0;this.sampleAt=0;this.hz=null;
   this.error='';this.phase='IDLE';this.notify();
  }
- async connect(){
+ async connect({forcePicker=false}={}){
   if(this.connecting||this.running||this.port?.ready)return false;
   this.usbAttempts++;this.usbLastPhase='USB_CHOOSER';this.usbLastError='';this.usbTrace=[];
   this.connecting=true;this.error='';this.phase='USB_CHOOSER';
@@ -92,7 +92,7 @@ export class MainLiveSession {
    // Login has already finished before the tuning app is mounted.
    // Never perform a network/License check in a WebUSB user gesture.
    // Must run directly inside the user click: no awaited work before picker.
-   const device=await Ft232rWebUsb.choose();
+   const device=await Ft232rWebUsb.choose({forcePicker});
    this.usbDevice=Number(device?.vendorId||0).toString(16).padStart(4,'0')+':'+Number(device?.productId||0).toString(16).padStart(4,'0');
    if(this.disconnectRequested)return false;
    this.phase='USB_OPEN';this.notify();
