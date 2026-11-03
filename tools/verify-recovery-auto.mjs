@@ -25,6 +25,9 @@ must(bench,"(!recoveryMode&&identity?.ecuId?.endsWith('0000'))",'Advanced Flash 
 must(bench,"location.replace(new URL('./flash-write-lab.html?mode=recovery',location.href))",'Advanced Flash links to dedicated Recovery page');
 must(bench,"flashOutcome='FLASH_STOPPED_MAY_REQUIRE_ECU_RECOVERY'",'Advanced Flash failure UI survives');
 must(preflight,"recoveryCandidate=!!identity?.ecuId?.endsWith('0000')",'Preflight detects recovery');
+must(preflight,'physicalIdMatchesLast()','Preflight invalidates stale ID when physical ECU changes');
+must(preflight,'last.identity.ecuId!==connectedId.ecuId','Preflight suppresses previously scanned ECU when another ECU is connected');
+must(preflight,'!physicalIdMatchesLast()||last.saved!==c.saved','Preflight rejects stale BIN plan before new flash');
 must(preflight,"(recoveryCandidate&&!INLINEFLASH.postCheck)",'Preflight prevents normal write for Recovery ID');
 must(preflight,"เปิดเมนู Recovery ก่อน ห้ามใช้ Flash ปกติ",'Preflight interactive guard');
 must(engine,"if(!rec&&/0000$/.test(ecuId))",'Engine rejects Recovery ID for normal preflight');
