@@ -515,7 +515,7 @@ table.g th,table.g td{border-right:1px solid rgba(255,255,255,.35);border-bottom
   <div><b>แก้แกนรอบเครื่อง RPM</b><small id="axisPageModel">-</small></div>
  </div>
  <div class="axis-screen-body">
-  <p class="axis-instruction">หน้าแก้แกนแยกจากตารางหลัก · เลือกชุดแกน แล้วกรอกค่า RPM ทีละจุด ระบบจะตรวจลำดับและตำแหน่ง BIN ก่อนบันทึก</p>
+  <p class="axis-instruction">เปลี่ยนจุดรอบ RPM เช่น 9,000 → 11,000 โดยค่าน้ำมัน/ไฟในช่องเดิมไม่เปลี่ยน · ระบบตรวจว่าตำแหน่งแกนไม่ทับข้อมูลตาราง · การเพิ่มรอบตัด ECU ต้องแก้ตารางรอบตัดแยกต่างหาก</p>
   <label class="axis-select-label" for="axisPageChoice">เลือกชุดแกน RPM</label>
   <select id="axisPageChoice" class="axis-select"></select>
   <p id="axisPageInfo" class="axis-info"></p>
@@ -951,7 +951,7 @@ function axisPageRender(){
  const writable=axisPageWritable(a,n);
  $("#axisPageInfo").textContent=n+" จุด · แกนนี้ใช้กับ "+[...new Set(entry.tables)].join(", ")+
   " · แก้ได้ "+writable.filter(Boolean).length+"/"+n+" จุด"+
-  " · ค่าเปลี่ยนจะอยู่ใน BIN ที่กำลังจูนจนกว่าจะกดบันทึก BIN";
+  " · เปลี่ยนเฉพาะค่าแกน RPM; ค่าน้ำมันและไฟทุกช่องคงเดิม จนกว่าจะกดบันทึก BIN";
  const frag=document.createDocumentFragment();
  for(let i=0;i<n;i++){
   const row=document.createElement("div");row.className="axis-point";
@@ -1013,8 +1013,37 @@ function axisPageSave(){
    return error("จุด "+i+"–"+(i+1)+" : แกน RPM ต้องเรียงจากน้อยไปมากหรือมากไปน้อยตามเดิม และห้ามซ้ำกัน");
  }
  if(!bytes.length){error("ไม่มีค่า RPM เปลี่ยนแปลง");return}
+ // Never change fuel/ignition/limiter data when a user remaps an RPM axis.
+ // We only commit bytes belonging to the axis breakpoints. Any physical
+ // overlap with map-cell storage or a switch flag is an unsafe definition.
+ const axisChanges=new Set(bytes.map(([at])=>at));
+ for(const t of M.tables){
+  if(t.g==="แกน")continue;
+  if(!Number.isInteger(t.a)||!Number.isInteger(t.rs)||!Number.isInteger(t.cs)||
+     !Number.isInteger(t.b)||t.r<1||t.c<1)return error("นิยามตาราง "+t.t+" ไม่ครบสำหรับตรวจการซ้อนของข้อมูล");
+  const width=t.b/8;
+  if(![1,2,4].includes(width))return error("ตาราง "+t.t+" มีขนาดเซลล์ที่ยังตรวจไม่ได้");
+  for(let row=0;row<t.r;row++)for(let col=0;col<t.c;col++){
+   const at=t.a+row*t.rs+col*t.cs;
+   for(let offset=0;offset<width;offset++)if(axisChanges.has(at+offset))
+    return error("แกน RPM ซ้อนกับค่าตาราง "+t.t+" จึงไม่บันทึกเพื่อรักษาค่าน้ำมัน/ไฟเดิม");
+  }
+ }
+ for(const sw of M.sw||[])for(const condition of sw.i||[]){
+  if(axisChanges.has(condition[0]))return error("แกน RPM ซ้อนกับสวิตช์ "+sw.t+" จึงไม่บันทึก");
+ }
+ // Snapshot all actual tuning cell bytes. Only axis breakpoints may change.
+ const beforeMaps=M.tables.filter(t=>t.g!=="แกน").map(t=>({
+  t,raw:Array.from({length:t.r},(_,row)=>Array.from({length:t.c},(_,col)=>rawCell(t,row,col)))
+ }));
  if(!commit("แก้แกน RPM "+e.name,bytes))return error("บันทึกค่าแกนไม่สำเร็จ");
- toast("บันทึกแกน RPM "+e.n+" จุดในตารางแล้ว · อย่าลืมกดบันทึก BIN",4400);
+ const changedMap=beforeMaps.some(({t,raw})=>
+  raw.some((line,row)=>line.some((old,col)=>rawCell(t,row,col)!==old)));
+ if(changedMap){
+  undo();
+  return error("พบค่าตารางน้ำมัน/ไฟเปลี่ยนโดยไม่ตั้งใจ จึงย้อนคืนการแก้แกนทั้งหมด");
+ }
+ toast("ย้ายแกน RPM แล้ว · ค่าน้ำมัน/ไฟในช่องเดิมครบทุกช่อง · บันทึก BIN ก่อนใช้งาน",5100);
  if(history.state?.p==="rpm-axis")history.back();else axisPageClose();
 }
 function activateRpmAxis(){
