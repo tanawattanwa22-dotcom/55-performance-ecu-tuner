@@ -100,13 +100,14 @@ window.__55SharedEcu={
  acquire:owner=>reader.acquire(owner),release:owner=>reader.release(owner),
  get owner(){return reader.owner;},
  snapshot:()=>reader.status(),connect:()=>old.connect(),disconnect:()=>reader.disconnect(),
+ rescan:()=>reader.rescan(),
  readDtc:()=>reader.readDtc(),
  stop:()=>reader.stop(),get port(){return reader.port?.ready?reader.port:null;}
 };
 window.__55MainLive={
  ready:true,group:()=>reader.group,setGroup:g=>reader.setGroup(g),
  connect:old.connect,start:old.startEcu,stop:old.stopEcu,
- snapshot:()=>reader.status(),readDtc:()=>reader.readDtc(),disconnect:()=>reader.disconnect()
+ snapshot:()=>reader.status(),readDtc:()=>reader.readDtc(),disconnect:()=>reader.disconnect(),rescan:()=>reader.rescan()
 };
 // Main dashboard is the only place that opens/closes the USB cable.
 const home=document.getElementById('home');
@@ -118,7 +119,9 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
  const state=document.createElement('p');state.id='sharedEcuState';state.setAttribute('role','status');
  const connect=document.createElement('button');connect.className='btn ac';connect.textContent='เชื่อมต่อสาย USB';
  const disconnect=document.createElement('button');disconnect.className='btn';disconnect.textContent='ตัดการเชื่อมต่อ';
- const row=document.createElement('div');row.className='row';row.style.flexWrap='wrap';row.append(connect,disconnect);
+ const rescan=document.createElement('button');rescan.className='btn';
+ rescan.textContent='สแกน ECU อีกครั้ง';rescan.title='ใช้เมื่อเสียบสายที่รถหลังจากเชื่อม FT232R แล้ว';
+ const row=document.createElement('div');row.className='row';row.style.flexWrap='wrap';row.append(connect,rescan,disconnect);
  const note=document.createElement('p');note.className='mu sm';note.textContent='เชื่อมต่อด้วยเส้นทาง FM_diag.cs ของ Live Data เพียงครั้งเดียว • Live / DTC / Flash / Recovery ใช้ FT232R ร่วมกันทีละระบบ • รุ่น ECU ยังต้องยืนยันจาก ID จริง';
  const checks=document.createElement('div');checks.id='sharedEcuAutoChecklist';
  checks.style.cssText='display:grid;gap:7px;margin:14px 0 4px;';
@@ -127,6 +130,7 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
  const legacyConnectSelectors=['#homeConnect','#connectUsbHome','#homeUsbConnect'];
  for(const selector of legacyConnectSelectors){const node=document.querySelector(selector);if(node&&node!==connect)node.hidden=true;}
  connect.onclick=()=>{void old.connect().then(updateSharedState)};
+ rescan.onclick=()=>{void reader.rescan().then(updateSharedState).catch(e=>{state.textContent=e.message})};
  disconnect.onclick=()=>{void reader.disconnect().then(updateSharedState)};
  function updateSharedState(){
   const st=reader.status();
@@ -163,11 +167,19 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
    line.append(title,sub);checks.append(line);
   }
   connect.disabled=st.connected||st.connecting;
+  rescan.disabled=!st.connected||st.connecting||st.running||!!reader.owner;
   disconnect.disabled=!st.connected&&!st.connecting;
  }
  const oldNotify=reader.onUpdate;
  reader.onUpdate=(...args)=>{oldNotify(...args);updateSharedState()};
  updateSharedState();
 }
+// Connecting a physical K-Line socket does not raise a WebUSB device event.
+// Poll gently only if FT232R is open, ECU is unidentified, and the app is visible.
+setInterval(()=>{
+ if(document.visibilityState==='hidden'||!reader.port?.ready||reader.ecuId||
+    reader.owner||reader.running||reader.connecting||reader.autoBusy)return;
+ void reader.rescan();
+},15000);
 window.addEventListener('pagehide',()=>{void reader.disconnect()});
 notify();
