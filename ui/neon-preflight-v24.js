@@ -119,7 +119,8 @@ async function readECU(){
  if(working||INLINEFLASH.busy)return;
  if(!navigator.usb) return errorOut('Chrome นี้ไม่รองรับ WebUSB / FT232R');
  if(document.getElementById('licenseGate'))return errorOut('กรุณาเข้าสู่ระบบ License ก่อนอ่าน ECU');
- if(K.t)return errorOut('มีการเชื่อมต่อสายจากหน้า Live อยู่ กรุณาตัดการเชื่อมต่อเดิมก่อนเปิด FTDI ในหน้า Preflight');
+ if(window.__55SharedEcu?.snapshot?.().connected)return errorOut('FT232R กำลังใช้งานโดยสายหลัก: หน้าอ่าน ECU ID ยังไม่รองรับการส่งคำสั่งผ่านเซสชันร่วม กรุณาตัดการเชื่อมต่อสายหลักก่อนอ่าน ID เพื่อป้องกัน USB ชนกัน');
+ if(K.t)return errorOut('มีการเชื่อมต่อ FTDI จากระบบเดิมอยู่ กรุณาตัดการเชื่อมต่อก่อนอ่าน ECU ID');
  working=true;error='';message='กำลังเลือกอุปกรณ์ FT232R…';last=null;hash=null;render();
  let port=null;
  try{
