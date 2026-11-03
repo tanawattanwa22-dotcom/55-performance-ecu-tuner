@@ -228,6 +228,10 @@ export class HondaFlashEngine {
   if(!(bin instanceof Uint8Array))fail('NO_BIN','กรุณาเลือกไฟล์ BIN');
   let {ecuId,family,catalog}=this.identity;
   const rec=!!recovery;
+  // A programming boot ID is never eligible for NORMAL flash, even if a catalog row is added later.
+  // Only the dedicated Recovery workflow may investigate the boot ID and its physical family.
+  if(!rec&&/0000$/.test(ecuId))
+   fail('BOOT_ID_REQUIRES_RECOVERY','ตรวจพบ Recovery Boot ID '+ecuId+' • หยุด Flash ปกติก่อน ERASE และเปิดเมนู Recovery เพื่อยืนยันโหมด/ตระกูล ECU');
   if(rec){
    // Recovery may be Keihin or Shindengen: Main C# GetEcuType() uses BIN
    // signatures, NOT the suffix 0000. No hardware family witness is currently
@@ -487,6 +491,8 @@ export class HondaFlashEngine {
  }
  async flash(plan,{confirmation,physicalBackupConfirmed=false,externalPowerConfirmed=false,recoveryReady=false}={}){
   if(this.state!=='identified')fail('NOT_READY','อ่านรหัส ECU ให้เสร็จก่อน');
+  if(!plan?.recovery&&/0000$/.test(this.identity.ecuId))
+   fail('BOOT_ID_REQUIRES_RECOVERY','Normal Flash ไม่อนุญาตให้ ERASE/WRITE เมื่อ ECU ตอบ Recovery Boot ID');
   if(!plan||plan.ecuId!==this.identity.ecuId||!plan.profile.startsWith(this.identity.family)||
     (plan.recovery&&!this.identity.recoveryFamilyVerified))
     fail('PLAN_INVALID','แผนเขียนไม่ตรงกับ ECU ที่ตรวจแล้ว');
