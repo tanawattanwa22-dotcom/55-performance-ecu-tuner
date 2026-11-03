@@ -87,6 +87,17 @@ function render(){
  dom.check.disabled=working||!c.valid||!identity||!recency()||last?.saved!==c.saved;
  dom.flash.disabled=working||!verified()||!!INLINEFLASH.busy||!!$('btnFlash')?.hidden||!!$('btnFlash')?.disabled;
  dom.flash.title=dom.flash.disabled?'ต้องบันทึก BIN อ่าน ECU ID และตรวจ Preflight ให้ผ่านก่อน':'ใช้ Flash Engine เดิมซึ่งอ่าน ECU ID ใหม่ก่อน ERASE';
+ if(dom.gateReason){
+  const blockers=[];
+  if(!c.valid)blockers.push('ยังไม่ได้บันทึกไฟล์ BIN ที่ตรงกับรุ่น');
+  if(!recency()||!last?.identity?.ecuId)blockers.push('ยังไม่มี ECU ID ล่าสุดจากสาย FT232R');
+  else if(!last.identity.sourceMatched)blockers.push('ECU ID ยังไม่ตรงฐาน Main C#');
+  if(!last?.plan||!verified())blockers.push('ยังไม่ผ่านการตรวจ Offset/Checksum/Part');
+  if($('btnFlash')?.hidden||$('btnFlash')?.disabled)blockers.push('ปุ่ม Flash เดิมยังถูกล็อกจากสถานะ BIN หรือ License');
+  if(working||INLINEFLASH.busy)blockers.push('โปรแกรมกำลังทำงาน');
+  dom.gateReason.textContent=blockers.length?'ยังเปิดปุ่ม ERASE / WRITE ไม่ได้: '+[...new Set(blockers)].join(' • '):
+   'Preflight ผ่านแล้ว · กดเริ่มอัดเพื่อเข้า Flash Engine จริง (ยังต้องยืนยันและอ่าน ECU ID อีกครั้ง)';
+ }
  const stepIndex=verified()?3:identity?2:c.valid?1:0;
  for(let n=0;n<4;n++){
   const item=dom['step'+n];item.classList.toggle('done',n<stepIndex);
@@ -200,6 +211,21 @@ function mount(host){
  const check=btn('▱ ตรวจ Preflight','n24-btn n24-verify',runCheck);dom.check=check;
  const flash=btn('⇧ เริ่มอัดไฟล์','n24-btn n24-flash',startFlash);dom.flash=flash;
  actions.append(read,check,flash);stage.append(actions);
+ const gate=make('p','n24-help','');gate.setAttribute('role','status');dom.gateReason=gate;stage.append(gate);
+ // The user's Main.zip FormMain.cs SHA-256 matches the source already ported
+ // into the shared real-write engine. These are separate navigation routes,
+ // not alternate command bytes or a bypass of any programming safeguards.
+ const routes=make('div','n24-actions');
+ for(const [title,path] of [
+  ['เปิด Real ECU Flash (ขั้นสูง)','flash_port/flash-write-lab.html'],
+  ['เปิด Offline Flash V28','flash_port/offline/index.html']
+ ]){
+  const a=make('a','n24-btn',title);
+  a.href=new URL(path,document.baseURI).href;
+  a.style.cssText='display:inline-flex;align-items:center;justify-content:center;text-decoration:none;min-height:42px;background:#263547;border:1px solid #56748e';
+  routes.append(a);
+ }
+ stage.append(routes);
  const help=make('p','n24-help','ต้องเลือก FT232R ด้วย Chrome Android • การอ่าน ID และตรวจ Preflight ไม่ลบ/เขียน ECU • ทุกสถานะมาจากการอ่านจริงหรือการคำนวณของ C# Flash Engine เท่านั้น');
  stage.append(help);
  render();
