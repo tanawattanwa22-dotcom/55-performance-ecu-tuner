@@ -1,4 +1,4 @@
-name: 55 PERFORMANCE Recovery V319 — source parity
+name: 55 PERFORMANCE Recovery V320 — Flash + Recovery auto guard
 
 on:
   pull_request:
@@ -7,6 +7,8 @@ on:
       - "tools/verify-honda-flash.mjs"
       - "tools/verify-main-full-flash-sim.mjs"
       - "ui/neon-v20.js"
+      - "ui/neon-preflight-v24.js"
+      - "tools/verify-recovery-auto.mjs"
       - "ui/shared-operations-v30.js"
       - "index.html"
       - "tools/verify-recovery-menu.mjs"
@@ -18,6 +20,8 @@ on:
       - "tools/verify-honda-flash.mjs"
       - "tools/verify-main-full-flash-sim.mjs"
       - "ui/neon-v20.js"
+      - "ui/neon-preflight-v24.js"
+      - "tools/verify-recovery-auto.mjs"
       - "ui/shared-operations-v30.js"
       - "index.html"
       - "tools/verify-recovery-menu.mjs"
@@ -42,6 +46,8 @@ jobs:
           node --check flash_port/csharp-logic.js
       - name: Verify dedicated read-first Recovery menu and script syntax
         run: node tools/verify-recovery-menu.mjs
+      - name: Verify normal Flash auto-detection, all user approvals and boot-ID write guard
+        run: node tools/verify-recovery-auto.mjs
       - name: Reproduce Main C# Keihin / Shindengen source frames and recovery preflight
         run: node tools/verify-honda-flash.mjs
       - name: Test full mock ERASE WRITE Recovery ordering and fail-stop
