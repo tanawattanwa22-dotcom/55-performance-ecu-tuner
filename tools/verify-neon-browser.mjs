@@ -147,6 +147,14 @@ try{
   await page.evaluate(()=>document.querySelector('#v20Nav [data-cat="dtc"]').click());
   assert.equal(await page.locator('#live').evaluate(el=>el.classList.contains('on')),true,'DTC menu opens real full-screen diagnostic page');
   assert.equal(await page.locator('#n23Pane').count(),1,'DTC reference UI installed');
+  assert.equal(await page.locator('#n23Pane .n23-brand').isVisible(),true,'new standalone DTC header visible');
+  assert.equal(await page.locator('#live > header.top').isVisible(),false,'old Live Data header hidden in DTC');
+  assert.equal(await page.locator('#live > .lvtabs').isVisible(),false,'old Live tabs hidden in DTC');
+  assert.equal(await page.locator('#live #vDtc > .card').isVisible(),false,'old DTC card hidden but backend retained');
+  await page.evaluate(()=>document.querySelector('#n23Pane .n23-brand-menu').click());
+  assert.equal(await page.locator('#n23Pane .n23-menu-dialog').evaluate(el=>el.open),true,'new DTC menu opens');
+  await page.evaluate(()=>document.querySelector('#n23Pane .n23-menu-dismiss').click());
+  assert.equal(await page.locator('#n23Pane .n23-menu-dialog').evaluate(el=>el.open),false,'new DTC menu closes');
   assert.equal(await page.locator('#n23Pane .n23-tab').count(),3,'current/history/system tabs');
   assert.equal(await page.locator('#n23Pane .n23-action').count(),3,'read/clear/system actions');
   assert.equal(await page.locator('#n23Pane .n23-read').isDisabled(),true,'no DTC read before real ECU connection');
@@ -159,7 +167,9 @@ try{
   assert((await page.locator('#n23Pane .n23-system-grid').innerText()).includes('Honda 0x73'),'real ECU system info tab works');
   await page.evaluate(()=>document.querySelector('#n23Pane [data-tab="current"]').click());
   if(width===393)await page.screenshot({path:path.join(root,'test-reports','neon-dtc-v23-393.png'),fullPage:false});
-  await page.evaluate(()=>window.__55LiveBridge.home('dashboard'));
+  await page.evaluate(()=>document.querySelector('#n23Pane .n23-brand-home').click());
+  assert.equal(await page.locator('#home').evaluate(el=>el.classList.contains('on')),true,'DTC back returns directly to homepage');
+  assert.equal(await page.locator('#live').evaluate(el=>el.classList.contains('on')),false,'DTC old Live page closes');
   if(width===393)await page.screenshot({path:path.join(root,'test-reports','neon-flash-393.png'),fullPage:false});
   await page.evaluate(()=>document.querySelector('#v20Nav [data-cat="tools"]').click());
   assert.equal(await page.locator('#mainSourceTools').evaluate(el=>el.classList.contains('n20-hidden')),false);
