@@ -134,7 +134,7 @@ try{
   assert.equal(await page.locator('#n21Pane .n21-metric').count(),9,'nine original neon sensor tiles, including C# A/F');
   assert.equal((await page.locator('#n21MainGroup option').count()),4,'Main source groups 1/4/7 selectable within Neon');
   assert.equal(await page.locator('#n21Demo').count(),0,'no simulated sensor mode exposed');
-  assert.equal((await page.locator('#n21ConnTitle').innerText()).includes('ยังไม่เชื่อมต่อ'),true,'no invented ECU connection');
+  assert.equal(await page.evaluate(()=>Boolean(window.__55SharedEcu?.snapshot?.().connected)),false,'no invented ECU connection without FTDI');
   assert.equal((await page.locator('#n21Value-rpm').innerText()).trim(),'—','no invented ECU RPM');
   assert.equal((await page.locator('#n21Rate').innerText()).trim(),'— Hz','no fake 50 Hz refresh speed');
   assert.equal(await page.locator('#n21RecordBtn').isDisabled(),true,'record disabled without real ECU data');
