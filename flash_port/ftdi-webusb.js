@@ -50,7 +50,7 @@ function requireAllowed(command){
 }
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 export class Ft232rWebUsb {
-  constructor(logger=()=>{}){this.log=logger;this.dev=null;this.itf=null;this.inEp=null;this.outEp=null;this.maxPacketSize=64;this.ready=false;this.terminated=false;this.trace=[];}
+  constructor(logger=()=>{}){this.log=logger;this.dev=null;this.itf=null;this.inEp=null;this.outEp=null;this.maxPacketSize=64;this.ready=false;this.terminated=false;this.trace=[];this.uartConfigured=false;this.uartBusy=null;}
   static async choose(){
     if(!navigator.usb)throw Error('Chrome นี้ไม่รองรับ WebUSB หรือไม่ได้เปิดผ่าน HTTPS');
     return navigator.usb.requestDevice({filters:[{vendorId:FT232R_VID,productId:FT232R_PID}]});
@@ -121,22 +121,14 @@ export class Ft232rWebUsb {
       this.outEp=c.output.endpointNumber;
       this.maxPacketSize=c.input.packetSize||64;
       if(this.maxPacketSize<8)throw Error('Unsupported FT232R USB packet size '+this.maxPacketSize);
-      stage='FTDI reset UART';
-      await this.ctl(0x00,0);
-      stage='FTDI ล้าง RX/TX';
-      await this.purge();
-      stage='FTDI ตั้ง UART mode';
-      await this.ctl(0x0b,0);
-      stage='FTDI ตั้ง 8N1';
-      await this.ctl(0x04,0x0008);
-      stage='FTDI ตั้ง Flow Control';
-      await this.ctl(0x02,0);
-      stage='FTDI ตั้ง Latency';
-      await this.ctl(0x09,8);
-      stage='FTDI ตั้ง Baud 10400';
-      await this.setBaud(10400);
+      // WebUSB cable connection is complete as soon as the bulk interface
+      // is claimed. Do NOT perform any UART / K-Line control transfers here.
+      // They belong to the later, explicit ECU diagnostic / programming stage.
+      // This matches the owner's earlier standalone FTDI USB cable test.
+      this.uartConfigured=false;
       this.ready=true;
-      this._log('FT232R ready: interface '+this.itf+', IN '+this.inEp+', OUT '+this.outEp+', packet '+this.maxPacketSize);
+      this._log('FT232R USB CONNECTED: interface '+this.itf+', IN '+this.inEp+', OUT '+this.outEp+
+        ', packet '+this.maxPacketSize+'; UART setup pending until ECU action');
     }catch(err){
       const message='FT232R ['+stage+'] '+String(err?.message||err);
       this._log('OPEN FAILED '+message);
@@ -144,6 +136,35 @@ export class Ft232rWebUsb {
       const error=new Error(message);error.name=err?.name||'UsbOpenError';
       throw error;
     }
+  }
+  async prepareUart(){
+    if(!this.ready||!this.dev?.opened||this.itf===null)
+      throw Error('ต้องเปิด FT232R USB interface ก่อนตั้ง UART');
+    if(this.uartConfigured)return true;
+    if(this.uartBusy)return this.uartBusy;
+    // One configuration operation at a time. Failure leaves the physical
+    // USB connection visible but forbids any ECU traffic until configured.
+    this.uartBusy=(async()=>{
+      let phase='FTDI reset UART';
+      try{
+        await this.ctl(0x00,0);
+        phase='FTDI purge RX/TX';await this.purge();
+        phase='FTDI UART mode';await this.ctl(0x0b,0);
+        phase='FTDI 8N1';await this.ctl(0x04,0x0008);
+        phase='FTDI flow control';await this.ctl(0x02,0);
+        phase='FTDI latency';await this.ctl(0x09,8);
+        phase='FTDI baud 10400';await this.setBaud(10400);
+        this.uartConfigured=true;
+        this._log('FT232R UART CONFIGURED for ECU session (no ECU reply confirmed)');
+        return true;
+      }catch(e){
+        this.uartConfigured=false;
+        const err=Error('FT232R UART ['+phase+']: '+String(e?.message||e));
+        this._log(err.message);
+        throw err;
+      }
+    })();
+    try{return await this.uartBusy}finally{this.uartBusy=null}
   }
   async _write(data){
     if(!this.ready)throw Error('FT232R is not ready');
@@ -153,6 +174,7 @@ export class Ft232rWebUsb {
   }
   async initializeIso(){
     if(!this.ready)throw Error('FTDI not open');
+    await this.prepareUart();
     // Exact FT_SetBitMode and baud sequence from C# InitFtdiIso().
     // Do not run against ECU until electrical interface/pinout has been verified.
     this.diagnosticReady=false;
@@ -193,6 +215,7 @@ export class Ft232rWebUsb {
     // FM_diag.cs method_25(): SerialPort 10400 8N1, Break 100/70/5/145,
     // FE 04 72 8C, then 72 05 71 00 18. Diagnostic ONLY, no flash commands.
     if(!this.ready)throw Error('FT232R must be open before Main diagnostic wake');
+    await this.prepareUart();
     if(this.exchangeBusy)throw Error('Another FTDI exchange is active');
     this.exchangeBusy=true;
     try{
@@ -227,6 +250,7 @@ export class Ft232rWebUsb {
   }
   async sendWake(){
     if(!this.ready)throw Error('Connect FT232R first');
+    await this.prepareUart();
     const wake=Uint8Array.from(READ_ONLY_COMMANDS.WAKE);
     requireAllowed(wake);
     await this.purge();
@@ -240,6 +264,7 @@ export class Ft232rWebUsb {
     // C# SendCommand-compatible echo + reply. This method can transmit an ECU
     // programming frame: callers must complete hardware/profile preflight.
     if(!this.ready)throw Error('FT232R not connected');
+    await this.prepareUart();
     if(this.exchangeBusy)throw Error('FTDI exchange already active');
     const bytes=Uint8Array.from(frame);
     // The ONE non-framed command in the C# source (Keihin Fast Write baud switch,
@@ -290,6 +315,7 @@ export class Ft232rWebUsb {
   }
   async command(label,{timeoutMs=500,afterWriteMs=0}={}){
     if(!this.ready)throw Error('Connect FT232R first');
+    await this.prepareUart();
     if(!Object.hasOwn(READ_ONLY_COMMANDS,label))throw Error('Unknown read-only action');
     const frame=Uint8Array.from(READ_ONLY_COMMANDS[label]);
     requireAllowed(frame);
@@ -338,7 +364,7 @@ export class Ft232rWebUsb {
     throw Error('Honda ECU response timed out');
   }
   async close(){
-    const d=this.dev;this.ready=false;this.diagnosticReady=false;this.dev=null;
+    const d=this.dev;this.ready=false;this.diagnosticReady=false;this.uartConfigured=false;this.uartBusy=null;this.dev=null;
     if(d){
       try{if(d.opened)await d.controlTransferOut({requestType:'vendor',recipient:'device',request:0x0b,value:0,index:0})}catch{}
       try{if(this.itf!==null&&d.opened)await d.releaseInterface(this.itf)}catch{}
