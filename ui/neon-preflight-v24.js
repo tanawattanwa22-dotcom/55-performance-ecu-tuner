@@ -60,10 +60,14 @@ function addChecklist(box){
 }
 function render(){
  if(!stage?.isConnected)return;
- const c=current(),quick=quickBin(),identity=recency()?last?.identity:null,plan=verified()?last?.plan:null,source=catalogRecord(identity);
+ const c=current(),quick=quickBin();
+ const inlineIdentity=(INLINEFLASH.busy||INLINEFLASH.postCheck)?INLINEFLASH.engine?.identity:null;
+ const identity=inlineIdentity||(recency()?last?.identity:null);
+ const plan=inlineIdentity?.sourceMatched?INLINEFLASH.plan:verified()?last?.plan:null;
+ const source=catalogRecord(identity);
  const fileReady=!!quick||c.valid;
  const cableReady=!!window.__55SharedEcu?.port?.ready;
- const progress=c.valid&&last?.saved===c.saved&&recency();
+ const progress=!!inlineIdentity||(c.valid&&last?.saved===c.saved&&recency());
  setItem('model',quick?'อ่านรุ่นจาก ECU จริงอัตโนมัติ':c.model||'ยังไม่เลือกรุ่น');
  setItem('dbcount',catalog290.rows?'290 รายการ · KEIHIN 232 / SHINDENGEN 58':catalog290.error?'โหลดฐาน ECU ไม่สำเร็จ: '+catalog290.error:'กำลังโหลดฐาน ECU 290 รายการ');
  setItem('filename',quick?quick.filename:c.valid?c.saved.filename:'ยังไม่ได้เลือก BIN');
@@ -107,14 +111,14 @@ function render(){
   const blockers=[];
   if(!fileReady)blockers.push('ยังไม่ได้เลือกไฟล์ BIN');
   if(!cableReady)blockers.push('ยังไม่ได้เชื่อมต่อ FT232R จากหน้าแรก');
-  if(!recency()||!last?.identity?.ecuId){if(fileReady&&cableReady&&!INLINEFLASH.busy)blockers.push('กดปุ่มอัดเพื่อให้อ่าน ECU ID/Part/Family อัตโนมัติ');}
-  else if(!catalogRecord(last.identity))blockers.push('ไม่พบ ECU ID '+last.identity.ecuId+' ในฐาน 290');
-  else if(!catalogRecord(last.identity)?.part)blockers.push('ต้นฉบับไม่มี Part Code สำหรับ ECU ID '+last.identity.ecuId);
-  else if(!last.identity.sourceMatched)blockers.push('พบ ECU ID ในฐานแล้ว แต่ Family ยังไม่ได้ยืนยันจากเซสชัน ECU จริง ('+last.identity.handshake+')');
-  if(last?.identity?.ecuId&&!last?.plan)blockers.push('ยังไม่ผ่านการตรวจ Offset/Checksum/Part');
+  if(!identity?.ecuId){if(fileReady&&cableReady&&!INLINEFLASH.busy)blockers.push('กดปุ่มอัดเพื่อให้อ่าน ECU ID/Part/Family อัตโนมัติ');}
+  else if(!catalogRecord(identity))blockers.push('ไม่พบ ECU ID '+identity.ecuId+' ในฐาน 290');
+  else if(!catalogRecord(identity)?.part)blockers.push('ต้นฉบับไม่มี Part Code สำหรับ ECU ID '+identity.ecuId);
+  else if(!identity.sourceMatched)blockers.push('พบ ECU ID ในฐานแล้ว แต่ Family ยังไม่ได้ยืนยันจากเซสชัน ECU จริง ('+identity.handshake+')');
+  if(identity?.ecuId&&!plan)blockers.push('ยังไม่ผ่านการตรวจ Offset/Checksum/Part');
   if(($('btnFlash')?.hidden||$('btnFlash')?.disabled)&&!INLINEFLASH.busy)blockers.push('Flash Engine ยังไม่พร้อม หรือ License ไม่พร้อม');
   if(working||INLINEFLASH.busy)blockers.push('โปรแกรมกำลังทำงาน');
-  dom.gateReason.textContent=blockers.length?'ยังเปิดปุ่ม ERASE / WRITE ไม่ได้: '+[...new Set(blockers)].join(' • '):
+  dom.gateReason.textContent=INLINEFLASH.postCheck?'Final ACK สำเร็จ · ปิดกุญแจ OFF แล้วเปิด ON เพื่อกดตรวจ ECU ID อีกครั้ง':INLINEFLASH.busy?'กำลังตรวจและอัดผ่าน Flash Engine จาก Main C#':blockers.length?'ยังไม่พร้อมอัด: '+[...new Set(blockers)].join(' • '):
    'Preflight ผ่านแล้ว · กดเริ่มอัดเพื่อเข้า Flash Engine จริง (ยังต้องยืนยันและอ่าน ECU ID อีกครั้ง)';
  }
  const stepIndex=verified()?3:identity?2:fileReady?1:0;
@@ -209,7 +213,7 @@ function startFlash(){
  const target=$('btnFlash');if(!target||target.hidden||target.disabled)return errorOut('ระบบ Flash Engine เดิมยังไม่อนุญาตให้อัด');
  // Only the existing button invokes the engine's physical re-identification,
  // original backup/power/recovery confirmations, and original erase/write.
- target.click();
+ error='';target.click();
  message=INLINEFLASH.postCheck?'กำลังตรวจ ECU ID หลังเปิดกุญแจใหม่':'กำลังตรวจ ECU ID, Family, Part Code, BIN, Checksum และ Offset อัตโนมัติ ก่อนยืนยัน ERASE/WRITE';
  render();
 }
@@ -229,10 +233,11 @@ function mount(host){
  const fastLabel=make('label','n24-fast-label');const fast=make('input','');fast.type='checkbox';fast.id='n24FastWrite';fast.checked=!!window.__55QuickFlashFast;
  fastLabel.append(fast,document.createTextNode(' เขียนเร็ว (Fast Write · ใช้เฉพาะโปรไฟล์ที่รองรับ)'));
  fast.onchange=()=>{window.__55QuickFlashFast=fast.checked;message=fast.checked?'เปิด Fast Write แล้ว · Flash Engine จะเลือกวิธีตาม ECU ที่ตรวจได้':'ใช้โหมดเขียนปกติ';render()};
- const uploadStatus=make('p','n24-upload-status','ยังไม่ได้เลือกไฟล์');dom.quickStatus=uploadStatus;
+ const previous=quickBin();
+ const uploadStatus=make('p','n24-upload-status',previous?'✓ '+previous.filename+' • '+(previous.bytes.length/1024).toFixed(0)+' KB':'ยังไม่ได้เลือกไฟล์');dom.quickStatus=uploadStatus;
  upload.onchange=async()=>{
   if(INLINEFLASH.busy){upload.value='';return}
-  window.__55QuickFlashBin=null;
+  window.__55QuickFlashBin=null;error='';
   try{
    const f=upload.files?.[0];
    if(!f){uploadStatus.textContent='ยังไม่ได้เลือกไฟล์';return}
