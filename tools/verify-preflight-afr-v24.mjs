@@ -9,7 +9,7 @@ assert(index.includes('ui/neon-preflight-v24.css'),'Preflight theme loaded');
 assert(/ui\/neon-live-v21\.js\?v=\d+/.test(index)&&index.includes('ui/neon-main-live-v25.js'),'Main C# Neon Live assets are cached correctly');
 assert(ui.includes('window.__55FlashPreflight.mount(stage)'),'Flash route mounts new V24 page');
 assert(ui.includes("flash:[],recovery:[],live:"),'old Flash page UI hidden instead of duplicating');
-assert(p.includes('engine.identify()'),'real physical ECU ID from C# engine');
+assert(p.includes('engine.identify({programmingPreflight:true})'),'real physical ECU ID from C# programming preflight');
 assert(p.includes('last.engine.makePlan(c.bytes.slice()'),'strict C# plan from saved BIN snapshot');
 assert(p.includes('sourceMatched'),'catalog and family source matching enforced');
 assert(p.includes('S.saved')&&p.includes('TuneBinFlow.matches'),'preflight uses saved immutable BIN only');
