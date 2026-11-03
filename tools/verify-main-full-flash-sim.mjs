@@ -1,4 +1,13 @@
 // V27 full-session Honda Main C# flash simulation: NO USB and NO physical ECU.
+// Node.js does not fetch file:// ECU catalog assets; browser fetch does.
+// Provide a local-file response only for isolated mock/source-parity tests.
+import {readFile as readLocalFixture} from 'node:fs/promises';
+const browserFetch=globalThis.fetch;
+globalThis.fetch=async(input,options)=>{
+ const url=input instanceof URL?input:new URL(String(input));
+ if(url.protocol==='file:')return new Response(await readLocalFixture(url),{status:200});
+ return browserFetch(input,options);
+};
 // Pure in-memory responder validates phases, checksums, write order, fail-stop.
 import assert from 'node:assert/strict';
 import {HondaFlashEngine} from '../flash_port/honda-write-engine.js';
@@ -33,7 +42,7 @@ class MockHonda {
   if(this.failure===label)throw Error('SIMULATED_TIMEOUT:'+label);
   if(label==='READ_ECU_ID'||label==='RECHECK_ECU_ID')return {reply:identityReply(this.id),echoOK:true};
   if(label==='SH_GET_SEED')return {reply:seedReply(),echoOK:true};
-  if(label==='SHINDENGEN_FLASH_COUNT'||label==='KEIHIN_FLASH_COUNT')
+  if(label==='SHINDENGEN_FLASH_COUNT'||label==='KEIHIN_FLASH_COUNT'||label==='RECOVERY_SHINDENGEN_FLASH_COUNT'||label==='RECOVERY_KEIHIN_FLASH_COUNT')
    return {reply:packet([2,8,0,0,0,0,3,0]),echoOK:true};
   if(label.startsWith('WRITE_BLOCK_')){
    this.writeCount++;
@@ -106,6 +115,7 @@ await check('Shindengen Recovery source BIN: offline-only plan and Seed/Key path
  await engine.identify();
  const recoveryBin=shBin();
  recoveryBin.set([1,2,3,4,5,6,145,145,13,0,158,141],500);
+ await engine.confirmRecoveryFamily(recoveryBin);
  const plan=engine.makePlan(recoveryBin,{filename:'recovery.bin',recovery:true});
  assert.equal(plan.recovery,true);
  assert.equal(plan.profile,'SHINDENGENV850');

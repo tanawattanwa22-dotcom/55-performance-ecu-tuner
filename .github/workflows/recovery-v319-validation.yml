@@ -1,0 +1,38 @@
+name: 55 PERFORMANCE Recovery V319 — source parity
+
+on:
+  pull_request:
+    paths:
+      - "flash_port/**"
+      - "tools/verify-honda-flash.mjs"
+      - "tools/verify-main-full-flash-sim.mjs"
+      - ".github/workflows/recovery-v319-validation.yml"
+  push:
+    branches: [main]
+    paths:
+      - "flash_port/**"
+      - "tools/verify-honda-flash.mjs"
+      - "tools/verify-main-full-flash-sim.mjs"
+      - ".github/workflows/recovery-v319-validation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  recovery-source-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Parse recovery engine and panel scripts
+        run: |
+          node --check flash_port/honda-write-engine.js
+          node --check flash_port/csharp-logic.js
+      - name: Reproduce Main C# Keihin / Shindengen source frames and recovery preflight
+        run: node tools/verify-honda-flash.mjs
+      - name: Test full mock ERASE WRITE Recovery ordering and fail-stop
+        run: node tools/verify-main-full-flash-sim.mjs

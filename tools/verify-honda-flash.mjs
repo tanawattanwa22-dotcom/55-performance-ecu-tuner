@@ -1,4 +1,13 @@
 // 55 PERFORMANCE Honda Flash C# port reproducible offline validation.
+// Node.js does not fetch file:// ECU catalog assets; browser fetch does.
+// Provide a local-file response only for isolated mock/source-parity tests.
+import {readFile as readLocalFixture} from 'node:fs/promises';
+const browserFetch=globalThis.fetch;
+globalThis.fetch=async(input,options)=>{
+ const url=input instanceof URL?input:new URL(String(input));
+ if(url.protocol==='file:')return new Response(await readLocalFixture(url),{status:200});
+ return browserFetch(input,options);
+};
 // Run: node tools/verify-honda-flash.mjs
 // This script never opens USB, never connects to a real ECU or writes firmware.
 import {hondaChecksum,baudDivisor,stripFtdiStatus,checkedHondaReply,READ_ONLY_COMMANDS,Ft232rWebUsb} from '../flash_port/ftdi-webusb.js';
@@ -36,7 +45,7 @@ function shBin(){
  b.set([208,7],300);b.set([90,90,90,90],b.length-4);
  return b;
 }
-await check('C# catalog exactly 288 entries',async()=> (await loadCSharpCatalog()).size===288);
+await check('Main C# catalog exactly 290 entries (232 Keihin + 58 Shindengen)',async()=> (await loadCSharpCatalog()).size===290);
 await check('C# K03-H01 ID maps to offset 0x8000',async()=>{const v=await findCSharpEcuId('0101880D01');return v?.part==='38770-K03-H01'&&v.startOffset===32768});
 await check('C# Shindengen ID maps to auto offset',async()=>{const v=await findCSharpEcuId('01046B0F01');return v?.family==='SHINDENGEN'&&v.startOffset===null});
 await check('64KB inference does not prove ECU family',()=>{const v=csharpOffsetInference(new Uint8Array(65536));return v.startOffset===32768&&v.csharpClassHint==='UNDETERMINED'});
@@ -151,20 +160,38 @@ await check('Shindengen write delay 150 ms normal, 0 ms fast',async()=>{
 await check('Fast switch command is the only unframed command allowed by exchangeRaw',async()=>{
  const {FAST_SWITCH_COMMAND}=await import('../flash_port/ftdi-webusb.js');
  const u=new Ft232rWebUsb();
+ // Stop at USB write boundary after local frame validation, without hardware.
+ u.prepareUart=async()=>{};u.purge=async()=>{};u.ctl=async()=>{};
+ u._write=async()=>{throw Error('VALIDATED_FRAME_REACHED_USB_BOUNDARY')};
+ u.close=async()=>{u.ready=false};
  let okMsg='',badMsg='';
  u.ready=true;try{await u.exchangeRaw(Uint8Array.from(FAST_SWITCH_COMMAND),{timeoutMs:100})}catch(x){okMsg=x.message}
  const mut=Uint8Array.from(FAST_SWITCH_COMMAND);mut[4]^=1;
  u.ready=true;try{await u.exchangeRaw(mut,{timeoutMs:100})}catch(x){badMsg=x.message}
- return !/Invalid framed|Incorrect command checksum/.test(okMsg)&&/Invalid framed command length/.test(badMsg);
+ return okMsg==='VALIDATED_FRAME_REACHED_USB_BOUNDARY'&&/Invalid framed command length/.test(badMsg);
 });
-await check('Recovery plan only for ECU ID ending 0000 with Shindengen BIN',async()=>{
+await check('Recovery requires physical boot ID and family-specific flash count',async()=>{
  const good=new HondaFlashEngine(fake('0102030000'));await good.identify();
- const p=good.makePlan(shBin(),{filename:'any.bin',recovery:true});
+ const source=shBin();source.set([1,2,3,4,5,6,145,145,13,0,158,141],500);
+ let blockedBeforeProbe=false;
+ try{good.makePlan(source,{filename:'any.bin',recovery:true})}catch(e){blockedBeforeProbe=e.code==='RECOVERY_FAMILY_UNVERIFIED'}
+ const confirmed=await good.confirmRecoveryFamily(source);
+ const plan=good.makePlan(source,{filename:'any.bin',recovery:true});
  const other=new HondaFlashEngine(fake('0101880D01'));await other.identify();
  let rejectedId=false,rejectedBin=false;
- try{other.makePlan(shBin(),{filename:'any.bin',recovery:true})}catch(x){rejectedId=x.code==='RECOVERY_ID'}
- try{good.makePlan(new Uint8Array(65536),{filename:'any.bin',recovery:true})}catch(x){rejectedBin=true}
- return p.recovery===true&&p.profile.startsWith('SHINDENGEN')&&Number.isInteger(p.startOffset)&&rejectedId&&rejectedBin;
+ try{await other.confirmRecoveryFamily(source)}catch(e){rejectedId=e.code==='RECOVERY_NOT_BOOT_ID'||e.code==='RECOVERY_ID'}
+ try{good.makePlan(new Uint8Array(65536),{filename:'any.bin',recovery:true})}catch(e){rejectedBin=true}
+ return blockedBeforeProbe&&confirmed.family==='SHINDENGEN'&&
+   confirmed.recoveryFamilyVerified&&plan.recovery&&plan.profile.startsWith('SHINDENGEN')&&
+   Number.isInteger(plan.startOffset)&&rejectedId&&rejectedBin;
+});
+await check('Keihin Recovery supports original BIN-size offset inference, never fake flash count',async()=>{
+ const good=new HondaFlashEngine(fake('0102030000'));await good.identify();
+ const bin=new Uint8Array(65536);bin[123]=4;
+ await good.confirmRecoveryFamily(bin);
+ const p=good.makePlan(bin,{filename:'backup.bin',recovery:true});
+ return p.profile==='KEIHINOTHER'&&p.startOffset===0x8000&&
+   p.checksumOffset===0&&p.checks.recoveryFamilyEvidence==='MAIN_WORKER_FLASH_COUNT_ACK';
 });
 const ok=checks.filter(x=>x.ok).length;
 console.log('\n'+ok+'/'+checks.length+' PASS — OFFLINE/MOCK ONLY');
