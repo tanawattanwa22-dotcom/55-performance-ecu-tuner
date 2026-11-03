@@ -293,6 +293,23 @@ export class MainLiveSession {
     this.phase='DISCONNECTED';this.autoStatus='ตัดสาย FT232R แล้ว';this.disconnectRequested=false;
     if(port)try{await port.close()}catch{}
    }
+   // Keep the previously approved FT232R cable available when the ECU does not answer.
+   // This recovers only the USB connection, never retries ERASE/WRITE.
+   if(!this.port?.ready&&!this.owner){
+    const device=this.port?.lastDevice;
+    if(device){
+     const restored=new Ft232rWebUsb();
+     try{
+      await TIME_LIMIT(restored.openSelected(device),7000,'FT232R USB restore timed out');
+      this.port=restored;
+      this.phase='USB_READY_NO_ECU';
+      this.autoStatus=this.ecuId?'USB พร้อม • ผลตรวจ ECU บางส่วน':'USB พร้อม • ยังไม่พบกล่อง ECU ที่ตอบกลับ';
+     }catch(usbError){
+      this.port=null;this.phase='USB_LOST';
+      this.error='เปิด FT232R กลับหลังตรวจ ECU ไม่สำเร็จ: '+String(usbError?.message||usbError);
+     }
+    }
+   }
    this.notify();
   }
  }
