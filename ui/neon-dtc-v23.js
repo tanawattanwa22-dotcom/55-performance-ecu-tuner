@@ -97,8 +97,8 @@ function delegate(id){
   void shared.readDtc().catch(e=>{msg.textContent='อ่าน DTC จากสายร่วมไม่สำเร็จ: '+String(e?.message||e)});
   return;
  }
- if(id==='dtcClr'&&shared?.port?.ready){
-  msg.textContent='ระบบ DTC ที่ใช้สายร่วมยังไม่ได้ยืนยันชุดคำสั่งลบรหัสกับ ECU นี้ จึงเปิดเฉพาะการอ่าน DTC โดยไม่ลบ';
+ if(id==='dtcClr'&&shared?.port?.ready&&!shared.snapshot()?.ecuId){
+  msg.textContent='ต้องอ่าน ECU ID จากกล่องจริงก่อนสั่งลบ DTC';
   return;
  }
  const b=$(id);if(b&&!b.disabled)b.click();
@@ -121,7 +121,7 @@ function refreshConnection(){
  cell.speed.textContent='ไม่ได้ตรวจวัด';
  const ready=!!s.connected&&!s.connecting&&!window.__55SharedEcu?.owner;
  read.disabled=pending||!ready;
- clear.disabled=pending||!ready||!!window.__55SharedEcu?.port?.ready;
+ clear.disabled=pending||!ready||!s.ecuId;
 }
 function makeCode(v){
  const outer=create('details','n23-code-card'),summary=create('summary','n23-code-summary');
@@ -197,9 +197,9 @@ window.__55DtcV23={
    const cached=shared.snapshot()?.dtcSnapshot;
    if(cached&&cached.ecuId===shared.snapshot()?.ecuId)
     window.dispatchEvent(new CustomEvent('55:dtc-result',{detail:cached}));
-   else if(shared.readDtc)
-    void shared.readDtc().catch(e=>{msg.textContent='ตรวจ DTC อัตโนมัติไม่สำเร็จ: '+String(e?.message||e)});
+   else void window.__55AutoEcu?.enter('dtc');
   }
+  void window.__55AutoEcu?.enter('dtc');
   return live.classList.contains('on')&&live.classList.contains('n23-dtc');
  },
  modeChanged:m=>{live.classList.toggle('n23-dtc',m==='dtc');if(m==='dtc'){active='current';render()}},
