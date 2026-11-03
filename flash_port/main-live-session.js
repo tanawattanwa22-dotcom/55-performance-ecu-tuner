@@ -5,7 +5,9 @@
  */
 import {MAIN_CAPTURE_COMMANDS,decodeMainDiagnosticTrace} from './main-source-diagnostic.js';
 import {Ft232rWebUsb} from './ftdi-webusb.js?v=301';
-import {HondaFlashEngine} from './honda-write-engine.js?v=301';
+import {HondaFlashEngine} from './honda-write-engine.js?v=309';
+import {loadCSharpCatalog} from './csharp-ecu-catalog.js?v=302';
+import {MAIN_DTC_READ_FRAMES,decodeMainDtcReplies} from './main-source-dtc.js';
 
 const WAIT=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const KEYS=['rpm','tps','map','ect','iat','bat','inj','ign','afr'];
@@ -16,7 +18,7 @@ const MAPPING=Object.freeze({
 const FRAME_ALLOWLIST=new Set(Object.values(MAIN_CAPTURE_COMMANDS).flat().map(a=>a.join(',')));
 // FM_diag.cs method_96 probes Group 7 and then 4 before falling back to Group 1.
 // Probes only use the existing read-only 0x72 command allowlist.
-export const SOURCE_AUTO_PROBE_ORDER=Object.freeze([7,4]);
+export const SOURCE_AUTO_PROBE_ORDER=Object.freeze([7,4,1]);
 export function acceptedSourceProbe(reply,echoOK){
  // Source tests captured hex string length > 30 (7 echo bytes + >=9 reply bytes).
  // A Honda reply must already have passed transport checksum/length checks.
@@ -39,12 +41,20 @@ export class MainLiveSession {
   this.running=false;this.stopRequested=false;this.disconnectRequested=false;
   this.sampleSeq=0;this.sampleAt=0;this.hz=null;this.values=EMPTY();
   this.recording=false;this.recordStart=0;this.records=[];this.error='';this.phase='IDLE';
+  this.catalog=null;this.idError='';this.liveGroupError='';this.dtcError='';
+  this.dtcSnapshot=null;this.autoStatus='ยังไม่ได้ตรวจ';this.autoComplete=false;
  }
  notify(){this.onUpdate(this);}
  status(){
   return {
    connected:!!this.port?.ready,
    cable:!!this.port?.ready,connecting:this.connecting,ecuId:this.ecuId,
+   part:this.catalog?.part||null,catalogFamily:this.catalog?.family||null,
+   startOffset:this.catalog?.startOffset??null,checksumOffset:this.catalog?.checksumOffset??null,
+   startOffsetText:this.catalog?.startOffsetText??null,checksumOffsetText:this.catalog?.checksumOffsetText??null,
+   catalogMatched:!!this.catalog,autoStatus:this.autoStatus,autoComplete:this.autoComplete,
+   idError:this.idError,liveGroupError:this.liveGroupError,dtcError:this.dtcError,
+   liveGroupVerified:Number.isInteger(this.detectedGroup),dtcSnapshot:this.dtcSnapshot,
    running:this.running,group:this.detectedGroup??this.group,groupMode:this.group,
    group4Variant:this.group4Variant,sampleSeq:this.sampleSeq,sampleAt:this.sampleAt,
    hz:this.hz,values:{...this.values},recording:this.recording,phase:this.phase,
@@ -81,11 +91,11 @@ export class MainLiveSession {
    // Diagnostic mode must use FM_diag.cs method_25, not flash identify().
    this.phase='MAIN_DIAG_WAKE';this.notify();
    await port.sourceDiagnosticWake();
-   this.ecuId=''; // Diagnostic wake is not a verified ECU identity.
-   this.phase='DIAGNOSTIC_READY';this.notify();
+   this.ecuId='';this.catalog=null;this.dtcSnapshot=null;
    if(this.disconnectRequested){await port.close();this.port=null;return false;}
-   this.values=EMPTY();this.phase='DIAGNOSTIC_READY';this.notify();
-   return true;
+   this.values=EMPTY();
+   await this._autoDetect();
+   return !!this.port?.ready;
   }catch(e){
    const denied=e?.name==='SecurityError'||/Access denied|SecurityError/.test(String(e?.message||''));
    this.error=denied?'Android/Chrome ไม่อนุญาตให้เปิด FT232R (USBDevice.open Access denied) • ปิดหน้าอื่นที่ใช้สายและเลือกพอร์ตจาก Chrome โดยตรง':
@@ -95,6 +105,138 @@ export class MainLiveSession {
    this.port=null;this.ecuId='';this.values=EMPTY();this.notify();
    return false;
   }finally{this.connecting=false;this.notify()}
+ }
+ async _reopenDiagnostic(){
+  const dev=this.port?.lastDevice;
+  if(!dev)throw Error('ไม่มี FT232R เดิมสำหรับเริ่ม Diagnostic ใหม่');
+  if(this.port?.ready)await this.port.close();
+  const restored=new Ft232rWebUsb();
+  this.port=restored;
+  await restored.openSelected(dev);
+  await restored.sourceDiagnosticWake();
+ }
+ async _checkIdentity(){
+  this.autoStatus='กำลังอ่าน ECU ID จริงจากกล่อง';this.phase='ECU_ID_PROBE';this.notify();
+  try{
+   const {reply,echoOK}=await this.port.command('ID',{timeoutMs:2200,afterWriteMs:50});
+   if(!echoOK||reply.length<11)throw Error('ECU ID reply incomplete or echo mismatch');
+   const id=Array.from(reply.slice(5,10),x=>x.toString(16).padStart(2,'0')).join('').toUpperCase();
+   if(!/^[0-9A-F]{10}$/.test(id)||/^0+$/.test(id)||/^F+$/.test(id))
+    throw Error('ECU ID malformed or uninitialized');
+   this.ecuId=id;
+   const db=await loadCSharpCatalog();
+   this.catalog=db.get(id)||null;
+   this.idError=this.catalog?'':('อ่าน ECU ID '+id+' ได้ แต่ไม่พบรหัสในฐาน Main 290');
+  }catch(e){
+   this.ecuId='';this.catalog=null;this.idError=String(e?.message||e);
+   // A timeout closes the USB transport. Reopen only the same user-approved device.
+   if(!this.port?.ready)await this._reopenDiagnostic();
+  }
+  this.notify();
+ }
+ async _checkLiveGroup(){
+  this.phase='LIVE_GROUP_DETECT';this.autoStatus='กำลังทดสอบตาราง Live 7 / 4 / 1';this.notify();
+  this.detectedGroup=null;this.liveGroupError='';
+  for(const group of SOURCE_AUTO_PROBE_ORDER){
+   if(this.disconnectRequested)break;
+   this.phase='LIVE_GROUP_'+group;this.notify();
+   try{
+    if(!this.port?.ready)await this._reopenDiagnostic();
+    const bytes=await this._cycle(group);
+    if(!bytes)throw Error('No Live response');
+    const readings=decodeMainDiagnosticTrace(Uint8Array.from(bytes),group);
+    const rpm=diagnosticToNeon(readings,group).rpm;
+    if(!Number.isFinite(rpm))throw Error('Group '+group+' has no valid RPM');
+    this.detectedGroup=group;this.group4Variant=null;
+    this.notify();break;
+   }catch(e){
+    this.liveGroupError='Group '+group+': '+String(e?.message||e);
+    if(!this.port?.ready){
+     try{await this._reopenDiagnostic()}catch(recovery){
+      this.liveGroupError+='; USB restore failed: '+recovery.message;
+      break;
+     }
+    }
+   }
+  }
+  if(this.detectedGroup!==null)this.liveGroupError='';
+  this.notify();
+ }
+ async _scanDtc({publish=false}={}){
+  const entries=[];let missing=0;const failures=[];
+  this.phase='DTC_BANK_DETECT';this.autoStatus='กำลังตรวจตาราง DTC ด้วยคำสั่งอ่านเท่านั้น';this.notify();
+  for(const frame of MAIN_DTC_READ_FRAMES){
+   if(this.disconnectRequested)break;
+   const cmd=frame[2],bank=frame[3];
+   try{
+    if(!this.port?.ready)await this._reopenDiagnostic();
+    const {reply,echoOK}=await this.port.exchangeRaw(frame,{timeoutMs:1400,afterWriteMs:50});
+    if(!echoOK)throw Error('DTC echo mismatch');
+    // Validate code, bank, size and checksum before claiming a table is supported.
+    decodeMainDtcReplies([{cmd,bank,reply}]);
+    entries.push({cmd,bank,reply});
+   }catch(e){
+    missing++;failures.push(cmd.toString(16).toUpperCase()+'/'+bank+': '+String(e?.message||e));
+    if(!this.port?.ready){
+     try{await this._reopenDiagnostic()}catch(recovery){
+      this.dtcError='DTC session restore failed: '+recovery.message;
+      missing+=MAIN_DTC_READ_FRAMES.length-entries.length-missing;
+      break;
+     }
+    }
+   }
+  }
+  const decoded=decodeMainDtcReplies(entries);
+  const current=decoded.filter(x=>x.type==='CURRENT').map(x=>({
+   k:x.code,known:x.known,txt:x.description
+  }));
+  const stored=decoded.filter(x=>x.type==='STORED').map(x=>({
+   k:x.code,known:x.known,txt:x.description
+  }));
+  this.dtcError=failures.length?failures.join(' | '):'';
+  const complete=entries.length===MAIN_DTC_READ_FRAMES.length;
+  const result={current,stored,missing:MAIN_DTC_READ_FRAMES.length-entries.length,
+   answered:entries.map(x=>({cmd:x.cmd,bank:x.bank})),success:complete,error:complete?'':this.dtcError,
+   timestamp:Date.now(),ecuId:this.ecuId};
+  this.dtcSnapshot=result;
+  if(publish&&typeof window!=='undefined')
+   window.dispatchEvent(new CustomEvent('55:dtc-result',{detail:result}));
+  this.notify();return result;
+ }
+ async readDtc(){
+  if(!this.port?.ready)throw Error('FT232R ไม่ได้เชื่อมต่อ');
+  const old=this.phase;
+  await this.acquire('DTC_READ');
+  if(typeof window!=='undefined')window.dispatchEvent(new CustomEvent('55:dtc-read-start'));
+  try{
+   await this.port.sourceDiagnosticWake();
+   return await this._scanDtc({publish:true});
+  }catch(e){
+   const result={current:[],stored:[],missing:6,success:false,
+    error:String(e?.message||e),timestamp:Date.now(),ecuId:this.ecuId};
+   this.dtcSnapshot=result;this.dtcError=result.error;
+   if(typeof window!=='undefined')window.dispatchEvent(new CustomEvent('55:dtc-result',{detail:result}));
+   return result;
+  }finally{this.phase=this.port?.ready?'DIAGNOSTIC_READY':'USB_LOST';this.release('DTC_READ');this.notify();}
+ }
+ async _autoDetect(){
+  this.autoComplete=false;this.autoStatus='เริ่มตรวจหลังเชื่อมสาย';this.notify();
+  try{
+   await this._checkIdentity();
+   if(!this.port?.ready)throw Error('FT232R หลุดระหว่างตรวจ ID');
+   await this._checkLiveGroup();
+   if(!this.port?.ready)throw Error('FT232R หลุดระหว่างตรวจ Group');
+   await this._scanDtc();
+   if(!this.port?.ready)throw Error('FT232R หลุดระหว่างตรวจ DTC');
+   this.phase='DIAGNOSTIC_READY';
+   this.autoComplete=true;
+   this.autoStatus='ตรวจเสร็จ: '+(this.ecuId?'ECU ID '+this.ecuId:'ECU ID ยังไม่ยืนยัน')+
+     ' • Live '+(this.detectedGroup??'ยังไม่ยืนยัน')+' • DTC '+(this.dtcSnapshot?.answered?.length??0)+'/6';
+  }catch(e){
+   this.autoStatus='ตรวจอัตโนมัติไม่ครบ: '+String(e?.message||e);
+   this.phase=this.port?.ready?'AUTO_DETECT_PARTIAL':'USB_LOST';
+  }
+  this.notify();
  }
  async _restoreAfterProbeLoss(expectedId){
   // exchangeRaw fail-closes the USB device on ambiguous response. Never retry
@@ -134,7 +276,7 @@ export class MainLiveSession {
    }
   }
   if(!this.port?.ready)throw Error('FT232R ไม่พร้อมหลังตรวจกลุ่ม Live');
-  this.detectedGroup=1;this.notify();return 1;
+  throw Error('ยังไม่มี Group 7/4/1 ที่ ECU ตอบและถอดรหัสข้อมูลครบ');
  }
  async _cycle(group){
   const frames=MAIN_CAPTURE_COMMANDS[group],capture=[];
@@ -174,7 +316,7 @@ export class MainLiveSession {
  async _loop(){
   try{
    await this.port.sourceDiagnosticWake();
-   const group=this.group==='auto'?await this.detectGroup():this.group;
+   const group=this.group==='auto'?(this.detectedGroup??await this.detectGroup()):this.group;
    if(group===null)return;
    while(this.running&&!this.stopRequested&&!this.disconnectRequested){
     const capture=await this._cycle(group);
@@ -209,6 +351,8 @@ export class MainLiveSession {
  async disconnect(){
   if(this.owner){this.error="หยุดงาน "+this.owner+" ก่อนตัดสาย";this.notify();return false;}
   this.disconnectRequested=true;this.stopRequested=true;this.recording=false;
+  this.ecuId='';this.catalog=null;this.detectedGroup=null;this.dtcSnapshot=null;
+  this.idError='';this.liveGroupError='';this.dtcError='';this.autoComplete=false;this.autoStatus='ตัดการเชื่อมต่อแล้ว';
   if(!this.running&&!this.connecting){
    const port=this.port;this.port=null;this.ecuId='';
    if(port)try{await port.close()}catch{}
