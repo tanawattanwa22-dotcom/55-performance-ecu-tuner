@@ -17,7 +17,7 @@ assert.equal(KTR_NEEDS_REVIEW,38,'uncertain/partial ECM IDs must not be fabricat
 assert.match(KTR_ECM_ROWS[0].referenceId,/^KTR-\d{3}$/,'retain existing stable server reference IDs');
 assert.match(lookup,/\/rest\/v1\/ecu_ktr_reference/,'retain the existing Supabase table');
 assert.match(main,/href="ecm\/index\.html/,'main tuner points to branded ECM catalog URL');
-assert.match(nav,/55 Performance','tools navigation has new brand');
+assert.match(nav,/55 Performance/,'tools navigation has new brand');
 assert.match(nav,/ecm\/index\.html/,'tools navigation points to branded ECM route');
 assert.match(popup,/ecm\/index\.html\?q=/,'ECU auto-ID popup opens branded catalog');
 assert.match(live,/55 Performance/,'live tool has 55 Performance ECM link');
