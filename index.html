@@ -1439,14 +1439,18 @@ async function connectCable(){
     cableUi("wn","กำลังเชื่อมต่อ… เลือกอุปกรณ์ในหน้าต่างที่เด้งขึ้นมา",null,"ยังไม่ตอบ");
     if(!navigator.usb&&!navigator.serial){cableUi("bd","เบราว์เซอร์นี้ไม่รองรับทั้ง WebUSB และ Web Serial ให้ใช้ Chrome บน Android และเปิดผ่าน https","ไม่รองรับ");klog("ไม่มี navigator.usb / navigator.serial");return}
     if(K.mode!=="serial"&&navigator.usb){
-      let dev=(await navigator.usb.getDevices()).find(d=>d.vendorId===0x0403);
-      if(!dev){
-        try{dev=await navigator.usb.requestDevice({filters:FTDI_IDS})}
-        catch(e){
-          if(e.name==="NotFoundError"&&navigator.serial){K.mode="serial";klog("ไม่พบ FTDI ผ่าน WebUSB");cableUi("bd","ไม่พบสาย FTDI ผ่าน USB กดเชื่อมต่อสายอีกครั้งเพื่อลองโหมด Web Serial","ไม่พบอุปกรณ์");return}
-          throw e;
-        }
+      // Do not auto-select the first cached FTDI. Android may expose duplicate
+      // FT232R entries (0)/(2) with the same serial; only one may be openable.
+      // A fresh user gesture lets the operator choose the working interface.
+      let dev;
+      try{dev=await navigator.usb.requestDevice({filters:FTDI_IDS})}
+      catch(e){
+        if(e.name==="NotFoundError"&&navigator.serial){K.mode="serial";klog("ไม่พบ FTDI ผ่าน WebUSB");cableUi("bd","ไม่พบสาย FTDI ผ่าน USB กดเชื่อมต่อสายอีกครั้งเพื่อลองโหมด Web Serial","ไม่พบอุปกรณ์");return}
+        throw e;
       }
+      klog("ผู้ใช้เลือกสาย FTDI "+(dev.productName||"")+
+           " VID "+dev.vendorId.toString(16)+" PID "+dev.productId.toString(16)+
+           " (Android แยกรายการ 0/2 ไม่ได้จาก Serial เพียงอย่างเดียว)");
       tr=new FtdiUsb(dev);
     }else{
       K.mode="usb";
