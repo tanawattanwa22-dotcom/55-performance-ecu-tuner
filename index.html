@@ -797,7 +797,8 @@ function openTune(){
   if(!DEFS[MODELS[S.mi].id]){toast("ตารางจูนยังไม่พร้อม กรุณาย้ายข้อมูลตารางจากระบบเดิมก่อน");return}
   if(!S.bin&&!useEmbedded())return;
   if(!checkFam()){toast("ไฟล์ไม่ตรงกับรุ่นที่เลือก");return}
-  if(!M||M.id!==MODELS[S.mi].id){M=compile(MODELS[S.mi].id);S.ti=M.tables.findIndex(t=>!ADV.has(t.g));if(S.ti<0)S.ti=0;S.sel=null}
+  $("#tune").classList.toggle("msx-compact",!!MODELS[S.mi]?.xdf);
+  if(!M||M.id!==MODELS[S.mi].id){M=compile(MODELS[S.mi].id);S.ti=MODELS[S.mi]?.xdf?M.tables.findIndex(t=>t.xdfId==="0X4C59"):M.tables.findIndex(t=>!ADV.has(t.g));if(S.ti<0)S.ti=0;S.sel=null}
   $("#tModel").textContent=M.id;$("#tFile").textContent=S.fname;
   show("tune");history.pushState({p:"tune"},"");
   buildTabs();selectTable(S.ti);updSave();
@@ -807,12 +808,22 @@ function show(p){$$(".page").forEach(e=>e.classList.toggle("on",e.id===p))}
 /* ---------- tuning UI ---------- */
 const ADV=new Set(["แกน","ล็อก / โค้ด","เซนเซอร์"]);
 function buildTabs(){
-  $("#tabs").innerHTML=(M.sw.length?'<div class="chip" data-i="-1">สวิตช์</div>':"")+M.tables.filter(t=>!ADV.has(t.g)).map(t=>`<div class="chip" data-i="${t.i}">${esc(t.t)}<i class="dot" style="display:none"></i></div>`).join("");
+  const isMsx=!!MODELS[S.mi]?.xdf;
+  const pri=['0X4C59','0X1CA0','0X7E1A'];
+  const shown=isMsx?[...M.tables].sort((a,b)=>{
+    const ai=pri.indexOf(a.xdfId),bi=pri.indexOf(b.xdfId);
+    return (ai<0?999:ai)-(bi<0?999:bi)||a.i-b.i;
+  }):M.tables.filter(t=>!ADV.has(t.g));
+  const chip=t=>`<div class="chip" data-i="${t.i}">${esc(t.t)}<i class="dot" style="display:none"></i></div>`;
+  const sw=M.sw.length?`<div class="chip" data-i="-1">สวิตช์ (${M.sw.length})</div>`:"";
+  $("#tabs").innerHTML=isMsx
+   ?shown.slice(0,3).map(chip).join("")+sw+shown.slice(3).map(chip).join("")
+   :sw+shown.map(chip).join("");
   markTabs();
 }
 function markTabs(){
   if(!M)return;
-  $$("#tabs .chip").forEach(e=>{const i=+e.dataset.i;e.classList.toggle("on",i===S.ti);const d=e.querySelector(".dot");if(d)d.style.display=modTable(M.tables[i])?"":"none"});
+  $$("#tabs .chip").forEach(e=>{const i=+e.dataset.i;e.classList.toggle("on",i===S.ti);const d=e.querySelector(".dot");if(d)d.style.display=i>=0&&M.tables[i]&&modTable(M.tables[i])?"":"none"});
 }
 $("#tabs").addEventListener("click",e=>{const c=e.target.closest(".chip");if(c)selectTable(+c.dataset.i)});
 let cells=[];
@@ -825,8 +836,9 @@ function selectTable(i){
   }
   $("#fp").style.display="";$("#zm").style.display=$("#zp").style.display=$("#axT").style.display="";
   const t=curT();
-  $("#tTitle").textContent=t.t;$("#tSub").textContent=t.s||"";$("#tUnit").textContent=t.u||"ค่า";
+  $("#tTitle").textContent=t.t;$("#tSub").textContent=MODELS[S.mi]?.xdf?"":t.s||"";$("#tUnit").textContent=t.u||"";
   $("#roNote").style.display=t.ro?"":"none";
+  $("#roNote").textContent=MODELS[S.mi]?.xdf?"อ่านอย่างเดียว: ตารางนี้เป็นข้อมูลอ้างอิงหรือมีตำแหน่งซ้อนกัน":"ตารางนี้เป็นแกนอ้างอิง แก้ไม่ได้";
   const st=Math.max(Math.pow(10,-(t.d||0)),Math.abs(t.k.a));
   const sv=+st.toFixed(6);$("#vStep").value=sv;$("#vOff").value=sv;
   $("#clampT").classList.toggle("on",S.clamp&&isSane(t));
@@ -943,6 +955,7 @@ function sharers(s){
   return out;
 }
 function editAxis(ax,i){
+  if(MODELS[S.mi]?.xdf){toast("แกน XDF ใช้ร่วมหลายตาราง จึงปิดการแก้แกนจากจุดนี้");return}
   const t=curT(),s=t[ax];
   if(!s||s.l||s.a===undefined){toast("แกนนี้เป็นป้ายชื่อตามนิยาม แก้ไม่ได้");return}
   if(!s.k.a){toast("แกนนี้ไม่มีสูตรแปลงค่า แก้ไม่ได้อย่างปลอดภัย");return}
@@ -1028,8 +1041,13 @@ function buildOut(){
 }
 function saveBin(){
   if(!S.bin)return;
+  const o=buildOut();
+  if(MODELS[S.mi]?.xdf){
+   const v=window.__55MSX?.validateCustomer(o);
+   if(!v?.ok){toast("ไม่บันทึก BIN: "+(v?.error||"ข้อมูล MSX ไม่ผ่านการตรวจ"),6500);return}
+  }
   if(!guardConfirm("บันทึกไฟล์"))return;
-  const o=buildOut(),d=new Date(),p=n=>String(n).padStart(2,"0");
+  const d=new Date(),p=n=>String(n).padStart(2,"0");
   const name=`${M?M.id:"ECU"}_55ECU_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.bin`;
   const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([o],{type:"application/octet-stream"}));a.download=name;
   document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},4000);
