@@ -40,14 +40,14 @@ hr{border:0;border-top:1px solid #42556c;margin:14px 0}
 <h2>2. เชื่อมต่อ FT232R ด้วย Chrome Android</h2>
 <p>ขั้นนี้เสียบเฉพาะสาย FTDI + OTG กับมือถือได้ ยังไม่ต้องต่อกล่อง ECU</p>
 <div class="row">
-<button id="pick" disabled>เลือกสายใหม่ผ่าน Android</button>
+<button id="pick" disabled>เปิดรายการ Android → เลือก FT232R (2)</button>
 <button class="secondary" id="disconnect" disabled>ตัดสาย</button>
 </div>
-<p class="note">ถ้ามีชื่อสายซ้ำ เลือกตามรหัส Serial ที่ตรงกัน • ปุ่มเชื่อมต่อสายที่เลือกจะขอสิทธิ์ Android ใหม่ทุกครั้ง ไม่ใช้การเชื่อมต่อ USB ที่อาจค้างจากรอบก่อน</p>
+<p class="note">จากภาพ Honda Tuner มี FT232R Serial เดียวกันทั้ง (0) และ (2) • อย่าแยกจาก Serial อย่างเดียว ให้กดเปิดรายการ Android ด้านบนแล้วเลือก FT232R USB UART (A965S6NF) (2) ด้วยตนเอง • ปิดการเชื่อมต่อในเว็บ Honda Tuner ก่อน เพราะ USB เดียวกันเปิดซ้อนกันไม่ได้</p>
 <div class="row">
 <button id="scanUsb" class="secondary" disabled>แสดงสายที่เคยอนุญาต</button>
 <select id="usbList" aria-label="เลือก FT232R ที่เคยอนุญาต" disabled style="flex:1;min-width:200px;width:auto;margin:4px 0"><option>กดแสดงสายก่อน</option></select>
-<button id="connectKnown" class="secondary" disabled>เชื่อมต่อสายที่เลือก</button>
+<button id="connectKnown" class="secondary" disabled>ขออนุญาตใหม่ตาม Serial (อาจซ้ำ)</button>
 </div>
 <div class="status" id="usb">ยังไม่เชื่อมต่อ</div>
 <div class="status" id="usbHint" role="status">รายการสายที่เคยอนุญาตอ่านจาก Chrome โดยไม่เปิด USB หรือส่งข้อมูลไป ECU</div>
@@ -127,7 +127,7 @@ async function listApproved(){
  }else{
   approvedUsb.forEach((device,i)=>list.add(new Option(usbLabel(device),String(i))));
   el('usbHint').textContent='Chrome พบ FT232R ที่เคยอนุญาต '+approvedUsb.length+
-   ' รายการ · เลือกสายที่ต้องการ แล้ว Android จะขออนุญาต USB ใหม่ก่อนเปิดพอร์ต';
+   ' รายการ · Serial เดียวกันอาจมีรายการ (0)/(2) · แนะนำใช้ปุ่มเปิดรายการ Android ด้านบนเพื่อเลือก (2)';
  }
  busy(false);
 }
@@ -184,7 +184,9 @@ el('pick').onclick=async()=>{
  if(!active||port)return;
  busy(true);
  try{
+  log('ANDROID USB CHOOSER: เลือกรายการ FT232R USB UART (A965S6NF) (2) ตามหน้าที่ใช้ได้ใน Honda Tuner');
   const device=await Ft232rWebUsb.choose();
+  log('USB CHOSEN: '+usbLabel(device)+' (JavaScript อ่านหมายเลข (0)/(2) ของ Android ไม่ได้)');
   await openUsb(device);
  }catch(e){
   log('USB CHOOSER ERROR: '+e.message);
