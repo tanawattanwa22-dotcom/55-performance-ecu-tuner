@@ -95,6 +95,12 @@ export class MainLiveSession {
    if(this.disconnectRequested){await port.close();this.port=null;return false;}
    this.values=EMPTY();
    await this._autoDetect();
+   if(this.disconnectRequested){
+    if(this.port?.ready)await this.port.close();
+    this.port=null;this.ecuId='';this.catalog=null;this.dtcSnapshot=null;
+    this.detectedGroup=null;this.autoComplete=false;this.phase='DISCONNECTED';
+    return false;
+   }
    return !!this.port?.ready;
   }catch(e){
    const denied=e?.name==='SecurityError'||/Access denied|SecurityError/.test(String(e?.message||''));
@@ -124,9 +130,14 @@ export class MainLiveSession {
    if(!/^[0-9A-F]{10}$/.test(id)||/^0+$/.test(id)||/^F+$/.test(id))
     throw Error('ECU ID malformed or uninitialized');
    this.ecuId=id;
-   const db=await loadCSharpCatalog();
-   this.catalog=db.get(id)||null;
-   this.idError=this.catalog?'':('อ่าน ECU ID '+id+' ได้ แต่ไม่พบรหัสในฐาน Main 290');
+   try{
+    const db=await loadCSharpCatalog();
+    this.catalog=db.get(id)||null;
+    this.idError=this.catalog?'':('อ่าน ECU ID '+id+' ได้ แต่ไม่พบรหัสในฐาน Main 290');
+   }catch(dbError){
+    this.catalog=null;
+    this.idError='อ่าน ECU ID '+id+' สำเร็จ แต่โหลดฐาน Main 290 ไม่ได้: '+String(dbError?.message||dbError);
+   }
   }catch(e){
    this.ecuId='';this.catalog=null;this.idError=String(e?.message||e);
    // A timeout closes the USB transport. Reopen only the same user-approved device.
@@ -226,6 +237,7 @@ export class MainLiveSession {
    if(!this.port?.ready)throw Error('FT232R หลุดระหว่างตรวจ ID');
    await this._checkLiveGroup();
    if(!this.port?.ready)throw Error('FT232R หลุดระหว่างตรวจ Group');
+   await this.port.sourceDiagnosticWake();
    await this._scanDtc();
    if(!this.port?.ready)throw Error('FT232R หลุดระหว่างตรวจ DTC');
    this.phase='DIAGNOSTIC_READY';
@@ -294,6 +306,7 @@ export class MainLiveSession {
  }
  async acquire(owner){
   if(this.owner)throw Error("สายกำลังใช้งานโดย "+this.owner);
+  if(this.connecting)throw Error('กำลังตรวจ ECU/Live/DTC อัตโนมัติ โปรดให้ตรวจเสร็จก่อนใช้สายร่วม');
   this.owner=owner;this.stop();
   try{
    const deadline=Date.now()+10000;
