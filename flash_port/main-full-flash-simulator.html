@@ -66,6 +66,10 @@ async function simulate(which){
  const bin=which==='kh'?new Uint8Array(65536):shBin();
  if(which==='kh')bin[512]=0xA5;
  if(which==='rec')bin.set([1,2,3,4,5,6,145,145,13,0,158,141],500);
+  if(which==='rec'){
+   await engine.confirmRecoveryFamily(bin); // Simulated family-specific Flash Count ACK, no bypass.
+   push('SIM RECOVERY FAMILY ACK '+engine.identity.family);
+  }
  const plan=engine.makePlan(bin,{filename:which==='kh'?'K03-H01.bin':which==='sh'?'K2SA-N02.bin':'recovery.bin',recovery:which==='rec'});
  push('ECU '+info.ecuId+' / '+(info.sourcePart||'UNKNOWN'));
  push('PLAN '+plan.profile+', size '+plan.size+', offset 0x'+plan.startOffset.toString(16)+', checksum offset 0x'+plan.checksumOffset.toString(16));
