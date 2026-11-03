@@ -227,8 +227,24 @@ export class Ft232rWebUsb {
     this._log('TX '+label+': '+toHex(frame));
     if(afterWriteMs)await sleep(afterWriteMs);
     const stream=[];
+    let usbStatusPackets=0;
     while(Date.now()<deadline){
-      const received=await this._readOnce(deadline);
+      let received;
+      try {
+        received=await this._readOnce(deadline);
+      }catch(error){
+        // Diagnostic only. _readOnce() already closed the interface to
+        // prevent the pending Chrome USB read from overlapping later I/O.
+        const phase=stream.length===0?'NO_UART_RX':
+          stream.length<frame.length?'PARTIAL_ECHO':
+          stream.length===frame.length?'ECHO_ONLY':'PARTIAL_ECU_REPLY';
+        const details=label+' '+phase+' ('+stream.length+' UART byte(s), '+
+          usbStatusPackets+' FTDI status packet(s))';
+        this._log('ECU READ DIAGNOSTIC: '+details+
+          (stream.length?' RX='+toHex(stream.slice(0,32)):''));
+        throw Error(details+'; '+error.message);
+      }
+      usbStatusPackets+=received.status?.length||0;
       for(const v of received.data)stream.push(v);
       if(stream.length>1024)throw Error('Response over 1024 bytes (malformed/noisy link)');
       // C# SendCommand: echo first commandSize bytes, then reply[1] = length.
