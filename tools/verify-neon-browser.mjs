@@ -124,24 +124,27 @@ try{
   }));
   for(const b of flashButtons)assert(b.left>=-2&&b.right<=width+2,
    'V24 Flash button overflows '+width+'px: '+JSON.stringify(b));
-  // Home Live Data must open the purchased FM_diag.cs source reader, not the ADX-dependent legacy gauge.
+  // Live Data opens the exact original Neon UI, with Main FM_diag backend.
+  await page.waitForFunction(()=>window.__55MainLive?.ready===true,{timeout:15000});
   await page.evaluate(()=>document.querySelector('#v20Nav [data-cat="live"]').click());
-  await page.waitForURL(/\/flash_port\/main-source-live\.html\?v=260/,{timeout:15000});
-  assert.equal((await page.locator('#group option').count()),3,'Main C# source profiles 1/4/7 are present');
-  assert((await page.locator('#mainSourceDataNotice').innerText()).includes('ไม่ต้องมีไฟล์ ADX'),'Main Live does not require ADX');
-  assert.equal((await page.locator('#connection').innerText()).trim(),'OFFLINE','cannot claim ECU connected before WebUSB');
-  assert.equal(await page.locator('#start').isDisabled(),true,'must identify physical ECU before reading');
-  assert.equal((await page.locator('#dataBadge').innerText()).trim(),'NO DATA','no fabricated sensor values');
-  await overflowing('Main C# Live '+width);
-  if(width===393)await page.screenshot({path:path.join(root,'test-reports','main-csharp-live-no-adx-393.png'),fullPage:false});
-  await page.goBack({waitUntil:'domcontentloaded'});
-  await page.waitForSelector('#neonShell',{state:'attached',timeout:12000});
-  await page.evaluate(()=>{
-    document.getElementById('home').classList.add('on');
-    const gate=document.getElementById('licenseGate');if(gate)gate.style.visibility='hidden';
-    const splash=document.getElementById('spl');if(splash)splash.style.visibility='hidden';
-  });
-  await page.waitForTimeout(80);
+  assert.equal(await page.locator('#live').evaluate(el=>el.classList.contains('on')),true,'main Live opens in original full-screen Neon page');
+  assert.equal(await page.locator('#n21Pane').isVisible(),true,'original Live dashboard is visible');
+  assert.equal(await page.locator('#n21Pane .n21-metric').count(),9,'nine original neon sensor tiles, including C# A/F');
+  assert.equal((await page.locator('#n21MainGroup option').count()),3,'Main source groups 1/4/7 selectable within Neon');
+  assert.equal(await page.locator('#n21Demo').count(),0,'no simulated sensor mode exposed');
+  assert.equal((await page.locator('#n21ConnTitle').innerText()).includes('ยังไม่เชื่อมต่อ'),true,'no invented ECU connection');
+  assert.equal((await page.locator('#n21Value-rpm').innerText()).trim(),'—','no invented ECU RPM');
+  assert.equal((await page.locator('#n21Rate').innerText()).trim(),'— Hz','no fake 50 Hz refresh speed');
+  assert.equal(await page.locator('#n21RecordBtn').isDisabled(),true,'record disabled without real ECU data');
+  await page.locator('#n21MainGroup').selectOption('7');
+  assert((await page.locator('#n21AfrNote').innerText()).includes('ไม่มีช่อง A/F'),'Group 7 cannot fabricate A/F');
+  await page.locator('#n21MainGroup').selectOption('1');
+  assert((await page.locator('#n21AfrNote').innerText()).includes('FM_diag.cs'),'A/F is labelled Main C# calculated data');
+  await overflowing('Original Neon Live (Main FM_diag backend) '+width);
+  if(width===393)await page.screenshot({path:path.join(root,'test-reports','neon-live-main-v25-393.png'),fullPage:false});
+  await page.evaluate(()=>document.querySelector('#n21Back').click());
+  assert.equal(await page.locator('#home').evaluate(el=>el.classList.contains('on')),true,'Live back returns to main UI');
+  assert.equal(await page.locator('#live').evaluate(el=>el.classList.contains('on')),false,'Live page closes properly');
   await page.evaluate(()=>document.querySelector('#v20Nav [data-cat="dtc"]').click());
   assert.equal(await page.locator('#live').evaluate(el=>el.classList.contains('on')),true,'DTC menu opens real full-screen diagnostic page');
   assert.equal(await page.locator('#n23Pane').count(),1,'DTC reference UI installed');
