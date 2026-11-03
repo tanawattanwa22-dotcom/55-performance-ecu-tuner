@@ -49,11 +49,32 @@ function requireAllowed(command){
   }
 }
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+// Read previously approved WebUSB grants at module load, BEFORE a user gesture.
+// Never await getDevices() before requestDevice(), or Android may lose gesture activation.
+let permittedFt232r=[];
+const ft232rOnly=device=>device?.vendorId===FT232R_VID&&device?.productId===FT232R_PID;
+if(typeof navigator!=='undefined'&&navigator.usb?.getDevices){
+  navigator.usb.getDevices().then(devices=>{permittedFt232r=devices.filter(ft232rOnly)}).catch(()=>{});
+  navigator.usb.addEventListener?.('connect',event=>{
+    if(ft232rOnly(event.device)&&!permittedFt232r.includes(event.device))permittedFt232r.push(event.device);
+  });
+  navigator.usb.addEventListener?.('disconnect',event=>{
+    permittedFt232r=permittedFt232r.filter(device=>device!==event.device);
+  });
+}
 export class Ft232rWebUsb {
   constructor(logger=()=>{}){this.log=logger;this.dev=null;this.itf=null;this.inEp=null;this.outEp=null;this.maxPacketSize=64;this.ready=false;this.terminated=false;this.trace=[];this.uartConfigured=false;this.uartBusy=null;}
-  static async choose(){
+  static async choose({forcePicker=false}={}){
     if(!navigator.usb)throw Error('Chrome นี้ไม่รองรับ WebUSB หรือไม่ได้เปิดผ่าน HTTPS');
-    return navigator.usb.requestDevice({filters:[{vendorId:FT232R_VID,productId:FT232R_PID}]});
+    // Reconnect without the Android picker only when ONE allowed FT232R is unambiguous.
+    // If the OS reports several namesakes, let the user select; never guess a port.
+    if(!forcePicker&&permittedFt232r.length===1)return permittedFt232r[0];
+    const selected=await navigator.usb.requestDevice({filters:[{vendorId:FT232R_VID,productId:FT232R_PID}]});
+    if(ft232rOnly(selected)){
+      permittedFt232r=permittedFt232r.filter(device=>device!==selected);
+      permittedFt232r.unshift(selected);
+    }
+    return selected;
   }
   _log(message){this.log(message);this.trace.push({at:new Date().toISOString(),message});}
   async ctl(req,value,index=0){
