@@ -12,6 +12,7 @@ import {createWriteFrame,resolveWriteProfile} from './flash-frames.js';
 import {inspectCSharpEcuType,correctKeihinChecksum,correctShindengenChecksum,deriveShindengenWriteKey} from './csharp-logic.js';
 import {csharpOffsetInference,catalogLookup} from './csharp-offsets.js?v=313';
 import {findCSharpEcuId} from './csharp-ecu-catalog.js?v=302';
+import {readBinId} from './bin-tools.js';
 const sleep=ms=>new Promise(ok=>setTimeout(ok,ms));
 function bytes(list){
  const b=Uint8Array.from(list);
@@ -204,6 +205,16 @@ export class HondaFlashEngine {
   const validSizes=new Set([32768,49152,57344,65536,98304,131072,262144,393216,524288,786432,1048576]);
   if(!validSizes.has(bin.length))fail('BIN_SIZE','ขนาด BIN ไม่อยู่ในขนาดที่ C# รองรับ');
   const originalBin=bin.slice();
+  // Main/FormMain.cs SearchBinFileForPattern: when a complete 5-byte ID is
+  // embedded in the BIN, never ignore a conflict with the physical ECU ID.
+  // Partial 3-byte IDs (e.g. source 256KB format) do NOT prove identity.
+  const embedded=readBinId(originalBin);
+  const completeBinId=embedded.ok&&/^[0-9A-F]{10}$/i.test(embedded.id||'')&&
+    !/^0{10}$/.test(embedded.id)&&!/^F{10}$/i.test(embedded.id)
+      ?embedded.id.toUpperCase():null;
+  if(!rec&&completeBinId&&completeBinId!==ecuId)
+   fail('BIN_ECU_ID_MISMATCH','BIN มี ECU ID '+completeBinId+
+     ' แต่ ECU ที่เสียบตอบ '+ecuId+' — หยุดก่อน ERASE');
   const detected=inspectCSharpEcuType(originalBin);
   if(family==='KEIHIN'&&detected.type.startsWith('SHINDENGEN'))
    fail('BIN_FAMILY','BIN เป็น Shindengen แต่ ECU ID อยู่ในฐาน Keihin');
@@ -229,7 +240,8 @@ export class HondaFlashEngine {
   const plan={ecuId,part:sourcePart,profile,startOffset:offset,checksumOffset,fast:!!fast,recovery:rec,
     filename,size:corrected.data.length,blockBytes:p.blockSize,bin:corrected.data,
     checksumChanged:corrected.modified,expectedBlockCount:corrected.data.length/p.blockSize-first,
-    checks:{physicalIdMatched:true,familyFlashCountResponded:true,partFromCSharp:true,
+    checks:{physicalIdMatched:true,binFullId:completeBinId,binFullIdMatched:!completeBinId||completeBinId===ecuId,
+      familyFlashCountResponded:true,partFromCSharp:true,
       offsetsFromCSharp:true,binSizeValidated:true,hardwareValidated:false}};
   this.emit('PREFLIGHT_PASS',{ecuId,part:plan.part,profile,bytes:plan.size,
     offsetHex:'0x'+offset.toString(16),blockBytes:plan.blockBytes,checksumChanged:corrected.modified});
