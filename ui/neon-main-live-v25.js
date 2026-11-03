@@ -2,7 +2,7 @@
  * Main FM_diag.cs reader is the sole source of real-time sensor values.
  * The legacy ADX/DEMO live engine is never called by this bridge.
  */
-import {MainLiveSession} from '../flash_port/main-live-session.js?v=342';
+import {MainLiveSession} from '../flash_port/main-live-session.js?v=344';
 const old=window.__55LiveBridge;
 if(!old)throw Error('Live UI bridge must be installed before Main V25');
 const originalSnapshot=old.snapshot.bind(old);
@@ -120,6 +120,83 @@ window.__55MainLive={
  connect:old.connect,start:old.startEcu,stop:old.stopEcu,
  snapshot:()=>reader.status(),readDtc:()=>reader.readDtc(),disconnect:()=>reader.disconnect(),rescan:()=>reader.rescan()
 };
+// Main.zip FormMain.WorkerThread-inspired automatic read-only scan on page entry.
+// All pages share this ONE MainLiveSession; no extra navigator.usb.requestDevice.
+let autoScanTask=null;
+let autoScannedAt=0;
+const scanWait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+function autoFlashSummary(){
+ const home=document.getElementById('home');
+ const stage=document.getElementById('n20Stage');
+ if(!stage||home?.dataset.neonPage!=='flash')return;
+ let view=document.getElementById('n24AutoEcuStatus');
+ if(!view){
+  view=document.createElement('section');
+  view.id='n24AutoEcuStatus';view.className='card';
+  view.style.cssText='border:1px solid #3b9db5;background:#102b3a;white-space:pre-wrap;line-height:1.65;margin-bottom:12px;padding:14px;border-radius:12px';
+  stage.prepend(view);
+ }
+ const st=reader.status();
+ const b=window.__55QuickFlashBin?.bytes||window.__ecu?.S?.saved?.bytes||window.__ecu?.S?.bin;
+ const binText=b instanceof Uint8Array&&b.length?'BIN ที่เลือก: '+b.length+' bytes (ยังต้องตรวจ ECU/BIN ID, checksum และ memory map ก่อนเขียน)':'ยังไม่ได้เลือก/บันทึก BIN สำหรับเขียน';
+ const offset=n=>Number.isInteger(n)?'0x'+n.toString(16).toUpperCase():'ต้องตรวจจาก BIN';
+ view.textContent='MAIN C# · AUTO ECU PREFLIGHT (READ ONLY)\n'+
+  (st.connected?'FT232R: เชื่อมต่อแล้ว':'FT232R: ยังไม่เชื่อมต่อ')+
+  '\nECU ID จริง: '+(st.ecuId||'ยังไม่ตอบ')+
+  '\nPart Code ฐาน Main: '+(st.part||'ยังไม่ตรงฐาน')+
+  '\nECU Family จากฐาน: '+(st.catalogFamily||'ยังไม่ระบุ')+
+  '\nStart Offset (ฐาน): '+offset(st.startOffset)+
+  '\nChecksum Offset (ฐาน): '+offset(st.checksumOffset)+
+  '\nLive Group ที่อ่านตอบ: '+(st.liveGroupVerified?st.group:'ยังไม่ยืนยัน')+
+  '\nDTC: '+(st.dtcSnapshot?.answered?.length??0)+'/6 ชุดที่ได้รับการตอบ'+
+  '\n'+binText+'\n'+
+  (st.autoStatus||'โปรดกดสแกน ECU ถ้ากล่องยังไม่ตอบ')+
+  '\nหมายเหตุ: ต้องยืนยัน Preflight แบบเขียนแยกตาม ECU/BIN จริงก่อน ERASE/WRITE';
+}
+function emitCachedDtc(st){
+ const d=st.dtcSnapshot;
+ if(d&&d.ecuId&&d.ecuId===st.ecuId)
+  window.dispatchEvent(new CustomEvent('55:dtc-result',{detail:d}));
+}
+window.__55AutoEcu={
+ async enter(page='dashboard',{force=false}={}){
+  const st=reader.status();
+  if(page==='flash')autoFlashSummary();
+  if(!st.connected)return false;
+  if(autoScanTask)return autoScanTask;
+  // Release the read-only Live loop before a different tab uses the physical FT232R.
+  if(reader.running&&page!=='live'){
+   reader.stop();
+   const end=Date.now()+6000;
+   while(reader.running&&Date.now()<end)await scanWait(40);
+   if(reader.running)return false;
+  }
+  if(reader.owner||reader.connecting)return false;
+  if(reader.running&&page==='live')return true;
+  const recent=st.autoComplete&&st.ecuId&&Date.now()-autoScannedAt<45000;
+  const run=async()=>{
+   if(!recent||force){
+    const done=await reader.rescan();
+    autoScannedAt=Date.now();
+    if(!done&&reader.status().connected)console.info('55 Performance: FT232R ready, ECU auto scan incomplete');
+   }
+   const now=reader.status();
+   if(page==='flash')autoFlashSummary();
+   if(page==='dtc')emitCachedDtc(now);
+   if(page==='live'&&now.connected&&now.ecuId&&now.liveGroupVerified&&!reader.running&&!reader.owner)
+    await reader.start();
+   return !!now.ecuId;
+  };
+  autoScanTask=run().catch(error=>{
+   console.error('55 Performance automatic ECU scan:',error);
+   if(page==='flash')autoFlashSummary();
+   return false;
+  }).finally(()=>{autoScanTask=null;notify();if(page==='flash')autoFlashSummary();});
+  return autoScanTask;
+ },
+ snapshot:()=>reader.status()
+};
+
 // Main dashboard is the only place that opens/closes the USB cable.
 const home=document.getElementById('home');
 const homeScroll=home?.querySelector('.scroll');
