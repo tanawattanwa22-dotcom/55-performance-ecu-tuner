@@ -8,6 +8,7 @@ on:
       - "ui/**"
       - "index.html"
       - "tools/verify-ui-v19.mjs"
+      - "tools/verify-main-neon-v25.mjs"
       - "tools/verify-honda-flash.mjs"
       - "tools/verify-main-diagnostic.mjs"
       - "package.json"
@@ -51,3 +52,5 @@ jobs:
         run: node tools/verify-tune-bin-flow.mjs
       - name: Verify V24 read-only ECU Preflight and Wideband-only AFR sensor
         run: node tools/verify-preflight-afr-v24.mjs
+      - name: Verify Neon Main C# V25 groups, FT232R read-only framing and no ADX
+        run: node tools/verify-main-neon-v25.mjs
