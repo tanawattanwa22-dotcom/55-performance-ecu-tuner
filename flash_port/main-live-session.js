@@ -48,14 +48,12 @@ export class MainLiveSession {
   this.recording=false;this.recordStart=0;this.records=[];this.error='';this.phase='IDLE';
   this.catalog=null;this.idError='';this.liveGroupError='';this.dtcError='';
   this.dtcSnapshot=null;this.autoStatus='ยังไม่ได้ตรวจ';this.autoComplete=false;this.autoBusy=false;
-  this.licenseVerified=false;this.licenseError='';this.licenseBusy=false;
  }
  notify(){this.onUpdate(this);}
  status(){
   return {
    connected:!!this.port?.ready,
-   cable:!!this.port?.ready,connecting:this.connecting||this.autoBusy||this.licenseBusy,autoBusy:this.autoBusy,ecuId:this.ecuId,
-   licenseVerified:this.licenseVerified,licenseError:this.licenseError,licenseBusy:this.licenseBusy,
+   cable:!!this.port?.ready,connecting:this.connecting||this.autoBusy,autoBusy:this.autoBusy,ecuId:this.ecuId,
    part:this.catalog?.part||null,catalogFamily:this.catalog?.family||null,
    startOffset:this.catalog?.startOffset??null,checksumOffset:this.catalog?.checksumOffset??null,
    startOffsetText:this.catalog?.startOffsetText??null,checksumOffsetText:this.catalog?.checksumOffsetText??null,
@@ -82,15 +80,12 @@ export class MainLiveSession {
   if(this.connecting||this.running||this.port?.ready)return false;
   this.connecting=true;this.error='';this.phase='USB_CHOOSER';
   this.disconnectRequested=false;this.stopRequested=false;
-  this.licenseVerified=false;this.licenseError='';this.licenseBusy=false;
   this.autoComplete=false;this.autoBusy=false;this.notify();
   let port=null;
   try{
    if(!navigator.usb)throw Error('Chrome Android ต้องรองรับ WebUSB และ HTTPS');
-   // The login screen already checked the license with the remote service.
-   // Do not call license-api again while opening a real USB device.
-   if(window.__55EcuAuthorizedSession!==true)
-    throw Error('กรุณาเข้าสู่ระบบและตรวจสิทธิ์ License ก่อนเชื่อมสาย');
+   // Login has already finished before the tuning app is mounted.
+   // Never perform a network/License check in a WebUSB user gesture.
    // Must run directly inside the user click: no awaited work before picker.
    const device=await Ft232rWebUsb.choose();
    if(this.disconnectRequested)return false;
@@ -107,7 +102,6 @@ export class MainLiveSession {
    // No background ECU probe, wake, DTC bank scan or bulk RX here.
    this.ecuId='';this.catalog=null;this.detectedGroup=null;
    this.dtcSnapshot=null;this.values=EMPTY();
-   this.licenseVerified=true;this.licenseError='';
    this.phase='USB_CONNECTED';this.error='';
    this.autoStatus='✓ FT232R เปิดพอร์ตแล้ว • ใช้ Live Data หรือกดสแกน ECU ได้ • ยังไม่ส่งคำสั่งอ่าน ECU';
    this.notify();return true;
@@ -119,34 +113,8 @@ export class MainLiveSession {
    this.phase=denied?'USB_ACCESS_DENIED':'USB_OPEN_FAILED';
    if(port)try{await TIME_LIMIT(Promise.resolve(port.close()),2500,'USB close timeout')}catch{}
    this.port=null;this.ecuId='';this.values=EMPTY();
-   this.licenseVerified=false;this.notify();return false;
+   this.notify();return false;
   }finally{this.connecting=false;this.notify()}
- }
- async _authorizeDiagnostic(){
-  if(this.licenseBusy||!this.port?.ready||this.disconnectRequested)return false;
-  this.licenseBusy=true;this.licenseVerified=false;
-  this.licenseError='';this.phase='LICENSE_CHECK';this.notify();
-  try{
-   if(typeof window.api!=='function')throw Error('ระบบตรวจ License ไม่พร้อม · ตรวจการเข้าสู่ระบบ');
-   const deviceId=localStorage.getItem('55_device_id');
-   const license=await TIME_LIMIT(Promise.resolve(window.api('check',{device:deviceId})),7000,
-    'License server ไม่ตอบใน 7 วินาที');
-   if(!license?.active)throw Error('License ยังไม่ได้ยืนยันสิทธิ์สำหรับอ่าน ECU');
-   if(this.disconnectRequested||!this.port?.ready)return false;
-   this.licenseVerified=true;this.licenseError='';
-   this.phase='USB_CONNECTED';this.autoStatus='✓ FT232R และ License พร้อม · กำลังตรวจ ECU';
-   return await this._autoDetect();
-  }catch(e){
-   this.licenseError=String(e?.message||e);
-   this.phase=this.port?.ready?'USB_CONNECTED_LICENSE_PENDING':'USB_LOST';
-   this.autoStatus=this.port?.ready?
-    '✓ USB FT232R เชื่อมแล้ว • ยังอ่าน ECU ไม่ได้: '+this.licenseError+' • กดสแกน ECU อีกครั้งเพื่อตรวจสิทธิ์ใหม่':
-    'USB หลุดระหว่างตรวจสิทธิ์: '+this.licenseError;
-   return false;
-  }finally{
-   this.licenseBusy=false;
-   this.notify();
-  }
  }
  async _reopenDiagnostic(){
   const dev=this.port?.lastDevice;
@@ -260,7 +228,6 @@ export class MainLiveSession {
  }
  async readDtc(){
   if(!this.port?.ready)throw Error('FT232R ไม่ได้เชื่อมต่อ');
-  if(!this.licenseVerified)throw Error('License ยังไม่ได้ยืนยันสิทธิ์อ่าน DTC');
   const old=this.phase;
   await this.acquire('DTC_READ');
   if(typeof window!=='undefined')window.dispatchEvent(new CustomEvent('55:dtc-read-start'));
@@ -276,7 +243,7 @@ export class MainLiveSession {
   }finally{this.phase=this.port?.ready?'DIAGNOSTIC_READY':'USB_LOST';this.release('DTC_READ');this.notify();}
  }
  async _autoDetect(){
-  if(!this.licenseVerified||this.autoBusy||this.connecting||this.running||this.owner||!this.port?.ready)return false;
+  if(this.autoBusy||this.connecting||this.running||this.owner||!this.port?.ready)return false;
   this.autoBusy=true;this.autoComplete=false;
   this.autoStatus='เริ่มตรวจ ECU หลังเลือกสาย USB';this.notify();
   try{
@@ -322,8 +289,7 @@ export class MainLiveSession {
   }
  }
  async rescan(){
-  if(!this.port?.ready||this.owner||this.running||this.connecting||this.autoBusy||this.licenseBusy)return false;
-  if(!this.licenseVerified)return false;
+  if(!this.port?.ready||this.owner||this.running||this.connecting||this.autoBusy)return false;
   return this._autoDetect();
  }
  async _restoreAfterProbeLoss(expectedId){
@@ -381,7 +347,6 @@ export class MainLiveSession {
   return capture;
  }
  async acquire(owner){
-  if(!this.licenseVerified)throw Error('License ยังไม่พร้อมสำหรับสื่อสาร ECU');
   if(this.owner)throw Error("สายกำลังใช้งานโดย "+this.owner);
   if(this.connecting||this.autoBusy)throw Error('กำลังตรวจ ECU/Live/DTC อัตโนมัติ โปรดให้ตรวจเสร็จก่อนใช้สายร่วม');
   this.owner=owner;this.stop();
@@ -394,7 +359,6 @@ export class MainLiveSession {
  }
  release(owner){if(this.owner===owner){this.owner=null;this.notify();}}
  async start(){
-  if(!this.licenseVerified){this.error='License ยังไม่ได้ยืนยันสิทธิ์อ่าน Live Data';this.notify();return false;}
   if(this.owner){this.error="สายกำลังใช้งานโดย "+this.owner;this.notify();return false;}
   if(this.connecting||this.autoBusy||this.running||!this.port?.ready)return false;
   this.running=true;this.phase='LIVE_CAPTURE';this.stopRequested=false;this.disconnectRequested=false;
@@ -444,7 +408,6 @@ export class MainLiveSession {
   this.disconnectRequested=true;this.stopRequested=true;this.recording=false;
   this.ecuId='';this.catalog=null;this.detectedGroup=null;this.dtcSnapshot=null;
   this.idError='';this.liveGroupError='';this.dtcError='';this.autoComplete=false;this.autoStatus='ตัดการเชื่อมต่อแล้ว';
-  this.licenseVerified=false;this.licenseError='';
   if(this.autoBusy){
    this.autoStatus='กำลังยกเลิกการอ่าน ECU • ปุ่มอื่นยังใช้งานได้';this.notify();
    return true;
