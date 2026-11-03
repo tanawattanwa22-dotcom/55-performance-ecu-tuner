@@ -115,7 +115,7 @@ try{
   assert.equal(await page.locator('#n20Stage .n24-hero').isVisible(),true,'real-state V24 Flash dashboard visible');
   assert.equal(await page.locator('#n20Stage .n24-panel').count(),5,'BIN upload, ECU, Offset and checklist panels');
   assert.equal(await page.locator('#n20Stage .n24-info-line').count(),15,'read-only BIN/ECU/Offset fields');
-  assert.equal(await page.locator('#n20Stage .n24-check-row').count(),5,'five preflight checks');
+  assert.equal(await page.locator('#n20Stage .n24-check-row').count(),6,'six preflight checks');
   assert.equal(await page.locator('#n20Stage [data-n24="ecu"]').innerText(),'ยังไม่ได้อ่านจาก ECU','ECU ID never fabricated');
   assert.equal(await page.locator('#n20Stage [data-n24="start"]').innerText(),'—','Offset never fabricated');
   assert.equal(await page.locator('#n20Stage .n24-flash').isDisabled(),true,'cannot flash without physical preflight');
