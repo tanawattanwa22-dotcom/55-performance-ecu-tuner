@@ -137,7 +137,7 @@ el('id').onclick=async()=>{
   el('ecu').textContent='ECU ID '+ecuId+' • Part '+(found.partCode||'ยังไม่พบ')+
     ' • '+(found.model||'ยังไม่ระบุรุ่น')+' • CHECKSUM ผ่าน';
   el('ecu').className='status ok';
-  log('ECU ID '+ecuId+' | KTR/C# '+found.status+' | Part '+(found.partCode||'UNKNOWN'));
+  log('ECU ID '+ecuId+' | 55 Performance/C# '+found.status+' | Part '+(found.partCode||'UNKNOWN'));
  }catch(e){
   log('ECU PROBE STOPPED: '+e.message);
   el('ecu').className='status bad';
