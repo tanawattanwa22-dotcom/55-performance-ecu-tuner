@@ -2,7 +2,7 @@
  * Main FM_diag.cs reader is the sole source of real-time sensor values.
  * The legacy ADX/DEMO live engine is never called by this bridge.
  */
-import {MainLiveSession} from '../flash_port/main-live-session.js?v=329';
+import {MainLiveSession} from '../flash_port/main-live-session.js?v=331';
 const old=window.__55LiveBridge;
 if(!old)throw Error('Live UI bridge must be installed before Main V25');
 const originalSnapshot=old.snapshot.bind(old);
@@ -11,8 +11,7 @@ const originalMode=old.mode.bind(old);
 const keys=['rpm','tps','map','ect','iat','bat','inj','ign','afr'];
 const empty=()=>Object.fromEntries(keys.map(k=>[k,null]));
 const phases=Object.freeze({
- USB_CHOOSER:'รอเลือก FT232R จาก Android • เลือกรายการ USB ที่เปิดใช้งานได้',
- LICENSE_CHECK:'ตรวจสิทธิ์ License ก่อนใช้ FT232R',
+ USB_CHOOSER:'เลือก FT232R จาก Android เพื่อเปิด USB โดยตรง',
  USB_OPEN:'กำลังเปิด FT232R ผ่าน WebUSB (ยังไม่ติดต่อ ECU)',
  ECU_ID_PROBE:'เปิด FT232R แล้ว • กำลังปลุกและอ่าน ECU ID',
  DIAGNOSTIC_READY:'พร้อมใช้งาน • แสดงผลตรวจแยกตาม ECU ID / Live / DTC ด้านล่าง',
@@ -161,15 +160,12 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
   const off=(n,raw)=>Number.isInteger(n)?fmt(n):raw==='auto'?'AUTO จาก BIN':'ยังไม่ระบุ';
   const dtc=st.dtcSnapshot;
   const usbOK=st.connected;
-  const ready=st.connected&&!st.connecting&&st.licenseVerified;
+  const ready=st.connected&&!st.connecting;
   const idOK=ready&&/^[0-9A-F]{10}$/.test(st.ecuId);
   const liveOK=ready&&st.liveGroupVerified;
   const dtcOK=ready&&dtc?.success===true;
   const records=[
    [usbOK,'FT232R / USB',usbOK?'✓ เปิดพอร์ตผ่าน WebUSB สำเร็จ':'เปิด USB ไม่สำเร็จ หรือยังไม่ได้เลือกสาย'],
-   [usbOK&&st.licenseVerified,'License สำหรับอ่าน ECU',
-    st.licenseVerified?'ผ่านการยืนยันสิทธิ์':st.licenseBusy?'กำลังตรวจ License…':
-    st.licenseError||'ยังไม่ผ่าน License · ยังไม่ส่งคำสั่ง ECU'],
    [idOK,'ECU ID จากกล่องจริง',idOK?st.ecuId:(st.idError||'รอคำตอบ ECU')],
    [idOK&&st.catalogMatched,'พบในฐาน Main 290',st.catalogMatched?(st.part||'Part Code ไม่ระบุ')+' · '+st.catalogFamily:'ยังไม่พบรายการที่ตรง ECU ID'],
    [liveOK,'ตาราง Live Data',liveOK?'Group '+st.group+' · ได้รับและถอดรหัสข้อมูลครบ':'รอยืนยัน Group 7 / 4 / 1'+(st.liveGroupError?' · '+st.liveGroupError:'')],
@@ -194,8 +190,6 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
   debugText.textContent=JSON.stringify({
    usbConnected:st.connected,usbPhase:st.phase,
    permission:st.error||physicalConnectError||lastConnectError||null,
-   licenseVerified:st.licenseVerified,
-   licenseError:st.licenseError||null,
    ecuId:st.ecuId||null,
    ecuIdError:st.idError||null,
    liveGroup:st.liveGroupVerified?st.group:null,
@@ -203,7 +197,7 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
    lastTransportEvents:reader.port?.trace?.slice(-12)||[]
   },null,2);
   connect.disabled=st.connected||st.connecting;
-  rescan.disabled=!st.connected||st.licenseBusy||st.autoBusy||st.running||!!reader.owner;
+  rescan.disabled=!st.connected||st.autoBusy||st.running||!!reader.owner;
   disconnect.disabled=!st.connected&&!st.connecting;
  }
  const oldNotify=reader.onUpdate;
