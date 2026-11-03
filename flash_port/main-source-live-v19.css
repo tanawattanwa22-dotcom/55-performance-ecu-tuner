@@ -53,3 +53,7 @@ canvas{width:100%;height:220px;display:block;touch-action:pan-y}
 .sectionTabs button[aria-selected="true"]{background:#6945a7;border-color:#bd88ff}
 .sectionBody[hidden]{display:none}
 .raw{font:11px ui-monospace,monospace;color:#b6d3e7;word-break:break-all}
+
+/* Source FM_diag.cs A/F: only available in diagnostic groups 1/4, not wideband proof */
+.value.main-af{border:1px solid #f0ba58!important;background:linear-gradient(125deg,#503323,#182a4b)!important;box-shadow:0 0 13px #ffb04e38!important}
+.value.main-af .name{color:#ffe2a7!important}
