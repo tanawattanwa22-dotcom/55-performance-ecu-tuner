@@ -3,6 +3,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import {parseEcmIdReply,normalizeEcmId,localKtrCandidates,combineEcmSources,lookupEcmId} from '../flash_port/ecu-id-lookup.js';
 import {KTR_ECM_ROWS} from '../ktr/ecm-catalog.js';
+// Node does not support fetch(file://). Mirror browser file loading for the local fixture.
+const nativeFetch=globalThis.fetch;
+globalThis.fetch=async (input,options)=>{
+ const url=new URL(input);
+ if(url.protocol==='file:')return new Response(await fs.readFile(url));
+ return nativeFetch(input,options);
+};
 
 const FRAME=Uint8Array.of(0x02,11,0,0,0,0x01,0x01,0xC6,0x0D,0x01,0);
 FRAME[10]=(-FRAME.slice(0,-1).reduce((a,b)=>a+b,0))&255;
