@@ -65,8 +65,9 @@ try{
   assert.equal(await page.locator('#n22Library .n22-bin-row').count(),installedModels,'only actual installed models');
   assert.equal(await page.locator('#n22Library .n22-brand-logo').count(),installedModels,
    'Every BIN row has a manufacturer badge, including rows without verified make');
-  assert.equal(await page.locator('#n22Library .n22-brand-logo img[alt="Honda"]').count(),0,
-   'Do not falsely label an unknown manufacturer as Honda');
+  const documentedHondaCount=await page.evaluate(()=>MODELS.filter(m=>/honda/i.test(String(m.brand||m.meta?.brand||m.meta?.manufacturer||m.meta?.make||''))).length);
+  assert.equal(await page.locator('#n22Library .n22-brand-logo img[alt="Honda"]').count(),documentedHondaCount,
+   'Honda logo count follows documented model metadata');
   assert.equal(await page.locator('#n22Library .n22-row-actions').count(),installedModels,
    'every row has three actionable buttons');
   assert.equal(await page.locator('#n22Library .n22-filter-chip').count(),5,
