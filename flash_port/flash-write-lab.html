@@ -67,8 +67,8 @@ pre{background:#0b1827;border-radius:10px;padding:12px;font:12px ui-monospace,mo
 <script type="module">
 import {Ft232rWebUsb} from './ftdi-webusb.js';
 import {HondaFlashEngine} from './honda-write-engine.js';
-import {lookupEcmId} from './ecu-id-lookup.js';
-import {renderEcmIdentification,showEcmPopup} from './ecu-id-ui.js';
+import {lookupEcmId} from './ecu-id-lookup.js?v=251';
+import {renderEcmIdentification,showEcmPopup} from './ecu-id-ui.js?v=251';
 const $=id=>document.getElementById(id);
 let authorized=false,port=null,engine=null,identity=null,plan=null,busy=false,flashing=false,wakeLock=null;
 let lastPlanEvidence=null,flashOutcome='NOT_STARTED'; // immutable evidence survives plan reset after Final ACK
