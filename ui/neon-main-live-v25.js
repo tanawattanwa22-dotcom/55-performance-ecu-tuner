@@ -15,7 +15,7 @@ const phases=Object.freeze({
  LICENSE_CHECK:'ตรวจสิทธิ์ License ก่อนใช้ FT232R',
  USB_OPEN:'กำลังเปิด FT232R ผ่าน WebUSB (ยังไม่ติดต่อ ECU)',
  ECU_ID_PROBE:'เปิด FT232R แล้ว • กำลังปลุกและอ่าน ECU ID',
- ECU_IDENTIFIED:'อ่าน ECU ID ผ่าน • พร้อมตรวจ Group 1/4/7',
+ DIAGNOSTIC_READY:'เปิด FT232R แล้ว • พร้อมตรวจ Diagnostic Group 7/4/1 (ยังไม่ยืนยัน ECU ID)',
  LIVE_CAPTURE:'กำลังรับข้อมูลจริงจาก Main C#',
  USB_ACCESS_DENIED:'Android ปฏิเสธ USBDevice.open() ก่อนติดต่อ ECU'
 });
@@ -59,9 +59,9 @@ old.snapshot=()=>{
   values,refreshHz:s.hz,sampleSeq:s.sampleSeq,sampleAt:s.sampleAt,
   recording:s.recording,recordSeconds:s.recordSeconds,hasLog:s.hasLog,
   message:s.error||lastConnectError||(
-   s.connecting?(phases[s.phase]||'กำลังเชื่อมต่อ FT232R และอ่าน ECU ID จริง…'):
+   s.connecting?(phases[s.phase]||'กำลังเปิด FT232R…'):
    s.running?'กำลังอ่านข้อมูลจาก FM_diag.cs Group '+s.group:
-   s.connected?'เชื่อมต่อแล้ว • เลือก Group และกดเริ่มอ่าน ECU':'เชื่อมต่อ FT232R และอ่าน ECU ID ก่อน'
+   s.connected?'เชื่อมต่อแล้ว • เลือก Group และกดเริ่มอ่าน ECU':'เชื่อมต่อ FT232R ก่อนเริ่ม Diagnostic'
   )
  };
 };
