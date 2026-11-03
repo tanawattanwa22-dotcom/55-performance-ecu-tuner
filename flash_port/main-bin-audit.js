@@ -33,6 +33,7 @@ export function scanMainBinIds(bytes){
  for(const [checkOffset,checkBytes,idOffset,idLength] of rows){
   if(!matches(bytes,checkOffset,checkBytes)||!inRange(bytes,idOffset,idLength))continue;
   const id=hex(bytes.subarray(idOffset,idOffset+idLength));
+  if(/^0+$/.test(id)||/^F+$/.test(id))continue; // Uninitialized BIN padding is not an ECU ID.
   results.push({id,idOffset,markerOffset:checkOffset,bytes:idLength,fullId:idLength===5,
     source:'FormMain.cs SearchPattern'+Math.round(bytes.length/1024)+'KB'});
  }
