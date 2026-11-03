@@ -201,7 +201,7 @@ export class HondaFlashEngine {
   const sourcePart=catalog.part.toUpperCase(),shortPart=sourcePart.split('-').slice(1).join('-');
   if(!rec&&!filename.toUpperCase().includes(shortPart)&&confirmedPart.trim().toUpperCase()!==sourcePart)
    fail('PART_NOT_CONFIRMED','ชื่อ BIN ไม่ระบุ '+shortPart+' ให้กรอกรหัสอะไหล่ ECU ตามต้นฉบับ '+sourcePart+' ในช่องยืนยัน Part');
-  const validSizes=new Set([32768,49152,57344,65536,98304,131072,262144,393216,524288,1048576]);
+  const validSizes=new Set([32768,49152,57344,65536,98304,131072,262144,393216,524288,786432,1048576]);
   if(!validSizes.has(bin.length))fail('BIN_SIZE','ขนาด BIN ไม่อยู่ในขนาดที่ C# รองรับ');
   const originalBin=bin.slice();
   const detected=inspectCSharpEcuType(originalBin);
