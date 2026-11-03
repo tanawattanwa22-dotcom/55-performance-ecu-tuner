@@ -1045,25 +1045,20 @@ function inlineFlashConfirm(plan){
  return new Promise(resolve=>{
   const dialog=document.createElement('dialog');dialog.id='ecu-flash-confirm';
   dialog.style.cssText='box-sizing:border-box;width:min(94vw,460px);max-height:90vh;overflow:auto;background:#15243a;color:white;border:1px solid #7891aa;border-radius:16px;padding:20px;font:14px/1.5 system-ui';
-  const title=document.createElement('h3');title.textContent='ยืนยันก่อน ERASE / WRITE (กล่องสำรอง)';dialog.append(title);
+  const title=document.createElement('h3');title.textContent='ตรวจอัตโนมัติผ่านแล้ว · ยืนยันก่อนเริ่มอัดจริง';dialog.append(title);
   if(!window.__55QuickFlashBin&&S.saved&&!S.saved.customerBin){const warning=document.createElement('p');warning.style.cssText='padding:10px;border-radius:10px;background:#4c3016;color:#ffe2b8';warning.textContent='กำลังใช้ BIN หลักที่ติดมากับแอป ไม่ใช่ไฟล์ที่อ่านจาก ECU คันนี้ ต้องยืนยันความเข้ากันได้ของ ECU ID, Part Code และเวอร์ชันเฟิร์มแวร์ก่อนอัด';dialog.append(warning)}
   const summary=document.createElement('pre');summary.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;color:#e2f0ff;background:#091424;padding:12px;border-radius:9px';
   summary.textContent='ECU ID: '+plan.ecuId+'\nPart: '+plan.part+'\nBIN: '+plan.filename+'\nขนาด: '+plan.size+' ไบต์\nStart: 0x'+plan.startOffset.toString(16).toUpperCase()+'\nChecksum corrected: '+plan.checksumChanged+'\nโหมด: '+(plan.fast?'FAST (ตามโปรไฟล์ Main C#)':'NORMAL 10400 baud')+'\nVERIFY: ยังไม่มี READBACK';
   dialog.append(summary);
-  const checks=[
-   'มีสำเนา BIN ต้นฉบับที่ตรงรุ่นเก็บไว้นอกเครื่องนี้แล้ว',
-   ...(!window.__55QuickFlashBin&&S.saved&&!S.saved.customerBin?['ตรวจสอบแล้วว่า BIN หลักในแอปตรง ECU ID, Part Code และเฟิร์มแวร์ของกล่องคันนี้']:[]),
-   'ไฟ ECU และวงจร K-Line ตรวจถูกต้องและเสถียร',
-   'มีกระบวนการและเครื่องมือกู้คืนกล่องที่ทดสอบแล้ว'
-  ].map(t=>{const label=document.createElement('label');label.style.cssText='display:block;margin:12px 0';const box=document.createElement('input');box.type='checkbox';box.style.marginRight='8px';label.append(box,document.createTextNode(t));dialog.append(label);return box});
-  const prompt=document.createElement('div');prompt.textContent='พิมพ์ FLASH '+plan.ecuId+' เพื่อยืนยัน';dialog.append(prompt);
-  const typed=document.createElement('input');typed.type='text';typed.autocomplete='off';typed.spellcheck=false;typed.placeholder='FLASH '+plan.ecuId;
-  typed.style.cssText='width:100%;min-height:43px;box-sizing:border-box;background:#0b1627;color:white;border:1px solid #6d8aa8;border-radius:8px;padding:10px;margin:8px 0';dialog.append(typed);
+  const checklist=document.createElement('label');
+  checklist.style.cssText='display:flex;gap:10px;align-items:flex-start;padding:12px 6px;margin:10px 0;line-height:1.5;color:#eaf7ff';
+  const check=document.createElement('input');check.type='checkbox';check.style.cssText='width:22px;height:22px;min-width:22px;accent-color:#37dfbc;margin-top:2px';
+  checklist.append(check,document.createTextNode('ยืนยันว่ามีสำเนา BIN ของ ECU คันนี้ ตรวจไฟเลี้ยง/สาย K-Line และมีเครื่องมือกู้คืนกล่องแล้ว'));
+  dialog.append(checklist);
   const row=document.createElement('div');row.style.cssText='display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap';
   const cancel=document.createElement('button');cancel.textContent='ยกเลิก';cancel.style.cssText='padding:12px;background:#30445c;color:white;border:0;border-radius:8px';
-  const ok=document.createElement('button');ok.textContent='ยืนยัน ERASE / WRITE';ok.disabled=true;ok.style.cssText='padding:12px;background:#b65621;color:white;border:0;border-radius:8px';
-  const refresh=()=>{ok.disabled=!checks.every(x=>x.checked)||typed.value.trim().toUpperCase()!=='FLASH '+plan.ecuId};
-  for(const c of checks)c.addEventListener('change',refresh);typed.addEventListener('input',refresh);
+  const ok=document.createElement('button');ok.textContent='ยืนยันเริ่ม ERASE / WRITE';ok.disabled=true;ok.style.cssText='padding:12px;background:#b65621;color:white;border:0;border-radius:8px';
+  check.addEventListener('change',()=>{ok.disabled=!check.checked});
   row.append(cancel,ok);dialog.append(row);
   const finish=v=>{if(dialog.open)dialog.close();dialog.remove();resolve(v)};
   cancel.onclick=()=>finish(false);ok.onclick=()=>finish(true);
@@ -1080,7 +1075,7 @@ async function inlineFlashStart(){
  if(INLINEFLASH.postCheck){
   INLINEFLASH.busy=true;inlineFlashRefresh();
   try{
-   if(!confirm('ยืนยันว่ารีสตาร์ต ECU สำรองแล้ว: จะอ่าน ECU ID หลังเขียนเท่านั้น ไม่ใช่อ่าน BIN กลับ'))return;
+   if(!confirm('ยืนยันว่าปิดกุญแจ OFF และเปิด ON ใหม่แล้ว: จะอ่าน ECU ID หลังเขียน ไม่ได้อ่าน BIN กลับ'))return;
    const r=await INLINEFLASH.engine.postFlashCheck();
    INLINEFLASH.status='POST_RESTART_ECU_ID_OK_NOT_READBACK_VERIFIED';
    inlineFlashLog('POST-RESTART '+JSON.stringify(r));
@@ -1103,7 +1098,7 @@ async function inlineFlashStart(){
   const shared=window.__55SharedEcu;
   if(!shared)throw Error('ระบบสายหลักยังไม่พร้อม');
   INLINEFLASH.port=await shared.acquire('INLINE_FLASH');
-  const {HondaFlashEngine}=await import('./flash_port/honda-write-engine.js?v=308');
+  const {HondaFlashEngine}=await import('./flash_port/honda-write-engine.js?v=309');
   const activeLicense=await api('check',{device:localStorage.getItem('55_device_id')});
   if(!activeLicense?.active)throw Error('License ไม่ได้เปิดใช้งาน');
   INLINEFLASH.engine=new HondaFlashEngine(INLINEFLASH.port,ev=>{
