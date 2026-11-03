@@ -240,6 +240,6 @@ $('downloadAudit').onclick=()=>{
   field('definition','XDF 29 ตาราง + 9 Flags · MSX Gen1 K26-901');
   $('bin').disabled=false;
   note('โหลด XDF สำเร็จ · กำลังโหลด BIN ต้นฉบับ 48KB และตรวจ SHA-256...');
-  await loadBundled();
+  try{await loadBundled()}catch(err){note('ฐาน XDF พร้อมแล้ว แต่โหลด BIN อัตโนมัติไม่สำเร็จ: '+err.message+' · เลือก BIN ต้นฉบับด้วยตนเองได้','bad')}
  }catch(err){note('ไม่สามารถโหลดนิยาม XDF: '+err.message,'bad');$('bin').disabled=true}
 })();
