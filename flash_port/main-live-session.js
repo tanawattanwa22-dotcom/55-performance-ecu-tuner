@@ -44,7 +44,7 @@ export class MainLiveSession {
   this.group='auto';this.detectedGroup=null;this.group4Variant=null;
   this.port=null;this.ecuId='';this.connecting=false;this.owner=null;
   this.running=false;this.stopRequested=false;this.disconnectRequested=false;
-  this.sampleSeq=0;this.sampleAt=0;this.hz=null;this.values=EMPTY();
+  this.sampleSeq=0;this.sampleAt=0;this.hz=null;this.values=EMPTY();this.sourceReadings=[];
   this.recording=false;this.recordStart=0;this.records=[];this.error='';this.phase='IDLE';
   this.catalog=null;this.idError='';this.liveGroupError='';this.dtcError='';
   this.dtcSnapshot=null;this.autoStatus='ยังไม่ได้ตรวจ';this.autoComplete=false;this.autoBusy=false;
@@ -66,7 +66,7 @@ export class MainLiveSession {
    liveGroupVerified:Number.isInteger(this.detectedGroup),dtcSnapshot:this.dtcSnapshot,
    running:this.running,group:this.detectedGroup??this.group,groupMode:this.group,
    group4Variant:this.group4Variant,sampleSeq:this.sampleSeq,sampleAt:this.sampleAt,
-   hz:this.hz,values:{...this.values},recording:this.recording,phase:this.phase,
+   hz:this.hz,values:{...this.values},sourceReadings:this.sourceReadings.map(v=>({...v})),recording:this.recording,phase:this.phase,
    recordSeconds:this.recording?(Date.now()-this.recordStart)/1000:0,
    hasLog:this.records.length>0,error:this.error
   };
@@ -408,6 +408,7 @@ export class MainLiveSession {
     if(!capture||this.stopRequested||this.disconnectRequested)break;
     const readings=decodeMainDiagnosticTrace(Uint8Array.from(capture),group);
     const values=diagnosticToNeon(readings,group);
+    this.sourceReadings=readings.map(v=>({...v}));
     if(!Number.isFinite(values.rpm))throw Error('Main C# ไม่พบข้อมูล RPM ในชุดตอบกลับ');
     const now=Date.now();
     if(this.sampleAt){const dt=now-this.sampleAt;this.hz=dt>0?Math.round(1000/dt*10)/10:null}
