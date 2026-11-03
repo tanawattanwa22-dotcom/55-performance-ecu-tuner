@@ -102,3 +102,38 @@
  #live .n23-tab span{font-size:10px}
 }
 @media(prefers-reduced-motion:reduce){#live .n23-pane *{animation:none!important;transition:none!important}}
+
+/* DTC V23.1 — single visible page: legacy Live header, tabs, DTC cards remain
+   in DOM solely because the existing ECU read/clear handlers use those IDs. */
+#live.n23-dtc > header.top,
+#live.n23-dtc > .lvtabs,
+#live.n23-dtc #lvBody > .lvctl,
+#live.n23-dtc #vDtc > .card{display:none!important}
+#live.n23-dtc #lvBody{padding:0 12px max(20px,env(safe-area-inset-bottom))!important;overflow-x:hidden!important}
+#live.n23-dtc #vDtc{display:block!important}
+#live.n23-dtc .n23-pane{margin:0 auto;max-width:960px}
+#live.n23-dtc .n23-brand{
+ display:flex;align-items:center;gap:11px;margin:0 -12px 0;padding:11px 13px;
+ min-height:74px;position:relative;z-index:2;
+ background:linear-gradient(112deg,#102747 0%,#123454 64%,#171637 100%);
+ border-bottom:1px solid #13accaaa;box-shadow:0 3px 20px #05101c99;
+}
+#live.n23-dtc .n23-brand:after{content:"";position:absolute;right:12%;bottom:-1px;width:38%;height:2px;pointer-events:none;background:linear-gradient(90deg,transparent,#1ae6ef,transparent);box-shadow:0 0 12px #12f9ff;opacity:.7}
+#live.n23-dtc .n23-brand-home{padding:0!important;border:none!important;background:none!important;box-shadow:none!important;flex:none;display:grid;place-items:center;min-width:46px}
+#live.n23-dtc .n23-brand-logo{width:54px;height:54px;object-fit:cover;border-radius:12px;border:1px solid #475f8c;box-shadow:0 0 13px #f0478f5b}
+#live.n23-dtc .n23-brand-name{display:flex;flex-direction:column;gap:1px;min-width:0}
+#live.n23-dtc .n23-brand-name strong{font:italic 900 clamp(16px,4.4vw,23px)/1.12 system-ui,"Noto Sans Thai",sans-serif;color:#fff;white-space:nowrap;letter-spacing:-.5px}
+#live.n23-dtc .n23-brand-name small{font:italic 800 clamp(11px,3.1vw,16px)/1.1 system-ui;letter-spacing:2px;color:#28e7f9}
+#live.n23-dtc .n23-brand-menu{margin-left:auto;width:44px;height:44px;flex:none;border:1px solid #506d9b!important;border-radius:14px!important;display:grid;place-items:center;padding:0!important;color:#f7fcff!important;background:linear-gradient(125deg,#1a3b5a,#17213e)!important;font-size:23px!important}
+#live.n23-dtc .n23-hero{margin-top:0}
+#live.n23-dtc .n23-menu-dialog{position:fixed;inset:0 0 0 auto;margin:0;padding:24px 16px;width:min(90vw,380px);max-width:380px;height:100dvh;max-height:100dvh;background:linear-gradient(155deg,#102b49,#191431);color:#edfaff;border:0;border-left:1px solid #25d0ed;box-shadow:-12px 0 70px #000a;overflow-y:auto}
+#live.n23-dtc .n23-menu-dialog::backdrop{background:#020918bc}
+#live.n23-dtc .n23-menu-dialog h2{font-size:18px;color:#fff;margin:0 0 14px;border-left:4px solid #29dff2;padding-left:10px}
+#live.n23-dtc .n23-menu-dialog button{width:100%;padding:13px;text-align:left;justify-content:flex-start;min-height:46px;margin:0 0 8px;border:1px solid #55739b;background:linear-gradient(125deg,#183b5b,#28214e);color:#f5fbff;border-radius:12px;font-weight:750}
+#live.n23-dtc .n23-menu-dialog .n23-menu-dismiss{margin-bottom:14px;background:#40244e}
+@media(max-width:370px){
+ #live.n23-dtc .n23-brand{gap:8px;padding:9px 10px}
+ #live.n23-dtc .n23-brand-logo{height:45px;width:45px}
+ #live.n23-dtc .n23-brand-name strong{font-size:15px}
+ #live.n23-dtc .n23-brand-name small{font-size:11px}
+}
