@@ -11,7 +11,8 @@ assert.match(index,/\$\("#goLive"\)\.onclick=\(\)=>\{openLive\(\)\}/,'homepage o
 assert.match(index,/src="ui\/neon-main-live-v25\.js\?v=\d+"/,'Main driver integrated as module');
 assert.doesNotMatch(bridge,/main-source-live\.html|location\.assign|lvStart\(/,'no C# page redirect or old ADX engine');
 assert.match(sessionSource,/FRAME_ALLOWLIST\.has/,'Main source frames explicitly allowlisted');
-assert.match(sessionSource,/typeof window\.api/,'license checked before ECU communications');
+assert.match(index,/id="licenseGate"/,'app retains its login and license gate');
+assert.match(sessionSource,/Ft232rWebUsb\.choose\(\{forcePicker\}\)/,'WebUSB picker invoked directly in the user gesture');
 assert.doesNotMatch(sessionSource,/\.flash\(|\.erase\(|\.writeRaw\(/,'module cannot program ECU');
 assert.match(neon,/id="n21MainGroup"/,'source-group selector built into existing UI');
 assert.doesNotMatch(neon,/id="n21Demo"/,'no DEMO entry in original Neon Live UI');
