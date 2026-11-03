@@ -19,14 +19,19 @@ const reader=new MainLiveSession(notify,()=>{
 });
 let lastConnectError='';
 old.snapshot=()=>{
- const original=originalSnapshot();
- if(original.mode!=='gauge')return original; // Preserve DTC old command backend.
+ // Read the chosen model directly. Never ask the legacy ADX/PROF decoder for
+ // any sensor field while the original Neon gauge is active.
+ if(!document.getElementById('live')?.classList.contains('n21-gauge'))
+  return originalSnapshot(); // Other modes, especially legacy DTC only.
+ const ecu=window.__ecu;
+ const index=ecu?.S?.mi;
+ const chosen=Number.isInteger(index)&&index>=0?ecu?.MODELS?.[index]:null;
  const s=reader.status();
  const values=s.running&&s.connected?{...s.values}:empty();
  return {
-  ...original,source:s.running?'ecu':'idle',demo:false,run:s.running,
+  mode:'gauge',source:s.running?'ecu':'idle',demo:false,run:s.running,
   connected:s.connected,cable:s.cable,connecting:s.connecting,
-  model:original.model,ecuId:s.ecuId,group:s.group,
+  model:chosen?.id||'',ecuId:s.ecuId,group:s.group,
   protocol:s.connected?'Honda K-Line / Main FM_diag.cs':'—',
   profAvailable:true,afrSupported:s.group!==7,
   afrSource:s.group===7?'C# Group 7 ไม่มีช่อง A/F':
@@ -41,8 +46,8 @@ old.snapshot=()=>{
  };
 };
 old.connect=async()=>{
- const legacy=originalSnapshot();
- if(legacy.cable){
+ // Prevent dual ownership of a physical FT232R already held by the old DTC connector.
+ if(!!window.__ecu?.K?.t){
   lastConnectError='มีการเชื่อมต่อ FTDI ผ่านหน้าระบบเก่าอยู่ • ตัดการเชื่อมต่อนั้นก่อน แล้วกลับมาเชื่อมจาก Live Data';
   notify();return false;
  }
