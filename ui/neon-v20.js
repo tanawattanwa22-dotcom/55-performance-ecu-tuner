@@ -141,7 +141,7 @@ function library(){
  const save=(key,value)=>{try{localStorage.setItem(key,JSON.stringify(value))}catch{}};
  const KMASTER='55lib.master',KFAV='55lib.favorites',KRECENT='55lib.recent';
  let master=read(KMASTER,''),favorites=read(KFAV,[]),recent=read(KRECENT,[]),
-     maker='Honda',tab='all',order='name',gridView=false,page=1,featured=0,
+     maker='all',tab='all',order='name',gridView=false,page=1,featured=0,
      panelOpen=false;
  const perPage=10;
  const logoFor=(r,cls='n22-brand-logo')=>{
