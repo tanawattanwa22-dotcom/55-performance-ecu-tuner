@@ -1,4 +1,5 @@
-import './neon-main-live-v25.js?v=301';
+// The shared FT232R owner is created exactly once by index.html (neon-main-live-v25.js).
+// Do not import a second URL/version here: it creates a second MainLiveSession and stale UI status.
 import {readSharedDtc,clearSharedDtc} from '../flash_port/shared-dtc.js?v=301';
 const $=id=>document.getElementById(id);
 let dtcBusy=false;
