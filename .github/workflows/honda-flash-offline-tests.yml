@@ -8,7 +8,6 @@ on:
       - "ui/**"
       - "index.html"
       - "tools/verify-ui-v19.mjs"
-      - "tools/verify-main-diagnostic.mjs"
       - "tools/verify-honda-flash.mjs"
       - "tools/verify-main-diagnostic.mjs"
       - "package.json"
@@ -17,6 +16,7 @@ on:
     paths:
       - "flash_port/**"
       - "tools/verify-honda-flash.mjs"
+      - "tools/verify-main-diagnostic.mjs"
       - "package.json"
   workflow_dispatch:
 
