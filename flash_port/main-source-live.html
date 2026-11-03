@@ -1,6 +1,11 @@
 <!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#101c34"><title>55 Performance · Honda Main Live V19</title><link rel="stylesheet" href="./main-source-live-v19.css?v=19"><link rel="stylesheet" href="../ui/neon-tools-v20.css?v=200"></head>
 <body><header class="top"><div><div class="eyebrow">HONDA MAIN C# · LIVE TELEMETRY</div><div class="brand">55 PERFORMANCE <span style="font-size:15px;color:#fff">LIVE</span></div><div class="subtitle">Real ECU Data · FT232R WebUSB · Chrome Android</div></div><span class="version">V19 LIVE</span></header>
 <main>
+<section class="panel" id="mainSourceDataNotice" style="border:1px solid #28ddea;background:linear-gradient(120deg,#083d56,#1b2549);margin-bottom:13px">
+ <div class="title"><h2>ข้อมูลจริงจาก Main C# · FM_diag.cs</h2><span class="badge">NO ADX</span></div>
+ <div class="subtitle" style="color:#d8f7ff;line-height:1.7">ระบบนี้อ่านคำสั่ง Honda Diagnostic 0x72 จากไฟล์ Main C# ที่ซื้อมา ผ่าน FT232R / WebUSB และถอดข้อมูลจากคำตอบของ ECU โดยตรง <b>ไม่ต้องมีไฟล์ ADX</b> ไม่มีการใส่ค่า ECU จำลอง</div>
+ <div class="subtitle" style="margin-top:7px;color:#ffd99a">ต้องเลือก Group 1 / 4 / 7 ให้ตรงกับกล่องจริงก่อนอ่าน (ระบบเลือกกลุ่มอัตโนมัติตาม Main C# ยังไม่ได้ยืนยันกับฮาร์ดแวร์) · A/F จากสูตรเดิมไม่ถือเป็นค่าจาก Wideband ที่ยืนยันแล้ว · ไม่ใช่การอัปเดต 50 Hz</div>
+</section>
 <div class="hero">
 <section class="panel accent"><div class="title"><h2>📡 การเชื่อมต่อ ECU</h2><span class="badge" id="connection">OFFLINE</span></div>
 <div class="controls"><div class="field"><label for="group">รูปแบบ Live Data ตาม FM_diag.cs</label><select id="group"><option value="1">Group 1 · 23 ค่าข้อมูล</option><option value="4">Group 4 · 23 ค่าข้อมูล</option><option value="7">Group 7 · 15 ค่าข้อมูล</option></select></div><div class="field"><label for="interval">การเก็บข้อมูล</label><select id="interval"><option value="350">เร็ว (350 ms ระหว่างชุด)</option><option value="700" selected>ปกติ (700 ms ระหว่างชุด)</option><option value="1500">ประหยัด (1.5 วินาที)</option></select></div></div>
@@ -9,7 +14,7 @@
 </section>
 <section class="panel"><div class="title"><h2>🧭 ลัดไปยังเครื่องมือ</h2><span class="badge">MAIN MENU</span></div>
 <nav class="nav"><a href="../index.html">🏠 หน้าแรก</a><a href="main-source-manager.html?v=19">🗂️ ฐาน ECU</a><a href="flash-write-lab.html?v=18">⚡ Flash Bench</a><a href="../ecm/index.html">📚 ฐานข้อมูล ECM • 55 Performance</a></nav>
-<div class="subtitle">Live Data ใช้ข้อมูลตอบกลับ ECU จริงหรือ HEX Trace ที่คุณนำเข้ามาทดสอบ ไม่มีการสร้างค่าจำลองมาแสดงเป็นค่าจริง</div>
+<div class="subtitle">Live Data จริงมาจาก ECU ผ่าน Main/FM_diag.cs; หากนำเข้า HEX Trace จะแยกสถานะเป็น IMPORTED_TRACE (ข้อมูลย้อนหลัง ไม่ใช่ Live ECU) และไม่มีการใช้ ADX</div>
 <div class="stats"><span>ECU ID: <b id="ecuId">—</b></span><span>รอบที่อ่านสำเร็จ: <b id="cycles">0</b></span><span>ค่าอัปเดตล่าสุด: <b id="updated">—</b></span></div>
 </section></div>
 <section class="panel"><div class="title"><h2>📈 ค่าหลักจาก Main C#</h2><span class="badge" id="dataBadge">NO DATA</span></div>
