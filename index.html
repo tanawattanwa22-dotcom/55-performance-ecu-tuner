@@ -835,16 +835,43 @@ function buildTabs(){
   }):M.tables.filter(t=>!ADV.has(t.g));
   const chip=t=>`<div class="chip" data-i="${t.i}">${esc(t.t)}<i class="dot" style="display:none"></i></div>`;
   const sw=M.sw.length?`<div class="chip" data-i="-1">สวิตช์ (${M.sw.length})</div>`:"";
+  const rpmChip='<div class="chip" data-action="rpm-axis" role="button" tabindex="0">แก้แกนรอบ RPM</div>';
   $("#tabs").innerHTML=isMsx
-   ?shown.slice(0,3).map(chip).join("")+sw+shown.slice(3).map(chip).join("")
-   :sw+shown.map(chip).join("");
+   ?shown.slice(0,3).map(chip).join("")+rpmChip+sw+shown.slice(3).map(chip).join("")
+   :rpmChip+sw+shown.map(chip).join("");
   markTabs();
 }
 function markTabs(){
   if(!M)return;
   $$("#tabs .chip").forEach(e=>{const i=+e.dataset.i;e.classList.toggle("on",i===S.ti);const d=e.querySelector(".dot");if(d)d.style.display=i>=0&&M.tables[i]&&modTable(M.tables[i])?"":"none"});
 }
-$("#tabs").addEventListener("click",e=>{const c=e.target.closest(".chip");if(c)selectTable(+c.dataset.i)});
+function rpmAxisKey(t){
+ if(!t)return null;
+ for(const key of ["y","x"]){
+  const a=t[key];
+  if(a&&a.a!==undefined&&!a.l&&a.k?.a&&
+     (a.rpm===true||axName(a.eq)==="รอบ"))return key;
+ }
+ return null;
+}
+function activateRpmAxis(){
+ if(!M||S.mi<0)return toast("เลือกรุ่นรถก่อน");
+ const target=rpmAxisKey(curT())?curT():M.tables.find(t=>rpmAxisKey(t)&&t.g!=="แกน");
+ if(!target)return toast("ยังไม่มีนิยามแกน RPM ที่ยืนยันได้สำหรับรุ่นนี้",4000);
+ if(target.i!==S.ti)selectTable(target.i);
+ S.axEdit=true;$("#axT").classList.add("on");
+ toast("แก้แกน RPM: แตะหัวแถวหรือหัวคอลัมน์รอบเครื่อง · ระบบตรวจตำแหน่งก่อนบันทึก",4200);
+}
+$("#tabs").addEventListener("click",e=>{
+ const c=e.target.closest(".chip");if(!c)return;
+ if(c.dataset.action==="rpm-axis")return activateRpmAxis();
+ selectTable(+c.dataset.i);
+});
+$("#tabs").addEventListener("keydown",e=>{
+ if((e.key==="Enter"||e.key===" ")&&e.target.dataset.action==="rpm-axis"){
+  e.preventDefault();activateRpmAxis();
+ }
+});
 let cells=[];
 function selectTable(i){
   S.ti=i;S.sel=null;S.anchor=null;
@@ -993,21 +1020,39 @@ function sharers(s){
   return out;
 }
 function editAxis(ax,i){
-  if(MODELS[S.mi]?.xdf){toast("แกน XDF ใช้ร่วมหลายตาราง จึงปิดการแก้แกนจากจุดนี้");return}
-  const t=curT(),s=t[ax];
+  const t=curT(),s=t?.[ax];
   if(!s||s.l||s.a===undefined){toast("แกนนี้เป็นป้ายชื่อตามนิยาม แก้ไม่ได้");return}
-  if(!s.k.a){toast("แกนนี้ไม่มีสูตรแปลงค่า แก้ไม่ได้อย่างปลอดภัย");return}
-  const o=s.a+i*s.st,cur=s.k.f(rdRaw(o,s.b,s.sg,s.le));
+  if(!s.k?.a||![8,16].includes(s.b)||!Number.isInteger(s.st)||s.st<s.b/8){
+   toast("นิยามแกนไม่มีสูตรหรือช่วงไบต์ที่ยืนยันได้",3500);return;
+  }
+  const n=ax==="x"?t.c:t.r;
+  if(!Number.isInteger(i)||i<0||i>=n)return;
+  const o=s.a+i*s.st;
+  if(o<0||o+s.b/8>S.bin.length){toast("ตำแหน่งแกนนอกช่วง BIN",3500);return}
+  if(MODELS[S.mi]?.xdf){
+   if(!window.__55MSX?.loaded||Array.from({length:s.b/8},(_,j)=>o+j).some(at=>window.__55MSX.isProtectedByte(at))){
+    toast("แกน XDF จุดนี้เป็นข้อมูลร่วม/ยังไม่ยืนยัน จึงแก้ไม่ได้",4500);return;
+   }
+  }
+  const cur=s.k.f(rdRaw(o,s.b,s.sg,s.le));
   const inp=prompt((ax==="x"?"แกนคอลัมน์":"แกนแถว")+" ลำดับที่ "+(i+1)+" ค่าใหม่ (ตอนนี้ "+cur.toFixed(s.d)+")",cur.toFixed(s.d));
   if(inp===null)return;
-  const v=parseFloat(String(inp).replace(",","."));
+  const v=parseFloat(String(inp).replace(",",".")); 
   if(!isFinite(v)){toast("ใส่ตัวเลขเท่านั้น");return}
   const[lo,hi]=rawLim(s.b,s.sg),raw=Math.round((v-s.k.b)/s.k.a);
   if(raw<lo||raw>hi){toast("ค่านี้เกินช่วงที่ไฟล์เก็บได้ ("+s.k.f(lo).toFixed(s.d)+" ถึง "+s.k.f(hi).toFixed(s.d)+")",3500);return}
   if(raw===rdRaw(o,s.b,s.sg,s.le)){toast("ค่าเท่าเดิม",1200);return}
-  commit("แก้แกน",bytesOf(s.b,s.le,raw).map((b,k)=>[o+k,b]));
+  if(n>1){
+   const vals=Array.from({length:n},(_,k)=>s.k.f(rdRaw(s.a+k*s.st,s.b,s.sg,s.le)));
+   const vNew=s.k.f(raw),asc=vals[n-1]>vals[0],low=i>0?vals[i-1]:null,high=i<n-1?vals[i+1]:null;
+   if((asc&&((low!==null&&vNew<=low)||(high!==null&&vNew>=high)))||
+      (!asc&&((low!==null&&vNew>=low)||(high!==null&&vNew<=high)))){
+    toast("แกน RPM/TPS ต้องเรียงค่า ไม่ให้ค่าซ้ำหรือสลับลำดับ",4200);return;
+   }
+  }
+  if(!commit("แก้แกน",bytesOf(s.b,s.le,raw).map((b,k)=>[o+k,b])))return;
   if(rdRaw(o,s.b,s.sg,s.le)!==raw){toast("เขียนค่าไม่สำเร็จ");return}
-  const sh=sharers(s).map(u=>u.t),n=s.n;
+  const sh=sharers(s).map(u=>u.t);
   let warn="";
   const vals=[];for(let k=0;k<n;k++)vals.push(s.k.f(rdRaw(s.a+k*s.st,s.b,s.sg,s.le)));
   if(vals.some((x,k)=>k&&x<vals[k-1]))warn=" ⚠ แกนไม่เรียงจากน้อยไปมาก";
