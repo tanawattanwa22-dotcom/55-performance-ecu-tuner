@@ -101,31 +101,38 @@ export class HondaFlashEngine {
    this.emit('FTDI_ISO_INIT');
    await this.usb.initializeIso();
    await this.usb.sendWake();
-   let handshake='HELLO';
+   let handshake='HELLO',idReply;
    try{
-    await this.x('HELLO',READ_ONLY_COMMANDS.HELLO,{timeoutMs:1700});
-   }catch(e){
-    // Original WorkerThread falls back to the Keihin 7E keep-alive after
-    // 72/05/00/F0 has no reply. Failed WebUSB reads close the interface:
-    // reopen the *same approved FT232R* and reinitialize, never guess baud.
+    try{
+     await this.x('HELLO',READ_ONLY_COMMANDS.HELLO,{timeoutMs:1700});
+    }catch(firstError){
+     const dev=this.usb.dev||this.usb.lastDevice;
+     if(!dev)throw firstError;
+     this.emit('TRY_SOURCE_KEIHIN_FALLBACK',{firstError:firstError.message});
+     if(this.usb.ready)await this.usb.close();
+     await this.usb.openSelected(dev);
+     await this.usb.initializeIso();
+     await this.usb.sendWake();
+     const r=await this.x('KEIHIN_FALLBACK_HELLO',CMD.khPoll,{timeoutMs:1700});
+     if(r[3]===15)fail('FALLBACK_REJECTED','Keihin fallback returned locked session');
+     handshake='KEIHIN_POLL';
+    }
+    const sessionFrame=handshake==='KEIHIN_POLL'?CMD.khPoll:READ_ONLY_COMMANDS.HELLO;
+    await this.x('CONFIRM_WORKER_SESSION',sessionFrame,{timeoutMs:1700});
+    this.emit('C_SHARP_WORKER_SESSION_CONFIRMED',{handshake});
+    idReply=await this.x('READ_ECU_ID',READ_ONLY_COMMANDS.ID,{timeoutMs:1700});
+   }catch(programmingProbeError){
+    // Live Data uses the purchased FM_diag.cs diagnostic wake. Try that
+    // exact read-only path for identification, never for programming authorization.
     const dev=this.usb.dev||this.usb.lastDevice;
-    if(!dev)throw e;
-    this.emit('TRY_SOURCE_KEIHIN_FALLBACK',{firstError:e.message});
+    if(!dev)throw programmingProbeError;
+    this.emit('TRY_MAIN_DIAGNOSTIC_ID_PATH',{previousError:programmingProbeError.message});
     if(this.usb.ready)await this.usb.close();
     await this.usb.openSelected(dev);
-    await this.usb.initializeIso();
-    await this.usb.sendWake();
-    const r=await this.x('KEIHIN_FALLBACK_HELLO',CMD.khPoll,{timeoutMs:1700});
-    if(r[3]===15)fail('FALLBACK_REJECTED','Keihin fallback returned locked session');
-    handshake='KEIHIN_POLL';
+    await this.usb.sourceDiagnosticWake();
+    handshake='DIAGNOSTIC_ONLY';
+    idReply=await this.x('READ_ECU_ID_DIAGNOSTIC',READ_ONLY_COMMANDS.ID,{timeoutMs:2300,afterWriteMs:50});
    }
-   // Original FormMain.cs WorkerThread() first probes a handshake,
-   // then calls SendCommand(array8, array8[1]) AGAIN to confirm session
-   // BEFORE requesting the physical ECU ID (lines 963–989).
-   const sessionFrame=handshake==='KEIHIN_POLL'?CMD.khPoll:READ_ONLY_COMMANDS.HELLO;
-   await this.x('CONFIRM_WORKER_SESSION',sessionFrame,{timeoutMs:1700});
-   this.emit('C_SHARP_WORKER_SESSION_CONFIRMED',{handshake});
-   const idReply=await this.x('READ_ECU_ID',READ_ONLY_COMMANDS.ID,{timeoutMs:1700});
    if(idReply.length<11)fail('NO_ECU_ID','ECU ID reply สั้นเกินไป');
    const ecuId=toHex(idReply.slice(5,10)).replaceAll(' ','');
    if(!/^[0-9A-F]{10}$/.test(ecuId))fail('BAD_ECU_ID','ECU ID ผิดรูปแบบ');
@@ -145,6 +152,7 @@ export class HondaFlashEngine {
     // no blind attempts at the other family's programming commands.
     this.emit('FAMILY_NOT_CONFIRMED',{message:e.message});
    }
+   if(handshake==='DIAGNOSTIC_ONLY')family='UNVERIFIED';
    if(source&&source.family===family)this.emit('SOURCE_ECU_MATCH',{ecuId,part:source.part});
    this.identity={ecuId,family,count,handshake,sourcePart:source?.part||null,sourceMatched:!!source&&source.family===family,catalog:source||null};
    this.state='identified';
