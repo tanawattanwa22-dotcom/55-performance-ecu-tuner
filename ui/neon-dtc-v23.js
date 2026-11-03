@@ -97,8 +97,8 @@ function delegate(id){
   void shared.readDtc().catch(e=>{msg.textContent='อ่าน DTC จากสายร่วมไม่สำเร็จ: '+String(e?.message||e)});
   return;
  }
- if(id==='dtcClr'&&shared?.port?.ready&&!shared.snapshot()?.ecuId){
-  msg.textContent='ต้องอ่าน ECU ID จากกล่องจริงก่อนสั่งลบ DTC';
+ if(id==='dtcClr'&&shared?.port?.ready){
+  msg.textContent='ระบบลบ DTC ต้องรอตรวจยืนยัน ECU ID และการตอบกลับจากกล่องจริง';
   return;
  }
  const b=$(id);if(b&&!b.disabled)b.click();
@@ -121,7 +121,7 @@ function refreshConnection(){
  cell.speed.textContent='ไม่ได้ตรวจวัด';
  const ready=!!s.connected&&!s.connecting&&!window.__55SharedEcu?.owner;
  read.disabled=pending||!ready;
- clear.disabled=pending||!ready||!s.ecuId;
+ clear.disabled=pending||!ready||!!window.__55SharedEcu?.port?.ready;
 }
 function makeCode(v){
  const outer=create('details','n23-code-card'),summary=create('summary','n23-code-summary');
