@@ -12,7 +12,7 @@ assert.deepEqual(Object.keys(BIN_ID_TABLE).map(Number).sort((a,b)=>a-b),sourceSi
 const bin384=new Uint8Array(393216);
 bin384.set([255,255,255,255],1924);
 bin384.set([0x12,0x34,0x56],1928);
-assert.equal(readBinId(bin384).id,'12 34 56','384KB BIN ID must use FormMain.cs SearchPattern384KB');
+assert.equal(readBinId(bin384).id,'123456','384KB BIN ID is normalized hex without display spaces');
 assert.equal(BIN_SIZES.includes(393216),true,'384KB accepted in pure frame planning');
 const frameAudit=auditWriteFrames(bin384,{profile:'KEIHINOTHER',startOffset:0,maxSamples:1});
 assert.equal(frameAudit.frames,3072,'384KB creates 3072 source 128-byte write frames (NO USB)');
