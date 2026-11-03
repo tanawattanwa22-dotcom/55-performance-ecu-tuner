@@ -2,7 +2,7 @@
  * Main FM_diag.cs reader is the sole source of real-time sensor values.
  * The legacy ADX/DEMO live engine is never called by this bridge.
  */
-import {MainLiveSession} from '../flash_port/main-live-session.js?v=331';
+import {MainLiveSession} from '../flash_port/main-live-session.js?v=333';
 const old=window.__55LiveBridge;
 if(!old)throw Error('Live UI bridge must be installed before Main V25');
 const originalSnapshot=old.snapshot.bind(old);
