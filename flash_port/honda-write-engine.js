@@ -79,7 +79,7 @@ export class HondaFlashEngine {
   this.identity=null;this.lastResult=null;
  }
  emit(phase,detail={}){
-  this.onEvent({at:new Date().toISOString(),phase,...detail});
+  this.onEvent({at:new Date().toISOString(),...detail,phase});
  }
  async x(name,frame,opts={}){
   this.emit(name,{stage:'TX'});
