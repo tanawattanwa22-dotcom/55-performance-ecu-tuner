@@ -477,6 +477,7 @@ function navigate(id){
  if(id==='live'){
   // Open the existing Neon Live page; the FM_diag.cs session feeds its gauges.
   if($('goLive'))$('goLive').click();
+  void window.__55AutoEcu?.enter('live');
   return;
  }
  // The homepage DTC tile opens the dedicated redesigned page immediately.
@@ -506,6 +507,7 @@ function navigate(id){
  else if(id==='live'||id==='dtc')liveOrDtc(id);
  else if(id==='tools')toolsStage();else if(id==='settings')settingsStage();
  refreshStatus();sc.scrollTo({top:0,behavior:'auto'});
+ if(id==='flash')void window.__55AutoEcu?.enter('flash');
 }
 window.__55NeonNavigate=navigate;
 ['sel','btnSave','btnCable','btnFlash','mtReadEcu','btnAutoOffset','btnRead','goTune'].forEach(id=>{
