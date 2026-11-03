@@ -10,7 +10,7 @@ import {inspectCSharpEcuType,correctKeihinChecksum,correctShindengenChecksum,der
 import {createWriteFrame} from './flash-frames.js';
 import {HondaFlashEngine} from './honda-write-engine.js?v=303';
 import {hondaChecksum} from './ftdi-webusb.js';
-import {SOURCE_SIZES,scanMainBinIds,findMainEcuPrefixInBin,sourceSums} from './main-bin-audit.js?v=1';
+import {SOURCE_SIZES,scanMainBinIds,findMainEcuPrefixInBin,sourceSums} from './main-bin-audit.js?v=2';
 const checks=[];
 async function t(name,fn){try{checks.push([name,!!(await fn())])}catch(e){checks.push([name,false,e.message])}}
 const reply=v=>{const a=Uint8Array.from(v);a[a.length-1]=hondaChecksum(a.slice(0,-1));return {reply:a}};
