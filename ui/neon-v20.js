@@ -479,8 +479,9 @@ function settingsStage(){
 }
 function navigate(id){
  if(!Object.prototype.hasOwnProperty.call(memberships,id))return;
- if(selected==='recovery'&&id!=='recovery'){
+ if(selected==='recovery'){
   if(window.__55RecoveryNative?.isBusy?.()){alert('รอการตรวจหรือเขียน Recovery ให้จบก่อนเปลี่ยนเมนู');return}
+  // Even re-entering Recovery must dispose its prior USB plan before remount.
   window.__55RecoveryNative?.close?.();
  }
  // Live Data always uses the real-time decoder ported from purchased Main/FM_diag.cs.
