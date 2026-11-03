@@ -50,7 +50,10 @@ const p=asText('flash_port/offline/index.html'),old=asText('flash_port/flash-wri
 for(const fragment of ['engine.identify()','engine.makePlan(data','engine.flash(plan','engine.postFlashCheck()','physicalBackupConfirmed','externalPowerConfirmed','recoveryReady']){
  assert(p.includes(fragment)&&old.includes(fragment),'same original bench flash step: '+fragment);
 }
-assert(p.includes("from '../honda-write-engine.js'"),'offline imports exact same engine');
+assert(p.includes("from '../honda-write-engine.js?v=319'"),'offline imports source recovery engine revision');
+assert(old.includes("from './honda-write-engine.js?v=319'"),'online matches recovery engine revision');
+assert(p.includes('engine.confirmRecoveryFamily(data)')&&old.includes('engine.confirmRecoveryFamily(data)'),'recovery family check is wired in both flash UIs');
+assert(p.includes('checksumOffsetOverride:')&&old.includes('checksumOffsetOverride:'),'C# recovery checksum offset option is wired in both UIs');
 assert(p.includes("from '../ftdi-webusb.js'"),'offline imports exact same FTDI transport');
 assert(p.includes('verifySavedOfflinePermit(localStorage.getItem'), 'permit checked immediately before real erase');
 assert(!p.includes('async function token()'), 'do not clone login secrets into offline page');
