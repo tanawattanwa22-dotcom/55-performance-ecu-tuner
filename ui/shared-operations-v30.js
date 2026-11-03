@@ -67,6 +67,7 @@ function openPanel(url){
  close.onclick=leave;dialog.oncancel=e=>{e.preventDefault();leave();};
  dialog.append(close,frame);document.body.append(dialog);panel=dialog;dialog.showModal();
 }
+window.__55OpenRecoveryPanel=()=>openPanel(new URL('flash_port/flash-write-lab.html?mode=recovery',location.href));
 document.addEventListener('click',e=>{
  const link=e.target.closest?.('a[href]');if(!link)return;
  const url=new URL(link.href,location.href);
