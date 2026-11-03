@@ -150,7 +150,7 @@ el('id').onclick=async()=>{
   const explain=noRx?'ไม่พบข้อมูล UART ขากลับจากสายระหว่างรอคำตอบ โปรดตรวจวงจรแปลงระดับ K-Line, ไฟ ECU, กุญแจ ON และขั้วต่อก่อน':
     partial?'ได้รับข้อมูลจาก USB/สายบางส่วน แต่ยังไม่มีคำตอบ ECU ที่สมบูรณ์ ห้ามสรุปว่า ECU เสีย ตรวจ TX/RX Log และระบบสายก่อน':'';
   el('ecu').textContent='หยุดทดสอบ: '+e.message+
-    (explain?'\\n'+explain:'')+
+    (explain?'\n'+explain:'')+
     '\\nขั้นนี้ยังไม่มีการ ERASE / WRITE';
   if(port&&!port.ready){port=null;el('usb').textContent='USB ปิดเพื่อป้องกันคำสั่งค้าง'}
  }finally{busy(false)}
