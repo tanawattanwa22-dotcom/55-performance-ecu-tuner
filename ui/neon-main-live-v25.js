@@ -84,7 +84,15 @@ old.connect=async()=>{
  }
  lastConnectError='';physicalConnectError='';
  const connected=await reader.connect();
- notify();return connected;
+ notify();
+ // Read-only source ECU detection after FT232R opens. The USB owner remains shared.
+ if(connected)queueMicrotask(()=>{
+  const live=document.getElementById('live');
+  const page=live?.classList.contains('on')?(live.classList.contains('n23-dtc')?'dtc':'live'):
+   (document.getElementById('home')?.dataset.neonPage||'dashboard');
+  void window.__55AutoEcu?.enter(page,{force:true});
+ });
+ return connected;
 };
 old.startEcu=()=>reader.start();
 old.stopEcu=()=>reader.stop();
