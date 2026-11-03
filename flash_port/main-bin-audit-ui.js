@@ -1,4 +1,4 @@
-import {auditMainBin} from './main-bin-audit.js?v=1';
+import {auditMainBin} from './main-bin-audit.js?v=2';
 const $=id=>document.getElementById(id);
 let file=null,output=null;
 const message=s=>{$('message').textContent=s};
