@@ -462,6 +462,13 @@ function settingsStage(){
 }
 function navigate(id){
  if(!Object.prototype.hasOwnProperty.call(memberships,id))return;
+ // Live Data always uses the real-time decoder ported from purchased Main/FM_diag.cs.
+ // The old in-page ADX renderer is retained only as an inactive compatibility backend
+ // for legacy DTC; users must never be routed to it from the homepage.
+ if(id==='live'){
+  window.location.assign(new URL('flash_port/main-source-live.html?v=260',document.baseURI).href);
+  return;
+ }
  // The homepage DTC tile opens the dedicated redesigned page immediately.
  // Original hidden command buttons remain solely as the diagnostic transport backend.
  if(id==='dtc'){
