@@ -114,7 +114,16 @@
   $("n21ModelTxt").textContent=s.model||"เลือกรุ่น";
   $("n21Connection").classList.toggle("n21-linked",!!s.connected);
   $("n21ConnTitle").textContent=s.demo?"DEMO (จำลอง)":s.connected?"● ECU เชื่อมต่อแล้ว":s.cable?"ต่อสายแล้ว · รอ ECU ID":"ยังไม่เชื่อมต่อ ECU";
-  $("n21ConnSub").textContent=s.connected?"ECU ID "+(s.ecuId||"—")+" · Main FM_diag.cs":s.connecting?"กำลังเชื่อมต่อ FT232R / ECU ID":"แตะเพื่อเชื่อมต่อ FT232R";
+  const activeStage=s.phase==='USB_CHOOSER'?'เลือก FT232R ในหน้าต่าง Android':
+   s.phase==='LICENSE_CHECK'?'กำลังตรวจ License':
+   s.phase==='USB_OPEN'?'กำลังขอเปิด USB จาก Android':
+   s.phase==='ECU_ID_PROBE'?'เปิด USB แล้ว · กำลังอ่าน ECU ID':
+   'กำลังเชื่อมต่อ FT232R / ECU ID';
+  $("n21ConnSub").textContent=s.connected?"ECU ID "+(s.ecuId||"—")+" · Main FM_diag.cs":
+   s.connecting?activeStage:
+   s.phase==='USB_ACCESS_DENIED'?'USB Access denied • ดูข้อความข้อผิดพลาด':
+   s.phase==='STOPPED'?'เชื่อมต่อไม่สำเร็จ • ดูรายละเอียดด้านล่าง':
+   'แตะเพื่อเชื่อมต่อ FT232R';
   $("n21Protocol").textContent=s.demo?"DEMO":s.protocol||"—";
   while(frames.length&&frames[0]<now-4000)frames.shift();
   const isReal=s.run&&s.source==="ecu"&&s.connected;
