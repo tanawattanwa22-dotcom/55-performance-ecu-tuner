@@ -159,7 +159,14 @@ export class HondaFlashEngine {
     const isSh=source?.family==='SHINDENGEN';
     // Recovery ID has no normal catalog/count session. Do not send a Keihin
     // count probe to an unknown Shindengen bootloader (timeout closes USB).
-    if(/0000$/.test(ecuId)){family='SHINDENGEN';throw new Error('Recovery boot ID: normal flash count unavailable');}
+    if(/0000$/.test(ecuId)){
+     // FormMain.cs treats suffix 0000 as recovery, but GetEcuType()
+     // determines Keihin vs Shindengen from the BIN later. The ID suffix
+     // alone MUST NEVER be interpreted as proof of Shindengen hardware.
+     family='UNVERIFIED';
+     this.emit('RECOVERY_BOOT_ID_ONLY',{ecuId});
+     throw new Error('Recovery boot ID has no verified ECU family');
+    }
     const label=isSh?'SHINDENGEN_FLASH_COUNT':'KEIHIN_FLASH_COUNT';
     const command=isSh?CMD.shPoll:CMD.khCount;
     const r=await this.x(label,command,{timeoutMs:1800});
@@ -184,11 +191,17 @@ export class HondaFlashEngine {
   let {ecuId,family,catalog}=this.identity;
   const rec=!!recovery;
   if(rec){
-   // C# FormMain.SetEcmParamsFromDb(): recovery = ECU ID ends with "0000".
+   // Recovery may be Keihin or Shindengen: Main C# GetEcuType() uses BIN
+   // signatures, NOT the suffix 0000. No hardware family witness is currently
+   // available in the WebUSB recovery path, so prevent a wrong-family ERASE.
    if(!/0000$/.test(ecuId))
-    fail('RECOVERY_ID','Recovery ใช้ได้เฉพาะ ECU ID ที่ลงท้าย 0000 (ตามต้นฉบับ C#) — ECU นี้คือ '+ecuId);
-   family='SHINDENGEN';
-   catalog={part:'RECOVERY-UNKNOWN',startOffset:null,checksumOffset:null,family:'SHINDENGEN'};
+    fail('RECOVERY_ID','Recovery ต้องมี ECU boot ID ที่ลงท้าย 0000');
+   if(!this.identity.recoveryFamilyVerified||
+      !['KEIHIN','SHINDENGEN'].includes(this.identity.family))
+    fail('RECOVERY_FAMILY_UNVERIFIED',
+      'พบ Recovery boot ID แต่ยังยืนยันไม่ได้ว่าเป็น Keihin หรือ Shindengen จากเซสชัน ECU จริง • หยุดก่อน ERASE');
+   family=this.identity.family;
+   catalog={part:'RECOVERY-UNKNOWN',startOffset:null,checksumOffset:null,family};
   }else{
   if(!catalog||!this.identity.sourceMatched)
    fail('UNLISTED_ECU','ECU ID '+ecuId+' ไม่อยู่ในฐานโปรแกรม C# เดิม หยุดก่อนส่งคำสั่ง ERASE');
