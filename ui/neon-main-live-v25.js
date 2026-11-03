@@ -10,6 +10,15 @@ const originalHome=old.home.bind(old);
 const originalMode=old.mode.bind(old);
 const keys=['rpm','tps','map','ect','iat','bat','inj','ign','afr'];
 const empty=()=>Object.fromEntries(keys.map(k=>[k,null]));
+const phases=Object.freeze({
+ USB_CHOOSER:'รอเลือก FT232R จาก Android • เลือกรายการ USB ที่เปิดใช้งานได้',
+ LICENSE_CHECK:'ตรวจสิทธิ์ License ก่อนใช้ FT232R',
+ USB_OPEN:'กำลังเปิด FT232R ผ่าน WebUSB (ยังไม่ติดต่อ ECU)',
+ ECU_ID_PROBE:'เปิด FT232R แล้ว • กำลังปลุกและอ่าน ECU ID',
+ ECU_IDENTIFIED:'อ่าน ECU ID ผ่าน • พร้อมตรวจ Group 1/4/7',
+ LIVE_CAPTURE:'กำลังรับข้อมูลจริงจาก Main C#',
+ USB_ACCESS_DENIED:'Android ปฏิเสธ USBDevice.open() ก่อนติดต่อ ECU'
+});
 const notify=()=>{
  window.__55LiveV21?.render?.();
 };
@@ -37,7 +46,7 @@ old.snapshot=()=>{
  return {
   mode:'gauge',source:s.running?'ecu':'idle',demo:false,run:s.running,
   connected:s.connected,cable:s.cable,connecting:s.connecting,
-  model:chosen?.id||'',ecuId:s.ecuId,group:s.group,
+  model:chosen?.id||'',ecuId:s.ecuId,group:s.group,phase:s.phase,
   protocol:s.connected?'Honda K-Line / Main FM_diag.cs':'—',
   profAvailable:true,afrSupported:s.group!==7,
   afrSource:s.group===7?'C# Group 7 ไม่มีช่อง A/F':
@@ -45,7 +54,7 @@ old.snapshot=()=>{
   values,refreshHz:s.hz,sampleSeq:s.sampleSeq,sampleAt:s.sampleAt,
   recording:s.recording,recordSeconds:s.recordSeconds,hasLog:s.hasLog,
   message:s.error||lastConnectError||(
-   s.connecting?'กำลังเชื่อมต่อ FT232R และอ่าน ECU ID จริง…':
+   s.connecting?(phases[s.phase]||'กำลังเชื่อมต่อ FT232R และอ่าน ECU ID จริง…'):
    s.running?'กำลังอ่านข้อมูลจาก FM_diag.cs Group '+s.group:
    s.connected?'เชื่อมต่อแล้ว • เลือก Group และกดเริ่มอ่าน ECU':'เชื่อมต่อ FT232R และอ่าน ECU ID ก่อน'
   )
