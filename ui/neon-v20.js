@@ -466,7 +466,8 @@ function navigate(id){
  // The old in-page ADX renderer is retained only as an inactive compatibility backend
  // for legacy DTC; users must never be routed to it from the homepage.
  if(id==='live'){
-  window.location.assign(new URL('flash_port/main-source-live.html?v=260',document.baseURI).href);
+  // Open the existing Neon Live page; the FM_diag.cs session feeds its gauges.
+  if($('goLive'))$('goLive').click();
   return;
  }
  // The homepage DTC tile opens the dedicated redesigned page immediately.
