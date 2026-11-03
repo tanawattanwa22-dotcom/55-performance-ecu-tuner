@@ -62,6 +62,9 @@ export function csharpOffsetInference(bytes,{ecuId}={}){
      'Exact ECU ID, flash memory region and controller type must match the physical ECU.',
      'The detected type/offset is not a flash authorization.',
      ...(n===65536&&classHint==='UNDETERMINED'?['64 KB BIN alone does NOT establish SHINDENGENRH850B or KEIHINOTHER.']:[]),
-     ...(startOffset!==null&&startOffset>=n?['Source C# start offset exceeds BIN length; cannot use this inference for flash.']:[])
+     ...(startOffset!==null&&startOffset>=n&&classHint.startsWith('SHINDENGEN')?
+      ['Shindengen file start offset is outside BIN bounds; do not start write.']:[]),
+     ...(startOffset!==null&&startOffset>=n&&!classHint.startsWith('SHINDENGEN')?
+      ['Keihin Start Offset is an ECU flash address (not a BIN array index); verify 16-bit frame address and matched ECU profile.']:[])
    ]};
 }
