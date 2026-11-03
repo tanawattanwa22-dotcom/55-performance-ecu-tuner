@@ -2211,6 +2211,10 @@ async function initTunerAfterLicense(){
   await syncModels();
   startApp();
   started=true;
+  // This flag is set only after the server-side License check has granted
+  // access through __ecuOnLicenseGranted. Do not perform another network
+  // License request during a physical Android WebUSB user gesture.
+  window.__55EcuAuthorizedSession=true;
   show("home");
   history.replaceState({p:"home"},"");
   if(!Object.keys(DEFS).length){
