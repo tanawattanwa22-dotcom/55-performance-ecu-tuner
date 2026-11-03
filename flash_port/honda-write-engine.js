@@ -8,7 +8,7 @@
  * signatures. This is NOT hardware validated on every ECU; bench testing is required.
  */
 import {READ_ONLY_COMMANDS,toHex,hondaChecksum,FAST_SWITCH_COMMAND} from './ftdi-webusb.js?v=301';
-import {createWriteFrame,resolveWriteProfile} from './flash-frames.js';
+import {createWriteFrame,resolveWriteProfile} from './flash-frames.js?v=315';
 import {inspectCSharpEcuType,correctKeihinChecksum,correctShindengenChecksum,deriveShindengenWriteKey} from './csharp-logic.js';
 import {csharpOffsetInference,catalogLookup} from './csharp-offsets.js?v=313';
 import {findCSharpEcuId} from './csharp-ecu-catalog.js?v=302';
