@@ -10,6 +10,12 @@ on:
       - "tools/verify-neon-browser.mjs"
       - "tools/verify-main-full-flash-browser.mjs"
       - ".github/workflows/neon-ui-mobile.yml"
+  pull_request:
+    paths:
+      - "flash_port/**"
+      - "tools/verify-main-full-flash-browser.mjs"
+      - "tools/verify-neon-browser.mjs"
+      - ".github/workflows/neon-ui-mobile.yml"
   workflow_dispatch:
 
 permissions:
