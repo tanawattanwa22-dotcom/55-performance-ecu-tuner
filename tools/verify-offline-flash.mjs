@@ -54,7 +54,7 @@ assert(p.includes("from '../honda-write-engine.js?v=319'"),'offline imports sour
 assert(old.includes("from './honda-write-engine.js?v=319'"),'online matches recovery engine revision');
 assert(p.includes('engine.confirmRecoveryFamily(data)')&&old.includes('engine.confirmRecoveryFamily(data)'),'recovery family check is wired in both flash UIs');
 assert(p.includes('checksumOffsetOverride:')&&old.includes('checksumOffsetOverride:'),'C# recovery checksum offset option is wired in both UIs');
-assert(p.includes("from '../ftdi-webusb.js'"),'offline imports exact same FTDI transport');
+assert(p.includes("from '../ftdi-webusb.js?v=301'"),'offline imports same WebUSB transport revision');
 assert(p.includes('verifySavedOfflinePermit(localStorage.getItem'), 'permit checked immediately before real erase');
 assert(!p.includes('async function token()'), 'do not clone login secrets into offline page');
 const sw=asText('flash_port/offline/sw.js');
