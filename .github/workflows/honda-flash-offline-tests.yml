@@ -47,3 +47,5 @@ jobs:
         run: node tools/verify-ui-v19.mjs
       - name: Verify saved BIN snapshot and mobile customer flash handoff
         run: node tools/verify-tune-bin-flow.mjs
+      - name: Verify V24 read-only ECU Preflight and Wideband-only AFR sensor
+        run: node tools/verify-preflight-afr-v24.mjs
