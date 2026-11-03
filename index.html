@@ -235,6 +235,27 @@ table.g th,table.g td{border-right:1px solid rgba(255,255,255,.35);border-bottom
 #vTune .btn,#vLog .btn{white-space:normal;height:auto;min-height:50px;padding:10px 14px;line-height:1.3}
 #vTune label.mu{display:flex;align-items:center;gap:8px}
 #vTune .card{overflow:hidden}
+
+/* MSX K26 — compact original tune grid, no custom tuner. */
+#tune.msx-compact{--cw:69px}
+#tune.msx-compact .top{padding:calc(4px + env(safe-area-inset-top)) 9px 4px;gap:7px;min-height:45px}
+#tune.msx-compact .top .lg{width:29px;height:29px}
+#tune.msx-compact .top b{font-size:13px}
+#tune.msx-compact .top small{display:none!important}
+#tune.msx-compact .ib{width:33px;height:33px;font-size:16px}
+#tune.msx-compact .tune-progress{display:none!important}
+#tune.msx-compact .tabs{padding:5px 7px;gap:5px}
+#tune.msx-compact .chip{height:33px;font-size:12px;padding:0 10px}
+#tune.msx-compact .sub{padding:3px 8px;gap:4px;min-height:37px}
+#tune.msx-compact .sub b{font-size:14px;max-width:51vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+#tune.msx-compact #tSub,#tune.msx-compact #tUnit,#tune.msx-compact #axT{display:none!important}
+#tune.msx-compact table.g th,#tune.msx-compact table.g td{height:42px;font-size:13px;min-width:var(--cw);padding:0 5px}
+#tune.msx-compact #gw{padding-bottom:calc(65px + env(safe-area-inset-bottom))}
+#tune.msx-compact #fp.cl{left:auto!important;right:8px!important;bottom:calc(59px + env(safe-area-inset-bottom))!important;width:116px!important}
+#tune.msx-compact #fp.cl .hd{height:35px;padding:5px 8px}
+#tune.msx-compact #fp.cl .hd .gr,#tune.msx-compact #fp.cl .hd .st{display:none}
+#tune.msx-compact #fp.cl .hd b{font-size:12px}
+#tune.msx-compact #fp.cl .hd .mini{height:27px;font-size:12px;min-width:44px;padding:0 4px}
 </style>
 <link rel="stylesheet" href="ui/v19-modern.css?v=185">
 <link rel="stylesheet" href="ui/neon-v20.css?v=201">
@@ -977,13 +998,21 @@ function editAxis(ax,i){
 }
 $("#axT").onclick=e=>{S.axEdit=!S.axEdit;e.target.classList.toggle("on",S.axEdit);if(S.axEdit)toast("แตะตัวเลขหัวแถว/หัวคอลัมน์เพื่อแก้ค่าแกน",2200)};
 /* switches */
-function swOn(w){return w.i.every(([a,m,want])=>want?(S.bin[a]&m)===m:(S.bin[a]&m)===0)}
+function swOn(w){return !!w?.i?.length&&w.i.every(([a,m,want])=>want?(S.bin[a]&m)===m:(S.bin[a]&m)===0)}
 function renderSw(){
   const g=$("#gw");
-  g.innerHTML='<div style="padding:12px">'+M.sw.map((w,k)=>`<div class="it" data-k="${k}" style="padding:14px"><div class="sp"><b>${esc(w.t)}</b>${w.s?`<small>${esc(w.s)}</small>`:""}</div><div class="sw${swOn(w)?" on":""}"></div></div>`).join("")+"</div>";
+  g.innerHTML='<div style="padding:10px">'+M.sw.map((w,k)=>{
+   const ro=!!w.ro;
+   const state=ro?'<span class="tag" style="white-space:nowrap;color:#ffd39b">อ่านอย่างเดียว</span>':
+    `<div class="sw${swOn(w)?" on":""}"></div>`;
+   return `<div class="it" data-k="${k}" aria-disabled="${ro}" style="padding:11px 12px;align-items:center">
+     <div class="sp"><b>${esc(w.t)}</b>${w.s?`<small>${esc(w.s)}</small>`:""}</div>${state}</div>`;
+  }).join("")+"</div>";
 }
 function toggleSw(k){
-  const w=M.sw[k],on=swOn(w),list=[];
+  const w=M.sw[k];
+  if(!w||w.ro||!w.i?.length){toast("รายการนี้ XDF ยังไม่ยืนยันให้เขียนได้ จึงเปิดดูได้อย่างเดียว",3800);return}
+  const on=swOn(w),list=[];
   for(const[a,m,want]of w.i){
     const setBits=on?!want:want,cur=S.bin[a];
     list.push([a,setBits?(cur|m)&255:(cur&~m)&255]);
