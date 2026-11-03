@@ -60,7 +60,7 @@ function axisValues(axis,count){
  }
  return Array.from({length:count},(_,i)=>String(i+1));
 }
-const locked=t=>['0X11B4','0X1EB'].includes(t.id)||t.cat===9;
+const locked=t=>['0X11B4','0X1EB','0X2863','0X3BD6','0X4193'].includes(t.id);
 function changedCell(t,r,c){
  const at=cellOffset(t,r,c),len=t.bits/8;
  for(let k=0;k<len;k++)if(state.bytes[at+k]!==state.original[at+k])return true;
