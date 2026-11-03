@@ -526,7 +526,7 @@ const MODELS=[
  {id:"K2J-T01",sub:"ตระกูล ECU K2J",fam:"K1MA",ck:"sum0"},
  {id:"K2J-TH1",sub:"ตระกูล ECU K2J",fam:"K1MA",ck:"sum0"},
  {id:"K03-H01",sub:"ตระกูล ECU K03",fam:"K03S",ck:"sum0"},
- {id:"MSX-GEN1-K26-901",sub:"Honda MSX125 เจนแรก · 38770-K26-901 · ตาราง XDF 29 ชุด",fam:"",ck:"none",xdf:true}];
+ {id:"MSX-GEN1-K26-901",sub:"Honda MSX125 เจนแรก · 38770-K26-901 · ตาราง XDF 29 ชุด",brand:"Honda",fam:"",ck:"none",xdf:true}];
 const curCk=()=>{const m=S.mi>=0?MODELS[S.mi]:null;return m?m.ck:"sum0"};
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -2730,7 +2730,7 @@ function v3Draw(){
 </script>
 
 <script src="ui/neon-preflight-v24.js?v=318"></script>
-<script src="ui/neon-v20.js?v=306"></script>
+<script src="ui/neon-v20.js?v=319"></script>
 <script src="ui/neon-live-v21.js?v=250"></script>
 <script src="ui/neon-dtc-v23.js?v=312"></script>
 <script type="module" src="ui/neon-main-live-v25.js?v=312"></script>
