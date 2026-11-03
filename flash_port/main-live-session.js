@@ -307,30 +307,35 @@ export class MainLiveSession {
  async detectGroup(){
   if(!this.port?.ready)throw Error('ต้องเปิด FT232R ก่อนตรวจกลุ่ม Live');
   this.detectedGroup=null;this.group4Variant=null;
+  const failures=[];
+  // Source FM_diag.cs can use Group 7, 4, and 1. If a read-only probe
+  // times out, FTDI closes the pending WebUSB read. Reopen the SAME
+  // user-approved device and do a fresh wake before probing the next group.
   for(const candidate of SOURCE_AUTO_PROBE_ORDER){
    if(this.stopRequested||this.disconnectRequested)return null;
-   const frame=MAIN_CAPTURE_COMMANDS[candidate][0];
-   if(!FRAME_ALLOWLIST.has(frame.join(',')))throw Error('Frame probe ไม่อยู่ใน allowlist');
-   try{
-    const {reply,echoOK}=await this.port.exchangeRaw(frame,{timeoutMs:1700,afterWriteMs:50});
-    if(acceptedSourceProbe(reply,echoOK)){
-     this.detectedGroup=candidate;
-     if(candidate===4&&reply.length>10)
-      this.group4Variant=reply[9]===255&&reply[10]===255?4:8;
-     this.notify();return candidate;
+   const frame=MAIN_CAPTURE_COMMANDS[candidate]?.[0];
+   if(!frame||!FRAME_ALLOWLIST.has(frame.join(',')))throw Error('Group command not in Main C# allowlist');
+   if(!this.port?.ready){
+    try{await this._reopenDiagnostic()}
+    catch(e){
+     failures.push('USB reopening failed: '+String(e?.message||e));
+     break;
     }
-   }catch(error){
-    // Preserve the actual transport failure. A closed FTDI interface cannot
-    // safely continue probing another group without a new diagnostic wake.
-    const reason=String(error?.message||error);
-    this.error='Diagnostic Group '+candidate+' RX failure: '+reason;
-    this.phase='DIAGNOSTIC_RX_FAILED';this.notify();
-    if(!this.port?.ready)throw Error('Diagnostic Group '+candidate+' RX timeout / FTDI closed: '+reason);
-    throw Error('Diagnostic Group '+candidate+' invalid reply: '+reason);
+   }
+   try{
+    this.phase='LIVE_PROBE_GROUP_'+candidate;this.notify();
+    const {reply,echoOK}=await this.port.exchangeRaw(frame,{timeoutMs:1700,afterWriteMs:50});
+    if(!acceptedSourceProbe(reply,echoOK))throw Error('ECU reply does not match source diagnostic framing');
+    this.detectedGroup=candidate;
+    if(candidate===4&&reply.length>10)this.group4Variant=reply[9]===255&&reply[10]===255?4:8;
+    this.error='';this.liveGroupError='';this.notify();return candidate;
+   }catch(e){
+    const reason='Group '+candidate+': '+String(e?.message||e);
+    failures.push(reason);this.liveGroupError=failures.join(' | ');this.notify();
+    if(this.stopRequested||this.disconnectRequested)return null;
    }
   }
-  if(!this.port?.ready)throw Error('FT232R ไม่พร้อมหลังตรวจกลุ่ม Live');
-  throw Error('ยังไม่มี Group 7/4/1 ที่ ECU ตอบและถอดรหัสข้อมูลครบ');
+  throw Error('ECU ไม่ตอบกลุ่ม Live 7 / 4 / 1 · ตรวจ K-Line, ไฟ ECU, กุญแจ ON; '+failures.join(' | '));
  }
  async _cycle(group){
   const frames=MAIN_CAPTURE_COMMANDS[group],capture=[];
@@ -390,16 +395,33 @@ export class MainLiveSession {
     await WAIT(80);
    }
   }catch(e){
-   this.error='Live Data หยุด: '+String(e?.message||e);
-   this.phase='LIVE_STOPPED';this.disconnectRequested=true;
+   this.error='Live Data ไม่ได้รับคำตอบ ECU: '+String(e?.message||e);
+   this.phase='LIVE_RX_FAILED';
   }finally{
-   this.running=false;this.recording=false;this.stopRequested=false;
+   this.running=false;this.recording=false;
    if(this.disconnectRequested){
     const port=this.port;this.port=null;this.ecuId='';
     if(port)try{await port.close()}catch{}
     this.values=EMPTY();this.hz=null;this.disconnectRequested=false;
+   }else if(this.port&&!this.port.ready){
+    // Recovery is for read-only diagnostics only. Never retry programming
+    // writes or bypass Flash Engine validation on a failed USB transfer.
+    const dev=this.port.lastDevice;
+    if(dev){
+     const restored=new Ft232rWebUsb();this.port=restored;
+     try{
+      await TIME_LIMIT(restored.openSelected(dev),7000,'FT232R USB reopen timeout');
+      this.phase='USB_READY_NO_ECU';
+      this.autoStatus='FT232R เปิดพอร์ตได้อีกครั้ง · ECU ยังไม่ตอบ · ตรวจสายแล้วกดอ่านใหม่';
+     }catch(error){
+      this.port=null;this.phase='USB_LOST';
+      this.error+=' • เปิด USB กลับไม่สำเร็จ: '+String(error?.message||error);
+     }
+    }else{this.port=null;this.phase='USB_LOST'}
+   }else if(this.port?.ready&&this.phase==='LIVE_RX_FAILED'){
+    this.phase='USB_READY_NO_ECU';
    }
-   this.notify();
+   this.stopRequested=false;this.notify();
   }
  }
  stop(){this.stopRequested=true;this.recording=false;this.notify()}
