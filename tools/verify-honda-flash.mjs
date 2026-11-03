@@ -157,14 +157,28 @@ await check('Fast switch command is the only unframed command allowed by exchang
  u.ready=true;try{await u.exchangeRaw(mut,{timeoutMs:100})}catch(x){badMsg=x.message}
  return !/Invalid framed|Incorrect command checksum/.test(okMsg)&&/Invalid framed command length/.test(badMsg);
 });
-await check('Recovery plan only for ECU ID ending 0000 with Shindengen BIN',async()=>{
+await check('Recovery requires physical boot ID and family-specific flash count',async()=>{
  const good=new HondaFlashEngine(fake('0102030000'));await good.identify();
- const p=good.makePlan(shBin(),{filename:'any.bin',recovery:true});
+ const source=shBin();source.set([1,2,3,4,5,6,145,145,13,0,158,141],500);
+ let blockedBeforeProbe=false;
+ try{good.makePlan(source,{filename:'any.bin',recovery:true})}catch(e){blockedBeforeProbe=e.code==='RECOVERY_FAMILY_UNVERIFIED'}
+ const confirmed=await good.confirmRecoveryFamily(source);
+ const plan=good.makePlan(source,{filename:'any.bin',recovery:true});
  const other=new HondaFlashEngine(fake('0101880D01'));await other.identify();
  let rejectedId=false,rejectedBin=false;
- try{other.makePlan(shBin(),{filename:'any.bin',recovery:true})}catch(x){rejectedId=x.code==='RECOVERY_ID'}
- try{good.makePlan(new Uint8Array(65536),{filename:'any.bin',recovery:true})}catch(x){rejectedBin=true}
- return p.recovery===true&&p.profile.startsWith('SHINDENGEN')&&Number.isInteger(p.startOffset)&&rejectedId&&rejectedBin;
+ try{await other.confirmRecoveryFamily(source)}catch(e){rejectedId=e.code==='RECOVERY_NOT_BOOT_ID'||e.code==='RECOVERY_ID'}
+ try{good.makePlan(new Uint8Array(65536),{filename:'any.bin',recovery:true})}catch(e){rejectedBin=true}
+ return blockedBeforeProbe&&confirmed.family==='SHINDENGEN'&&
+   confirmed.recoveryFamilyVerified&&plan.recovery&&plan.profile.startsWith('SHINDENGEN')&&
+   Number.isInteger(plan.startOffset)&&rejectedId&&rejectedBin;
+});
+await check('Keihin Recovery supports original BIN-size offset inference, never fake flash count',async()=>{
+ const good=new HondaFlashEngine(fake('0102030000'));await good.identify();
+ const bin=new Uint8Array(65536);bin[123]=4;
+ await good.confirmRecoveryFamily(bin);
+ const p=good.makePlan(bin,{filename:'backup.bin',recovery:true});
+ return p.profile==='KEIHINOTHER'&&p.startOffset===0x8000&&
+   p.checksumOffset===0&&p.checks.recoveryFamilyEvidence==='MAIN_WORKER_FLASH_COUNT_ACK';
 });
 const ok=checks.filter(x=>x.ok).length;
 console.log('\n'+ok+'/'+checks.length+' PASS — OFFLINE/MOCK ONLY');
