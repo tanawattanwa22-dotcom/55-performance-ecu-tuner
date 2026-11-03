@@ -78,11 +78,10 @@ export class MainLiveSession {
    this.phase='USB_OPEN';this.notify();
    port=new Ft232rWebUsb();this.port=port;
    await port.openSelected(device);
-   this.phase='ECU_ID_PROBE';this.notify();
-   // Read-only diagnostic mode: do not require a flash-session identity
-   // before attempting the Main C# diagnostic group probe. Flash paths
-   // retain their separate mandatory ECU ID / BIN compatibility checks.
-   this.ecuId='';
+   // Diagnostic mode must use FM_diag.cs method_25, not flash identify().
+   this.phase='MAIN_DIAG_WAKE';this.notify();
+   await port.sourceDiagnosticWake();
+   this.ecuId=''; // Diagnostic wake is not a verified ECU identity.
    this.phase='DIAGNOSTIC_READY';this.notify();
    if(this.disconnectRequested){await port.close();this.port=null;return false;}
    this.values=EMPTY();this.phase='DIAGNOSTIC_READY';this.notify();
