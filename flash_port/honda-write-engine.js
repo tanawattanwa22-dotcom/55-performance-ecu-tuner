@@ -74,8 +74,8 @@ function nextNonBlank(bin,index,total,blockSize){
  return next;
 }
 export class HondaFlashEngine {
- constructor(usb,onEvent=()=>{}){
-  this.usb=usb;this.onEvent=onEvent;this.state='idle';
+ constructor(usb,onEvent=()=>{},wait=sleep){
+  this.usb=usb;this.onEvent=onEvent;this.wait=wait;this.state='idle';
   this.identity=null;this.lastResult=null;
  }
  emit(phase,detail={}){
@@ -207,13 +207,13 @@ export class HondaFlashEngine {
   this.emit('PREWRITE_BEGIN');
   await this.x('KH_HANDSHAKE_A',CMD.kh1,{timeoutMs:2500});
   await this.x('KH_HANDSHAKE_B',CMD.kh2,{timeoutMs:2500});
-  await sleep(200);
+  await this.wait(200);
   await this.x('KH_READY',CMD.khPoll,{timeoutMs:2500});
   for(let n=10;n>=1;n--){
    this.emit('SECURITY_WAIT',{secondsRemaining:n});
-   await sleep(1000);
+   await this.wait(1000);
   }
-  await sleep(500);
+  await this.wait(500);
   this.emit('ERASE_BEGIN'); // First following command begins destructive phase
   await this.x('KH_PREPARE',CMD.khPrepare,{timeoutMs:2400,afterWriteMs:250});
   await this.x('KH_ERASE_PARAM',CMD.khErase1,{timeoutMs:2400});
@@ -223,7 +223,7 @@ export class HondaFlashEngine {
   await this.x('KH_ERASE_GO',CMD.khErase3,{timeoutMs:2500});
   const r=await this.x('KH_ERASE_STATUS',CMD.khErase4,{timeoutMs:5000});
   if(r[3]!==0)fail('ERASE_ERROR','ECU refused erase: status '+r[3]);
-  await sleep(2000);
+  await this.wait(2000);
   const verify=await this.x('KH_ERASE_FINISH',CMD.khEraseFinal,{timeoutMs:5000,afterWriteMs:250});
   if(verify[3]!==0)fail('ERASE_NOT_DONE','ECU did not confirm erase: status '+verify[3]);
   await this.x('KH_POLL_3',CMD.khPoll,{timeoutMs:2400});
@@ -276,7 +276,7 @@ export class HondaFlashEngine {
    sent++;
    if(plan.blockBytes===64&&(current+1)%2===0){
      await this.x('KH_H8C_FLUSH',CMD.kh64Flush,{timeoutMs:3000});
-     await sleep(100);
+     await this.wait(100);
    }
    this.emit('WRITE_PROGRESS',{bytesCovered:next*blockSize,totalBytes:plan.bin.length,
      percent:Math.floor(next*100/total),blocksSent:sent});
@@ -292,8 +292,8 @@ export class HondaFlashEngine {
   const latency=plan.fast?0:150; // C# sleepMs: 150 unless fastWrite
   await this.x('SH_HANDSHAKE_A',CMD.shHello1,{timeoutMs:3000,afterWriteMs:latency});
   await this.x('SH_HANDSHAKE_B',CMD.shHello2,{timeoutMs:3000,afterWriteMs:latency});
-  for(let n=10;n>=1;n--){this.emit('SH_SECURITY_WAIT',{secondsRemaining:n});await sleep(1000)}
-  await sleep(500);
+  for(let n=10;n>=1;n--){this.emit('SH_SECURITY_WAIT',{secondsRemaining:n});await this.wait(1000)}
+  await this.wait(500);
   const seedReply=await this.x('SH_GET_SEED',CMD.shSeed,{timeoutMs:3200,afterWriteMs:latency});
   if(seedReply.length!==7||seedReply[3]!==0)
     fail('SH_BAD_SEED','Shindengen ECU seed response not valid');
@@ -310,7 +310,7 @@ export class HondaFlashEngine {
   await this.x('SH_ERASE_MODE',CMD.shErase3,{timeoutMs:3500,afterWriteMs:latency});
   const erase=await this.x('SH_ERASE_START',CMD.shErase4,{timeoutMs:5000,afterWriteMs:latency});
   if(erase[3]!==0)fail('SH_ERASE_STATUS','Shindengen erase failed status '+erase[3]);
-  await sleep(2000);
+  await this.wait(2000);
   const result=await this.x('SH_ERASE_FINISH',CMD.shEraseFinal,{timeoutMs:6000,afterWriteMs:latency});
   if(result[3]!==0)fail('SH_ERASE_FAILED','Shindengen erase completion failed '+result[3]);
   this.emit('SH_ERASE_ACKNOWLEDGED');
@@ -324,7 +324,7 @@ export class HondaFlashEngine {
   ]){
     const r=await this.x(label,frame,{timeoutMs:6000,afterWriteMs:plan.fast?0:150});
     if(label==='SH_FINAL5'&&r[3]!==15)fail('SH_FINAL_ACK','Shindengen final ACK must be 0x0F');
-    if(delay)await sleep(delay);
+    if(delay)await this.wait(delay);
   }
   this.emit('SH_FINAL_ACK');
  }
@@ -345,7 +345,7 @@ export class HondaFlashEngine {
    const reply=await this.x(name,bytes,{timeoutMs:4000});
    if(name==='KH_POLL_F4'&&reply[3]!==15)fail('FINAL_ACK','Final poll must return ECU status 0x0F');
    if(name==='KH_FINAL_5'&&reply[3]!==15)fail('FINAL_ACK','Final status must be 0x0F');
-   if(waitMs)await sleep(waitMs);
+   if(waitMs)await this.wait(waitMs);
   }
   this.emit('FINAL_ACK_RECEIVED');
  }
