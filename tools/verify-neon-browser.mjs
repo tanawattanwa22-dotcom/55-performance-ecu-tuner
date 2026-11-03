@@ -113,8 +113,8 @@ try{
   await page.evaluate(()=>document.querySelector('#v20Nav [data-cat="flash"]').click());
   assert.equal(await page.locator('#flashCard').evaluate(el=>el.classList.contains('n20-hidden')),true,'old Flash form hidden behind V24');
   assert.equal(await page.locator('#n20Stage .n24-hero').isVisible(),true,'real-state V24 Flash dashboard visible');
-  assert.equal(await page.locator('#n20Stage .n24-panel').count(),4,'BIN, ECU, Offset and checklist panels');
-  assert.equal(await page.locator('#n20Stage .n24-info-line').count(),14,'read-only BIN/ECU/Offset fields');
+  assert.equal(await page.locator('#n20Stage .n24-panel').count(),5,'BIN upload, ECU, Offset and checklist panels');
+  assert.equal(await page.locator('#n20Stage .n24-info-line').count(),15,'read-only BIN/ECU/Offset fields');
   assert.equal(await page.locator('#n20Stage .n24-check-row').count(),5,'five preflight checks');
   assert.equal(await page.locator('#n20Stage [data-n24="ecu"]').innerText(),'ยังไม่ได้อ่านจาก ECU','ECU ID never fabricated');
   assert.equal(await page.locator('#n20Stage [data-n24="start"]').innerText(),'—','Offset never fabricated');
