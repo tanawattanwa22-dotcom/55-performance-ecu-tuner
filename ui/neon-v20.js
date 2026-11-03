@@ -432,6 +432,7 @@ const toolLinks=[
  ['📊 Main C# Live Data','flash_port/main-source-live.html'],
  ['🧰 DTC C# / 6-bank','flash_port/main-source-dtc.html'],
  ['🗂️ จัดการ ecuData.dat','flash_port/main-source-manager.html'],
+ ['📋 ค้นฐาน ECU 290 รายการ (Main C#)','flash_port/main-ecu-catalog.html'],
  ['📦 ACG / ECU → BIN','flash_port/main-source-converter.html'],
  ['🧮 วิเคราะห์ Auto Offset','flash_port/main-source-offset-lab.html'],
  ['🔎 สแกน BIN ID + Checksum จาก Main C# (11 ขนาด)','flash_port/main-bin-audit.html'],
