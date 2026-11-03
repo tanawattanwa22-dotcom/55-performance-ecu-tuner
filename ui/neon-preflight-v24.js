@@ -9,6 +9,13 @@ const X=n=>Number.isInteger(n)?'0x'+n.toString(16).toUpperCase().padStart(8,'0')
 const make=(tag,cls,txt)=>{const el=document.createElement(tag);if(cls)el.className=cls;if(txt!==undefined)el.textContent=txt;return el};
 const btn=(txt,cls,fn)=>{const e=make('button',cls,txt);e.type='button';e.onclick=fn;return e};
 let stage=null,dom={},working=false,last=null,confirmAt=null,hash=null,error='',message='';
+let catalog290={rows:null,error:null};
+import(new URL('flash_port/csharp-ecu-catalog.js?v=302',document.baseURI).href)
+ .then(mod=>mod.loadCSharpCatalog())
+ .then(rows=>{catalog290={rows,error:null};render()})
+ .catch(e=>{catalog290={rows:null,error:e?.message||String(e)};render()});
+const catalogRecord=identity=>identity?.ecuId?(catalog290.rows?.get(String(identity.ecuId).toUpperCase())||identity.catalog||null):null;
+const sourceOffset=(n,raw)=>Number.isInteger(n)?X(n):raw==='auto'?'AUTO (Main C#)':raw===''?'ไม่ระบุใน Main C#':'—';
 const current=()=>{
  const s=S.saved,m=S.mi>=0&&MODELS[S.mi]?MODELS[S.mi]:null;
  let valid=false;
@@ -51,23 +58,24 @@ function addChecklist(box){
 }
 function render(){
  if(!stage?.isConnected)return;
- const c=current(),identity=recency()?last?.identity:null,plan=verified()?last?.plan:null;
+ const c=current(),identity=recency()?last?.identity:null,plan=verified()?last?.plan:null,source=catalogRecord(identity);
  const progress=c.valid&&last?.saved===c.saved&&recency();
  setItem('model',c.model||'ยังไม่เลือกรุ่น');
+ setItem('dbcount',catalog290.rows?'290 รายการ · KEIHIN 232 / SHINDENGEN 58':catalog290.error?'โหลดฐาน ECU ไม่สำเร็จ: '+catalog290.error:'กำลังโหลดฐาน ECU 290 รายการ');
  setItem('filename',c.valid?c.saved.filename:'ยังไม่ได้บันทึก BIN');
  setItem('source',c.valid?(c.saved.customerBin?'BIN ที่นำเข้าจากเครื่อง':'Master BIN (จากแอป)'):'—');
  setItem('size',c.valid?c.bytes.length.toLocaleString('en-US')+' bytes ('+(c.bytes.length/1024).toFixed(2)+' KB)':'—');
  setItem('sha',hash&&hash.saved===c.saved&&c.valid?hash.hex.slice(0,20)+'…':'ยังไม่ได้คำนวณ');
  setItem('ecu',identity?.ecuId||'ยังไม่ได้อ่านจาก ECU');
- setItem('part',identity?.sourcePart||'—');
- setItem('family',identity?.family||'—');
+ setItem('part',identity?(source?.part||identity.sourcePart||'ไม่ระบุใน Main C#'):'—');
+ setItem('family',identity?(source?.family||identity.family||'ไม่ระบุ'):'—');
  setItem('flashcount',Number.isInteger(identity?.count)?identity.count+' ครั้ง':'อ่านไม่ได้');
- setItem('sourceMatch',identity?(identity.sourceMatched?'ตรงฐาน Main C#':'ไม่ตรง / ยังไม่ยืนยัน'):'รอ ECU');
- setItem('start',X(plan?.startOffset));
- setItem('checksum',X(plan?.checksumOffset));
+ setItem('sourceMatch',identity?(identity.sourceMatched?'ECU ID + Family ยืนยันแล้ว':source?(source.part?'พบ ID ในฐาน · ยังไม่ยืนยัน Family':'พบ ID แต่ไม่มี Part Code'):'ไม่พบ ECU ID ในฐาน 290'):'รอ ECU');
+ setItem('start',plan?X(plan.startOffset):source?sourceOffset(source.startOffset,source.startOffsetText):'—');
+ setItem('checksum',plan?X(plan.checksumOffset):source?sourceOffset(source.checksumOffset,source.checksumOffsetText):'—');
  setItem('block',Number.isInteger(plan?.blockBytes)?plan.blockBytes.toLocaleString()+' bytes':'—');
  setItem('profile',plan?.profile||'ยังไม่มีแผนที่ยืนยัน');
- setItem('offsetState',plan?'ตรวจด้วย HondaFlashEngine / C# แล้ว':'ยังไม่ผ่านการตรวจ');
+ setItem('offsetState',plan?'ตรวจด้วย HondaFlashEngine / C# แล้ว':source?'อ้างอิงฐาน Main C# เท่านั้น · ยังไม่ตรวจ BIN':'ยังไม่ผ่านการตรวจ');
  dom.note.textContent=error?'หยุดตรวจ: '+error:message||
   'การตรวจนี้อ่าน ECU ID และคำนวณแผนเท่านั้น ไม่มีคำสั่ง ERASE/WRITE · ขั้นตอนอัดจริงจะอ่าน ID ใหม่';
  const status={
@@ -192,6 +200,7 @@ function mount(host){
  const file=card('n24-bin','▧','ไฟล์ที่จะอัด (BIN)');
  file.append(line('filename','ชื่อไฟล์'),line('source','ประเภทไฟล์'),line('size','ขนาดไฟล์'),line('sha','Checksum (SHA-256)'));stage.append(file);
  const ecu=card('n24-ecu','▣','ข้อมูล ECU (Identification)');
+ ecu.append(line('dbcount','ฐานข้อมูลจาก Main.zip','กำลังโหลด…'));
  ecu.append(line('ecu','ECU ID'),line('part','Part Code'),line('family','Family'),line('flashcount','Flash Count'),line('sourceMatch','Source Match'));stage.append(ecu);
  const map=card('n24-map','▱','Auto Offset / Memory Map');
  map.append(line('start','Start Offset'),line('checksum','Checksum Offset'),line('block','Block Size'),line('profile','C# ECU Profile'),line('offsetState','สถานะตรวจ'));stage.append(map);
@@ -230,7 +239,7 @@ function mount(host){
   routes.append(a);
  }
  stage.append(routes);
- const help=make('p','n24-help','ต้องเลือก FT232R ด้วย Chrome Android • การอ่าน ID และตรวจ Preflight ไม่ลบ/เขียน ECU • ทุกสถานะมาจากการอ่านจริงหรือการคำนวณของ C# Flash Engine เท่านั้น');
+ const help=make('p','n24-help','ฐาน Main.zip มี 290 ECU ID: Keihin 232 + Shindengen 58 (2 ID ไม่มี Part Code ต้นฉบับ) • การแสดง ID/Offset เป็นข้อมูลอ้างอิง ไม่ได้ยืนยันว่า BIN ตรงกับกล่อง • การอ่านและ Preflight ไม่ลบ/เขียน ECU');
  stage.append(help);
  render();
 }
