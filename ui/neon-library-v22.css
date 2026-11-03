@@ -232,3 +232,9 @@
 .n22-feature-card>.n22-feature-detail{align-self:center}
 .n22-feature-card>.n22-empty{min-height:93px}
 @media(max-width:359px){.n22-feature-card>.n22-feature-actions .n22-row-action{font-size:10px!important}}
+
+/* Distinct local vendor wordmarks, no reliance on external CDN images. */
+.n22-filter-vendor-logo{width:72px;height:24px;object-fit:contain;display:block}
+.n22-filter-chip[data-maker="Shindengen"] .n22-filter-vendor-logo{width:91px}
+.n22-row-vendor-logo{display:block;width:75px;height:19px;object-fit:contain;margin-top:3px;opacity:.88}
+.n22-bin-row>.n22-row-left{min-height:38px}
