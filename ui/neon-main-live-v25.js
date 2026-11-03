@@ -2,7 +2,7 @@
  * Main FM_diag.cs reader is the sole source of real-time sensor values.
  * The legacy ADX/DEMO live engine is never called by this bridge.
  */
-import {MainLiveSession} from '../flash_port/main-live-session.js?v=335';
+import {MainLiveSession} from '../flash_port/main-live-session.js?v=337';
 const old=window.__55LiveBridge;
 if(!old)throw Error('Live UI bridge must be installed before Main V25');
 const originalSnapshot=old.snapshot.bind(old);
@@ -213,8 +213,13 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
   disconnect.disabled=!st.connected&&!st.connecting;
  }
  const oldNotify=reader.onUpdate;
- reader.onUpdate=(...args)=>{oldNotify(...args);updateSharedState()};
+ reader.onUpdate=(...args)=>{
+  oldNotify(...args);
+  updateSharedState();
+  window.__55SyncLegacyUsb?.(reader.status());
+ };
  updateSharedState();
+ window.__55SyncLegacyUsb?.(reader.status());
 }
 // Do not run ECU ID/Live/DTC probes in the background: this could close an
 // otherwise healthy WebUSB port while no motorcycle is attached.
