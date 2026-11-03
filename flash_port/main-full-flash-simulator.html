@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>55 PERFORMANCE · Main C# Full Flash Simulator</title>
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#08111e;color:#d9eaff;font:15px system-ui,sans-serif;line-height:1.5}main{max-width:840px;margin:auto;padding:18px}
+h1{font-size:23px;margin:8px 0}h2{font-size:17px}p{margin:8px 0}small{color:#9eb1c9}
+.card{background:#112138;border:1px solid #284264;border-radius:16px;padding:17px;margin:14px 0}
+.guard{border-color:#e2a04b;background:#302616;color:#ffdfa2}.buttons{display:grid;gap:10px;grid-template-columns:repeat(2,minmax(0,1fr))}
+button,a.link{padding:13px 10px;border-radius:11px;border:1px solid #5289ba;color:white;background:#254a75;font:inherit;cursor:pointer;text-decoration:none;display:block;text-align:center}
+button:disabled{opacity:.5}button:hover{background:#316094}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#07121f;padding:14px;border-radius:12px;max-height:55vh;overflow:auto;font:12px ui-monospace,monospace}
+.good{color:#8efac6}.bad{color:#ffadad}#status{font-weight:700}a{color:#a2dcff}@media(max-width:420px){.buttons{grid-template-columns:1fr}}
+</style></head><body><main>
+<a href="../index.html">← กลับแอป 55 PERFORMANCE</a>
+<h1>Full Flash Simulator · Main C#</h1>
+<p>ตรวจเส้นทาง Keihin / Shindengen / Recovery / ขนาด BIN 384 KB จากอัลกอริทึมในโปรแกรมที่ซื้อ</p>
+<div class="card guard"><b>SIMULATION ONLY — ไม่สั่ง ECU จริง</b><p>หน้านี้ไม่เปิด USB, ไม่อ่านรถจริง, ไม่ส่งคำสั่ง ERASE/WRITE ผ่านสาย FTDI และไม่รับรองการอัด ECU จริง ผล PASS แปลว่าโค้ดทำงานกับกล่องตอบกลับจำลองเท่านั้น</p></div>
+<div class="card"><h2>เลือกชุดทดสอบ</h2><div class="buttons">
+<button data-test="kh">Keihin · ERASE / WRITE / FINISH</button>
+<button data-test="sh">Shindengen · Seed/Key / ERASE / WRITE</button>
+<button data-test="rec">Recovery · Key / ERASE (จำลอง)</button>
+<button data-test="384">384 KB · BIN / Block / Offset Audit</button>
+</div></div>
+<div class="card"><div id="status">ยังไม่เริ่มทดสอบ</div><small id="meta">ไม่มีการเชื่อมต่อ USB</small><pre id="out">เลือกประเภทข้างบนเพื่อจำลองขั้นตอนและตรวจผล</pre><button id="save">ดาวน์โหลด Log</button></div>
+<p><a href="flash-write-lab.html">Flash Bench จริง (ต้องมีการตรวจสายและกล่องก่อน — ห้ามอัดจากผลจำลองเพียงอย่างเดียว)</a></p>
+</main><script type="module">
+import {HondaFlashEngine} from './honda-write-engine.js';
+import {hondaChecksum} from './ftdi-webusb.js';
+import {auditWriteFrames} from './flash-frames.js';
+import {readBinId} from './bin-tools.js';
+import {csharpOffsetInference} from './csharp-offsets.js';
+const $=id=>document.getElementById(id);
+let log=[];
+const push=(s)=>{log.push(s);if(log.length>5000)log.shift();};
+const packet=a=>{const b=Uint8Array.from(a);b[b.length-1]=hondaChecksum(b.subarray(0,b.length-1));return b};
+const reply=status=>packet([2,5,0,status,0]);
+const identityReply=id=>packet([2,11,0,0,0,...id.match(/../g).map(x=>parseInt(x,16)),0]);
+const shBin=()=>{
+ const b=new Uint8Array(262144);b.set([83,86,56,53,48],100);
+ b.set([17,18,19,20,21,21,23],200);b.set([11,12,13,14,15,16],230);
+ b.set([238,0],238);b.set([208,7],300);b.set([90,90,90,90],b.length-4);
+ return b;
+};
+class VirtualEcu{
+ constructor(id){this.id=id;this.ready=true;this.current='';this.bytes=0;this.blocks=0;this.labels=[];this.lastDevice={};}
+ async initializeIso(){} async sendWake(){} async close(){this.ready=false}
+ async setBaud(baud){push('SIM BAUD '+baud)}
+ async exchangeRaw(frame){
+  const name=this.current;this.labels.push(name);
+  if(name==='READ_ECU_ID'||name==='RECHECK_ECU_ID')return {reply:identityReply(this.id),echoOK:true};
+  if(name.includes('FLASH_COUNT'))return {reply:packet([2,8,0,0,0,0,3,0]),echoOK:true};
+  if(name==='SH_GET_SEED')return {reply:packet([2,7,0,0,0x12,0x34,0]),echoOK:true};
+  if(name.startsWith('WRITE_BLOCK_')){
+   if(frame[1]!==frame.length||hondaChecksum(frame)!==0)throw Error('SIM BAD WRITE FRAME');
+   this.blocks++;this.bytes+=frame[1]===75?64:128;
+  }
+  if(name==='KH_POLL_F4'||name==='KH_FINAL_5'||name==='SH_FINAL5')return {reply:reply(15),echoOK:true};
+  return {reply:reply(0),echoOK:true};
+ }
+}
+async function simulate(which){
+ const id=which==='kh'?'0101880D01':which==='sh'?'01046B0F01':'ABCDEF0000';
+ const dev=new VirtualEcu(id);
+ const engine=new HondaFlashEngine(dev,e=>{if(!e.phase.startsWith('WRITE_BLOCK_'))push(e.phase+' '+(e.status??''))},async()=>{});
+ const original=engine.x.bind(engine);
+ engine.x=async(name,frame,opts)=>{dev.current=name;return original(name,frame,opts)};
+ const info=await engine.identify();
+ const bin=which==='kh'?new Uint8Array(65536):shBin();
+ if(which==='kh')bin[512]=0xA5;
+ if(which==='rec')bin.set([1,2,3,4,5,6,145,145,13,0,158,141],500);
+ const plan=engine.makePlan(bin,{filename:which==='kh'?'K03-H01.bin':which==='sh'?'K2SA-N02.bin':'recovery.bin',recovery:which==='rec'});
+ push('ECU '+info.ecuId+' / '+(info.sourcePart||'UNKNOWN'));
+ push('PLAN '+plan.profile+', size '+plan.size+', offset 0x'+plan.startOffset.toString(16)+', checksum offset 0x'+plan.checksumOffset.toString(16));
+ if(which==='rec'){
+  await engine.shPreErase(plan);
+  push('SIM RECOVERY SEED/KEY AND ERASE DONE · NOT VERIFIED FOR PHYSICAL ECU');
+ }else{
+  const result=await engine.flash(plan,{confirmation:'FLASH '+id,
+   physicalBackupConfirmed:true,externalPowerConfirmed:true,recoveryReady:true});
+  if(!result.ok)throw Error('SOURCE FINAL ACK missing');
+  push('SIM SOURCE FINAL ACK · readbackVerified='+result.readbackVerified);
+ }
+ push('SIM COMMANDS '+dev.labels.length+', WRITE BLOCKS '+dev.blocks);
+ push('PASS — no hardware commands transmitted');
+}
+async function simulate384(){
+ const bin=new Uint8Array(393216);
+ bin.set([255,255,255,255],1924);bin.set([18,52,86],1928);
+ const id=readBinId(bin),offset=csharpOffsetInference(bin);
+ const frames=auditWriteFrames(bin,{profile:'KEIHINOTHER',startOffset:0,maxSamples:2});
+ push('384KB='+bin.length+' bytes / Main BIN ID: '+id.id);
+ push('Write frame math: '+frames.frames+' frames, '+frames.profile+', checksums='+frames.sampleFrames.every(x=>x.checksumOK));
+ push('Auto Offset from file alone: '+(offset.startOffsetHex||'UNKNOWN'));
+ push('Hardware write eligible from BIN-only: '+offset.eligibleForHardwareWrite);
+ if(offset.eligibleForHardwareWrite)throw Error('Unsafe software preflight');
+ push('PASS — file inspection and frame math only. No ECU selected.');
+}
+for(const b of document.querySelectorAll('[data-test]'))b.addEventListener('click',async()=>{
+ for(const x of document.querySelectorAll('[data-test]'))x.disabled=true;
+ log=[];$('status').textContent='RUNNING · SOFTWARE SIMULATION';$('status').className='';$('meta').textContent='FTDI / K-Line / USB: NOT USED';
+ try{const type=b.dataset.test;if(type==='384')await simulate384();else await simulate(type);
+ $('status').textContent='PASS · SIMULATOR';$('status').className='good';
+ }catch(e){push('FAIL: '+(e?.stack||String(e)));$('status').textContent='FAIL · SIMULATOR';$('status').className='bad'}
+ $('out').textContent=log.join('\n');
+ for(const x of document.querySelectorAll('[data-test]'))x.disabled=false;
+});
+$('save').onclick=()=>{
+ const blob=new Blob([log.join('\n')],{type:'text/plain;charset=utf-8'});
+ const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='55_main_flash_sim_'+Date.now()+'.txt';a.click();URL.revokeObjectURL(url);
+};
+</script></body></html>
