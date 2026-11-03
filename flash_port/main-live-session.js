@@ -42,13 +42,13 @@ export class MainLiveSession {
   this.sampleSeq=0;this.sampleAt=0;this.hz=null;this.values=EMPTY();
   this.recording=false;this.recordStart=0;this.records=[];this.error='';this.phase='IDLE';
   this.catalog=null;this.idError='';this.liveGroupError='';this.dtcError='';
-  this.dtcSnapshot=null;this.autoStatus='ยังไม่ได้ตรวจ';this.autoComplete=false;
+  this.dtcSnapshot=null;this.autoStatus='ยังไม่ได้ตรวจ';this.autoComplete=false;this.autoBusy=false;
  }
  notify(){this.onUpdate(this);}
  status(){
   return {
    connected:!!this.port?.ready,
-   cable:!!this.port?.ready,connecting:this.connecting,ecuId:this.ecuId,
+   cable:!!this.port?.ready,connecting:this.connecting||this.autoBusy,autoBusy:this.autoBusy,ecuId:this.ecuId,
    part:this.catalog?.part||null,catalogFamily:this.catalog?.family||null,
    startOffset:this.catalog?.startOffset??null,checksumOffset:this.catalog?.checksumOffset??null,
    startOffsetText:this.catalog?.startOffsetText??null,checksumOffsetText:this.catalog?.checksumOffsetText??null,
@@ -66,7 +66,7 @@ export class MainLiveSession {
   const auto=String(group)==='auto';
   const n=auto?'auto':Number(group);
   if(!auto&&!Object.hasOwn(MAIN_CAPTURE_COMMANDS,n))throw Error('Main C# ไม่มี Group นี้');
-  if(this.connecting||this.running)throw Error('หยุดอ่านข้อมูลก่อนเปลี่ยน Group');
+  if(this.connecting||this.autoBusy||this.running)throw Error('หยุดอ่านข้อมูลก่อนเปลี่ยน Group');
   this.group=n;this.detectedGroup=null;this.group4Variant=null;
   this.values=EMPTY();this.sampleSeq=0;this.sampleAt=0;this.hz=null;
   this.error='';this.phase='IDLE';this.notify();
@@ -88,20 +88,14 @@ export class MainLiveSession {
    this.phase='USB_OPEN';this.notify();
    port=new Ft232rWebUsb();this.port=port;
    await port.openSelected(device);
-   // Diagnostic mode must use FM_diag.cs method_25, not flash identify().
-   this.phase='MAIN_DIAG_WAKE';this.notify();
-   await port.sourceDiagnosticWake();
-   this.ecuId='';this.catalog=null;this.dtcSnapshot=null;
+   // Never block the USB chooser on ECU wake/ID. A cable without a car is
+   // still a successful FT232R connection; identification is an asynchronous
+   // read-only operation after returning control to the screen.
+   this.ecuId='';this.catalog=null;this.dtcSnapshot=null;this.detectedGroup=null;
+   this.values=EMPTY();this.phase='USB_CONNECTED';this.autoStatus='FT232R เปิดแล้ว · กำลังตรวจ ECU แยกต่างหาก';this.notify();
    if(this.disconnectRequested){await port.close();this.port=null;return false;}
-   this.values=EMPTY();
-   await this._autoDetect();
-   if(this.disconnectRequested){
-    if(this.port?.ready)await this.port.close();
-    this.port=null;this.ecuId='';this.catalog=null;this.dtcSnapshot=null;
-    this.detectedGroup=null;this.autoComplete=false;this.phase='DISCONNECTED';
-    return false;
-   }
-   return !!this.port?.ready;
+   queueMicrotask(()=>{if(this.port?.ready&&!this.disconnectRequested)void this._autoDetect();});
+   return true;
   }catch(e){
    const denied=e?.name==='SecurityError'||/Access denied|SecurityError/.test(String(e?.message||''));
    this.error=denied?'Android/Chrome ไม่อนุญาตให้เปิด FT232R (USBDevice.open Access denied) • ปิดหน้าอื่นที่ใช้สายและเลือกพอร์ตจาก Chrome โดยตรง':
@@ -141,7 +135,7 @@ export class MainLiveSession {
   }catch(e){
    this.ecuId='';this.catalog=null;this.idError=String(e?.message||e);
    // A timeout closes the USB transport. Reopen only the same user-approved device.
-   if(!this.port?.ready)await this._reopenDiagnostic();
+   if(!this.port?.ready&&!this.disconnectRequested)await this._reopenDiagnostic();
   }
   this.notify();
  }
@@ -231,24 +225,54 @@ export class MainLiveSession {
   }finally{this.phase=this.port?.ready?'DIAGNOSTIC_READY':'USB_LOST';this.release('DTC_READ');this.notify();}
  }
  async _autoDetect(){
-  this.autoComplete=false;this.autoStatus='เริ่มตรวจหลังเชื่อมสาย';this.notify();
+  if(this.autoBusy||this.connecting||this.running||this.owner||!this.port?.ready)return false;
+  this.autoBusy=true;this.autoComplete=false;
+  this.autoStatus='เริ่มตรวจ ECU หลังเลือกสาย USB';this.notify();
   try{
+   await this.port.sourceDiagnosticWake();
+   if(this.disconnectRequested)return false;
    await this._checkIdentity();
-   if(!this.port?.ready)throw Error('FT232R หลุดระหว่างตรวจ ID');
+   if(this.disconnectRequested)return false;
+   if(!this.port?.ready)throw Error('FT232R หลุดระหว่างอ่าน ECU ID');
+   if(!this.ecuId){
+    // No vehicle present: do NOT probe every Live/DTC bank for another
+    // ~10 seconds. Keep the cable available and let the user retry later.
+    this.phase='USB_READY_NO_ECU';this.autoComplete=true;
+    this.autoStatus='✓ FT232R เชื่อมแล้ว • ECU ยังไม่ตอบ (อาจยังไม่ต่อรถ/ยังไม่เปิดกุญแจ) • กดสแกน ECU อีกครั้งได้';
+    return false;
+   }
    await this._checkLiveGroup();
+   if(this.disconnectRequested)return false;
    if(!this.port?.ready)throw Error('FT232R หลุดระหว่างตรวจ Group');
    await this.port.sourceDiagnosticWake();
+   if(this.disconnectRequested)return false;
    await this._scanDtc();
+   if(this.disconnectRequested)return false;
    if(!this.port?.ready)throw Error('FT232R หลุดระหว่างตรวจ DTC');
-   this.phase='DIAGNOSTIC_READY';
-   this.autoComplete=true;
-   this.autoStatus='ตรวจเสร็จ: '+(this.ecuId?'ECU ID '+this.ecuId:'ECU ID ยังไม่ยืนยัน')+
-     ' • Live '+(this.detectedGroup??'ยังไม่ยืนยัน')+' • DTC '+(this.dtcSnapshot?.answered?.length??0)+'/6';
+   this.phase='DIAGNOSTIC_READY';this.autoComplete=true;
+   this.autoStatus='ตรวจเสร็จ: ECU ID '+this.ecuId+' • Live '+(this.detectedGroup??'ยังไม่ยืนยัน')+
+     ' • DTC '+(this.dtcSnapshot?.answered?.length??0)+'/6';
+   return true;
   }catch(e){
-   this.autoStatus='ตรวจอัตโนมัติไม่ครบ: '+String(e?.message||e);
-   this.phase=this.port?.ready?'AUTO_DETECT_PARTIAL':'USB_LOST';
+   if(!this.disconnectRequested){
+    this.autoStatus='ตรวจอัตโนมัติไม่ครบ: '+String(e?.message||e);
+    this.phase=this.port?.ready?'AUTO_DETECT_PARTIAL':'USB_LOST';
+   }
+   return false;
+  }finally{
+   this.autoBusy=false;
+   if(this.disconnectRequested){
+    const port=this.port;this.port=null;
+    this.ecuId='';this.catalog=null;this.detectedGroup=null;this.dtcSnapshot=null;
+    this.phase='DISCONNECTED';this.autoStatus='ตัดสาย FT232R แล้ว';this.disconnectRequested=false;
+    if(port)try{await port.close()}catch{}
+   }
+   this.notify();
   }
-  this.notify();
+ }
+ async rescan(){
+  if(!this.port?.ready||this.owner||this.running||this.connecting||this.autoBusy)return false;
+  return this._autoDetect();
  }
  async _restoreAfterProbeLoss(expectedId){
   // exchangeRaw fail-closes the USB device on ambiguous response. Never retry
@@ -306,7 +330,7 @@ export class MainLiveSession {
  }
  async acquire(owner){
   if(this.owner)throw Error("สายกำลังใช้งานโดย "+this.owner);
-  if(this.connecting)throw Error('กำลังตรวจ ECU/Live/DTC อัตโนมัติ โปรดให้ตรวจเสร็จก่อนใช้สายร่วม');
+  if(this.connecting||this.autoBusy)throw Error('กำลังตรวจ ECU/Live/DTC อัตโนมัติ โปรดให้ตรวจเสร็จก่อนใช้สายร่วม');
   this.owner=owner;this.stop();
   try{
    const deadline=Date.now()+10000;
@@ -318,7 +342,7 @@ export class MainLiveSession {
  release(owner){if(this.owner===owner){this.owner=null;this.notify();}}
  async start(){
   if(this.owner){this.error="สายกำลังใช้งานโดย "+this.owner;this.notify();return false;}
-  if(this.connecting||this.running||!this.port?.ready)return false;
+  if(this.connecting||this.autoBusy||this.running||!this.port?.ready)return false;
   this.running=true;this.phase='LIVE_CAPTURE';this.stopRequested=false;this.disconnectRequested=false;
   this.error='';this.values=EMPTY();this.sampleSeq=0;this.sampleAt=0;this.hz=null;
   this.notify();
@@ -366,6 +390,10 @@ export class MainLiveSession {
   this.disconnectRequested=true;this.stopRequested=true;this.recording=false;
   this.ecuId='';this.catalog=null;this.detectedGroup=null;this.dtcSnapshot=null;
   this.idError='';this.liveGroupError='';this.dtcError='';this.autoComplete=false;this.autoStatus='ตัดการเชื่อมต่อแล้ว';
+  if(this.autoBusy){
+   this.autoStatus='กำลังยกเลิกการอ่าน ECU • ปุ่มอื่นยังใช้งานได้';this.notify();
+   return true;
+  }
   if(!this.running&&!this.connecting){
    const port=this.port;this.port=null;this.ecuId='';
    if(port)try{await port.close()}catch{}
