@@ -102,14 +102,14 @@ for(const [b,icon] of [[read,'engine'],[clear,'trash'],[info,'system']]){
 pane.append(actions,create('p','n23-footer','แสดงผลจากการอ่าน ECU เท่านั้น ไม่ใช่รหัสหรือค่าในภาพตัวอย่าง'));
 legacy.prepend(pane);
 function refreshConnection(){
- let s;try{s=api.snapshot()}catch{return}
+ let s;try{s=window.__55SharedEcu?.snapshot?.()||api.snapshot()}catch{return}
  cstate.classList.toggle('n23-connected',!!s.connected);
  cstate.classList.toggle('n23-disconnected',!s.connected);
  cstate.textContent=s.connected?'● ECU เชื่อมต่อแล้ว':s.cable?'ต่อสายแล้ว · รอ ECU ID':'ยังไม่เชื่อมต่อ ECU';
- cell.ecu.textContent=s.model||'ยังไม่เลือกรุ่น';
+ cell.ecu.textContent=s.ecuId||'ยังไม่ยืนยัน ECU ID';
  cell.protocol.textContent=s.connected?s.protocol||'Honda K-Line / FTDI':'—';
  cell.speed.textContent='ไม่ได้ตรวจวัด';
- read.disabled=pending||!s.connected;clear.disabled=pending||!s.connected;
+ // The legacy DTC handlers still own their separate FTDI port. Do not let\n // the new shared diagnostic port masquerade as that legacy DTC session.\n const legacyReady=!!window.__ecu?.K?.t;\n read.disabled=pending||!legacyReady;clear.disabled=pending||!legacyReady;
 }
 function makeCode(v){
  const outer=create('details','n23-code-card'),summary=create('summary','n23-code-summary');
