@@ -105,7 +105,7 @@ function refreshConnection(){
  let s;try{s=window.__55SharedEcu?.snapshot?.()||api.snapshot()}catch{return}
  cstate.classList.toggle('n23-connected',!!s.connected);
  cstate.classList.toggle('n23-disconnected',!s.connected);
- cstate.textContent=s.connected?'● ECU เชื่อมต่อแล้ว':s.cable?'ต่อสายแล้ว · รอ ECU ID':'ยังไม่เชื่อมต่อ ECU';
+ cstate.textContent=s.connected?(s.ecuId?'● ECU ยืนยันตัวตนแล้ว':'● FT232R เชื่อมต่อแล้ว · ยังไม่ยืนยัน ECU ID'):s.cable?'ต่อสายแล้ว · รอ ECU ID':'ยังไม่เชื่อมต่อ FT232R';
  cell.ecu.textContent=s.ecuId||'ยังไม่ยืนยัน ECU ID';
  cell.protocol.textContent=s.connected?s.protocol||'Honda K-Line / FTDI':'—';
  cell.speed.textContent='ไม่ได้ตรวจวัด';
