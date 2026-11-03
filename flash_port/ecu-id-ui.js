@@ -67,7 +67,7 @@ export function showEcmPopup(result){
  const actions=node('div',null,'display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:16px');
  const openCatalog=node('a','เปิดฐานข้อมูล ECM • 55 Performance',
   'color:#e8c8ff;padding:10px 12px;border:1px solid #7e73a8;border-radius:9px;text-decoration:none;font-weight:600');
- openCatalog.href=new URL('../ktr/index.html?q='+encodeURIComponent(result.ecuId),import.meta.url).href;
+ openCatalog.href=new URL('../ecm/index.html?q='+encodeURIComponent(result.ecuId),import.meta.url).href;
  openCatalog.target='_blank';openCatalog.rel='noopener';
  const close=node('button','รับทราบ / ปิด',
   'color:white;background:#8946b2;border:0;border-radius:9px;padding:10px 15px;font:650 14px system-ui;min-height:44px');
