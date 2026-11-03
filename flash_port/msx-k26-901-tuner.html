@@ -44,10 +44,11 @@ footer{color:var(--muted);font-size:12px;margin:18px 0;line-height:1.8}
 <h1>Honda MSX125 เจนแรก · 38770-K26-901</h1>
 <small id="definition">กำลังโหลดนิยาม XDF จาก Main…</small>
 <section class="panel">
-<h2>1. โหลดไฟล์ BIN ของ MSX เจนแรก</h2>
-<small>ใช้กับไฟล์ BIN ที่แนบมาขนาด 48 KB ชื่อ 38770-K26-901_4000-FFFF.bin เท่านั้น การจับตำแหน่ง XDF ใช้ File Offset โดยตรง ไม่มีการลบ 0x4000 ซ้ำ</small>
-<label for="bin">เลือกไฟล์ BIN จากโทรศัพท์</label>
-<input id="bin" type="file" accept=".bin,.rom,application/octet-stream">
+<h2>1. ไฟล์ BIN ต้นฉบับ MSX เจนแรก</h2>
+<small>โหลดไฟล์ต้นฉบับ 38770-K26-901_4000-FFFF.bin จาก GitHub โดยอัตโนมัติและตรวจ SHA-256 ทุกครั้ง แกน XDF ใช้ตำแหน่งในไฟล์ตรง ๆ ไม่มีการลบ 0x4000 ซ้ำ</small>
+<div class="buttons"><button type="button" id="loadSource">โหลด BIN ต้นฉบับใหม่</button></div>
+<label for="bin">หรือเปิด BIN ที่จูนไว้จากโทรศัพท์ (ต้องตรงส่วนข้อมูล ECU ต้นฉบับ)</label>
+<input id="bin" type="file" accept=".bin,.rom,application/octet-stream" disabled>
 <div id="notice" role="status">กำลังโหลด XDF…</div>
 <div class="meta">ไฟล์: <span id="file">ยังไม่เลือก</span>
 SHA-256: <span id="sha">ยังไม่ตรวจ</span>
@@ -75,4 +76,4 @@ SHA-256: <span id="sha">ยังไม่ตรวจ</span>
 <small>การบันทึก BIN ไม่เท่ากับการคำนวณ ECU Checksum เพื่อแฟลช ต้องใช้ Preflight ตรวจ Part Code, ECU ID, Memory Map และ Checksum จริงก่อนเขียนเสมอ</small>
 </section>
 <footer>55 PERFORMANCE · MSX Gen1 XDF Map Editor · 29 tables, 9 flags · Original BIN SHA-256 verified · ไม่อ้างว่าใช้กับกล่องอื่นได้</footer>
-</main><script type="module" src="./msx-k26-901-editor.js?v=1"></script></body></html>
+</main><script type="module" src="./msx-k26-901-editor.js?v=2"></script></body></html>
