@@ -38,7 +38,7 @@ export class MainLiveSession {
   this.port=null;this.ecuId='';this.connecting=false;
   this.running=false;this.stopRequested=false;this.disconnectRequested=false;
   this.sampleSeq=0;this.sampleAt=0;this.hz=null;this.values=EMPTY();
-  this.recording=false;this.recordStart=0;this.records=[];this.error='';
+  this.recording=false;this.recordStart=0;this.records=[];this.error='';this.phase='IDLE';
  }
  notify(){this.onUpdate(this);}
  status(){
@@ -47,7 +47,7 @@ export class MainLiveSession {
    cable:!!this.port?.ready,connecting:this.connecting,ecuId:this.ecuId,
    running:this.running,group:this.detectedGroup??this.group,groupMode:this.group,
    group4Variant:this.group4Variant,sampleSeq:this.sampleSeq,sampleAt:this.sampleAt,
-   hz:this.hz,values:{...this.values},recording:this.recording,
+   hz:this.hz,values:{...this.values},recording:this.recording,phase:this.phase,
    recordSeconds:this.recording?(Date.now()-this.recordStart)/1000:0,
    hasLog:this.records.length>0,error:this.error
   };
@@ -59,31 +59,37 @@ export class MainLiveSession {
   if(this.connecting||this.running)throw Error('หยุดอ่านข้อมูลก่อนเปลี่ยน Group');
   this.group=n;this.detectedGroup=null;this.group4Variant=null;
   this.values=EMPTY();this.sampleSeq=0;this.sampleAt=0;this.hz=null;
-  this.error='';this.notify();
+  this.error='';this.phase='IDLE';this.notify();
  }
  async connect(){
   if(this.connecting||this.running||this.port?.ready)return false;
-  this.connecting=true;this.error='';this.disconnectRequested=false;this.notify();
+  this.connecting=true;this.error='';this.phase='USB_CHOOSER';this.disconnectRequested=false;this.notify();
   let port=null;
   try{
    if(!navigator.usb)throw Error('Chrome/Android ต้องรองรับ WebUSB และเปิดผ่าน HTTPS');
    // User-gesture WebUSB picker: no await before the chooser.
    const device=await Ft232rWebUsb.choose();
+   this.phase='LICENSE_CHECK';this.notify();
    if(typeof window.api!=='function')throw Error('ยังไม่พร้อมตรวจ License โปรดเข้าสู่ระบบก่อน');
    const deviceId=localStorage.getItem('55_device_id');
    const license=await window.api('check',{device:deviceId});
    if(!license?.active)throw Error('License ยังไม่พร้อม: โปรดตรวจสิทธิ์ก่อนเชื่อมต่อ');
    if(this.disconnectRequested)return false;
+   this.phase='USB_OPEN';this.notify();
    port=new Ft232rWebUsb();this.port=port;
    await port.openSelected(device);
+   this.phase='ECU_ID_PROBE';this.notify();
    const engine=new HondaFlashEngine(port);
    const info=await engine.identify();
    if(!info?.ecuId)throw Error('ECU ไม่ตอบ ID ที่ยืนยันได้');
    if(this.disconnectRequested){await port.close();this.port=null;return false;}
-   this.ecuId=info.ecuId;this.values=EMPTY();this.notify();
+   this.ecuId=info.ecuId;this.values=EMPTY();this.phase='ECU_IDENTIFIED';this.notify();
    return true;
   }catch(e){
-   this.error='เชื่อมต่อไม่สำเร็จ: '+String(e?.message||e);
+   const denied=e?.name==='SecurityError'||/Access denied|SecurityError/.test(String(e?.message||''));
+   this.error=denied?'Android/Chrome ไม่อนุญาตให้เปิด FT232R (USBDevice.open Access denied) • ปิดหน้าอื่นที่ใช้สายและเลือกพอร์ตจาก Chrome โดยตรง':
+    'เชื่อมต่อไม่สำเร็จ ['+this.phase+']: '+String(e?.message||e);
+   this.phase=denied?'USB_ACCESS_DENIED':'STOPPED';
    if(port)try{await port.close()}catch{}
    this.port=null;this.ecuId='';this.values=EMPTY();this.notify();
    return false;
@@ -142,7 +148,7 @@ export class MainLiveSession {
  }
  async start(){
   if(this.connecting||this.running||!this.port?.ready||!this.ecuId)return false;
-  this.running=true;this.stopRequested=false;this.disconnectRequested=false;
+  this.running=true;this.phase='LIVE_CAPTURE';this.stopRequested=false;this.disconnectRequested=false;
   this.error='';this.values=EMPTY();this.sampleSeq=0;this.sampleAt=0;this.hz=null;
   this.notify();
   // Intentionally return immediately: one owner probes/reads serially.
@@ -171,7 +177,7 @@ export class MainLiveSession {
    }
   }catch(e){
    this.error='Live Data หยุด: '+String(e?.message||e);
-   this.disconnectRequested=true;
+   this.phase='LIVE_STOPPED';this.disconnectRequested=true;
   }finally{
    this.running=false;this.recording=false;this.stopRequested=false;
    if(this.disconnectRequested){
