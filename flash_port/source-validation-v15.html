@@ -142,7 +142,7 @@ await t('C# 1024 KB SH705X / default checksum offsets',()=>{
 });
 await t('C# 128 KB offset out of range is flagged',()=>{
  const a=csharpOffsetInference(new Uint8Array(131072));
- return a.startOffset>=131072&&a.warnings.some(x=>x.includes('exceeds BIN length'));
+ return a.startOffset>=131072&&a.warnings.some(x=>x.includes('ECU flash address'));
 });
 await t('Main C# shared diagnostic stays read-only for ordinary ECU ID',async()=>{
  const usb=fake('0101880D01');usb.diagnosticReady=true;
