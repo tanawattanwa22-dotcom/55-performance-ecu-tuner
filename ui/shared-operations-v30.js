@@ -14,7 +14,15 @@ async function dtc(clear=false){
  const diag={current:[],stored:[],missing:6,error:'',success:false,timestamp:Date.now()};
  try{
   if(!shared)throw Error('ระบบสายหลักยังไม่พร้อม');
+  const expected=shared.snapshot()?.ecuId||'';
+  if(clear&&!/^[0-9A-F]{10}$/.test(expected))throw Error('ต้องระบุ ECU ID จากกล่องจริงก่อนลบ DTC');
   const port=await shared.acquire('DTC');
+  if(clear){
+    await port.sourceDiagnosticWake('dtc');
+    const reply=await port.command('ID',{timeoutMs:2200,afterWriteMs:50});
+    const found=reply.reply?.length>=11?Array.from(reply.reply.slice(5,10),v=>v.toString(16).padStart(2,'0')).join('').toUpperCase():'';
+    if(!reply.echoOK||found!==expected)throw Error('ECU ID ปัจจุบันไม่ตรงกับกล่องที่สแกนล่าสุด ยกเลิก');
+  }
   $('dtcMsg').textContent=clear?'กำลังลบและอ่านยืนยัน…':'กำลังอ่าน DTC 6 ชุด…';
   const result=clear?await clearSharedDtc(port):await readSharedDtc(port);
   const out=$('dtcOut');out.replaceChildren();
