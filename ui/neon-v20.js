@@ -7,13 +7,14 @@ if(!home||!sc||$('neonShell'))return;
 const cards=[...sc.children].filter(x=>x.classList.contains('card'));
 const memberships={
  dashboard:[],library:[],tune:['modelCard','binCard','guardCard'],
- flash:[],live:['liveCard','cableCard'],
+ flash:[],recovery:[],live:['liveCard','cableCard'],
  dtc:['liveCard','cableCard'],tools:['mainSourceTools'],settings:[]};
 const cats=[
  ['dashboard','⌂','หน้าหลัก','ภาพรวม สถานะ งานปัจจุบัน','#38c5f8'],
  ['library','▤','คลังรุ่น / BIN หลัก','ค้นหาและเลือก BIN หลักของแต่ละรุ่น','#b375ff'],
  ['tune','▦','จูน BIN','แก้ตารางน้ำมัน/ไฟจุดระเบิด บันทึก BIN','#34ddb1'],
  ['flash','⇧','อัดไฟล์ ECU','อ่าน ECU ID ตรวจ Offset และ Preflight','#fa67c8'],
+ ['recovery','⟳','Recovery / กู้ ECU','ตรวจ ECU ID และ Boot Mode ก่อนเลือกขั้นตอนกู้','#ffad62'],
  ['live','∿','Live Data','เกจ AFR และบันทึกข้อมูลจริง','#39aaff'],
  ['dtc','⚠','DTC / วินิจฉัย','อ่านรหัสข้อผิดพลาดและข้อมูล ECU','#f6b356'],
  ['tools','⌘','เครื่องมือ C#','BIN, DAT, FTDI และเครื่องมือช่าง','#40d8ec'],
@@ -23,6 +24,7 @@ const iconPath={
  library:'<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 7h8M8 12h8M8 17h8"/>',
  tune:'<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/>',
  flash:'<rect x="6" y="6" width="12" height="12" rx="2"/><path d="M12 16V9m-3 3 3-3 3 3M9 2v4m6-4v4M9 18v4m6-4v4M2 9h4m-4 6h4m12-6h4m-4 6h4"/>',
+ recovery:'<path d="M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5"/><path d="M12 7v5l3 2"/>',
  live:'<path d="M2 12h4l3-7 4 14 3-7h6"/><path d="M4 3h16v18H4" opacity=".35"/>',
  dtc:'<path d="M10.3 3.7 1.9 18a2 2 0 0 0 1.7 3h16.8a2 2 0 0 0 1.7-3L13.7 3.7a2 2 0 0 0-3.4 0Z"/><path d="M12 9v5m0 3h.01"/>',
  tools:'<path d="m8 7-5 5 5 5m8-10 5 5-5 5M14 4l-4 16"/>',
@@ -38,6 +40,7 @@ const titleText={
  library:['คลังรุ่น / BIN หลัก','รายการไฟล์หลักที่มีในแอปจริง'],
  tune:['จูน BIN','เลือก BIN หลักหรือนำเข้า แล้วเปิดตารางจูน'],
  flash:['อัดไฟล์ ECU / Preflight','ตรวจไฟล์ ECU ID และ Offset ก่อนยืนยันการเขียน'],
+ recovery:['Recovery / กู้คืน ECU','ตรวจสถานะตอบกลับจริงก่อนเลือกขั้นตอนกู้ ไม่ส่ง ERASE/WRITE อัตโนมัติ'],
  live:['Live Data','ข้อมูลเซ็นเซอร์และกราฟตามสถานะเชื่อมต่อจริง'],
  dtc:['DTC / วินิจฉัย','ตรวจและจัดการรหัสข้อผิดพลาด'],
  tools:['เครื่องมือ Main C#','เครื่องมือ BIN, DAT, FTDI และการทดสอบ'],
@@ -425,6 +428,17 @@ function flashStage(){
  info.append(mk('p','','เชื่อม FTDI → อ่าน ECU ID → ตรวจ Offset → ตรวจ BIN ที่บันทึก → ยืนยันก่อนอัด'));
  stage.append(info);
 }
+function recoveryStage(){
+ heading('Recovery / กู้คืน ECU','เมนูแยกจาก Flash ปกติ ใช้สาย FT232R จากหน้าแรกเส้นเดียว');
+ const info=mk('div','n20-panel');
+ info.append(mk('b','','ลำดับตรวจอัตโนมัติ (ไม่ลบหรือเขียน)'));
+ info.append(mk('p','','ตรวจ USB ที่เชื่อมไว้ → อ่าน ECU ID → แยก Normal / Diagnostic / Boot → ตรวจตระกูลจากคำตอบที่รองรับ'));
+ info.append(mk('p','','ถ้าเป็น Boot ที่รองรับ จึงเลือก BIN เพื่อตรวจลายเซ็น ชนิดกล่อง Offset และ Checksum ก่อนสร้างแผน Recovery; การเขียนต้องยืนยันแยกต่างหาก'));
+ stage.append(info);
+ stage.append(action('⟳ เปิด Recovery และตรวจ ECU',
+  ()=>{if(window.__55OpenRecoveryPanel)window.__55OpenRecoveryPanel();else alert('ส่วนจัดการ Recovery ยังโหลดไม่ครบ กรุณารีเฟรชหน้าเว็บ');},
+  'btn ac'));
+}
 function liveOrDtc(id){
  heading(titleText[id][0],titleText[id][1]);
  const panel=mk('div','n20-panel');
@@ -504,10 +518,12 @@ function navigate(id){
   c.append(action('▦ เปิดตารางจูน',()=>click('goTune'),'btn ac'));stage.append(c);
  }
  else if(id==='flash'){if(window.__55FlashPreflight?.mount)window.__55FlashPreflight.mount(stage);else flashStage();}
+ else if(id==='recovery'){recoveryStage();}
  else if(id==='live'||id==='dtc')liveOrDtc(id);
  else if(id==='tools')toolsStage();else if(id==='settings')settingsStage();
  refreshStatus();sc.scrollTo({top:0,behavior:'auto'});
  if(id==='flash')void window.__55AutoEcu?.enter('flash');
+ if(id==='recovery')window.__55OpenRecoveryPanel?.();
 }
 window.__55NeonNavigate=navigate;
 ['sel','btnSave','btnCable','btnFlash','mtReadEcu','btnAutoOffset','btnRead','goTune'].forEach(id=>{
