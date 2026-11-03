@@ -33,7 +33,7 @@ export function readBinId(bin){
   if(!rows) return {ok:false,id:'-',reason:'Unsupported BIN size '+bin.length};
   for(const r of rows){
     if(bin.length<r.minLen||bin.length<r.idOff+r.len) continue;
-    if(eq(bin,r.chkOff,r.chk)) return {ok:true,id:hex(bin.subarray(r.readFrom,r.readFrom+r.len)),at:r.readFrom};
+    if(eq(bin,r.chkOff,r.chk)) return {ok:true,id:hex(bin.subarray(r.readFrom,r.readFrom+r.len),''),at:r.readFrom};
   }
   return {ok:false,id:'',reason:'No matching pattern for '+(bin.length/1024)+' KB'};
 }
