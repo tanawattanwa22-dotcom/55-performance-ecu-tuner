@@ -23,7 +23,7 @@ const current=()=>{
  try{valid=!!s&&S.bin instanceof Uint8Array&&TuneBinFlow.matches(s,S.bin,{model:m?.id,sourceName:S.fname,customerBin:S.custom})}catch{}
  return {saved:s,model:m?.id||null,valid,bytes:s?.bytes instanceof Uint8Array?s.bytes:null};
 };
-const recency=()=>last&&Date.now()-last.at<TTL;
+const recency=()=>last&&Date.now()-last.at<TTL&&last.engine?.usb===window.__55SharedEcu?.port;
 const verified=()=>{
  const c=current();
  return !!(c.valid&&last?.plan&&recency()&&last.saved===c.saved&&last.model===c.model&&last.identity?.sourceMatched);
@@ -61,13 +61,21 @@ function addChecklist(box){
 function render(){
  if(!stage?.isConnected)return;
  const c=current(),quick=quickBin();
+ const shared=window.__55SharedEcu?.snapshot?.();
+ const connectedId=shared?.connected&&/^[0-9A-F]{10}$/.test(shared.ecuId||'')?{
+  ecuId:shared.ecuId,family:'UNVERIFIED',sourcePart:shared.part||null,
+  sourceMatched:false,handshake:'AUTO_DIAGNOSTIC',
+  catalog:shared.catalogMatched?{ecuId:shared.ecuId,part:shared.part,
+   family:shared.catalogFamily,startOffset:shared.startOffset,checksumOffset:shared.checksumOffset,
+   startOffsetText:shared.startOffsetText,checksumOffsetText:shared.checksumOffsetText}:null
+ }:null;
  const inlineIdentity=(INLINEFLASH.busy||INLINEFLASH.postCheck)?INLINEFLASH.engine?.identity:null;
- const identity=inlineIdentity||(recency()?last?.identity:null);
+ const identity=inlineIdentity||(recency()?last?.identity:null)||connectedId;
  const plan=inlineIdentity?.sourceMatched?INLINEFLASH.plan:verified()?last?.plan:null;
  const source=catalogRecord(identity);
  const fileReady=!!quick||c.valid;
  const cableReady=!!window.__55SharedEcu?.port?.ready;
- const progress=!!inlineIdentity||(c.valid&&last?.saved===c.saved&&recency());
+ const progress=!!inlineIdentity||!!connectedId||(c.valid&&last?.saved===c.saved&&recency());
  setItem('model',quick?'อ่านรุ่นจาก ECU จริงอัตโนมัติ':c.model||'ยังไม่เลือกรุ่น');
  setItem('dbcount',catalog290.rows?'290 รายการ · KEIHIN 232 / SHINDENGEN 58':catalog290.error?'โหลดฐาน ECU ไม่สำเร็จ: '+catalog290.error:'กำลังโหลดฐาน ECU 290 รายการ');
  setItem('filename',quick?quick.filename:c.valid?c.saved.filename:'ยังไม่ได้เลือก BIN');
@@ -78,12 +86,12 @@ function render(){
  setItem('part',identity?(source?.part||identity.sourcePart||'ไม่ระบุใน Main C#'):'—');
  setItem('family',identity?(source?.family||identity.family||'ไม่ระบุ'):'—');
  setItem('flashcount',Number.isInteger(identity?.count)?identity.count+' ครั้ง':'อ่านไม่ได้');
- setItem('sourceMatch',identity?(identity.sourceMatched?'ยืนยัน ID และ Family แล้ว':source?(source.part?'พบ ECU ID ในฐาน 290 · Family ยังไม่ยืนยัน':'พบ ECU ID แต่ไม่มี Part Code'):'ECU ID นี้ไม่พบในฐาน 290'):'รออ่าน ECU ID จริง');
+ setItem('sourceMatch',identity?(identity.sourceMatched?'ยืนยัน ID และ Family แล้ว':source?(source.part?'✓ พบ ECU ID ในฐาน 290 · Family เป็นค่าจากฐาน ยังไม่ยืนยันเพื่อเขียน':'พบ ECU ID แต่ไม่มี Part Code'):'อ่าน ECU ID ได้ แต่ไม่พบในฐาน 290'):'รออ่าน ECU ID จริง');
  setItem('start',plan?X(plan.startOffset):source?sourceOffset(source.startOffset,source.startOffsetText):'—');
  setItem('checksum',plan?X(plan.checksumOffset):source?sourceOffset(source.checksumOffset,source.checksumOffsetText):'—');
  setItem('block',Number.isInteger(plan?.blockBytes)?plan.blockBytes.toLocaleString()+' bytes':'—');
  setItem('profile',plan?.profile||'ยังไม่มีแผนที่ยืนยัน');
- setItem('offsetState',plan?'ตรวจด้วย HondaFlashEngine / C# แล้ว':source?'อ้างอิงฐาน Main C# เท่านั้น · ยังไม่ตรวจ BIN':'ยังไม่ผ่านการตรวจ');
+ setItem('offsetState',plan?'ตรวจด้วย HondaFlashEngine / C# แล้ว':source?'✓ พบค่าฐาน Main C# · ต้องตรวจเทียบ BIN ก่อนเขียน':'ยังไม่มีค่า Offset ที่ยืนยัน');
  dom.note.textContent=error?'หยุดตรวจ: '+error:message||
   'การตรวจนี้อ่าน ECU ID และคำนวณแผนเท่านั้น ไม่มีคำสั่ง ERASE/WRITE · ขั้นตอนอัดจริงจะอ่าน ID ใหม่';
  const status={
