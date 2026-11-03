@@ -489,16 +489,25 @@ export class HondaFlashEngine {
     throw error;
   }
  }
- async flash(plan,{confirmation,physicalBackupConfirmed=false,externalPowerConfirmed=false,recoveryReady=false}={}){
+ async flash(plan,{confirmation,physicalBackupConfirmed=false,externalPowerConfirmed=false,recoveryReady=false,operatorClickConfirmed=false}={}){
   if(this.state!=='identified')fail('NOT_READY','อ่านรหัส ECU ให้เสร็จก่อน');
   if(!plan?.recovery&&/0000$/.test(this.identity.ecuId))
    fail('BOOT_ID_REQUIRES_RECOVERY','Normal Flash ไม่อนุญาตให้ ERASE/WRITE เมื่อ ECU ตอบ Recovery Boot ID');
   if(!plan||plan.ecuId!==this.identity.ecuId||!plan.profile.startsWith(this.identity.family)||
-    (plan.recovery&&!this.identity.recoveryFamilyVerified))
+    (plan.recovery&&!this.identity.recoveryFamilyVerified)||
+    (!plan.recovery&&!this.identity.sourceMatched))
     fail('PLAN_INVALID','แผนเขียนไม่ตรงกับ ECU ที่ตรวจแล้ว');
-  if(confirmation!=='FLASH '+plan.ecuId)fail('CONFIRMATION','ต้องพิมพ์ FLASH และ ECU ID ที่อ่านได้');
-  if(!physicalBackupConfirmed||!externalPowerConfirmed||!recoveryReady)
-    fail('PRECONDITION','ต้องยืนยัน Backup, ไฟเลี้ยง และเครื่องมือกู้คืนกล่องสำรอง');
+  // In the normal Flash UI, pressing the dedicated "อัดไฟล์" button is the
+  // operator's single explicit write action. It does NOT assert that backup,
+  // voltage or recovery equipment were electronically verified.
+  // Recovery and advanced/offline paths retain their existing manual approvals.
+  if(!operatorClickConfirmed||plan.recovery){
+    if(confirmation!=='FLASH '+plan.ecuId)fail('CONFIRMATION','ต้องพิมพ์ FLASH และ ECU ID ที่อ่านได้');
+    if(!physicalBackupConfirmed||!externalPowerConfirmed||!recoveryReady)
+      fail('PRECONDITION','ต้องยืนยัน Backup, ไฟเลี้ยง และเครื่องมือกู้คืนกล่องสำรอง');
+  }
+  if(operatorClickConfirmed&&!plan.recovery)
+    this.emit('OPERATOR_ONE_TAP',{ecuId:plan.ecuId,acknowledgement:'FLASH_BUTTON_CLICK',powerAndBackupExternallyVerified:false});
   if(!this.usb.ready)fail('USB_LOST','FTDI USB ไม่ได้เชื่อมต่อแล้ว');
   let eraseStarted=false;
   try {
