@@ -471,6 +471,8 @@ function navigate(id){
   return;
  }
  selected=id;
+ // Preflight stage layout must not leak into Library/Dashboard/Tools after back navigation.
+ stage.classList.remove('n24-preflight-stage');
  home.dataset.neonPage=id;
  for(const card of cards)card.classList.toggle('n20-hidden',!memberships[id].includes(card.id));
  stage.replaceChildren();stage.hidden=false;stage.classList.toggle('n20-settings',id==='settings');
