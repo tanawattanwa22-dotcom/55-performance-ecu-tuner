@@ -45,7 +45,7 @@ function shBin(){
  b.set([208,7],300);b.set([90,90,90,90],b.length-4);
  return b;
 }
-await check('C# catalog exactly 288 entries',async()=> (await loadCSharpCatalog()).size===288);
+await check('Main C# catalog exactly 290 entries (232 Keihin + 58 Shindengen)',async()=> (await loadCSharpCatalog()).size===290);
 await check('C# K03-H01 ID maps to offset 0x8000',async()=>{const v=await findCSharpEcuId('0101880D01');return v?.part==='38770-K03-H01'&&v.startOffset===32768});
 await check('C# Shindengen ID maps to auto offset',async()=>{const v=await findCSharpEcuId('01046B0F01');return v?.family==='SHINDENGEN'&&v.startOffset===null});
 await check('64KB inference does not prove ECU family',()=>{const v=csharpOffsetInference(new Uint8Array(65536));return v.startOffset===32768&&v.csharpClassHint==='UNDETERMINED'});
@@ -160,11 +160,15 @@ await check('Shindengen write delay 150 ms normal, 0 ms fast',async()=>{
 await check('Fast switch command is the only unframed command allowed by exchangeRaw',async()=>{
  const {FAST_SWITCH_COMMAND}=await import('../flash_port/ftdi-webusb.js');
  const u=new Ft232rWebUsb();
+ // Stop at USB write boundary after local frame validation, without hardware.
+ u.prepareUart=async()=>{};u.purge=async()=>{};u.ctl=async()=>{};
+ u._write=async()=>{throw Error('VALIDATED_FRAME_REACHED_USB_BOUNDARY')};
+ u.close=async()=>{u.ready=false};
  let okMsg='',badMsg='';
  u.ready=true;try{await u.exchangeRaw(Uint8Array.from(FAST_SWITCH_COMMAND),{timeoutMs:100})}catch(x){okMsg=x.message}
  const mut=Uint8Array.from(FAST_SWITCH_COMMAND);mut[4]^=1;
  u.ready=true;try{await u.exchangeRaw(mut,{timeoutMs:100})}catch(x){badMsg=x.message}
- return !/Invalid framed|Incorrect command checksum/.test(okMsg)&&/Invalid framed command length/.test(badMsg);
+ return okMsg==='VALIDATED_FRAME_REACHED_USB_BOUNDARY'&&/Invalid framed command length/.test(badMsg);
 });
 await check('Recovery requires physical boot ID and family-specific flash count',async()=>{
  const good=new HondaFlashEngine(fake('0102030000'));await good.identify();
