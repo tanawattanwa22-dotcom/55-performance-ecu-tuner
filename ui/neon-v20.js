@@ -429,15 +429,9 @@ function flashStage(){
  stage.append(info);
 }
 function recoveryStage(){
- heading('Recovery / กู้คืน ECU','เมนูแยกจาก Flash ปกติ ใช้สาย FT232R จากหน้าแรกเส้นเดียว');
- const info=mk('div','n20-panel');
- info.append(mk('b','','ลำดับตรวจอัตโนมัติ (ไม่ลบหรือเขียน)'));
- info.append(mk('p','','ตรวจ USB ที่เชื่อมไว้ → อ่าน ECU ID → แยก Normal / Diagnostic / Boot → ตรวจตระกูลจากคำตอบที่รองรับ'));
- info.append(mk('p','','ถ้าเป็น Boot ที่รองรับ จึงเลือก BIN เพื่อตรวจลายเซ็น ชนิดกล่อง Offset และ Checksum ก่อนสร้างแผน Recovery; การเขียนต้องยืนยันแยกต่างหาก'));
- stage.append(info);
- stage.append(action('⟳ เปิด Recovery และตรวจ ECU',
-  ()=>{if(window.__55OpenRecoveryPanel)window.__55OpenRecoveryPanel();else alert('ส่วนจัดการ Recovery ยังโหลดไม่ครบ กรุณารีเฟรชหน้าเว็บ');},
-  'btn ac'));
+ if(window.__55RecoveryNative?.mount?.(stage))return;
+ heading('Recovery / กู้คืน ECU','ไม่สามารถโหลดหน้าจอ Recovery หลักได้ กรุณารีเฟรชแอป');
+ stage.append(mk('div','n20-panel','ยังไม่ได้โหลดโมดูล Recovery ภายในแอป • ไม่เปิดหน้า Flash Lab ทดแทนโดยอัตโนมัติ'));
 }
 function liveOrDtc(id){
  heading(titleText[id][0],titleText[id][1]);
@@ -485,6 +479,10 @@ function settingsStage(){
 }
 function navigate(id){
  if(!Object.prototype.hasOwnProperty.call(memberships,id))return;
+ if(selected==='recovery'&&id!=='recovery'){
+  if(window.__55RecoveryNative?.isBusy?.()){alert('รอการตรวจหรือเขียน Recovery ให้จบก่อนเปลี่ยนเมนู');return}
+  window.__55RecoveryNative?.close?.();
+ }
  // Live Data always uses the real-time decoder ported from purchased Main/FM_diag.cs.
  // The old in-page ADX renderer is retained only as an inactive compatibility backend
  // for legacy DTC; users must never be routed to it from the homepage.
@@ -523,7 +521,7 @@ function navigate(id){
  else if(id==='tools')toolsStage();else if(id==='settings')settingsStage();
  refreshStatus();sc.scrollTo({top:0,behavior:'auto'});
  if(id==='flash')void window.__55AutoEcu?.enter('flash');
- if(id==='recovery')window.__55OpenRecoveryPanel?.();
+ // Recovery now mounts its own stage. Do not open a separate iframe/lab page.
 }
 window.__55NeonNavigate=navigate;
 ['sel','btnSave','btnCable','btnFlash','mtReadEcu','btnAutoOffset','btnRead','goTune'].forEach(id=>{
