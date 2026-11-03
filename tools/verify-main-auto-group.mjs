@@ -32,8 +32,8 @@ function bench(answers){
  return {session,calls,get restores(){return restores}};
 }
 
-await test('Purchased C# probe order is Group 7 then Group 4',()=>{
- assert.deepEqual(SOURCE_AUTO_PROBE_ORDER,[7,4]);
+await test('Purchased C# probe order is Group 7 then Group 4, with Group 1 fallback',()=>{
+ assert.deepEqual(SOURCE_AUTO_PROBE_ORDER,[7,4,1]);
  assert.equal(MAIN_CAPTURE_COMMANDS[7][0][3],0x13);
  assert.equal(MAIN_CAPTURE_COMMANDS[4][0][3],0x17);
 });
