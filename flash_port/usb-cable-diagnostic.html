@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>55 PERFORMANCE | ตรวจสาย USB (อ่านข้อมูลเท่านั้น)</title>
+<title>55 PERFORMANCE | ตรวจสิทธิ์ FT232R WebUSB</title>
 <style>
 :root{color-scheme:dark}*{box-sizing:border-box}body{background:#10151e;color:#eef3fb;font:16px system-ui,sans-serif;margin:0;padding:18px}
 main{max-width:740px;margin:auto}h1{color:#ffad65;font-size:23px}p{line-height:1.55}section{background:#1c2633;padding:16px;border-radius:13px;margin:16px 0}
@@ -8,22 +8,26 @@ button{background:#ff9b46;color:#17202b;border:0;border-radius:10px;padding:14px
 button.secondary{background:#31465b;color:#f7fbff}pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.5;max-height:350px;overflow:auto}
 .ok{color:#8de4b6}.bad{color:#ffb5ae}.note{color:#b9cde0}a{color:#ffbd82}
 </style></head><body><main>
-<h1>55 PERFORMANCE — ตรวจสอบว่าสาย USB รุ่นใด</h1>
-<p><strong>หน้าอ่าน USB แบบปลอดภัย:</strong> ตรวจเฉพาะตัวระบุ VID/PID และ USB descriptors ไม่เปิดพอร์ต ไม่ส่ง Wake/READ/ERASE/WRITE และไม่สื่อสารกับ ECU หรือ K-Line</p>
+<h1>55 PERFORMANCE — ตรวจสิทธิ์ USB ของ Android</h1>
+<p><strong>ทดสอบเฉพาะการเปิด/ปิด USB:</strong> อ่าน VID/PID แล้วทดลอง <code>USBDevice.open()</code> และ <code>close()</code> โดยไม่ Claim Interface ไม่ตั้ง Baud ไม่ส่ง Wake/READ/ERASE/WRITE และไม่สื่อสารกับ ECU หรือ K-Line</p>
+<p class="note">ให้ถอดสายที่ต่อเข้า ECU ออกก่อนทดสอบ หน้านี้ใช้ตรวจเฉพาะ FT232R + OTG กับมือถือ</p>
 <section><p id="state" role="status">ยังไม่ได้ตรวจสาย USB</p>
 <button id="choose">เลือกสาย USB เพื่อดู VID/PID</button>
 <button id="previous" class="secondary">ตรวจสายที่เคยอนุญาต</button>
+<button id="openCheck" disabled>ทดสอบสิทธิ์เปิด USB (ไม่ส่ง ECU)</button>
 <button id="copy" class="secondary">คัดลอกผล</button>
 <pre id="details">ต้องเปิดผ่าน Chrome Android / HTTPS พร้อม USB OTG</pre></section>
 <section><h2>ทำความเข้าใจผล</h2>
 <p>โปรแกรมเขียนแฟลช 55 Performance ปัจจุบันรองรับอุปกรณ์ที่ระบุ <strong>VID 0403 / PID 6001</strong> (FT232R) เท่านั้น หากสายรายงาน PID อื่น โค้ดจะปฏิเสธ แม้จะเป็นสาย FTDI บางรุ่นก็ตาม</p>
-<p>USB ผ่านไม่ได้แปลว่า ECU หรือสาย K-Line เสีย และ USB ผ่านก็ไม่ได้พิสูจน์ว่าสาย K-Line/ECU ตอบสนองถูกต้อง ห้ามขยายรายการสายโดยเดา โปรดตรวจวงจรแปลงระดับและโปรโตคอลก่อนใช้กับรถจริง</p>
+<p>หากเลือกสายสำเร็จแต่ <code>open()</code> ขึ้น <code>SecurityError: Access denied</code> แสดงว่าเปิด USB ไม่ได้ตั้งแต่ระดับเบราว์เซอร์/Android <strong>ไม่เกี่ยวกับคำสั่ง ECU</strong> เว็บไม่สามารถบังคับแสดงหน้าต่างสิทธิ์ของ Android เองได้</p>
+<p>หากยังไม่ขึ้นหน้าต่างขอสิทธิ์ ให้ลองเปิดใน Chrome เต็มหน้าจอ (ไม่ใช่หน้าต่างเบราว์เซอร์ภายในแอป), ปิดแอปอื่นที่ใช้ USB และถอด OTG ก่อนเปิดใหม่ หากยังไม่สำเร็จให้รีสตาร์ตมือถือโดยถอด OTG ออกก่อน แล้วเชื่อมอีกครั้ง</p>
+<p>USB เปิดผ่านก็ไม่ได้พิสูจน์ว่าสาย K-Line หรือ ECU ตอบสนองถูกต้อง ห้ามใช้ผลนี้อนุญาต ERASE/WRITE</p>
 <p><a href="flash-write-lab.html">กลับ Flash Bench</a> · <a href="../index.html">กลับแอปหลัก</a></p></section>
 </main><script>
 'use strict';
 const out=document.getElementById('details'),state=document.getElementById('state');
 const hex=n=>Number(n).toString(16).toUpperCase().padStart(4,'0');
-let report='';
+let report='',selected=null,busy=false;
 function show(message,result){state.textContent=message;out.textContent=result;report=message+'\n'+result}
 function describe(d){
  const vid=hex(d.vendorId),pid=hex(d.productId);
@@ -43,11 +47,36 @@ async function pick(all){
   let dev;
   if(all){const list=await navigator.usb.getDevices();if(!list.length){show('ยังไม่มี USB ที่เคยอนุญาต','กดปุ่ม เลือกสาย USB เพื่อดู VID/PID');return}dev=list.find(d=>d.vendorId===0x0403)||list[0]}
   else dev=await navigator.usb.requestDevice({filters:[]});
+  selected=dev;
+  document.getElementById('openCheck').disabled=false;
   const v=describe(dev);
   state.className=v.match?'ok':'bad';
-  show(v.match?'USB ID ตรงกับ FT232R ที่ Flash Engine อนุญาต':'USB ID ไม่ตรงกับสายที่ Flash Engine รองรับ',v.info);
- }catch(e){state.className='bad';show('ตรวจ USB ไม่สำเร็จ',e.name+': '+e.message+'\nหากกดยกเลิกหน้าต่างเลือกสาย ให้กดเลือกใหม่\nถ้าไม่มีอุปกรณ์ขึ้น ให้ตรวจ OTG, Chrome และการอนุญาต USB')}
+  show(v.match?'USB ID ตรงกับ FT232R ที่ Flash Engine อนุญาต':'USB ID ไม่ตรงกับสายที่ Flash Engine รองรับ',v.info+'\nขั้นต่อไป: กดทดสอบสิทธิ์เปิด USB');
+ }catch(e){selected=null;document.getElementById('openCheck').disabled=true;state.className='bad';show('ตรวจ USB ไม่สำเร็จ',e.name+': '+e.message+'\nหากกดยกเลิกหน้าต่างเลือกสาย ให้กดเลือกใหม่\nถ้าไม่มีอุปกรณ์ขึ้น ให้ตรวจ OTG, Chrome และการอนุญาต USB')}
 }
+document.getElementById('openCheck').onclick=async()=>{
+ if(!selected||busy)return;
+ const d=selected;
+ busy=true;
+ document.getElementById('openCheck').disabled=true;
+ let stage='BEFORE_OPEN';
+ try{
+  const v=describe(d);
+  show('กำลังทดสอบ USBDevice.open()','Device: '+v.info+'\nStage: '+stage+'\nรอดูว่ามีหน้าต่างอนุญาตจาก Android หรือไม่');
+  stage='OPEN_PENDING';
+  await d.open();
+  stage='OPEN_SUCCEEDED';
+  show('PASS: Chrome/Android เปิด USB ได้','Stage: '+stage+'\nUSB opened: '+d.opened+'\nไม่มีการ Claim Interface, ตั้ง Baud หรือส่งข้อมูล ECU');
+  state.className='ok';
+ }catch(e){
+  const msg=e.name+': '+e.message;
+  state.className='bad';
+  show('FAIL: Android/Chrome ไม่ให้เปิด USB','Stage: '+stage+'\n'+msg+'\nหากเป็น SecurityError Access denied แปลว่าขอเลือกสายได้ แต่สิทธิ์เปิด USB ระดับระบบยังไม่ผ่าน\nห้ามลองแฟลช ECU และไม่จำเป็นต้องเปลี่ยนโปรโตคอล ECU');
+ }finally{
+  if(d.opened){try{await d.close();report+='\nUSB close: OK';out.textContent+='\nUSB close: OK'}catch(e){report+='\nUSB close error: '+e.message;out.textContent+='\nUSB close error: '+e.message}}
+  busy=false;document.getElementById('openCheck').disabled=false;
+ }
+};
 document.getElementById('choose').onclick=()=>pick(false);
 document.getElementById('previous').onclick=()=>pick(true);
 document.getElementById('copy').onclick=async()=>{try{await navigator.clipboard.writeText(report||out.textContent);state.textContent='คัดลอกผลตรวจแล้ว'}catch(e){state.textContent='คัดลอกไม่ได้: '+e.message}};
