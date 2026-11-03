@@ -354,7 +354,6 @@ function mount(host){
  for(const [title,path] of [
   ['ตรวจสาย USB / VID-PID (ไม่ส่งข้อมูล ECU)','flash_port/usb-cable-diagnostic.html'],
   ['เปิด Real ECU Flash (ขั้นสูง)','flash_port/flash-write-lab.html'],
-  ['Recovery ขั้นสูง (Flash Lab เครื่องมือช่าง)','flash_port/flash-write-lab.html?mode=recovery'],
   ['เปิด Offline Flash V28','flash_port/offline/index.html'],
   ['ตรวจ BIN ID / Checksum ตาม Main C#','flash_port/main-bin-audit.html'],
   ['ค้นฐาน ECU 290 รายการ','flash_port/main-ecu-catalog.html']
