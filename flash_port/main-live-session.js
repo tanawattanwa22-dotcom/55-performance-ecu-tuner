@@ -253,7 +253,10 @@ export class MainLiveSession {
  async _autoDetect(){
   if(this.autoBusy||this.connecting||this.running||this.owner||!this.port?.ready)return false;
   this.autoBusy=true;this.autoComplete=false;
-  this.autoStatus='เริ่มตรวจ ECU หลังเลือกสาย USB';this.notify();
+  // Never carry a previous motorcycle's ECU ID / DTC / Live profile into a fresh scan.
+  this.ecuId='';this.catalog=null;this.detectedGroup=null;this.dtcSnapshot=null;
+  this.idError='';this.liveGroupError='';this.dtcError='';
+  this.autoStatus='กำลังตรวจ ECU ที่ต่ออยู่กับสาย FT232R ขณะนี้';this.notify();
   try{
    await this.port.sourceDiagnosticWake();
    if(this.disconnectRequested)return false;
