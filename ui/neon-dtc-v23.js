@@ -185,7 +185,7 @@ window.addEventListener('55:dtc-read-start',()=>{pending=true;result=null;clearS
 window.addEventListener('55:dtc-result',e=>{pending=false;const x=e.detail;if(x&&Array.isArray(x.current)&&Array.isArray(x.stored)){result=x;clearState=''}render()});
 window.addEventListener('55:dtc-clear-start',()=>{pending=true;clearState='กำลังส่งคำสั่งลบรหัส DTC…';render()});
 window.addEventListener('55:dtc-clear-result',e=>{pending=false;const x=e.detail;
- clearState=x?.error?'ลบไม่สำเร็จ: '+x.error:x?.ok===3?'ส่งคำสั่งลบครบ 3 ตารางแล้ว · อ่าน DTC อีกครั้งเพื่อยืนยัน':'ลบไม่ครบ ('+(x?.ok??0)+'/3) · ตรวจสอบสาย';
+ clearState=x?.error?'ลบไม่สำเร็จ: '+x.error:x?.ok===3?'ส่งคำสั่งลบตาม Main.zip 2 ชุด และอ่าน DTC กลับครบ 6 ตารางแล้ว':'ลบไม่ครบ ('+(x?.ok??0)+'/3) · ตรวจสอบสาย';
  result=null;render()});
 window.__55DtcV23={
  open(){
