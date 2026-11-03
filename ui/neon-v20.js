@@ -462,6 +462,9 @@ function settingsStage(){
 }
 function navigate(id){
  if(!Object.prototype.hasOwnProperty.call(memberships,id))return;
+ // DTC has a full-screen dashboard, not an intermediary home card.
+ // The legacy entry already opens Live and selects the real DTC mode.
+ if(id==='dtc'&&$('mtDtc')){$('mtDtc').click();return;}
  selected=id;
  home.dataset.neonPage=id;
  for(const card of cards)card.classList.toggle('n20-hidden',!memberships[id].includes(card.id));
