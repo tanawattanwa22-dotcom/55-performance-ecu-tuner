@@ -73,6 +73,7 @@ function render(){
  }:null;
  const inlineIdentity=(INLINEFLASH.busy||INLINEFLASH.postCheck)?INLINEFLASH.engine?.identity:null;
  const identity=inlineIdentity||(recency()?last?.identity:null)||connectedId;
+ const recoveryCandidate=!!identity?.ecuId?.endsWith('0000');
  const plan=inlineIdentity?.sourceMatched?INLINEFLASH.plan:verified()?last?.plan:null;
  const source=catalogRecord(identity);
  const fileReady=!!quick||c.valid;
@@ -112,8 +113,9 @@ function render(){
  }
  dom.read.disabled=working||!!INLINEFLASH.busy||!!document.getElementById('licenseGate');
  dom.check.disabled=working||!c.valid||!identity||!recency()||last?.saved!==c.saved;
- dom.flash.disabled=working||!!INLINEFLASH.busy||!(INLINEFLASH.postCheck||(fileReady&&cableReady))||!!$('btnFlash')?.hidden||!!$('btnFlash')?.disabled;
- dom.flash.textContent=INLINEFLASH.busy?'กำลังตรวจ / อัดไฟล์ ECU':INLINEFLASH.postCheck?'✓ ตรวจ ECU หลังเปิดกุญแจใหม่':'⇧ ตรวจอัตโนมัติและอัดไฟล์';
+ dom.flash.disabled=working||!!INLINEFLASH.busy||(recoveryCandidate&&!INLINEFLASH.postCheck)||!(INLINEFLASH.postCheck||(fileReady&&cableReady))||!!$('btnFlash')?.hidden||!!$('btnFlash')?.disabled;
+ dom.flash.textContent=INLINEFLASH.busy?'กำลังตรวจ / อัดไฟล์ ECU':INLINEFLASH.postCheck?'✓ ตรวจ ECU หลังเปิดกุญแจใหม่':recoveryCandidate?'⟳ พบ Recovery • หยุด Flash ปกติ':'⇧ ตรวจอัตโนมัติและอัดไฟล์';
+ if(dom.recovery)dom.recovery.hidden=!(recoveryCandidate||window.__55RecoverySuggested);
  if(dom.miniProgress){const pct=$('pct')?.textContent||'0%';dom.miniProgress.textContent=INLINEFLASH.busy||INLINEFLASH.postCheck?'ความคืบหน้า '+pct+' · '+(INLINEFLASH.status||''):'พร้อมเริ่มตรวจ';}
  if(dom.miniBar){dom.miniBar.style.width=(INLINEFLASH.busy||INLINEFLASH.postCheck?$('barFill')?.style.width||'0%':'0%');}
  dom.flash.title=dom.flash.disabled?'ต้องบันทึก BIN อ่าน ECU ID และตรวจ Preflight ให้ผ่านก่อน':'ใช้ Flash Engine เดิมซึ่งอ่าน ECU ID ใหม่ก่อน ERASE';
@@ -121,6 +123,7 @@ function render(){
   const blockers=[];
   if(!fileReady)blockers.push('ยังไม่ได้เลือกไฟล์ BIN');
   if(!cableReady)blockers.push('ยังไม่ได้เชื่อมต่อ FT232R จากหน้าแรก');
+  if(recoveryCandidate)blockers.push('ECU ID ลงท้าย 0000: อาจอยู่ใน Recovery Boot • หยุด Flash ปกติ และยืนยัน Boot/Family ผ่านเมนู Recovery');
   if(!identity?.ecuId){if(fileReady&&cableReady&&!INLINEFLASH.busy)blockers.push('กดปุ่มอัดเพื่อให้อ่าน ECU ID/Part/Family อัตโนมัติ');}
   else if(!catalogRecord(identity))blockers.push('ไม่พบ ECU ID '+identity.ecuId+' ในฐาน 290');
   else if(!catalogRecord(identity)?.part)blockers.push('ต้นฉบับไม่มี Part Code สำหรับ ECU ID '+identity.ecuId);
@@ -138,6 +141,7 @@ function render(){
  }
  const ready=verified();
  dom.title.textContent=INLINEFLASH.postCheck?'อัดเสร็จ • ปิดกุญแจ OFF → เปิด ON':
+  recoveryCandidate?'ตรวจพบ Recovery Boot ID • Flash ปกติถูกล็อก':
   INLINEFLASH.busy?'กำลังตรวจและอัดไฟล์ ECU':
   ready?'ผ่านการตรวจซอฟต์แวร์ (ยังไม่ได้ ERASE)':
   fileReady&&cableReady?'พร้อมกดตรวจอัตโนมัติและอัดไฟล์':
@@ -165,7 +169,7 @@ async function readECU(){
  try{
   // Reuse the physical FT232R opened from the home dashboard.
   const [{HondaFlashEngine}]=await Promise.all([
-   import(new URL('flash_port/honda-write-engine.js?v=318',document.baseURI).href)]);
+   import(new URL('flash_port/honda-write-engine.js?v=320',document.baseURI).href)]);
   if(typeof api!=='function')throw Error('ไม่พบตัวตรวจ License');
   const license=await api('check',{device:localStorage.getItem('55_device_id')});
   if(!license?.active)throw Error('License ไม่ได้เปิดใช้งาน');
@@ -177,7 +181,8 @@ async function readECU(){
   const c=current();
   last={identity,engine,at:Date.now(),saved:c.valid?c.saved:null,model:c.model,plan:null};
   const found=catalogRecord(identity);
-  message=identity.sourceMatched?
+  message=identity.ecuId?.endsWith('0000')?
+   'พบ ECU Boot ID '+identity.ecuId+' • Flash ปกติหยุดก่อน ERASE ให้เปิด Recovery เพื่อยืนยันโหมด/Family จาก ECU จริง':identity.sourceMatched?
    'อ่าน ECU ID '+identity.ecuId+' และยืนยัน Family แล้ว · กดตรวจ Preflight':
    found?'อ่าน ECU ID '+identity.ecuId+' ได้จริง · พบในฐาน 290 ('+found.family+') แต่เซสชัน '+identity.handshake+' ยังไม่ยืนยัน Family สำหรับแฟลช':
    'อ่าน ECU ID '+identity.ecuId+' ได้จริง แต่ไม่พบในฐาน 290 รายการ · ตรวจรุ่นกล่อง/คำตอบดิบก่อน';
@@ -198,6 +203,7 @@ async function runCheck(){
   const c=current();
   if(!c.valid)throw Error('BIN ไม่ได้บันทึกหรือถูกแก้ภายหลัง · ต้องบันทึกใหม่');
   if(!last||!recency()||last.saved!==c.saved||last.model!==c.model)throw Error('ผล ECU ID หมดอายุหรือคนละไฟล์ · กรุณาอ่าน ECU ID ใหม่');
+  if(last.identity.ecuId?.endsWith('0000'))throw Error('พบ Recovery Boot ID: หยุด Preflight ของ Flash ปกติและเปิดเมนู Recovery');
   const catalog=catalogRecord(last.identity);
   if(!catalog)throw Error('อ่าน ECU ID '+last.identity.ecuId+' แล้ว แต่ไม่มีรหัสนี้ในฐาน Main C# 290 รายการ');
   if(!catalog.part)throw Error('ECU ID '+last.identity.ecuId+' อยู่ในฐาน แต่ต้นฉบับไม่มี Part Code · ใช้อ้างอิงเท่านั้น');
@@ -228,6 +234,7 @@ async function runCheck(){
 }
 function errorOut(s){error=s;message='';render()}
 function startFlash(){
+ if((last?.identity?.ecuId||window.__55SharedEcu?.snapshot?.().ecuId||'').endsWith('0000')&&!INLINEFLASH.postCheck)return errorOut('พบ Recovery Boot ID • เปิดเมนู Recovery ก่อน ห้ามใช้ Flash ปกติ');
  if(!quickBin()&&!current().valid&&!INLINEFLASH.postCheck)return errorOut('กรุณาเลือก BIN จากเครื่องหรือบันทึก BIN ที่จูนก่อน');
  if(!window.__55SharedEcu?.port?.ready&&!INLINEFLASH.postCheck)return errorOut('กรุณาเชื่อม FT232R จากหน้าแรกก่อน');
  const target=$('btnFlash');if(!target||target.hidden||target.disabled)return errorOut('ระบบ Flash Engine เดิมยังไม่อนุญาตให้อัด');
@@ -273,9 +280,14 @@ function mount(host){
   finally{window.__55refreshFlashButton?.();render();upload.value='';if(window.__55SharedEcu?.snapshot?.().ecuId)void autoPrepare();}
  };
  const flash=btn('⇧ ตรวจอัตโนมัติและอัดไฟล์','n24-btn n24-flash n24-easy-flash',startFlash);dom.flash=flash;
+ const recovery=btn('⟳ เข้าสู่ Recovery · ตรวจ ECU อีกครั้ง','n24-btn n24-read',()=>{
+  if(INLINEFLASH.busy)return errorOut('รอการทำงาน Flash ให้จบก่อน');
+  if(window.__55OpenRecoveryPanel)window.__55OpenRecoveryPanel();
+  else window.__55NeonNavigate?.('recovery');
+ });dom.recovery=recovery;recovery.hidden=true;
  const miniProgress=make('p','n24-mini-progress','พร้อมเริ่มตรวจ');dom.miniProgress=miniProgress;
  const miniBar=make('div','n24-mini-bar');const miniFill=make('i','');dom.miniBar=miniFill;miniBar.append(miniFill);
- easy.append(uploadLabel,upload,uploadNote,fastLabel,uploadStatus,flash,miniBar,miniProgress);
+ easy.append(uploadLabel,upload,uploadNote,fastLabel,uploadStatus,flash,recovery,miniBar,miniProgress);
  stage.append(easy);
  const file=card('n24-bin','▧','ไฟล์ที่จะอัด (BIN)');
  file.append(line('filename','ชื่อไฟล์'),line('source','ประเภทไฟล์'),line('size','ขนาดไฟล์'),line('sha','Checksum (SHA-256)'));stage.append(file);
@@ -313,6 +325,7 @@ function mount(host){
  for(const [title,path] of [
   ['ตรวจสาย USB / VID-PID (ไม่ส่งข้อมูล ECU)','flash_port/usb-cable-diagnostic.html'],
   ['เปิด Real ECU Flash (ขั้นสูง)','flash_port/flash-write-lab.html'],
+  ['เปิด Recovery แยก (ตรวจ Boot/ECU อัตโนมัติ)','flash_port/flash-write-lab.html?mode=recovery'],
   ['เปิด Offline Flash V28','flash_port/offline/index.html'],
   ['ตรวจ BIN ID / Checksum ตาม Main C#','flash_port/main-bin-audit.html'],
   ['ค้นฐาน ECU 290 รายการ','flash_port/main-ecu-catalog.html']
