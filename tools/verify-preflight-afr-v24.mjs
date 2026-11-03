@@ -17,7 +17,7 @@ assert(p.includes('Date.now()-last.at<TTL'),'physical ID freshness required');
 assert(p.includes('target.click()'),'flash action delegates to original button');
 assert(!/\.(?:flash|khPreErase|shPreErase|writeRaw|erase)\s*\(/.test(p),'UI module must not contain a destructive operation');
 assert(p.includes("hardware:false"),'physical backup, supply and wiring MUST NOT self-pass');
-assert(!/99%|0xA1B2C3D4|524288/.test(p),'no mock ECU ID / offset / confidence displayed');
+assert(!/99%|0xA1B2C3D4/.test(p),'no mock ECU ID / offset / confidence displayed; valid 512KB BIN size is allowed');
 assert(live.includes('"afr"')&&live.includes('n21-afr-provenance'),'nine sensors including AFR and provenance');
 assert(index.includes('const afrSupported=!!(liveProfile?._afrOk&&liveProfile.afr)'),'legacy ADX bridge still blocks unverified Wideband values outside Main source');
 assert(get('ui/neon-main-live-v25.js').includes('s.group!==7'),'new Main C# bridge rejects unsupported A/F from Group 7');
