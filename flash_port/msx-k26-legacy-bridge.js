@@ -71,14 +71,14 @@ function axis(t,which,byId){
  if(a?.link){
   const linked=byId.get(a.link);
   if(!linked||!((linked.cols===1&&linked.rows>=count)||(linked.rows===1&&linked.cols>=count)))throw Error('XDF linked axis '+a.link+' dimension mismatch in '+t.id);
-  return {a:linked.addr,b:linked.bits,sg:false,le:linked.little,st:linked.step,d:linked.precision,eq:linked.rawEquation};
+  return {a:linked.addr,b:linked.bits,sg:false,le:linked.little,st:linked.step,d:linked.precision,eq:linked.rawEquation,n:count,rpm:a.link==='0X2769'};
  }
  if(Array.isArray(a?.labels)){
   return {l:Array.from({length:count},(_,i)=>String(a.labels[i]??i+1))};
  }
  if(Number.isInteger(a?.address)){
   if(a.address+(count-1)*a.step+a.bits/8>N)throw Error('XDF axis outside BIN: '+t.id);
-  return {a:a.address,b:a.bits,sg:false,le:a.little,st:a.step,d:1,
+  return {a:a.address,b:a.bits,sg:false,le:a.little,st:a.step,d:1,n:count,rpm:false,
     eq:'X*'+a.formula[0]+(a.formula[1]>=0?'+':'')+a.formula[1]};
  }
  return {l:Array.from({length:count},(_,i)=>String(i+1))};
