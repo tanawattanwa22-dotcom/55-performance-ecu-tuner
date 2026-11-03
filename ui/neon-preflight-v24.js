@@ -126,7 +126,8 @@ async function readECU(){
   // Must request the user-selected device synchronously from the click.
   const device=await navigator.usb.requestDevice({filters:[{vendorId:0x0403,productId:0x6001}]});
   const [{Ft232rWebUsb},{HondaFlashEngine}]=await Promise.all([
-   import('./flash_port/ftdi-webusb.js'),import('./flash_port/honda-write-engine.js')]);
+   import(new URL('flash_port/ftdi-webusb.js',document.baseURI).href),
+   import(new URL('flash_port/honda-write-engine.js',document.baseURI).href)]);
   if(typeof api!=='function')throw Error('ไม่พบตัวตรวจ License');
   const license=await api('check',{device:localStorage.getItem('55_device_id')});
   if(!license?.active)throw Error('License ไม่ได้เปิดใช้งาน');
