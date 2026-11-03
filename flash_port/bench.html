@@ -43,7 +43,7 @@ hr{border:0;border-top:1px solid #42556c;margin:14px 0}
 <button id="pick" disabled>เลือกสายใหม่ผ่าน Android</button>
 <button class="secondary" id="disconnect" disabled>ตัดสาย</button>
 </div>
-<p class="note">หาก Android แสดงชื่อซ้ำ ให้เลือกรายการที่มีรหัสท้ายชื่อเดียวกับสายที่เปิดสำเร็จก่อนหน้านี้ ไม่ใช่รายการว่าง และไม่ต้องเปิด USB พร้อมกันหลายหน้า</p>
+<p class="note">ถ้ามีชื่อสายซ้ำ เลือกตามรหัส Serial ที่ตรงกัน • ปุ่มเชื่อมต่อสายที่เลือกจะขอสิทธิ์ Android ใหม่ทุกครั้ง ไม่ใช้การเชื่อมต่อ USB ที่อาจค้างจากรอบก่อน</p>
 <div class="row">
 <button id="scanUsb" class="secondary" disabled>แสดงสายที่เคยอนุญาต</button>
 <select id="usbList" aria-label="เลือก FT232R ที่เคยอนุญาต" disabled style="flex:1;min-width:200px;width:auto;margin:4px 0"><option>กดแสดงสายก่อน</option></select>
@@ -127,7 +127,7 @@ async function listApproved(){
  }else{
   approvedUsb.forEach((device,i)=>list.add(new Option(usbLabel(device),String(i))));
   el('usbHint').textContent='Chrome พบ FT232R ที่เคยอนุญาต '+approvedUsb.length+
-   ' รายการ · โปรดเลือกรหัส Serial ของสายที่ต้องการก่อนเชื่อมต่อ';
+   ' รายการ · เลือกสายที่ต้องการ แล้ว Android จะขออนุญาต USB ใหม่ก่อนเปิดพอร์ต';
  }
  busy(false);
 }
@@ -158,7 +158,26 @@ el('connectKnown').onclick=async()=>{
  if(!active||port)return;
  const i=Number(el('usbList').value);
  if(!Number.isInteger(i)||!approvedUsb[i])return;
- busy(true);try{await openUsb(approvedUsb[i])}finally{busy(false)}
+ // Android WebUSB can retain an approved but stale USBDevice handle after
+ // OTG detach/reconnect. Always request a NEW device handle from a direct
+ // user gesture. Filter by the selected serial number where available.
+ const chosen=approvedUsb[i];
+ const filter={vendorId:0x0403,productId:0x6001};
+ if(chosen.serialNumber)filter.serialNumber=chosen.serialNumber;
+ busy(true);
+ try{
+  const fresh=await navigator.usb.requestDevice({filters:[filter]});
+  if(chosen.serialNumber&&fresh.serialNumber!==chosen.serialNumber)
+   throw Error('รหัสสายไม่ตรงกับที่เลือก กรุณาตรวจ USB อีกครั้ง');
+  log('USB FRESH PERMISSION: '+usbId(fresh)+' (selected serial match: '+Boolean(chosen.serialNumber)+')');
+  await openUsb(fresh);
+ }catch(e){
+  log('USB REAUTHORIZE ERROR: '+e.name+' '+e.message);
+  el('usb').textContent='ขออนุญาต USB ใหม่ไม่สำเร็จ: '+e.message;
+  el('usbHint').textContent=/SecurityError|Access denied/i.test(e.name+' '+e.message)?
+   'Android ยังไม่อนุญาตให้เปิดสาย: ปิดหน้าอื่นที่ใช้ FTDI ถอด OTG เปิด Chrome เต็มหน้าจอและอนุญาต USB ใหม่ หากยังไม่ผ่านให้ตรวจการตั้งค่า USB ของเว็บ':
+   'โปรดเลือกสายที่ตรงรหัส Serial ในหน้าต่าง Android และยืนยันสิทธิ์';
+ }finally{busy(false)}
 };
 el('pick').onclick=async()=>{
  // requestDevice must be invoked by a direct user click.
