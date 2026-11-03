@@ -262,6 +262,25 @@ export class MainLiveSession {
    if(this.disconnectRequested)return false;
    await this._checkIdentity();
    if(this.disconnectRequested)return false;
+   // FormMain.cs WorkerThread fallback: diagnostic ID may not answer, while
+   // source Keihin poll / flash-count path still identifies the controller.
+   // No ERASE or WRITE action is called in this branch.
+   if(!this.ecuId&&this.port?.ready){
+    this.phase='SOURCE_WORKER_ID_FALLBACK';
+    this.autoStatus='กำลังลอง WorkerThread / Keihin-Shindengen จาก Main.zip';
+    this.notify();
+    try{
+     const physical=await new HondaFlashEngine(this.port).identify({programmingPreflight:true});
+     if(physical?.ecuId){
+      this.ecuId=physical.ecuId;
+      this.catalog=physical.catalog||null;
+      this.idError=this.catalog?'':'อ่าน ECU ID ได้ แต่ไม่พบในฐาน Main 290';
+      this.notify();
+     }
+    }catch(e){
+     this.idError=(this.idError?this.idError+' | ':'')+'WorkerThread: '+String(e?.message||e);
+    }
+   }
    if(!this.port?.ready)throw Error('FT232R หลุดระหว่างอ่าน ECU ID');
    if(!this.ecuId){
     // No vehicle present: do NOT probe every Live/DTC bank for another
