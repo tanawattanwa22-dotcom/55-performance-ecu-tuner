@@ -11,6 +11,7 @@ on:
       - "tools/verify-main-neon-v25.mjs"
       - "tools/verify-honda-flash.mjs"
       - "tools/verify-main-full-flash-sim.mjs"
+      - "tools/verify-offline-flash.mjs"
       - "tools/verify-main-diagnostic.mjs"
       - "tools/verify-main-auto-group.mjs"
       - "tools/verify-main-bin-sizes.mjs"
@@ -39,6 +40,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - name: Verify V28 signed Offline Flash and shared original source engine
+        run: node tools/verify-offline-flash.mjs
       - name: Full source-based Keihin/Shindengen erase/write/recovery simulation (NO USB)
         run: node tools/verify-main-full-flash-sim.mjs
       - name: Run 29 offline/mock Honda flash checks
