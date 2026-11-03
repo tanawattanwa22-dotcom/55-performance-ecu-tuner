@@ -1098,7 +1098,7 @@ async function inlineFlashStart(){
   const shared=window.__55SharedEcu;
   if(!shared)throw Error('ระบบสายหลักยังไม่พร้อม');
   INLINEFLASH.port=await shared.acquire('INLINE_FLASH');
-  const {HondaFlashEngine}=await import('./flash_port/honda-write-engine.js?v=309');
+  const {HondaFlashEngine}=await import('./flash_port/honda-write-engine.js?v=315');
   const activeLicense=await api('check',{device:localStorage.getItem('55_device_id')});
   if(!activeLicense?.active)throw Error('License ไม่ได้เปิดใช้งาน');
   INLINEFLASH.engine=new HondaFlashEngine(INLINEFLASH.port,ev=>{
@@ -1241,7 +1241,7 @@ mainToolsAction('mtReadEcu',async()=>{
  MAINTOOLS.busy=true;$('#mtReadEcu').disabled=true;let p=null;
  try{
   const [{Ft232rWebUsb},{HondaFlashEngine}]=await Promise.all([
-   import('./flash_port/ftdi-webusb.js?v=301'),import('./flash_port/honda-write-engine.js?v=301')]);
+   import('./flash_port/ftdi-webusb.js?v=301'),import('./flash_port/honda-write-engine.js?v=315')]);
   const lic=await api('check',{device:localStorage.getItem('55_device_id')});
   if(!lic?.active)throw Error('License ไม่ได้เปิดใช้งาน');
   if(typeof lvStop==='function'&&typeof LV!=='undefined'&&LV.run)lvStop();
@@ -2700,7 +2700,7 @@ function v3Draw(){
    const out=el("autoOffsetInfo");
    if(!S.bin){out.textContent="กรุณาเปิด BIN ก่อน";return}
    try{
-     const {csharpOffsetInference}=await import("../flash_port/csharp-offsets.js");
+     const {csharpOffsetInference}=await import("./flash_port/csharp-offsets.js?v=313");
      const result=csharpOffsetInference(S.saved?.bytes||S.bin);
      out.textContent="Offset Auto (อ้างอิง BIN):"+
        "\nStart: "+(result.startOffsetHex||"ไม่ทราบ")+
@@ -2726,7 +2726,7 @@ function v3Draw(){
 })();
 </script>
 
-<script src="ui/neon-preflight-v24.js?v=312"></script>
+<script src="ui/neon-preflight-v24.js?v=315"></script>
 <script src="ui/neon-v20.js?v=306"></script>
 <script src="ui/neon-live-v21.js?v=250"></script>
 <script src="ui/neon-dtc-v23.js?v=312"></script>
