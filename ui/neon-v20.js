@@ -129,9 +129,9 @@ function dashboard(){
 }
 function library(){
  const data=()=>typeof MODELS==='undefined'?[]:MODELS.map((m,i)=>{
-  const ready=Boolean(BINS[m.id]&&DEFS[m.id]);
+  const ready=!!m.xdf||Boolean(BINS[m.id]&&DEFS[m.id]);
   const file=ready?BINS[m.id]:null;
-  const bytes=typeof file==='string'?Math.max(0,Math.floor(file.length/4)*3-(file.endsWith('==')?2:file.endsWith('=')?1:0)):0;
+  const bytes=m.xdf?49152:typeof file==='string'?Math.max(0,Math.floor(file.length/4)*3-(file.endsWith('==')?2:file.endsWith('=')?1:0)):0;
   const meta=m.meta&&typeof m.meta==='object'?m.meta:{};
   const manufacturer=String(m.brand||meta.brand||meta.manufacturer||meta.make||'ไม่ระบุยี่ห้อ').trim();
   const vendor=String(m.ecuVendor||meta.ecuVendor||meta.ecuManufacturer||meta.ecuType||meta.vendor||(m.id==='K03-H01'?'Keihin':'')).trim();
@@ -244,11 +244,13 @@ function library(){
   return sel.value===String(r.i)&&S.mi===r.i;
  };
  const toggleMaster=(r)=>{
+  if(r.m.xdf){alert('รุ่น MSX ใช้ XDF และต้องเลือก BIN ตรง SHA-256 จากหน้าเครื่องมือจูน ไม่ใช่ BIN หลักที่ฝังในแอป');return;}
   if(!r.ready){alert('รุ่นนี้ยังไม่มี BIN และตารางจูน');return}
   if(!selectModel(r))return;
   master=r.m.id;save(KMASTER,master);render();
  };
  const openTable=(r)=>{
+  if(r.m.xdf){markRecent(r.m.id);location.href=new URL('flash_port/msx-k26-901-tuner.html',document.baseURI).href;return;}
   if(!r.ready){alert('รุ่นนี้ยังไม่มี BIN พร้อมจูน');return}
   if(!selectModel(r))return;
   markRecent(r.m.id);click('goTune');
@@ -261,9 +263,9 @@ function library(){
    ['ยี่ห้อรถ',r.manufacturer],
    ['ตระกูล ECU',r.m.fam||'ไม่ระบุ'],
    ['ผู้ผลิต ECU',r.vendor||'ยังไม่มีข้อมูลยืนยัน'],
-   ['ขนาด BIN',r.ready?r.bytes.toLocaleString('en-US')+' bytes ('+(r.bytes/1024).toFixed(2)+' KB)':'ยังไม่มี BIN'],
-   ['สถานะ',r.ready?'มีไฟล์ BIN และตารางจูนจริง':'ยังไม่พร้อมจูน'],
-   ['ชนิดไฟล์','ไฟล์หลักของแอป (ไม่ใช่ไฟล์ที่อ่านจาก ECU ลูกค้า)']
+   ['ขนาด BIN',r.m.xdf?'48 KB (เลือกไฟล์และตรวจ SHA-256 ตอนเปิด XDF)':r.ready?r.bytes.toLocaleString('en-US')+' bytes ('+(r.bytes/1024).toFixed(2)+' KB)':'ยังไม่มี BIN'],
+   ['สถานะ',r.m.xdf?'มี XDF 29 ตาราง · BIN ต้องตรง SHA-256':r.ready?'มีไฟล์ BIN และตารางจูนจริง':'ยังไม่พร้อมจูน'],
+   ['ชนิดไฟล์',r.m.xdf?'XDF กำหนดตารางจาก MSX Gen1 K26-901 · เลือก BIN เอง':'ไฟล์หลักของแอป (ไม่ใช่ไฟล์ที่อ่านจาก ECU ลูกค้า)']
   ];
   for(const [key,val] of records){
    const row=mk('div','n22-detail-row');
@@ -291,7 +293,7 @@ function library(){
    vimg.alt=r.vendor;vimg.className='n22-row-vendor-logo';vimg.loading='lazy';left.append(vimg);
   }
   const mid=mk('div','n22-row-mid');
-  mid.append(mk('div','n22-fileline',r.ready?'▣ BIN '+(r.bytes/1024).toFixed(2)+' KB':'ยังไม่มีไฟล์ BIN'));
+  mid.append(mk('div','n22-fileline',r.m.xdf?'▣ XDF 29 ตาราง · BIN 48 KB (โหลดจากเครื่อง)':r.ready?'▣ BIN '+(r.bytes/1024).toFixed(2)+' KB':'ยังไม่มีไฟล์ BIN'));
   mid.append(mk('div','n22-fileline','▤ '+(r.m.sub||'ตระกูล '+(r.m.fam||'-'))));
   const pill=mk('span','n22-state-pill'+(r.m.id===master?' main':r.ready?' ready':' missing'),
    r.m.id===master?'♛ ไฟล์หลัก':r.ready?'✓ พร้อมจูน':'รอ BIN');
