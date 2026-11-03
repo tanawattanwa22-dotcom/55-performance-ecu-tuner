@@ -4,6 +4,7 @@
  */
 (()=>{'use strict';
 const ID='MSX-GEN1-K26-901',PART='38770-K26-901',N=49152;
+const SOURCE_ROOT=new URL('flash_port/',document.baseURI);
 const SOURCE_HASH='7fcd19352605a3197e9b9b498e32ecf7ab9147da318673a8f41a7c131f8fc785';
 const LOCKED=new Set(['0X11B4','0X1EB','0X2863','0X3BD6','0X4193']);
 let job=null,cfg=null,baseline=null,allowed=null,defs=null;
@@ -14,7 +15,7 @@ const unzip=async text=>{
  return new Uint8Array(await new Response(st).arrayBuffer());
 };
 const fetchGzip=async file=>{
- const r=await fetch(new URL('./'+file+'?v=320',document.currentScript?.src||document.baseURI),{cache:'no-store'});
+ const r=await fetch(new URL(file+'?v=320',SOURCE_ROOT),{cache:'no-store'});
  if(!r.ok)throw Error('โหลดนิยาม MSX '+file+' ไม่ได้: HTTP '+r.status);
  return unzip(await r.text());
 };
