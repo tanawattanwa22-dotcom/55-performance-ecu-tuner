@@ -186,6 +186,7 @@ async function readECU(){
   error=e?.message||String(e);
  }finally{
   shared.release("PREFLIGHT");
+  if(port&&!port.ready)await shared.restoreCable?.();
   // Shared port belongs to the home dashboard. Never close it here.
   working=false;render();
  }
