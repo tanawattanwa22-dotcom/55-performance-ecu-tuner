@@ -482,6 +482,53 @@ table.g th,table.g td{border-right:1px solid rgba(255,255,255,.35);border-bottom
  <div class="bb"><button class="btn sq" data-op="undo">↶</button><button class="btn sq" data-op="redo">↷</button><button class="btn" id="btnCmp">เทียบ</button><button class="btn" id="btn3d">3D</button><button class="btn" id="btnSave">บันทึก BIN</button><button class="btn ac" id="btnToFlash" hidden>ไปหน้าอัดไฟล์</button></div>
 </section>
 
+<style>
+/* Original tuner styling; RPM editing is an independent full-screen page. */
+#rpmAxisPage{background:#0b1d34;color:#eef6ff;overflow-y:auto;overscroll-behavior:contain;padding-bottom:calc(105px + env(safe-area-inset-bottom))}
+#rpmAxisPage .axis-screen-head{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:14px;padding:14px;background:linear-gradient(135deg,#142d4a,#171c3c);border-bottom:1px solid #3a6082}
+#rpmAxisPage .axis-screen-head b{display:block;font-size:17px}
+#rpmAxisPage .axis-screen-head small{display:block;color:#aac6da;font-size:12px}
+#rpmAxisPage .axis-screen-head button{flex:none}
+#rpmAxisPage .axis-screen-body{max-width:860px;margin:auto;padding:14px}
+#rpmAxisPage .axis-instruction{font-size:13px;line-height:1.6;color:#c5d9e9;margin:4px 0 15px}
+#rpmAxisPage .axis-select-label{display:block;font-weight:750;margin-bottom:8px}
+#rpmAxisPage .axis-select{display:block;box-sizing:border-box;width:100%;min-height:51px;border-radius:11px;padding:10px 12px;background:#17314c;color:#efffff;border:1px solid #5385a2;font:inherit}
+#rpmAxisPage .axis-info{font-size:12px;line-height:1.6;color:#b7d4e4;margin:12px 0}
+#rpmAxisPage .axis-col-title{display:grid;grid-template-columns:70px minmax(0,1fr);gap:9px;margin:8px 0;padding:0 8px;font-size:12px;color:#9dbcd1}
+#rpmAxisPage .axis-rows{display:grid;gap:8px}
+#rpmAxisPage .axis-point{display:grid;grid-template-columns:70px minmax(0,1fr);align-items:center;gap:10px;padding:9px 12px;background:#142b43;border:1px solid #345874;border-radius:12px}
+#rpmAxisPage .axis-index{font-weight:800;font-variant-numeric:tabular-nums;color:#9bdced}
+#rpmAxisPage .axis-values{display:grid;grid-template-columns:minmax(0,1fr) 22px minmax(0,1fr);align-items:center;gap:5px}
+#rpmAxisPage .axis-old{text-align:center;font-variant-numeric:tabular-nums;font-weight:750;white-space:nowrap}
+#rpmAxisPage .axis-arrow{text-align:center;color:#91b0c8}
+#rpmAxisPage .axis-input{box-sizing:border-box;min-width:0;width:100%;height:43px;border:1px solid #6093ac;border-radius:8px;background:#0c2038;color:#fff;font-size:17px;font-weight:750;text-align:center;font-variant-numeric:tabular-nums;padding:5px}
+#rpmAxisPage .axis-input.edited{border-color:#43e2ba;background:#153d45}
+#rpmAxisPage .axis-input:disabled{opacity:.48;background:#26354b}
+#rpmAxisPage .axis-message{color:#ffdaa3;font-size:13px;line-height:1.5;min-height:18px;margin-top:14px;white-space:pre-wrap}
+#rpmAxisPage .axis-screen-footer{position:fixed;bottom:0;left:0;right:0;z-index:4;display:flex;gap:10px;padding:10px 15px calc(12px + env(safe-area-inset-bottom));border-top:1px solid #3b617a;background:#112a45}
+#rpmAxisPage .axis-screen-footer button{flex:1;min-height:49px}
+#rpmAxisPage .axis-screen-footer button:disabled{opacity:.42}
+</style>
+<section id="rpmAxisPage" class="page" aria-label="หน้าแก้แกนรอบ RPM">
+ <div class="axis-screen-head">
+  <button type="button" id="axisPageBack" class="mini">‹ กลับตารางจูน</button>
+  <div><b>แก้แกนรอบเครื่อง RPM</b><small id="axisPageModel">-</small></div>
+ </div>
+ <div class="axis-screen-body">
+  <p class="axis-instruction">หน้าแก้แกนแยกจากตารางหลัก · เลือกชุดแกน แล้วกรอกค่า RPM ทีละจุด ระบบจะตรวจลำดับและตำแหน่ง BIN ก่อนบันทึก</p>
+  <label class="axis-select-label" for="axisPageChoice">เลือกชุดแกน RPM</label>
+  <select id="axisPageChoice" class="axis-select"></select>
+  <p id="axisPageInfo" class="axis-info"></p>
+  <div class="axis-col-title"><span>ลำดับ</span><span>ค่า RPM เดิม → ค่าใหม่</span></div>
+  <div id="axisPageRows" class="axis-rows"></div>
+  <p id="axisPageMessage" class="axis-message" role="status"></p>
+ </div>
+ <div class="axis-screen-footer">
+  <button type="button" id="axisPageCancel" class="btn">ยกเลิก</button>
+  <button type="button" id="axisPageSave" class="btn ac">บันทึกการแก้แกน</button>
+ </div>
+</section>
+
 <div id="dr"><div class="sh"><div class="h"><input type="search" id="dq" placeholder="ค้นหาตาราง"><button class="mini" id="dx">ปิด</button></div><div class="ls" id="dl"></div></div></div>
 <div id="toast"></div>
 
@@ -854,14 +901,150 @@ function rpmAxisKey(t){
  }
  return null;
 }
-function activateRpmAxis(){
- if(!M||S.mi<0)return toast("เลือกรุ่นรถก่อน");
- const target=rpmAxisKey(curT())?curT():M.tables.find(t=>rpmAxisKey(t)&&t.g!=="แกน");
- if(!target)return toast("ยังไม่มีนิยามแกน RPM ที่ยืนยันได้สำหรับรุ่นนี้",4000);
- if(target.i!==S.ti)selectTable(target.i);
- S.axEdit=true;$("#axT").classList.add("on");
- toast("แก้แกน RPM: แตะหัวแถวหรือหัวคอลัมน์รอบเครื่อง · ระบบตรวจตำแหน่งก่อนบันทึก",4200);
+let axisPageEntries=[],axisPageCurrent=null,axisPageOpen=false;
+function rpmAxisEntries(){
+ if(!M||!S.bin)return [];
+ const entries=new Map();
+ for(const t of M.tables){
+  for(const key of ["y","x"]){
+   if(rpmAxisKey(t)!==key&&!(t[key]?.rpm===true))continue;
+   const a=t[key],n=key==="y"?t.r:t.c;
+   if(!a||a.l||!Number.isInteger(a.a)||!Number.isInteger(a.st)||![8,16].includes(a.b)||!a.k?.a||
+      a.st<a.b/8||n<2||n>256)continue;
+   const end=a.a+(n-1)*a.st+a.b/8;
+   if(a.a<0||end>S.bin.length)continue;
+   const fingerprint=[a.a,a.b,a.st,a.le,a.sg,a.eq,n].join("|");
+   if(!entries.has(fingerprint))entries.set(fingerprint,{axis:a,n,key,tables:[],name:t.t,fp:fingerprint});
+   entries.get(fingerprint).tables.push(t.t);
+  }
+ }
+ return [...entries.values()];
 }
+function axisPageClose(){
+ axisPageOpen=false;axisPageCurrent=null;
+ show("tune");
+}
+function axisPageCancel(){
+ if(!axisPageOpen)return;
+ const dirty=[...$("#axisPageRows").querySelectorAll("input[data-axis-point]")].some(el=>el.value!==el.dataset.original);
+ if(dirty&&!confirm("ยกเลิกการแก้แกนที่ยังไม่บันทึก?"))return;
+ if(history.state?.p==="rpm-axis")history.back();
+ else axisPageClose();
+}
+function axisPageWritable(a,n){
+ const writable=[];
+ for(let i=0;i<n;i++){
+  const at=a.a+i*a.st,addresses=Array.from({length:a.b/8},(_,j)=>at+j);
+  const protectedMsx=MODELS[S.mi]?.xdf&&
+   (!window.__55MSX?.loaded||addresses.some(p=>window.__55MSX.isProtectedByte(p)));
+  writable.push(!protectedMsx&&at>=0&&at+a.b/8<=S.bin.length);
+ }
+ return writable;
+}
+function axisPageRender(){
+ const index=Number($("#axisPageChoice").value),entry=axisPageEntries[index];
+ axisPageCurrent=entry||null;
+ const box=$("#axisPageRows"),msg=$("#axisPageMessage");box.replaceChildren();msg.textContent="";
+ if(!entry){$("#axisPageInfo").textContent="ไม่พบแกนรอบเครื่องจากนิยามตารางรุ่นนี้";$("#axisPageSave").disabled=true;return}
+ const a=entry.axis,n=entry.n;
+ const original=Array.from({length:n},(_,i)=>a.k.f(rdRaw(a.a+i*a.st,a.b,a.sg,a.le)));
+ const writable=axisPageWritable(a,n);
+ $("#axisPageInfo").textContent=n+" จุด · แกนนี้ใช้กับ "+[...new Set(entry.tables)].join(", ")+
+  " · แก้ได้ "+writable.filter(Boolean).length+"/"+n+" จุด"+
+  " · ค่าเปลี่ยนจะอยู่ใน BIN ที่กำลังจูนจนกว่าจะกดบันทึก BIN";
+ const frag=document.createDocumentFragment();
+ for(let i=0;i<n;i++){
+  const row=document.createElement("div");row.className="axis-point";
+  const idx=document.createElement("span");idx.className="axis-index";idx.textContent=String(i+1).padStart(2,"0");
+  const values=document.createElement("div");values.className="axis-values";
+  const previous=document.createElement("span");previous.className="axis-old";
+  const stringVal=original[i].toFixed(a.d??0);previous.textContent=stringVal;
+  const arrow=document.createElement("span");arrow.className="axis-arrow";arrow.textContent="→";
+  const input=document.createElement("input");input.className="axis-input";
+  input.type="text";input.inputMode="decimal";input.autocomplete="off";
+  input.dataset.axisPoint=String(i);input.dataset.original=stringVal;
+  input.value=stringVal;input.disabled=!writable[i];
+  input.setAttribute("aria-label","ค่า RPM ลำดับ "+(i+1));
+  if(!writable[i])input.title="ตำแหน่งใน BIN ไม่อนุญาตให้แก้";
+  input.addEventListener("input",()=>{
+   input.classList.toggle("edited",input.value.trim()!==input.dataset.original);
+   msg.textContent="";
+  });
+  values.append(previous,arrow,input);row.append(idx,values);frag.append(row);
+ }
+ box.append(frag);$("#axisPageSave").disabled=!writable.some(Boolean);
+}
+function axisPageSave(){
+ const e=axisPageCurrent;if(!e||!M||!S.bin)return;
+ const a=e.axis,n=e.n;
+ const inputs=[...$("#axisPageRows").querySelectorAll("input[data-axis-point]")];
+ const error=message=>{$("#axisPageMessage").textContent=message};
+ if(inputs.length!==n)return error("รายการแกนไม่ครบ กรุณาเปิดหน้าจูนใหม่");
+ const originals=Array.from({length:n},(_,i)=>rdRaw(a.a+i*a.st,a.b,a.sg,a.le));
+ const values=[],bytes=[],seen=new Map();
+ const [lo,hi]=rawLim(a.b,a.sg);
+ for(let i=0;i<n;i++){
+  const rawString=inputs[i].value.trim().replace(",",".");
+  if(!rawString||!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(rawString))
+   return error("จุดที่ "+(i+1)+" กรุณากรอกตัวเลข RPM ที่ถูกต้อง");
+  const target=Number(rawString);
+  const raw=Math.round((target-a.k.b)/a.k.a);
+  if(!Number.isFinite(raw)||raw<lo||raw>hi)
+   return error("จุดที่ "+(i+1)+" เกินขอบเขต BIN สำหรับแกนนี้");
+  const at=a.a+i*a.st;
+  if(at<0||at+a.b/8>S.bin.length)return error("ตำแหน่งข้อมูลเกินความยาว BIN");
+  const current=originals[i];
+  if(raw!==current&&MODELS[S.mi]?.xdf&&
+    Array.from({length:a.b/8},(_,k)=>at+k).some(p=>window.__55MSX?.isProtectedByte(p)!==false))
+   return error("จุดที่ "+(i+1)+" เป็นตำแหน่งที่ XDF ยังไม่อนุญาตให้แก้");
+  values.push(a.k.f(raw));
+  if(raw!==current){
+   for(const [offset,b] of bytesOf(a.b,a.le,raw).map((b,k)=>[at+k,b])){
+    if(seen.has(offset)&&seen.get(offset)!==b)return error("แกนหลายจุดใช้ไบต์ซ้อนกันและค่าขัดแย้ง");
+    seen.set(offset,b);bytes.push([offset,b]);
+   }
+  }
+ }
+ const oldVals=originals.map(v=>a.k.f(v));
+ const asc=oldVals[n-1]>oldVals[0];
+ if(oldVals[n-1]===oldVals[0])return error("แกนเดิมไม่มีลำดับ RPM ชัดเจน จึงไม่บันทึก");
+ for(let i=1;i<n;i++){
+  if(asc?values[i]<=values[i-1]:values[i]>=values[i-1])
+   return error("จุด "+i+"–"+(i+1)+" : แกน RPM ต้องเรียงจากน้อยไปมากหรือมากไปน้อยตามเดิม และห้ามซ้ำกัน");
+ }
+ if(!bytes.length){error("ไม่มีค่า RPM เปลี่ยนแปลง");return}
+ if(!commit("แก้แกน RPM "+e.name,bytes))return error("บันทึกค่าแกนไม่สำเร็จ");
+ toast("บันทึกแกน RPM "+e.n+" จุดในตารางแล้ว · อย่าลืมกดบันทึก BIN",4400);
+ if(history.state?.p==="rpm-axis")history.back();else axisPageClose();
+}
+function activateRpmAxis(){
+ if(!M||S.mi<0||!S.bin)return toast("เลือกรุ่นและ BIN ก่อน");
+ axisPageEntries=rpmAxisEntries();
+ if(!axisPageEntries.length)return toast("ไม่พบแกน RPM ที่มีตำแหน่งและสูตรครบในรุ่นนี้",4000);
+ const current=rpmAxisKey(curT());
+ const pickIndex=axisPageEntries.findIndex(x=>current&&x.axis===curT()[current]);
+ const choice=$("#axisPageChoice");choice.replaceChildren();
+ axisPageEntries.forEach((e,i)=>{
+  const o=document.createElement("option");o.value=i;
+  o.textContent="ชุด "+(i+1)+" · "+e.n+" จุด · "+[...new Set(e.tables)].slice(0,2).join(" / ");
+  choice.append(o);
+ });
+ choice.value=String(Math.max(0,pickIndex));
+ $("#axisPageModel").textContent=MODELS[S.mi].id;
+ axisPageOpen=true;show("rpmAxisPage");history.pushState({p:"rpm-axis"},"");
+ axisPageRender();$("#rpmAxisPage").scrollTop=0;
+}
+$("#axisPageChoice").addEventListener("change",()=>{
+ const dirty=[...$("#axisPageRows").querySelectorAll("input[data-axis-point]")].some(el=>el.value!==el.dataset.original);
+ if(dirty&&!confirm("เปลี่ยนชุดแกนโดยยกเลิกค่าที่กรอกไว้?")){
+  const old=axisPageEntries.indexOf(axisPageCurrent);
+  $("#axisPageChoice").value=String(Math.max(0,old));return;
+ }
+ axisPageRender();
+});
+$("#axisPageBack").onclick=axisPageCancel;
+$("#axisPageCancel").onclick=axisPageCancel;
+$("#axisPageSave").onclick=axisPageSave;
 $("#tabs").addEventListener("click",e=>{
  const c=e.target.closest(".chip");if(!c)return;
  if(c.dataset.action==="rpm-axis")return activateRpmAxis();
@@ -1397,7 +1580,13 @@ mainToolsAction('mtReadEcu',async()=>{
 
 
 $("#back").onclick=()=>history.back();
-window.addEventListener("popstate",()=>{if(!DEFS)return;if(typeof lvStop==="function")lvStop();show("home");home()});
+window.addEventListener("popstate",e=>{
+ if(axisPageOpen&&e.state?.p==="tune"){axisPageClose();return}
+ if(axisPageOpen)axisPageClose();
+ if(!DEFS)return;
+ if(typeof lvStop==="function")lvStop();
+ show("home");home();
+});
 window.addEventListener("beforeunload",e=>{if(S.bin&&S.undo.length){e.preventDefault();e.returnValue=""}});
 
 /* home buttons */
