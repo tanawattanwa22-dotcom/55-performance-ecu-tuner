@@ -69,11 +69,14 @@ old.snapshot=()=>{
   message:s.error||lastConnectError||(
    s.connecting?(phases[s.phase]||'กำลังเปิด FT232R…'):
    s.running?'กำลังอ่านข้อมูลจาก FM_diag.cs Group '+s.group:
-   s.connected?'เชื่อมสายแล้ว • Live Group '+(s.liveGroupVerified?s.group:'ยังไม่ยืนยัน')+' • '+s.autoStatus:'เชื่อมต่อ FT232R ก่อนเริ่ม Diagnostic'
+   s.connected?'USB FT232R เปิดพอร์ตแล้ว • '+(s.ecuId?'ECU ID '+s.ecuId:'ยังไม่ได้เชื่อม ECU')+' • '+s.autoStatus:'กดเชื่อม FT232R เพื่อเปิดสาย (ไม่อ่าน ECU)'
   )
  };
 };
 old.connect=async()=>{
+ // Opening USB is idempotent across Home and Live. Never open the FTDI
+ // interface twice, and never start diagnostic probing as a side effect.
+ if(reader.status().connected){notify();return true;}
  // Prevent dual ownership of a physical FT232R already held by the old DTC connector.
  if(!!window.__ecu?.K?.t){
   lastConnectError='มีการเชื่อมต่อ FTDI ผ่านหน้าระบบเก่าอยู่ • ตัดการเชื่อมต่อนั้นก่อน แล้วกลับมาเชื่อมจาก Live Data';
