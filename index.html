@@ -1017,7 +1017,7 @@ function inlineFlashLog(txt){
 }
 function inlineFlashRefresh(){
  const b=$("#btnFlash");if(!b)return;
- b.disabled=INLINEFLASH.busy||(!S.bin&&!INLINEFLASH.postCheck)||
+ b.disabled=INLINEFLASH.busy||(!S.bin&&!window.__55QuickFlashBin?.bytes&&!INLINEFLASH.postCheck)||
    !!document.getElementById('licenseGate');
  b.textContent=INLINEFLASH.busy?'กำลังดำเนินการ • อย่าปิดแอป':
    INLINEFLASH.postCheck?'ตรวจ ECU หลังรีสตาร์ต (อ่าน ID)':
@@ -1046,13 +1046,13 @@ function inlineFlashConfirm(plan){
   const dialog=document.createElement('dialog');dialog.id='ecu-flash-confirm';
   dialog.style.cssText='box-sizing:border-box;width:min(94vw,460px);max-height:90vh;overflow:auto;background:#15243a;color:white;border:1px solid #7891aa;border-radius:16px;padding:20px;font:14px/1.5 system-ui';
   const title=document.createElement('h3');title.textContent='ยืนยันก่อน ERASE / WRITE (กล่องสำรอง)';dialog.append(title);
-  if(S.saved&&!S.saved.customerBin){const warning=document.createElement('p');warning.style.cssText='padding:10px;border-radius:10px;background:#4c3016;color:#ffe2b8';warning.textContent='กำลังใช้ BIN หลักที่ติดมากับแอป ไม่ใช่ไฟล์ที่อ่านจาก ECU คันนี้ ต้องยืนยันความเข้ากันได้ของ ECU ID, Part Code และเวอร์ชันเฟิร์มแวร์ก่อนอัด';dialog.append(warning)}
+  if(!window.__55QuickFlashBin&&S.saved&&!S.saved.customerBin){const warning=document.createElement('p');warning.style.cssText='padding:10px;border-radius:10px;background:#4c3016;color:#ffe2b8';warning.textContent='กำลังใช้ BIN หลักที่ติดมากับแอป ไม่ใช่ไฟล์ที่อ่านจาก ECU คันนี้ ต้องยืนยันความเข้ากันได้ของ ECU ID, Part Code และเวอร์ชันเฟิร์มแวร์ก่อนอัด';dialog.append(warning)}
   const summary=document.createElement('pre');summary.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;color:#e2f0ff;background:#091424;padding:12px;border-radius:9px';
-  summary.textContent='ECU ID: '+plan.ecuId+'\nPart: '+plan.part+'\nBIN: '+plan.filename+'\nขนาด: '+plan.size+' ไบต์\nStart: 0x'+plan.startOffset.toString(16).toUpperCase()+'\nChecksum corrected: '+plan.checksumChanged+'\nโหมด: NORMAL 10400 baud\nVERIFY: ยังไม่มี READBACK';
+  summary.textContent='ECU ID: '+plan.ecuId+'\nPart: '+plan.part+'\nBIN: '+plan.filename+'\nขนาด: '+plan.size+' ไบต์\nStart: 0x'+plan.startOffset.toString(16).toUpperCase()+'\nChecksum corrected: '+plan.checksumChanged+'\nโหมด: '+(plan.fast?'FAST (ตามโปรไฟล์ Main C#)':'NORMAL 10400 baud')+'\nVERIFY: ยังไม่มี READBACK';
   dialog.append(summary);
   const checks=[
    'มีสำเนา BIN ต้นฉบับที่ตรงรุ่นเก็บไว้นอกเครื่องนี้แล้ว',
-   ...(S.saved&&!S.saved.customerBin?['ตรวจสอบแล้วว่า BIN หลักในแอปตรง ECU ID, Part Code และเฟิร์มแวร์ของกล่องคันนี้']:[]),
+   ...(!window.__55QuickFlashBin&&S.saved&&!S.saved.customerBin?['ตรวจสอบแล้วว่า BIN หลักในแอปตรง ECU ID, Part Code และเฟิร์มแวร์ของกล่องคันนี้']:[]),
    'ไฟ ECU และวงจร K-Line ตรวจถูกต้องและเสถียร',
    'มีกระบวนการและเครื่องมือกู้คืนกล่องที่ทดสอบแล้ว'
   ].map(t=>{const label=document.createElement('label');label.style.cssText='display:block;margin:12px 0';const box=document.createElement('input');box.type='checkbox';box.style.marginRight='8px';label.append(box,document.createTextNode(t));dialog.append(label);return box});
@@ -1093,7 +1093,7 @@ async function inlineFlashStart(){
   }finally{INLINEFLASH.busy=false;inlineFlashRefresh()}
   return;
  }
- if(!S.bin||!S.bin.length)return toast('เลือก BIN ก่อน');
+ if(!window.__55QuickFlashBin?.bytes?.length&&(!S.bin||!S.bin.length))return toast('เลือก BIN ก่อน');
  if(document.getElementById('licenseGate'))return toast('ต้องล็อกอินก่อน');
  INLINEFLASH.busy=true;INLINEFLASH.status='CONNECTING';INLINEFLASH.flashAttempted=false;
  INLINEFLASH.firstSha=null;INLINEFLASH.writeSha=null;INLINEFLASH.ecuId=null;INLINEFLASH.plan=null;
@@ -1103,7 +1103,7 @@ async function inlineFlashStart(){
   const shared=window.__55SharedEcu;
   if(!shared)throw Error('ระบบสายหลักยังไม่พร้อม');
   INLINEFLASH.port=await shared.acquire('INLINE_FLASH');
-  const {HondaFlashEngine}=await import('./flash_port/honda-write-engine.js?v=301');
+  const {HondaFlashEngine}=await import('./flash_port/honda-write-engine.js?v=308');
   const activeLicense=await api('check',{device:localStorage.getItem('55_device_id')});
   if(!activeLicense?.active)throw Error('License ไม่ได้เปิดใช้งาน');
   INLINEFLASH.engine=new HondaFlashEngine(INLINEFLASH.port,ev=>{
@@ -1112,20 +1112,23 @@ async function inlineFlashStart(){
    else if(ev.phase==='ERASE_BEGIN'||ev.phase==='SH_ERASE_BEGIN'||ev.phase==='WRITE_BLOCK_ACK')erasedOrSent=true;
   });
   inlineFlashNote('กำลังอ่านรหัส ECU จริงด้วยโปรโตคอล C# V18...');
-  const identity=await INLINEFLASH.engine.identify();
+  const identity=await INLINEFLASH.engine.identify({programmingPreflight:true});
   INLINEFLASH.ecuId=identity.ecuId;
   inlineFlashLog('ECU IDENTIFIED '+JSON.stringify(identity));
   if(!identity.sourceMatched)throw Error('ECU '+identity.ecuId+' ไม่ตรงฐาน C# ที่ยืนยันได้ จึงไม่ส่ง ERASE');
-  const bin=buildOut();  // Same file bytes as the original app's Save BIN button.
+  const quick=window.__55QuickFlashBin;
+  const bin=quick?.bytes instanceof Uint8Array?quick.bytes.slice():buildOut();
+  // Both paths use a stable copied BIN; tuning snapshots still pass the original strict guard.
   INLINEFLASH.firstSha=await inlineFlashHash(bin);
-  INLINEFLASH.filename=S.fname||('55_TUNED_'+MODELS[S.mi]?.id+'.bin');
+  INLINEFLASH.filename=quick?.filename||S.saved?.filename||S.fname||('55_TUNED_'+MODELS[S.mi]?.id+'.bin');
+  const fast=!!window.__55QuickFlashFast;
   let plan;
-  try{plan=INLINEFLASH.engine.makePlan(bin,{filename:INLINEFLASH.filename,fast:false,recovery:false})}
+  try{plan=INLINEFLASH.engine.makePlan(bin,{filename:INLINEFLASH.filename,fast,recovery:false})}
   catch(e){
    if(e.code!=='PART_NOT_CONFIRMED')throw e;
    const input=prompt('ไฟล์ BIN ไม่ระบุ Part Code ของ ECU นี้ในชื่อไฟล์\nECU: '+identity.ecuId+'\nพิมพ์ Part Code ที่อ่านจากกล่อง: '+identity.sourcePart);
    if(!input)throw Error('ยกเลิกการยืนยัน Part Code');
-   plan=INLINEFLASH.engine.makePlan(bin,{filename:INLINEFLASH.filename,confirmedPart:input.trim(),fast:false,recovery:false});
+   plan=INLINEFLASH.engine.makePlan(bin,{filename:INLINEFLASH.filename,confirmedPart:input.trim(),fast,recovery:false});
   }
   INLINEFLASH.plan=plan;
   INLINEFLASH.writeSha=await inlineFlashHash(plan.bin);
@@ -1146,8 +1149,9 @@ async function inlineFlashStart(){
    INLINEFLASH.status='SOURCE_FINAL_ACK_NO_READBACK_VERIFIED';
    inlineFlashProgress(100);
    inlineFlashLog('SOURCE FINAL ACK '+JSON.stringify(result));
-   inlineFlashNote('ECU ให้ Final ACK แล้ว • รีสตาร์ตกล่องสำรอง แล้วกดตรวจ ECU ID หลังเขียน (ยังไม่ใช่ READBACK VERIFY)');
+   inlineFlashNote('อัดจบ: ECU ให้ Final ACK แล้ว • ปิดสวิตช์กุญแจ OFF แล้วเปิด ON ใหม่ จากนั้นกดตรวจ ECU หลังรีสตาร์ต (ยังไม่ใช่ READBACK VERIFY)');
    INLINEFLASH.postCheck=true;
+   alert('55 PERFORMANCE: ECU ตอบ Final ACK แล้ว\n\n1. ปิดสวิตช์กุญแจ OFF\n2. เปิดกุญแจ ON ใหม่\n3. กดตรวจ ECU หลังรีสตาร์ต\n\nการตอบ Final ACK ยังไม่ใช่การอ่าน BIN กลับเพื่อ VERIFY');
   }finally{if(wake)try{await wake.release()}catch(_){}}
  }catch(e){
   INLINEFLASH.status=erasedOrSent?'FAILED_AFTER_ERASE_POSSIBLE':'STOPPED_BEFORE_ERASE';
@@ -2597,6 +2601,7 @@ function v3Draw(){
  function refresh(){
    if(S.saved&&!same()&&!INLINEFLASH.busy)S.saved=null;
    const saved=same(),fromCustomer=saved&&S.saved.customerBin;
+   const quickReady=window.__55QuickFlashBin?.bytes instanceof Uint8Array&&window.__55QuickFlashBin.bytes.length>0;
    const flash=el("btnFlash"),go=el("btnToFlash"),panel=el("flashSnapshot");
    go.hidden=!saved;
    go.textContent=saved?"ไปหน้าอัด BIN ที่บันทึกแล้ว":"ไปหน้าอัดไฟล์";
@@ -2617,10 +2622,10 @@ function v3Draw(){
        "\nพร้อมตรวจ ECU ID / Part / Offset ของกล่องจริงก่อนอัด"+"\nไฟล์หลักของรุ่นไม่รับประกันว่าเข้ากับเฟิร์มแวร์ ECU ทุกคัน"
      :"ยังไม่มี BIN ที่บันทึกแล้ว · บันทึกไฟล์ที่จูนก่อน จึงจะแสดงขั้นตอนอัด";
    el("btnReturnTune").disabled=S.mi<0||!S.bin;
-   flash.hidden=!saved&&!INLINEFLASH.postCheck;
+   flash.hidden=!saved&&!quickReady&&!INLINEFLASH.postCheck;
    if(!INLINEFLASH.busy&&!INLINEFLASH.postCheck){
-     flash.disabled=!saved||!!document.getElementById("licenseGate");
-     flash.textContent="ตรวจ BIN ที่บันทึก · ECU ID / Part / Offset ก่อนอัด";
+     flash.disabled=(!saved&&!quickReady)||!!document.getElementById("licenseGate");
+     flash.textContent=quickReady?"ตรวจ ECU และอัด BIN ที่เลือก":"ตรวจ BIN ที่บันทึก · ECU ID / Part / Offset ก่อนอัด";
    }
  }
  function forget(){
@@ -2705,7 +2710,7 @@ function v3Draw(){
  // Never let an invalid or unsaved image reach the legacy write click handler.
  el("btnFlash").addEventListener("click",event=>{
    if(INLINEFLASH.postCheck)return;
-   if(!same()||guardRun().st==="MISMATCH"){
+   if(!window.__55QuickFlashBin?.bytes&&(!same()||guardRun().st==="MISMATCH")){
      event.preventDefault();event.stopImmediatePropagation();
      toast("BIN ยังไม่ได้บันทึก ถูกแก้ภายหลัง หรือ Match Guard พบข้อมูลไม่ตรง");
      refresh();
