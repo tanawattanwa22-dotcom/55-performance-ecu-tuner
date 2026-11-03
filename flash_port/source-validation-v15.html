@@ -201,6 +201,19 @@ await t('Main C# Shindengen RH850/V850 starts at 0x10000',()=>{
  }
  return true;
 });
+
+await t('Main C# 768KB flash size accepted only with valid physical ECU preflight',async()=>{
+ const e=new HondaFlashEngine(fake('0101880D01'));await e.identify({programmingPreflight:true});
+ const plan=e.makePlan(new Uint8Array(786432),{filename:'K03-H01.bin'});
+ return plan.size===786432&&plan.expectedBlockCount===6144&&plan.profile==='KEIHINOTHER';
+});
+await t('Matching Main Part filename cannot override conflicting full BIN ECU ID',async()=>{
+ const e=new HondaFlashEngine(fake('0101880D01'));await e.identify({programmingPreflight:true});
+ const b=new Uint8Array(65536);
+ b.set([1,1,153,13,1],9144); // SearchPattern64KB reads a full different ECU ID.
+ try{e.makePlan(b,{filename:'K03-H01.bin'});return false}
+ catch(error){return error.code==='BIN_ECU_ID_MISMATCH'}
+});
 const passed=checks.filter(x=>x[1]).length;document.getElementById('sum').textContent=passed+'/'+checks.length+' PASS (offline only)';
 document.getElementById('sum').style.color=passed===checks.length?'#7aebb0':'#ffa09b';
 document.getElementById('out').textContent=checks.map(x=>(x[1]?'PASS':'FAIL')+' — '+x[0]+(x[2]?' '+x[2]:'')).join('\n');
