@@ -1,0 +1,24 @@
+<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0d1931"><title>55 PERFORMANCE · Main ECU 290</title>
+<style>
+:root{font:14px system-ui,'Noto Sans Thai',sans-serif;color:#e9f4ff;background:#081528;color-scheme:dark}
+*{box-sizing:border-box}body{margin:0;padding:13px 13px 80px;background:linear-gradient(120deg,#0c2b42,#080e21)}
+main{max-width:950px;margin:auto}a{color:#79e0fa}h1{font-size:23px;margin:5px 0}h2{font-size:16px;margin:6px 0}
+aside,.card{background:#10253d;border:1px solid #315e7d;border-radius:15px;padding:13px;margin:12px 0}
+input,select,button{color:#fff;font:inherit;border:1px solid #4d829b;background:#102b43;border-radius:10px;padding:10px;min-height:45px}
+input{width:100%;margin:10px 0}select{flex:1}.actions{display:flex;gap:8px;flex-wrap:wrap}
+button{font-weight:700;cursor:pointer}button:disabled{opacity:.4}
+table{border-collapse:collapse;width:100%;font-size:12px}th,td{border-bottom:1px solid #274963;text-align:left;padding:10px 5px;overflow-wrap:anywhere}th{color:#7bddeb}
+td:first-child{font-family:monospace;color:#d9fbff;font-size:12px}
+#status{color:#a3d3e8;white-space:pre-wrap;line-height:1.7}small{color:#a8c2d4;line-height:1.65;display:block}
+#rows{overflow-x:auto}#pager{display:flex;align-items:center;gap:10px;justify-content:flex-end}
+</style></head><body><main>
+<a href="../index.html">‹ กลับหน้า 55 Performance</a><h1>ฐานข้อมูล ECU จาก Main C#</h1>
+<small>Keihin 232 + Shindengen 58 · 290 ECU ID จาก Main.zip · นำเข้าฐานข้อมูลผ่านไฟล์ GitHub ของแอป ไม่ใช้ ECU จำลอง</small>
+<section class="card">
+<input id="search" type="search" placeholder="ค้น ECU ID, Part Code หรือ Family" aria-label="ค้นฐาน ECU" autocomplete="off">
+<div class="actions"><select id="family" aria-label="กรองผู้ผลิต"><option value="">ทุก Family</option><option value="KEIHIN">Keihin</option><option value="SHINDENGEN">Shindengen</option></select><button id="clear">ล้างคำค้น</button></div>
+<p id="status" role="status">กำลังโหลดฐาน Main C#…</p>
+</section>
+<section class="card"><div id="rows">—</div><div id="pager"><button id="prev">ก่อนหน้า</button><span id="page">—</span><button id="next">ถัดไป</button></div></section>
+<aside><h2>ข้อจำกัดของข้อมูล</h2><small>บาง Part Code หรือ Checksum Offset ไม่มีในต้นฉบับ จะแสดงว่า “ไม่ระบุ” หรือ “AUTO” ตามข้อมูลจริง การพบ ECU ID ในฐานไม่ได้ยืนยันว่าไฟล์ BIN เข้ากับกล่องจริง และไม่ได้เปิดสิทธิ์ ERASE/WRITE</small></aside>
+</main><script type="module" src="./main-ecu-catalog-ui.js?v=1"></script></body></html>
