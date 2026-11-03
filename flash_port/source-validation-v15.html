@@ -10,6 +10,7 @@ import {inspectCSharpEcuType,correctKeihinChecksum,correctShindengenChecksum,der
 import {createWriteFrame} from './flash-frames.js';
 import {HondaFlashEngine} from './honda-write-engine.js';
 import {hondaChecksum} from './ftdi-webusb.js';
+import {SOURCE_SIZES,scanMainBinIds,findMainEcuPrefixInBin,sourceSums} from './main-bin-audit.js?v=1';
 const checks=[];
 async function t(name,fn){try{checks.push([name,!!(await fn())])}catch(e){checks.push([name,false,e.message])}}
 const reply=v=>{const a=Uint8Array.from(v);a[a.length-1]=hondaChecksum(a.slice(0,-1));return {reply:a}};
@@ -18,7 +19,10 @@ async exchangeRaw(f){const b=Array.from(f);if(b[0]===114&&b.length===7)return re
 if((b[0]===125||b[0]===123)&&b.length===6&&b[3]===1)return reply([2,8,0,0,0,0,3,0]);
 return reply([2,5,0,0,0])}}}
 function shBin(){const b=new Uint8Array(262144);b.set([83,86,56,53,48],100);b.set([17,18,19,20,21,21,23],200);b.set([11,12,13,14,15,16],230);b.set([238,0],238);b.set([208,7],300);b.set([90,90,90,90],b.length-4);return b}
-await t('C# catalog 288 entries',async()=> (await loadCSharpCatalog()).size===288);
+await t('C# catalog full 290 entries (Keihin 232 + Shindengen 58)',async()=>{
+ const rows=await loadCSharpCatalog(),v=[...rows.values()];
+ return rows.size===290&&v.filter(x=>x.family==='KEIHIN').length===232&&v.filter(x=>x.family==='SHINDENGEN').length===58&&v.filter(x=>!x.part).length===2;
+});
 await t('K03-H01 ID and offset 0x8000',async()=>{const v=await findCSharpEcuId('0101880D01');return v?.part==='38770-K03-H01'&&v.startOffset===32768});
 await t('Shindengen ID maps to auto offset',async()=>{const v=await findCSharpEcuId('01046B0F01');return v?.family==='SHINDENGEN'&&v.startOffset===null});
 await t('64KB auto offset but not auto family',()=>{const v=csharpOffsetInference(new Uint8Array(65536));return v.startOffset===32768&&v.csharpClassHint==='UNDETERMINED'});
@@ -97,6 +101,27 @@ await t('C# WorkerThread fallback poll reconfirms session before ECU ID',async()
  return identity.handshake==='KEIHIN_POLL'&&labels.includes('KEIHIN_FALLBACK_HELLO')&&
         labels.indexOf('CONFIRM_WORKER_SESSION')>labels.indexOf('KEIHIN_FALLBACK_HELLO')&&
         labels.indexOf('READ_ECU_ID')>labels.indexOf('CONFIRM_WORKER_SESSION');
+});
+await t('Main C# covers all 11 BIN size scanners',()=>SOURCE_SIZES.length===11&&SOURCE_SIZES[0]===32768&&SOURCE_SIZES.at(-1)===1048576);
+await t('Source 64 KB 5-byte BIN ID marker',()=>{
+ const b=new Uint8Array(65536);b.set(Uint8Array.of(1,1,136,13,1),9144);
+ const ids=scanMainBinIds(b);
+ return ids[0]?.id==='0101880D01'&&ids[0].idOffset===9144&&ids[0].fullId===true;
+});
+await t('Source 256 KB 3-byte BIN ID marker remains partial',()=>{
+ const b=new Uint8Array(262144);b.set(Uint8Array.of(1,1,136),2048);
+ const ids=scanMainBinIds(b);
+ return ids[0]?.id==='010188'&&ids[0].fullId===false;
+});
+await t('Source ECU prefix search only matches first 3 bytes',()=>{
+ const b=Uint8Array.of(0xff,0x01,0x01,0x88,0x00);
+ const r=findMainEcuPrefixInBin(b,'0101880D01');
+ return r.found&&r.offset===1&&r.prefix==='010188';
+});
+await t('C# Sum8 / Sum32 Little Endian / Honda complement',()=>{
+ const b=Uint8Array.of(1,0,0,0,2,0,0,0);
+ const r=sourceSums(b);
+ return r.sum8===3&&r.sum32===3&&r.checksum8Honda===253;
 });
 const passed=checks.filter(x=>x[1]).length;document.getElementById('sum').textContent=passed+'/'+checks.length+' PASS (offline only)';
 document.getElementById('sum').style.color=passed===checks.length?'#7aebb0':'#ffa09b';
