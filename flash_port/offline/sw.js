@@ -3,7 +3,7 @@
  * Never controls the existing online Flash Bench or the main tuning app.
  * Pin a complete coherent version of our flash JS for loss-of-network use.
  */
-const VERSION='55perf-offline-flash-v31.9';
+const VERSION='55perf-offline-flash-v32.0';
 const ASSETS=[
  './index.html',
  './manifest.webmanifest',
