@@ -188,7 +188,7 @@ const probeEcu=async()=>{
  busy=true;refreshButtons();
  $('ecu').textContent='กำลัง Init FTDI และอ่าน ECU ID...';
  try{
-  identity=await engine.identify();
+  identity=await engine.identify(recoveryMode?{programmingPreflight:true}:{});
   $('ecu').textContent='ECU ID = '+identity.ecuId+' | family = '+identity.family+
     ' | C# source = '+(identity.sourcePart||'ไม่พบในฐานเดิม')+
     (identity.family==='KEIHIN'?' | FLASH COUNT '+identity.count:'');
