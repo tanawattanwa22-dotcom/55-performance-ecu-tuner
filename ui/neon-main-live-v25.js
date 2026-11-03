@@ -129,13 +129,19 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
  // Keep one visible cable owner: hide duplicate legacy connection buttons on the home page only.
  const legacyConnectSelectors=['#homeConnect','#connectUsbHome','#homeUsbConnect'];
  for(const selector of legacyConnectSelectors){const node=document.querySelector(selector);if(node&&node!==connect)node.hidden=true;}
- connect.onclick=()=>{void old.connect().then(updateSharedState)};
+ connect.onclick=()=>{
+  connect.disabled=true;
+  state.textContent='กำลังเลือกและเปิดพอร์ต FT232R…';
+  void old.connect().then(updateSharedState).catch(e=>{
+   state.textContent='เปิด USB ไม่สำเร็จ: '+String(e?.message||e);
+  }).finally(()=>{connect.disabled=false;updateSharedState();});
+ };
  rescan.onclick=()=>{void reader.rescan().then(updateSharedState).catch(e=>{state.textContent=e.message})};
  disconnect.onclick=()=>{void reader.disconnect().then(updateSharedState)};
  function updateSharedState(){
   const st=reader.status();
   state.textContent=st.connected?(st.connecting?'กำลังตรวจอัตโนมัติ: '+st.autoStatus:st.autoStatus):
-    (st.error||'ยังไม่ได้เชื่อมต่อ FT232R');
+    (st.error||lastConnectError||'ยังไม่ได้เชื่อมต่อ FT232R · กดเชื่อมต่อเพื่อเลือกพอร์ต');
   const fmt=n=>Number.isInteger(n)?'0x'+n.toString(16).toUpperCase().padStart(4,'0'):'';
   const off=(n,raw)=>Number.isInteger(n)?fmt(n):raw==='auto'?'AUTO จาก BIN':'ยังไม่ระบุ';
   const dtc=st.dtcSnapshot;
