@@ -38,15 +38,20 @@ old.snapshot=()=>{
  // any sensor field while the original Neon gauge is active.
  if(!document.getElementById('live')?.classList.contains('n21-gauge'))
   return originalSnapshot(); // Other modes, especially legacy DTC only.
- const ecu=window.__ecu;
- const index=ecu?.S?.mi;
- const chosen=Number.isInteger(index)&&index>=0?ecu?.MODELS?.[index]:null;
+ // The stored model selection is NOT a vehicle identification.
+ // Until the physical ECU ID is read and uniquely mapped to a verified profile,
+ // show no model rather than a stale model such as K2TG-T21.
  const s=reader.status();
+ const ecu=window.__ecu;
+ const matches=s.connected&&s.ecuId
+  ?(ecu?.MODELS||[]).filter(m=>String(m?.id||'').trim().toUpperCase()===String(s.ecuId).trim().toUpperCase())
+  :[];
+ const verifiedModel=matches.length===1?matches[0]:null;
  const values=s.running&&s.connected?{...s.values}:empty();
  return {
   mode:'gauge',source:s.running?'ecu':'idle',demo:false,run:s.running,
   connected:s.connected,cable:s.cable,connecting:s.connecting,
-  model:chosen?.id||'',ecuId:s.ecuId,group:s.group,phase:s.phase,
+  model:verifiedModel?.id||'',ecuId:s.ecuId,group:s.group,phase:s.phase,
   protocol:s.connected?'Honda K-Line / Main FM_diag.cs':'—',
   profAvailable:true,afrSupported:s.group!==7,
   afrSource:s.group===7?'C# Group 7 ไม่มีช่อง A/F':
