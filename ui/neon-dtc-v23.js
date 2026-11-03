@@ -109,7 +109,12 @@ function refreshConnection(){
  cell.ecu.textContent=s.ecuId||'ยังไม่ยืนยัน ECU ID';
  cell.protocol.textContent=s.connected?s.protocol||'Honda K-Line / FTDI':'—';
  cell.speed.textContent='ไม่ได้ตรวจวัด';
- // The legacy DTC handlers still own their separate FTDI port. Do not let\n // the new shared diagnostic port masquerade as that legacy DTC session.\n const legacyReady=!!window.__ecu?.K?.t;\n read.disabled=pending||!legacyReady;clear.disabled=pending||!legacyReady;
+ // Shared FTDI is available, but the legacy DTC transport has not been
+ // migrated. Do not claim a successful ECU diagnostic connection.
+ const legacyReady=!!window.__ecu?.K?.t;
+ read.disabled=pending||!legacyReady;
+ clear.disabled=pending||!legacyReady;
+ if(s.connected&&!legacyReady&&!pending)msg.textContent='สายหลักเชื่อมต่อแล้ว แต่คำสั่ง DTC ยังใช้ระบบเก่า ไม่สามารถอ่านผ่านสายหลักได้ในเวอร์ชันนี้';
 }
 function makeCode(v){
  const outer=create('details','n23-code-card'),summary=create('summary','n23-code-summary');
@@ -134,7 +139,7 @@ function render(){
   const s=api.snapshot(),grid=create('div','n23-system-grid');
   const fields=[
    ['รุ่นที่เลือก',s.model||'ไม่ระบุ'],
-   ['สถานะ ECU',s.connected?'ECU ตอบแล้ว':'ยังไม่เชื่อมต่อ'],
+   ['สถานะ ECU',s.ecuId?'ยืนยัน ECU ID แล้ว':s.connected?'เปิด FT232R แล้ว · ยังไม่ยืนยัน ECU':'ยังไม่เชื่อมต่อ'],
    ['โปรโตคอล',s.connected?s.protocol||'Honda K-Line / FTDI':'—'],
    ['ความเร็วบัส','ไม่ได้ตรวจวัด'],
    ['ระบบ DTC','Honda 0x73 / 0x74 ตาราง 01–03'],
