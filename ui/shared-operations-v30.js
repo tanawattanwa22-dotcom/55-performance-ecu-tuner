@@ -36,7 +36,9 @@ async function dtc(clear=false){
   $('dtcRead').disabled=$('dtcClr').disabled=false;dtcBusy=false;
  }
 }
-$('dtcRead').onclick=()=>dtc();$('dtcClr').onclick=()=>dtc(true);
+window.__55DtcOps={read:()=>dtc(),clear:()=>dtc(true)};
+$('dtcRead').onclick=window.__55DtcOps.read;
+$('dtcClr').onclick=window.__55DtcOps.clear;
 // Keep the main document and its USB owner alive when opening programming tools.
 let panel=null;
 function openPanel(url){
