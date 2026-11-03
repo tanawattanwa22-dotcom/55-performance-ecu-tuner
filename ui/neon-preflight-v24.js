@@ -217,6 +217,7 @@ function mount(host){
  // not alternate command bytes or a bypass of any programming safeguards.
  const routes=make('div','n24-actions');
  for(const [title,path] of [
+  ['ตรวจสาย USB / VID-PID (ไม่ส่งข้อมูล ECU)','flash_port/usb-cable-diagnostic.html'],
   ['เปิด Real ECU Flash (ขั้นสูง)','flash_port/flash-write-lab.html'],
   ['เปิด Offline Flash V28','flash_port/offline/index.html']
  ]){
