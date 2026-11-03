@@ -3106,8 +3106,9 @@ function v3Draw(){
 })();
 </script>
 
-<script src="ui/neon-preflight-v24.js?v=349"></script>
-<script src="ui/neon-v20.js?v=345"></script>
+<script src="ui/neon-preflight-v24.js?v=350"></script>
+<script src="ui/neon-recovery-v35.js?v=350"></script>
+<script src="ui/neon-v20.js?v=346"></script>
 <script src="ui/neon-live-v21.js?v=335"></script>
 <script src="ui/neon-dtc-v23.js?v=350"></script>
 <script type="module" src="ui/neon-main-live-v25.js?v=351"></script>
@@ -3121,6 +3122,6 @@ document.getElementById('licSignup').onclick=async()=>{const el=document.getElem
 document.getElementById('licActivate').onclick=async()=>{try{await api('activate',{key:document.getElementById('licKey').value,device});await check()}catch(e){message(e)}};
 document.getElementById('licCheck').onclick=()=>check().catch(message);check().catch(message);
 window.__ecuLicenseLogout=logout;
-})();</script><script type="module" src="ui/shared-operations-v30.js?v=353"></script>
+})();</script><script type="module" src="ui/shared-operations-v30.js?v=354"></script>
 </body>
 </html>
