@@ -26,9 +26,15 @@ const current=()=>{
  return {saved:s,model:m?.id||null,valid,bytes:s?.bytes instanceof Uint8Array?s.bytes:null};
 };
 const recency=()=>last&&Date.now()-last.at<TTL&&last.engine?.usb===window.__55SharedEcu?.port;
+// Never reuse an authorized plan for ECU A when the single FTDI cable now reports ECU B.
+const physicalIdMatchesLast=()=>{
+ const actual=window.__55SharedEcu?.snapshot?.()?.ecuId;
+ return !actual||!!last?.identity?.ecuId&&actual===last.identity.ecuId;
+};
 const verified=()=>{
  const c=current();
- return !!(c.valid&&last?.plan&&recency()&&last.saved===c.saved&&last.model===c.model&&last.identity?.sourceMatched);
+ return !!(c.valid&&last?.plan&&recency()&&physicalIdMatchesLast()&&
+  last.saved===c.saved&&last.model===c.model&&last.identity?.sourceMatched);
 };
 function setItem(key,value){
  const el=dom[key];if(el)el.textContent=value??'—';
@@ -72,13 +78,14 @@ function render(){
    startOffsetText:shared.startOffsetText,checksumOffsetText:shared.checksumOffsetText}:null
  }:null;
  const inlineIdentity=(INLINEFLASH.busy||INLINEFLASH.postCheck)?INLINEFLASH.engine?.identity:null;
- const identity=inlineIdentity||(recency()?last?.identity:null)||connectedId;
+ const staleId=!!last?.identity?.ecuId&&!!connectedId?.ecuId&&last.identity.ecuId!==connectedId.ecuId;
+ const identity=inlineIdentity||(recency()&&!staleId?last?.identity:null)||connectedId;
  const recoveryCandidate=!!identity?.ecuId?.endsWith('0000');
  const plan=inlineIdentity?.sourceMatched?INLINEFLASH.plan:verified()?last?.plan:null;
  const source=catalogRecord(identity);
  const fileReady=!!quick||c.valid;
  const cableReady=!!window.__55SharedEcu?.port?.ready;
- const progress=!!inlineIdentity||!!connectedId||(c.valid&&last?.saved===c.saved&&recency());
+ const progress=!!inlineIdentity||!!connectedId||(c.valid&&last?.saved===c.saved&&recency()&&!staleId);
  setItem('model',quick?'อ่านรุ่นจาก ECU จริงอัตโนมัติ':c.model||'ยังไม่เลือกรุ่น');
  setItem('dbcount',catalog290.rows?'290 รายการ · KEIHIN 232 / SHINDENGEN 58':catalog290.error?'โหลดฐาน ECU ไม่สำเร็จ: '+catalog290.error:'กำลังโหลดฐาน ECU 290 รายการ');
  setItem('filename',quick?quick.filename:c.valid?c.saved.filename:'ยังไม่ได้เลือก BIN');
@@ -95,7 +102,7 @@ function render(){
  setItem('block',Number.isInteger(plan?.blockBytes)?plan.blockBytes.toLocaleString()+' bytes':'—');
  setItem('profile',plan?.profile||'ยังไม่มีแผนที่ยืนยัน');
  setItem('offsetState',plan?'ตรวจด้วย HondaFlashEngine / C# แล้ว':source?'✓ พบค่าฐาน Main C# · ต้องตรวจเทียบ BIN ก่อนเขียน':'ยังไม่มีค่า Offset ที่ยืนยัน');
- dom.note.textContent=error?'หยุดตรวจ: '+error:message||
+ dom.note.textContent=staleId?'ECU ID จากสายล่าสุดเปลี่ยนจาก '+last.identity.ecuId+' เป็น '+connectedId.ecuId+' • แผนเดิมใช้ไม่ได้ ต้องอ่าน ECU ID และตรวจ BIN ใหม่':error?'หยุดตรวจ: '+error:message||
   'การตรวจนี้อ่าน ECU ID และคำนวณแผนเท่านั้น ไม่มีคำสั่ง ERASE/WRITE · ขั้นตอนอัดจริงจะอ่าน ID ใหม่';
  const status={
   bin:fileReady,
@@ -202,7 +209,7 @@ async function runCheck(){
  try{
   const c=current();
   if(!c.valid)throw Error('BIN ไม่ได้บันทึกหรือถูกแก้ภายหลัง · ต้องบันทึกใหม่');
-  if(!last||!recency()||last.saved!==c.saved||last.model!==c.model)throw Error('ผล ECU ID หมดอายุหรือคนละไฟล์ · กรุณาอ่าน ECU ID ใหม่');
+  if(!last||!recency()||!physicalIdMatchesLast()||last.saved!==c.saved||last.model!==c.model)throw Error('ผล ECU ID หมดอายุ ไม่ตรง ECU ที่ต่อสายล่าสุด หรือคนละไฟล์ · กรุณาอ่าน ECU ID ใหม่');
   if(last.identity.ecuId?.endsWith('0000'))throw Error('พบ Recovery Boot ID: หยุด Preflight ของ Flash ปกติและเปิดเมนู Recovery');
   const catalog=catalogRecord(last.identity);
   if(!catalog)throw Error('อ่าน ECU ID '+last.identity.ecuId+' แล้ว แต่ไม่มีรหัสนี้ในฐาน Main C# 290 รายการ');
