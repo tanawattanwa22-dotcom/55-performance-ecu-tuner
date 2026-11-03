@@ -27,7 +27,7 @@ function axis(t,which,byId){
  const a=t[which],count=which==='x'?t.cols:t.rows;
  if(a?.link){
   const linked=byId.get(a.link);
-  if(!linked||linked.cols!==1||linked.rows<count)throw Error('XDF linked axis '+a.link+' dimension mismatch in '+t.id);
+  if(!linked||!((linked.cols===1&&linked.rows>=count)||(linked.rows===1&&linked.cols>=count)))throw Error('XDF linked axis '+a.link+' dimension mismatch in '+t.id);
   return {a:linked.addr,b:linked.bits,sg:false,le:linked.little,st:linked.step,d:linked.precision,eq:linked.rawEquation};
  }
  if(Array.isArray(a?.labels)){
