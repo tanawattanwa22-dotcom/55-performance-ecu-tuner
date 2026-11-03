@@ -90,6 +90,16 @@ if(recoveryMode){
  $('optFast').closest('label').hidden=true;
  $('write').textContent='ยืนยัน ERASE / WRITE • Recovery ECU สำรอง';
  $('prepare').textContent='ตรวจ BIN / Flash Count และสร้างแผน Recovery';
+}else{
+ // Recovery is a dedicated main-menu workflow. Keep the existing normal Flash engine.
+ $('optRecovery').checked=false;
+ $('optRecovery').disabled=true;
+ $('optRecovery').closest('label').hidden=true;
+ $('recStart').hidden=true;
+ $('recChecksum').hidden=true;
+ const note=document.createElement('small');
+ note.textContent='การกู้ ECU ย้ายไปเมนู Recovery / กู้ ECU แยกจากการอัดไฟล์ปกติแล้ว';
+ $('prepare').before(note);
 }
 function renderRecoveryDecision(error=''){
  if(!recoveryMode||!recoveryStatus)return;
