@@ -80,40 +80,46 @@ export class MainLiveSession {
  }
  async connect(){
   if(this.connecting||this.running||this.port?.ready)return false;
-  this.connecting=true;this.error='';this.phase='USB_CHOOSER';this.disconnectRequested=false;this.stopRequested=false;
-  this.licenseVerified=false;this.licenseError='';this.licenseBusy=false;this.notify();
+  this.connecting=true;this.error='';this.phase='USB_CHOOSER';
+  this.disconnectRequested=false;this.stopRequested=false;
+  this.licenseVerified=false;this.licenseError='';this.licenseBusy=false;
+  this.autoComplete=false;this.autoBusy=false;this.notify();
   let port=null;
   try{
-   if(!navigator.usb)throw Error('Chrome/Android ต้องรองรับ WebUSB และเปิดผ่าน HTTPS');
-   // User-gesture WebUSB picker: no await before the chooser.
+   if(!navigator.usb)throw Error('Chrome Android ต้องรองรับ WebUSB และ HTTPS');
+   // The login screen already checked the license with the remote service.
+   // Do not call license-api again while opening a real USB device.
+   if(window.__55EcuAuthorizedSession!==true)
+    throw Error('กรุณาเข้าสู่ระบบและตรวจสิทธิ์ License ก่อนเชื่อมสาย');
+   // Must run directly inside the user click: no awaited work before picker.
    const device=await Ft232rWebUsb.choose();
-   // Open the selected FT232R first. A License HTTP failure must never
-   // be mistaken for a failed Android USB connection.
+   if(this.disconnectRequested)return false;
    this.phase='USB_OPEN';this.notify();
    port=new Ft232rWebUsb();this.port=port;
-   let usbOpenTimedOut=false;
+   let expired=false;
    const opening=port.openSelected(device);
-   opening.then(()=>{if(usbOpenTimedOut)void port.close()},()=>{});
+   opening.then(()=>{if(expired)void port.close()},()=>{});
    try{
-    await TIME_LIMIT(opening,12000,'เปิดพอร์ต FT232R เกิน 12 วินาที · ตรวจ OTG/สิทธิ์ USB แล้วกดเชื่อมใหม่');
-   }catch(openError){usbOpenTimedOut=true;throw openError}
-   // Never block the USB chooser on ECU wake/ID. A cable without a car is
-   // still a successful FT232R connection; identification is an asynchronous
-   // read-only operation after returning control to the screen.
-   this.ecuId='';this.catalog=null;this.dtcSnapshot=null;this.detectedGroup=null;
-   this.values=EMPTY();this.phase='USB_CONNECTED';this.error='';
-   this.autoStatus='✓ FT232R เปิดพอร์ตแล้ว · กำลังตรวจ License เพื่ออ่านข้อมูล ECU';this.notify();
-   if(this.disconnectRequested){await port.close();this.port=null;return false;}
-   queueMicrotask(()=>{if(this.port?.ready&&!this.disconnectRequested)void this._authorizeDiagnostic();});
-   return true;
+    await TIME_LIMIT(opening,12000,'FT232R เปิดพอร์ตเกิน 12 วินาที · ตรวจ OTG / การอนุญาต USB');
+   }catch(e){expired=true;throw e}
+   if(this.disconnectRequested){await port.close();this.port=null;return false}
+   // A connected FT232R is a valid cable connection even without a bike.
+   // No background ECU probe, wake, DTC bank scan or bulk RX here.
+   this.ecuId='';this.catalog=null;this.detectedGroup=null;
+   this.dtcSnapshot=null;this.values=EMPTY();
+   this.licenseVerified=true;this.licenseError='';
+   this.phase='USB_CONNECTED';this.error='';
+   this.autoStatus='✓ FT232R เปิดพอร์ตแล้ว • ใช้ Live Data หรือกดสแกน ECU ได้ • ยังไม่ส่งคำสั่งอ่าน ECU';
+   this.notify();return true;
   }catch(e){
    const denied=e?.name==='SecurityError'||/Access denied|SecurityError/.test(String(e?.message||''));
-   this.error=denied?'Android/Chrome ไม่อนุญาตให้เปิด FT232R (USBDevice.open Access denied) • ปิดหน้าอื่นที่ใช้สายและเลือกพอร์ตจาก Chrome โดยตรง':
-    'เชื่อมต่อไม่สำเร็จ ['+this.phase+']: '+String(e?.message||e);
-   this.phase=denied?'USB_ACCESS_DENIED':'STOPPED';
-   if(port)try{await TIME_LIMIT(Promise.resolve(port.close()),2500,'FT232R USB close timeout')}catch{}
-   this.port=null;this.ecuId='';this.values=EMPTY();this.notify();
-   return false;
+   this.error=denied?
+    'Android ไม่อนุญาตเปิด FT232R • ปิดแอปอื่นที่ใช้สาย USB แล้วเลือกพอร์ตใหม่':
+    'เชื่อมต่อ FT232R ไม่สำเร็จ ['+this.phase+']: '+String(e?.message||e);
+   this.phase=denied?'USB_ACCESS_DENIED':'USB_OPEN_FAILED';
+   if(port)try{await TIME_LIMIT(Promise.resolve(port.close()),2500,'USB close timeout')}catch{}
+   this.port=null;this.ecuId='';this.values=EMPTY();
+   this.licenseVerified=false;this.notify();return false;
   }finally{this.connecting=false;this.notify()}
  }
  async _authorizeDiagnostic(){
@@ -317,7 +323,8 @@ export class MainLiveSession {
  }
  async rescan(){
   if(!this.port?.ready||this.owner||this.running||this.connecting||this.autoBusy||this.licenseBusy)return false;
-  return this.licenseVerified?this._autoDetect():this._authorizeDiagnostic();
+  if(!this.licenseVerified)return false;
+  return this._autoDetect();
  }
  async _restoreAfterProbeLoss(expectedId){
   // exchangeRaw fail-closes the USB device on ambiguous response. Never retry
