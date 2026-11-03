@@ -11,7 +11,7 @@ import {READ_ONLY_COMMANDS,toHex,hondaChecksum,FAST_SWITCH_COMMAND} from './ftdi
 import {createWriteFrame,resolveWriteProfile} from './flash-frames.js';
 import {inspectCSharpEcuType,correctKeihinChecksum,correctShindengenChecksum,deriveShindengenWriteKey} from './csharp-logic.js';
 import {csharpOffsetInference,catalogLookup} from './csharp-offsets.js';
-import {findCSharpEcuId} from './csharp-ecu-catalog.js';
+import {findCSharpEcuId} from './csharp-ecu-catalog.js?v=302';
 const sleep=ms=>new Promise(ok=>setTimeout(ok,ms));
 function bytes(list){
  const b=Uint8Array.from(list);
@@ -169,8 +169,8 @@ export class HondaFlashEngine {
     this.emit('FAMILY_NOT_CONFIRMED',{message:e.message});
    }
    if(handshake==='DIAGNOSTIC_ONLY')family='UNVERIFIED';
-   if(source&&source.family===family)this.emit('SOURCE_ECU_MATCH',{ecuId,part:source.part});
-   this.identity={ecuId,family,count,handshake,sourcePart:source?.part||null,sourceMatched:!!source&&source.family===family,catalog:source||null};
+   if(source?.part&&source.family===family)this.emit('SOURCE_ECU_MATCH',{ecuId,part:source.part});
+   this.identity={ecuId,family,count,handshake,sourcePart:source?.part||null,sourceMatched:!!source?.part&&source.family===family,catalog:source||null};
    this.state='identified';
    this.emit('ECU_IDENTIFIED',this.identity);
    return this.identity;
