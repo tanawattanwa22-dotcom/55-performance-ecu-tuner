@@ -4,11 +4,11 @@
 <a href="flash-write-lab.html">← Flash Bench V15</a><h2>55 ECU C# Source Validation V16.1.1</h2>
 <p>ทดสอบโค้ด/โปรไฟล์แบบออฟไลน์ ไม่ต่อ USB และไม่ส่ง ERASE/WRITE</p><b id="sum">กำลังทดสอบ...</b><pre id="out"></pre>
 <script type="module">
-import {loadCSharpCatalog,findCSharpEcuId} from './csharp-ecu-catalog.js';
-import {csharpOffsetInference} from './csharp-offsets.js';
+import {loadCSharpCatalog,findCSharpEcuId} from './csharp-ecu-catalog.js?v=302';
+import {csharpOffsetInference} from './csharp-offsets.js?v=305';
 import {inspectCSharpEcuType,correctKeihinChecksum,correctShindengenChecksum,deriveShindengenWriteKey} from './csharp-logic.js';
 import {createWriteFrame} from './flash-frames.js';
-import {HondaFlashEngine} from './honda-write-engine.js';
+import {HondaFlashEngine} from './honda-write-engine.js?v=303';
 import {hondaChecksum} from './ftdi-webusb.js';
 import {SOURCE_SIZES,scanMainBinIds,findMainEcuPrefixInBin,sourceSums} from './main-bin-audit.js?v=1';
 const checks=[];
@@ -122,6 +122,27 @@ await t('C# Sum8 / Sum32 Little Endian / Honda complement',()=>{
  const b=Uint8Array.of(1,0,0,0,2,0,0,0);
  const r=sourceSums(b);
  return r.sum8===3&&r.sum32===3&&r.checksum8Honda===253;
+});
+await t('C# 256 KB M32R/RH850/MPC560 offset signatures',()=>{
+ for(const tail of [[255,255,255,170,170,170,170],[255,255,255,0,0,0,0],[255,255,255,255,255,255,255]]){
+  const b=new Uint8Array(262144);b.set(tail,b.length-7);
+  const a=csharpOffsetInference(b);if(a.startOffset!==0||a.checksumOffset!==0x3FFF8)return false;
+ }
+ return true;
+});
+await t('C# 512 KB MPC560 end signature',()=>{
+ const b=new Uint8Array(524288);b.set([255,255,255,255,255,255,255],b.length-7);
+ const a=csharpOffsetInference(b);return a.startOffset===0&&a.checksumOffset===0x7FFF8;
+});
+await t('C# 1024 KB SH705X / default checksum offsets',()=>{
+ const b=new Uint8Array(1048576);
+ const a=csharpOffsetInference(b);if(a.checksumOffset!==0x7FFF8)return false;
+ b.set([255,255,255,170,170,170,170],b.length-7);
+ return csharpOffsetInference(b).checksumOffset===0xFFFF8;
+});
+await t('C# 128 KB offset out of range is flagged',()=>{
+ const a=csharpOffsetInference(new Uint8Array(131072));
+ return a.startOffset>=131072&&a.warnings.some(x=>x.includes('exceeds BIN length'));
 });
 const passed=checks.filter(x=>x[1]).length;document.getElementById('sum').textContent=passed+'/'+checks.length+' PASS (offline only)';
 document.getElementById('sum').style.color=passed===checks.length?'#7aebb0':'#ffa09b';
