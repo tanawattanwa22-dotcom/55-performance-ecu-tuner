@@ -184,7 +184,45 @@ export class HondaFlashEngine {
    return this.identity;
   }catch(e){this.state='stopped';this.emit('PROBE_FAILED',{error:e.message});throw e}
  }
- makePlan(bin,{filename='',confirmedPart='',fast=false,recovery=false,startOffsetOverride=null}={}){
+
+ /**
+  * Main.zip FormMain.WorkerThread recovery branch:
+  * identify physical boot ECU ID, infer candidate family from firmware,
+  * then obtain that family's non-destructive flash-count response.
+  */
+ async confirmRecoveryFamily(bin){
+  if(this.state!=='identified'||!this.identity?.ecuId)
+   fail('RECOVERY_NO_ID','กรุณาอ่าน ECU ID จริงก่อน');
+  if(!/0000$/.test(this.identity.ecuId))
+   fail('RECOVERY_ID','Recovery ID จาก Main C# ต้องลงท้าย 0000');
+  if(this.identity.handshake==='DIAGNOSTIC_ONLY')
+   fail('RECOVERY_NO_PROGRAMMING_SESSION','ได้เพียง Diagnostic session ไม่ใช่ Programming session');
+  if(!(bin instanceof Uint8Array)||bin.length<32)
+   fail('RECOVERY_NO_BIN','เลือก BIN ที่ถูกต้องของกล่องก่อน');
+  const type=inspectCSharpEcuType(bin).type;
+  const family=type.startsWith('SHINDENGEN')?'SHINDENGEN':'KEIHIN';
+  if(family==='SHINDENGEN'&&!deriveShindengenWriteKey(bin,Uint8Array.of(0,0),{recovery:true}))
+   fail('RECOVERY_KEY_SIG','BIN ไม่มีลายเซ็น Shindengen Recovery Key จาก Main C#');
+  this.emit('RECOVERY_FAMILY_PROBE_START',{family,binType:type,destructive:false});
+  try{
+   const r=await this.x('RECOVERY_'+family+'_FLASH_COUNT',
+      family==='SHINDENGEN'?CMD.shPoll:CMD.khCount,{timeoutMs:2000});
+   if(r.length<7||r[3]===15||!Number.isInteger(r[6]))
+    fail('RECOVERY_COUNT_UNVERIFIED','ไม่มี Flash Count ACK จาก ECU ที่ตรงตระกูล');
+   this.identity={...this.identity,family,count:r[6],
+     recoveryFamilyVerified:true,recoveryBinType:type,
+     recoveryFamilyEvidence:'MAIN_WORKER_FLASH_COUNT_ACK'};
+   this.emit('RECOVERY_FAMILY_PROBE_PASS',{family,ecuId:this.identity.ecuId,count:r[6],readbackVerified:false});
+   return this.identity;
+  }catch(e){
+   this.identity={...this.identity,family:'UNVERIFIED',
+     recoveryFamilyVerified:false,recoveryFamilyEvidence:null};
+   this.emit('RECOVERY_FAMILY_PROBE_STOP',{error:e.message,noEraseSent:true});
+   throw e;
+  }
+ }
+
+ makePlan(bin,{filename='',confirmedPart='',fast=false,recovery=false,startOffsetOverride=null,checksumOffsetOverride=null}={}){
   if(this.state!=='identified'||!this.identity?.ecuId)
    fail('NO_ID','ต้องอ่าน ECU ID จริงก่อนสร้างแผนเขียน');
   if(!(bin instanceof Uint8Array))fail('NO_BIN','กรุณาเลือกไฟล์ BIN');
@@ -234,6 +272,8 @@ export class HondaFlashEngine {
   if(family==='SHINDENGEN'&&!detected.type.startsWith('SHINDENGEN'))
    fail('BIN_SIGNATURE','Shindengen ต้องมีลายเซ็น BIN ที่ C# ระบุได้');
   const profile=detected.type==='UNDETERMINED'?'KEIHINOTHER':detected.type;
+  if(rec&&this.identity.recoveryBinType!==detected.type)
+   fail('RECOVERY_BIN_CHANGED','BIN เปลี่ยนหลังตรวจ Recovery Flash Count');
   if(!profile.startsWith(family))fail('BIN_TYPE','ECU Type ไม่ตรงกับ ID/ตระกูล ECU');
   const p=resolveWriteProfile(profile);
   const suggested=csharpOffsetInference(originalBin,{ecuId});
@@ -246,16 +286,23 @@ export class HondaFlashEngine {
   const first=family==='SHINDENGEN'?offset/p.blockSize:0;
   const lastAddress=offset/16+((bin.length/p.blockSize-1)-first)*p.addressStep;
   if(lastAddress>0xffff)fail('ADDRESS_OVERFLOW','Address 16-bit เกินขอบเขตที่ตรวจได้');
+  const keihinChecksumOffset=rec&&Number.isInteger(checksumOffsetOverride)
+    ?checksumOffsetOverride:(catalog.checksumOffset??suggested.checksumOffset);
+  if(family==='KEIHIN'&&!Number.isInteger(keihinChecksumOffset))
+   fail('RECOVERY_NO_CHECKSUM_MAP','Main C# ไม่ได้ระบุ Checksum Offset กรุณายืนยันเลข HEX ก่อน');
   const corrected=family==='KEIHIN'
-     ?correctKeihinChecksum(originalBin,catalog.checksumOffset)
+     ?correctKeihinChecksum(originalBin,keihinChecksumOffset)
      :correctShindengenChecksum(originalBin);
   const checksumOffset=corrected.checksumOffset;
   const plan={ecuId,part:sourcePart,profile,startOffset:offset,checksumOffset,fast:!!fast,recovery:rec,
     filename,size:corrected.data.length,blockBytes:p.blockSize,bin:corrected.data,
     checksumChanged:corrected.modified,expectedBlockCount:corrected.data.length/p.blockSize-first,
-    checks:{physicalIdMatched:true,binFullId:completeBinId,binFullIdMatched:!completeBinId||completeBinId===ecuId,
-      familyFlashCountResponded:true,partFromCSharp:true,
-      offsetsFromCSharp:true,binSizeValidated:true,hardwareValidated:false}};
+    checks:{physicalIdMatched:!rec,recoveryBootIdObserved:rec,
+      recoveryFamilyEvidence:rec?this.identity.recoveryFamilyEvidence:null,
+      binFullId:completeBinId,binFullIdMatched:rec?null:!completeBinId||completeBinId===ecuId,
+      familyFlashCountResponded:true,partFromCSharp:!rec,
+      offsetsFromCSharp:!(rec&&(Number.isInteger(startOffsetOverride)||Number.isInteger(checksumOffsetOverride))),
+      binSizeValidated:true,hardwareValidated:false}};
   this.emit('PREFLIGHT_PASS',{ecuId,part:plan.part,profile,bytes:plan.size,
     offsetHex:'0x'+offset.toString(16),blockBytes:plan.blockBytes,checksumChanged:corrected.modified});
   return plan;
@@ -440,7 +487,8 @@ export class HondaFlashEngine {
  }
  async flash(plan,{confirmation,physicalBackupConfirmed=false,externalPowerConfirmed=false,recoveryReady=false}={}){
   if(this.state!=='identified')fail('NOT_READY','อ่านรหัส ECU ให้เสร็จก่อน');
-  if(!plan||plan.ecuId!==this.identity.ecuId||(!plan.recovery&&!plan.profile.startsWith(this.identity.family)))
+  if(!plan||plan.ecuId!==this.identity.ecuId||!plan.profile.startsWith(this.identity.family)||
+    (plan.recovery&&!this.identity.recoveryFamilyVerified))
     fail('PLAN_INVALID','แผนเขียนไม่ตรงกับ ECU ที่ตรวจแล้ว');
   if(confirmation!=='FLASH '+plan.ecuId)fail('CONFIRMATION','ต้องพิมพ์ FLASH และ ECU ID ที่อ่านได้');
   if(!physicalBackupConfirmed||!externalPowerConfirmed||!recoveryReady)
@@ -455,6 +503,12 @@ export class HondaFlashEngine {
    const reconfirm=await this.x('RECHECK_ECU_ID',READ_ONLY_COMMANDS.ID,{timeoutMs:1600});
    if(reconfirm.length<11||toHex(reconfirm.slice(5,10)).replaceAll(' ','')!==plan.ecuId)
     fail('ECU_ID_CHANGED','ECU ID changed during preflight: refuse ERASE');
+   if(plan.recovery){
+    const rr=await this.x('RECHECK_RECOVERY_FAMILY_COUNT',
+      plan.profile.startsWith('SHINDENGEN')?CMD.shPoll:CMD.khCount,{timeoutMs:2000});
+    if(rr.length<7||rr[3]===15)fail('RECOVERY_FAMILY_CHANGED','Recovery Count ไม่ตอบก่อน ERASE');
+    this.emit('RECOVERY_RECONFIRMED',{ecuId:plan.ecuId,family:this.identity.family});
+   }
    eraseStarted=true; // Never claim unchanged ECU after entering the erase sequence.
    if(plan.profile.startsWith('SHINDENGEN'))await this.shPreErase(plan);
    else await this.khPreErase();
