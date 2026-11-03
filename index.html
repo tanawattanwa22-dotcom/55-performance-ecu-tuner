@@ -1451,8 +1451,8 @@ async function inlineFlashStart(){
   if(!shared)throw Error('ระบบสายหลักยังไม่พร้อม');
   INLINEFLASH.port=await shared.acquire('INLINE_FLASH');
   const {HondaFlashEngine}=await import('./flash_port/honda-write-engine.js?v=318');
-  const activeLicense=await api('check',{device:localStorage.getItem('55_device_id')});
-  if(!activeLicense?.active)throw Error('License ไม่ได้เปิดใช้งาน');
+  // The login screen checked the license when this app session started.
+  // No network/license check may block physical ECU diagnostics or flash.
   INLINEFLASH.engine=new HondaFlashEngine(INLINEFLASH.port,ev=>{
    inlineFlashLog('ENGINE '+JSON.stringify(ev));
    if(ev.phase==='WRITE_PROGRESS'){erasedOrSent=true;inlineFlashProgress(ev.percent)}
@@ -1594,8 +1594,8 @@ mainToolsAction('mtReadEcu',async()=>{
  try{
   const [{Ft232rWebUsb},{HondaFlashEngine}]=await Promise.all([
    import('./flash_port/ftdi-webusb.js?v=301'),import('./flash_port/honda-write-engine.js?v=318')]);
-  const lic=await api('check',{device:localStorage.getItem('55_device_id')});
-  if(!lic?.active)throw Error('License ไม่ได้เปิดใช้งาน');
+  // Login is already complete. Keep this button's WebUSB session local
+  // rather than making a second remote license request during ECU discovery.
   if(typeof lvStop==='function'&&typeof LV!=='undefined'&&LV.run)lvStop();
   if(K.t){const old=K.t;K.t=null;K.ecu=false;K.ecuId=null;await old.close();cableUi('','เปลี่ยนเป็นการอ่าน ECU ID','เชื่อมต่อใหม่','รอ ECU')}
   p=new Ft232rWebUsb(v=>inlineFlashLog('MAIN READ '+v));await p.openSelected(device);
