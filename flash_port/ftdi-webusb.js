@@ -72,42 +72,77 @@ export class Ft232rWebUsb {
     this._log('baud requested '+baud+', nominal actual '+div.actual.toFixed(2));
   }
   async openSelected(dev){
-    if(dev.vendorId!==FT232R_VID||dev.productId!==FT232R_PID)throw Error('Only verified FT232R 0403:6001 accepted');
-    if(this.dev)throw Error('Close current device before connecting another');
+    if(dev.vendorId!==FT232R_VID||dev.productId!==FT232R_PID)
+      throw Error('FT232R ต้องเป็น USB 0403:6001; พบ '+Number(dev.vendorId).toString(16)+':'+Number(dev.productId).toString(16));
+    if(this.dev)throw Error('FT232R instance นี้เปิดพอร์ตอยู่แล้ว');
     this.dev=dev;
-    this.lastDevice=dev; // reuse same user-approved USB device for C# wake fallback
+    this.lastDevice=dev;
+    let stage='ตรวจสิทธิ์อุปกรณ์';
     try{
-      await dev.open();
+      this._log('FT232R selected '+(dev.productName||'USB device')+' '+Number(dev.vendorId).toString(16)+':'+Number(dev.productId).toString(16));
+      stage='เปิดอุปกรณ์ (device.open)';
+      if(!dev.opened)await dev.open();
+      this._log('USB device.open OK');
+      stage='เลือก USB configuration';
       if(!dev.configuration)await dev.selectConfiguration(1);
+      if(!dev.configuration?.interfaces?.length)throw Error('อุปกรณ์ไม่มี USB interface');
       const configs=[];
       for(const itf of dev.configuration.interfaces){
-        for(const alt of itf.alternates){
-          const input=alt.endpoints.find(e=>e.type==='bulk'&&e.direction==='in');
-          const output=alt.endpoints.find(e=>e.type==='bulk'&&e.direction==='out');
-          if(input&&output)configs.push({itf:itf.interfaceNumber,alt:alt.alternateSetting,input,output});
+        for(const alt of itf.alternates||[]){
+          const input=alt.endpoints?.find(e=>e.type==='bulk'&&e.direction==='in');
+          const output=alt.endpoints?.find(e=>e.type==='bulk'&&e.direction==='out');
+          if(input&&output)configs.push({itf:itf.interfaceNumber,alt:alt.alternateSetting,input,output,
+            current:itf.alternate?.alternateSetting===alt.alternateSetting});
         }
       }
-      if(configs.length!==1)throw Error('Expected one FT232R bulk interface; found '+configs.length);
-      const c=configs[0];
+      if(!configs.length)throw Error('ไม่พบคู่ Bulk IN/OUT · ตรวจ VID/PID และ USB descriptor');
+      // Some Android devices report multiple Alternate Settings for ONE
+      // physical FT232R. They are not duplicate cables. Claim only one
+      // interface and prefer its currently active/alternate 0 endpoint pair.
+      const onZero=configs.filter(c=>c.itf===0);
+      const choices=onZero.length?onZero:configs;
+      if(new Set(choices.map(c=>c.itf)).size!==1)
+        throw Error('USB รายงานหลาย Interface; ไม่สามารถเลือก FT232R อย่างปลอดภัย');
+      choices.sort((a,b)=>Number(b.current)-Number(a.current)||Number(a.alt!==0)-Number(b.alt!==0)||a.alt-b.alt);
+      const c=choices[0];
+      this._log('USB descriptors: '+configs.length+' bulk alternate(s) / using interface '+c.itf+' alternate '+c.alt+
+        ' IN '+c.input.endpointNumber+' OUT '+c.output.endpointNumber);
+      stage='ยึด USB interface '+c.itf;
+      const itf=dev.configuration.interfaces.find(x=>x.interfaceNumber===c.itf);
+      if(itf?.claimed)throw Error('Interface '+c.itf+' ถูกใช้งานอยู่แล้วในเบราว์เซอร์ · ปิดแอป/แท็บที่ใช้สาย USB ก่อน');
       await dev.claimInterface(c.itf);
       this.itf=c.itf;
-      if(c.alt)await dev.selectAlternateInterface(c.itf,c.alt);
+      this._log('USB claimInterface OK');
+      if(c.alt!==itf?.alternate?.alternateSetting){
+        stage='เลือก Alternate Setting '+c.alt;
+        await dev.selectAlternateInterface(c.itf,c.alt);
+      }
       this.inEp=c.input.endpointNumber;
       this.outEp=c.output.endpointNumber;
       this.maxPacketSize=c.input.packetSize||64;
-      if(this.maxPacketSize<8)throw Error('Unsupported FT232R USB packet size');
+      if(this.maxPacketSize<8)throw Error('Unsupported FT232R USB packet size '+this.maxPacketSize);
+      stage='FTDI reset UART';
       await this.ctl(0x00,0);
+      stage='FTDI ล้าง RX/TX';
       await this.purge();
-      await this.ctl(0x0b,0);           // UART mode, FT_SetBitMode(mask=0,mode=0)
-      await this.ctl(0x04,0x0008);       // 8N1
-      await this.ctl(0x02,0);            // no hardware flow control
-      await this.ctl(0x09,8);            // C# D2XX latency = 8 ms
+      stage='FTDI ตั้ง UART mode';
+      await this.ctl(0x0b,0);
+      stage='FTDI ตั้ง 8N1';
+      await this.ctl(0x04,0x0008);
+      stage='FTDI ตั้ง Flow Control';
+      await this.ctl(0x02,0);
+      stage='FTDI ตั้ง Latency';
+      await this.ctl(0x09,8);
+      stage='FTDI ตั้ง Baud 10400';
       await this.setBaud(10400);
       this.ready=true;
-      this._log('FT232R opened; USB '+dev.vendorId.toString(16)+':'+dev.productId.toString(16)+', IN '+this.inEp+', OUT '+this.outEp+', packet '+this.maxPacketSize);
+      this._log('FT232R ready: interface '+this.itf+', IN '+this.inEp+', OUT '+this.outEp+', packet '+this.maxPacketSize);
     }catch(err){
-      await this.close();
-      throw err;
+      const message='FT232R ['+stage+'] '+String(err?.message||err);
+      this._log('OPEN FAILED '+message);
+      try{await this.close()}catch(closeError){this._log('Close after failure: '+String(closeError?.message||closeError))}
+      const error=new Error(message);error.name=err?.name||'UsbOpenError';
+      throw error;
     }
   }
   async _write(data){
