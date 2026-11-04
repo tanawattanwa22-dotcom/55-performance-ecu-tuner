@@ -1481,7 +1481,7 @@ async function inlineFlashStart(){
   const shared=window.__55SharedEcu;
   if(!shared)throw Error('ระบบสายหลักยังไม่พร้อม');
   INLINEFLASH.port=await shared.acquire('INLINE_FLASH');
-  const {HondaFlashEngine}=await import('./flash_port/honda-write-engine.js?v=366');
+  const {HondaFlashEngine}=await import('./flash_port/honda-write-engine.js?v=372');
   // The login screen checked the license when this app session started.
   // No network/license check may block physical ECU diagnostics or flash.
   INLINEFLASH.engine=new HondaFlashEngine(INLINEFLASH.port,ev=>{
@@ -1504,7 +1504,8 @@ async function inlineFlashStart(){
    inlineFlashRecovery('BOOT',detail,identity.ecuId);
    return;
   }
-  if(!identity.sourceMatched)throw Error('ECU '+identity.ecuId+' ไม่ตรงฐาน C# ที่ยืนยันได้ จึงไม่ส่ง ERASE');
+  if(!identity.sourceMatched&&!(identity.programmingSessionVerified&&identity.physicalFamilyEvidence==='MAIN_SOURCE_READ_ONLY_FLASH_COUNT_ACK'))
+    throw Error('ECU '+identity.ecuId+' ยังไม่มี Family/Flash Count ACK จากโหมดโปรแกรมมิ่งจริง • หยุดก่อน ERASE');
   const quick=window.__55QuickFlashBin;
   const bin=quick?.bytes instanceof Uint8Array?quick.bytes.slice():buildOut();
   // Both paths use a stable copied BIN; tuning snapshots still pass the original strict guard.
@@ -1514,6 +1515,18 @@ async function inlineFlashStart(){
   let plan;
   try{plan=INLINEFLASH.engine.makePlan(bin,{filename:INLINEFLASH.filename,fast,recovery:false})}
   catch(e){
+   if(e.code==='UNLISTED_PARTIAL_ID_CONFIRM'){
+    const approved=confirm('55 PERFORMANCE • ECU นอกฐาน Main 290\n\nECU ID: '+identity.ecuId+
+      '\nBIN: '+INLINEFLASH.filename+
+      '\nFamily จาก ECU ACK: '+identity.family+
+      '\n\nต้นฉบับเทียบรหัสใน BIN ได้เพียง 3 ไบต์แรก ไม่ได้ระบุ Part Code เต็ม'+
+      '\n\nคุณตรวจจากไฟล์ Backup/ฉลาก ECU แล้วว่า BIN นี้ตรงกล่องจริงหรือไม่?'+
+      '\nกด ยกเลิก หากยังไม่สามารถยืนยันได้');
+    if(!approved)throw Error('หยุดก่อน ERASE: ECU นอกฐานยังไม่ยืนยันว่า BIN ตรงกล่อง');
+    inlineFlashLog('SOURCE_UNLISTED_BIN_PARTIAL_CONFIRMED '+identity.ecuId);
+    plan=INLINEFLASH.engine.makePlan(bin,{filename:INLINEFLASH.filename,
+      confirmedPart:'CONFIRM '+identity.ecuId,fast,recovery:false});
+   }else{
    if(e.code!=='PART_NOT_CONFIRMED')throw e;
    // Source BIN ID scan may supply a full five-byte match; three-byte prefixes do not.
    const {readBinId}=await import('./flash_port/bin-tools.js?v=317');
@@ -1539,6 +1552,7 @@ async function inlineFlashStart(){
     plan=INLINEFLASH.engine.makePlan(bin,{filename:INLINEFLASH.filename,
       confirmedPart:identity.sourcePart,fast,recovery:false});
    }
+   } // end known Part Code branch
   }
   INLINEFLASH.plan=plan;
   INLINEFLASH.writeSha=await inlineFlashHash(plan.bin);
@@ -1578,7 +1592,8 @@ async function inlineFlashStart(){
      operatorClickConfirmed:true,
      physicalBackupConfirmed:benchConfirmed,
      externalPowerConfirmed:benchConfirmed,
-     recoveryReady:benchConfirmed
+     recoveryReady:benchConfirmed,
+     confirmation:plan.checks?.sourceUnlistedWithProof?'FLASH '+plan.ecuId:undefined
    });
    INLINEFLASH.status='SOURCE_FINAL_ACK_NO_READBACK_VERIFIED';
    inlineFlashProgress(100);
@@ -1677,7 +1692,7 @@ mainToolsAction('mtReadEcu',async()=>{
  let owns=false;
  try{
   const port=await shared.acquire('MAIN_TOOLS');owns=true;
-  const {HondaFlashEngine}=await import('./flash_port/honda-write-engine.js?v=320');
+  const {HondaFlashEngine}=await import('./flash_port/honda-write-engine.js?v=372');
   const engine=new HondaFlashEngine(port,ev=>inlineFlashLog('MAIN READ '+JSON.stringify(ev)));
   mainToolsOut('กำลังอ่าน ECU ID และ Flash Count จาก FT232R สายกลาง…');
   const data=await engine.identify();MAINTOOLS.lastEcu=data;
@@ -3176,7 +3191,7 @@ function v3Draw(){
 })();
 </script>
 
-<script src="ui/neon-preflight-v24.js?v=368"></script>
+<script src="ui/neon-preflight-v24.js?v=372"></script>
 <script src="ui/neon-recovery-v35.js?v=350"></script>
 <script src="ui/neon-v20.js?v=347"></script>
 <script src="ui/neon-live-v21.js?v=335"></script>
