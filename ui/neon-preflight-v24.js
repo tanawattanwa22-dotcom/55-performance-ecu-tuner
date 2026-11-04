@@ -169,11 +169,11 @@ function render(){
  dom.flash.textContent=INLINEFLASH.busy?'กำลังตรวจ / อัดไฟล์ ECU':
   INLINEFLASH.postCheck?'✓ ตรวจ ECU หลังเปิดกุญแจใหม่':
   recoveryCandidate?'⟳ พบ Recovery • หยุด Flash ปกติ':
-  unlistedPhysical?'⛔ ยังไม่พร้อมอัด · ไม่มีโปรไฟล์ Main 290':'⇧ อัดไฟล์ ECU';
+  unlistedPhysical?(fileReady?'⛔ เปิด BIN สำเร็จ · ยังไม่มีโปรไฟล์เขียนที่ยืนยัน':'⛔ ยังไม่มีโปรไฟล์เขียน ECU'):'⇧ อัดไฟล์ ECU';
  if(dom.recovery)dom.recovery.hidden=!(recoveryCandidate||window.__55RecoverySuggested);
  if(dom.miniProgress){const pct=$('pct')?.textContent||'0%';dom.miniProgress.textContent=INLINEFLASH.busy||INLINEFLASH.postCheck?
   'ความคืบหน้า '+pct+' · '+(INLINEFLASH.status||''):
-  unlistedPhysical?'อ่าน ECU ได้ แต่ไม่พบโปรไฟล์ Main 290 • ยังอัดไม่ได้':'พร้อมเริ่มตรวจ';}
+  unlistedPhysical?(fileReady&&binEstimate?.startOffsetHex&&binEstimate?.checksumOffsetHex?'อ่าน BIN แล้ว • Start '+binEstimate.startOffsetHex+' / Checksum '+binEstimate.checksumOffsetHex+' (BIN เท่านั้น) • ยังไม่มีโปรไฟล์เขียนยืนยัน':'อ่าน ECU ID ได้แล้ว แต่ยังไม่มีโปรไฟล์เขียนที่ยืนยัน'):'พร้อมเริ่มตรวจ';}
  if(dom.miniBar){dom.miniBar.style.width=(INLINEFLASH.busy||INLINEFLASH.postCheck?$('barFill')?.style.width||'0%':'0%');}
  dom.flash.title=unlistedPhysical?'ECU ID ไม่อยู่ในฐาน Main.zip 290 · Offset จาก BIN อย่างเดียวไม่อนุญาต ERASE/WRITE':
   dom.flash.disabled?'ต้องบันทึก BIN อ่าน ECU ID และตรวจ Preflight ให้ผ่านก่อน':
@@ -184,7 +184,7 @@ function render(){
   if(!cableReady)blockers.push('ยังไม่ได้เชื่อมต่อ FT232R จากหน้าแรก');
   if(recoveryCandidate)blockers.push('ECU ID ลงท้าย 0000: อาจอยู่ใน Recovery Boot • หยุด Flash ปกติ และยืนยัน Boot/Family ผ่านเมนู Recovery');
   if(!identity?.ecuId){if(fileReady&&cableReady&&!INLINEFLASH.busy)blockers.push('กดปุ่มอัดเพื่อให้อ่าน ECU ID/Part/Family อัตโนมัติ');}
-  else if(!catalogRecord(identity))blockers.push('ไม่พบ ECU ID '+identity.ecuId+' ในฐาน 290');
+  else if(!catalogRecord(identity))blockers.push('ECU ID '+identity.ecuId+' ไม่อยู่ใน Main 290 • เปิดและตรวจ BIN ได้ แต่ยังไม่มีโปรไฟล์เขียนยืนยัน');
   else if(!catalogRecord(identity)?.part)blockers.push('ต้นฉบับไม่มี Part Code สำหรับ ECU ID '+identity.ecuId);
   else if(!identity.sourceMatched)blockers.push('พบ ECU ID ในฐานแล้ว แต่ Family ยังไม่ได้ยืนยันจากเซสชัน ECU จริง ('+identity.handshake+')');
   if(identity?.ecuId&&!plan)blockers.push('ยังไม่ผ่านการตรวจ Offset/Checksum/Part');
@@ -203,7 +203,7 @@ function render(){
   recoveryCandidate?'ตรวจพบ Recovery Boot ID • Flash ปกติถูกล็อก':
   INLINEFLASH.busy?'กำลังตรวจและอัดไฟล์ ECU':
   ready?'ผ่านการตรวจซอฟต์แวร์ (ยังไม่ได้ ERASE)':
-  unlistedPhysical?'พบ ECU ID แต่ไม่มีโปรไฟล์เขียนจาก Main.zip · ยังอัดไม่ได้':
+  unlistedPhysical?(fileReady?'อ่าน BIN และ ECU ID ได้แล้ว • ยังไม่พร้อมเขียน ECU':'อ่าน ECU ID ได้แล้ว • ยังไม่พร้อมเขียน ECU'):
   fileReady&&cableReady?'พร้อมตรวจ ECU / BIN ก่อนอัด':
   working?'กำลังอ่าน ECU / ตรวจ Preflight':identity?.ecuId&&source?.part&&!identity.sourceMatched?'พบ ECU ID ในฐาน · รอยืนยัน Family':'รอเลือก BIN และเชื่อม FT232R';
  dom.title.classList.toggle('ready',ready);
