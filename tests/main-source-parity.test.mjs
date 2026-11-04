@@ -162,4 +162,37 @@ assert.equal(shManual.startOffset,0xA000,'GetEcuType overrides Shindengen manual
 assert.equal(shManual.checksumOffset,265696,'ShindengenAutoChecksum locates own checksum');
 assert.equal(shManual.checks.sourceManualOffset,false);
 
+// FormMain.SetEcmParamsFromDb loads user ecuData.dat only if Main table
+// has no row, and GetEcuType() overrides SH stored Start Offset.
+const shDat=offlineEngine();
+shDat.identity.datReference={
+ part:'38770-TEST',family:'SHINDENGEN',
+ startOffset:0,checksumOffset:0
+};
+const shDatPlan=shDat.makePlan(bin,{
+ filename:'click125.bin',confirmedPart:'CONFIRM '+ID
+});
+assert.equal(shDatPlan.part,'38770-TEST');
+assert.equal(shDatPlan.startOffset,0xA000,
+ 'Shindengen GetEcuType must override DAT start offset');
+assert.equal(shDatPlan.checksumOffset,265696,
+ 'ShindengenAutoChecksum must override DAT checksum');
+assert.equal(shDatPlan.checks.partFromMainDat,true);
+assert.equal(shDatPlan.checks.startOffsetFromMainDat,false);
+const wrongFamilyDat=offlineEngine();
+wrongFamilyDat.identity.datReference={family:'KEIHIN',part:'MISMATCH'};
+expectError('DAT_FAMILY_CONFLICT',
+ ()=>wrongFamilyDat.makePlan(bin,{
+   filename:'click125.bin',confirmedPart:'CONFIRM '+ID
+ }));
+const keihinDat=offlineEngine({family:'KEIHIN'});
+keihinDat.identity.datReference={
+ part:'38770-DAT',family:'KEIHIN',startOffset:0x9000,checksumOffset:0x100
+};
+const khFromDat=keihinDat.makePlan(khUnknown,{filename:'from-dat.bin'});
+assert.equal(khFromDat.profile,'KEIHINOTHER');
+assert.equal(khFromDat.startOffset,0x9000);
+assert.equal(khFromDat.checksumOffset,0x100);
+assert.equal(khFromDat.checks.startOffsetFromMainDat,true);
+
 console.log('PASS: Main FormMain source parity offline (no USB/flash commands)');
