@@ -62,7 +62,11 @@ class MockHonda {
    this.writeCount++;
    assert.equal(bytes[1],bytes.length,'source frame length matches');
    assert.equal(hondaChecksum(bytes),0,'write frame Honda checksum');
+   // The original C# rejects a length-7 block result with nonzero bytes
+   // 4/5, but accepts any checksum-valid five-byte reply without status check.
    if(this.failure==='REJECT_WRITE_'+this.writeCount)
+    return {reply:packet([2,7,0,0,1,0,0]),echoOK:true};
+   if(this.failure==='SOURCE_5BYTE_STATUS_250'&&this.writeCount===2)
     return {reply:response(250),echoOK:true};
   }
   if(label==='KH_POLL_F4'||label==='KH_FINAL_5'||label==='SH_FINAL5')
@@ -96,6 +100,20 @@ await check('Keihin Normal: identify -> pre-erase -> write -> finish final ACK',
   assert(device.labels.includes(phase),'missing C# phase '+phase);
  assert(device.labels.indexOf('KH_ERASE_FINISH')<device.labels.indexOf('WRITE_BLOCK_0'));
  assert(events.some(e=>e.phase==='FLASH_SOURCE_COMPLETE'));
+});
+await check('Main C# real writer skips future FF blocks but sends current block',async()=>{
+ const {engine,device}=setup('0101880D01');
+ await engine.identify();
+ const bin=new Uint8Array(65536);bin.fill(0xff);bin[0]=0x2a;
+ const plan=engine.makePlan(bin,{filename:'K03-H01.bin'});
+ const result=await engine.flash(plan,{confirmation:'FLASH 0101880D01',
+  physicalBackupConfirmed:true,externalPowerConfirmed:true,recoveryReady:true});
+ assert.equal(result.ok,true);
+ assert.equal(device.writeCount,1,'source flag skips all later FF blocks');
+ const sent=device.frames[device.labels.findIndex(x=>x==='WRITE_BLOCK_0')];
+ assert.equal(sent[134],0,'final next-address high byte is zero');
+ assert.equal(sent[135],0,'final next-address low byte is zero');
+ assert.equal(hondaChecksum(sent),0,'source packet checksum remains correct');
 });
 await check('Main C# Keihin handshake first failure then one bounded retry',async()=>{
  const {engine,device,events}=setup('0101880D01','KH_HANDSHAKE_ONCE');
@@ -150,6 +168,16 @@ await check('Keihin corrupted write ACK aborts after erase; no finish phase',asy
  assert.equal(device.writeCount,2);
  assert(!device.labels.includes('KH_FINAL_5'));
  assert(events.some(e=>e.phase==='FLASH_STOP'&&e.eraseMayHaveStarted===true));
+});
+await check('Source WriteFlash: five-byte checksum-valid reply is accepted regardless status',async()=>{
+ const {engine,device}=setup('0101880D01','SOURCE_5BYTE_STATUS_250');
+ await engine.identify();
+ const bin=new Uint8Array(65536);bin[0]=7;
+ const plan=engine.makePlan(bin,{filename:'K03-H01.bin'});
+ const result=await engine.flash(plan,{confirmation:'FLASH 0101880D01',
+   physicalBackupConfirmed:true,externalPowerConfirmed:true,recoveryReady:true});
+ assert.equal(result.ok,true);
+ assert(device.writeCount>=2);
 });
 await check('Shindengen Normal: source Seed/Key, erase, 128-byte blocks, finish',async()=>{
  const {engine,device}=setup('01046B0F01');

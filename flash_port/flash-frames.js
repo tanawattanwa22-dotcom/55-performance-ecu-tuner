@@ -51,6 +51,31 @@ export function createWriteFrame(block,{profile,startOffset=0,blockIndex=0,nextB
  if(hondaChecksum(frame)!==0)throw Error('Frame checksum assembly failed');
  return frame;
 }
+/**
+ * Main.zip FormMain.WriteFlash(): flag=true only for KEIHINOTHER and
+ * SHINDENGENV850. It sends the CURRENT block, then advances the next-address
+ * pointer across later all-FF blocks; it does not skip the current block.
+ * Other source types always advance exactly one block.
+ * Pure calculation: never sends USB or flash commands.
+ */
+export function nextSourceWriteIndex(bin,index,profile){
+ const p=resolveWriteProfile(profile);
+ if(!(bin instanceof Uint8Array)||bin.length%p.blockSize!==0)
+  throw Error('BIN does not match source block size');
+ const total=bin.length/p.blockSize;
+ if(!Number.isInteger(index)||index<0||index>=total)throw RangeError('Invalid source block index');
+ let next=index+1;
+ if(profile!=='KEIHINOTHER'&&profile!=='SHINDENGENV850')return next;
+ while(next<total){
+  let allFF=true;
+  for(let i=next*p.blockSize;i<(next+1)*p.blockSize;i++){
+   if(bin[i]!==255){allFF=false;break;}
+  }
+  if(!allFF)break;
+  next++;
+ }
+ return next;
+}
 export function auditWriteFrames(bin,{profile,startOffset=0,maxSamples=3}={}){
  const p=resolveWriteProfile(profile);
  if(!(bin instanceof Uint8Array)||!BIN_SIZES.includes(bin.length))throw Error('Unexpected BIN byte length; no ECU profile confirmed');
@@ -62,16 +87,27 @@ export function auditWriteFrames(bin,{profile,startOffset=0,maxSamples=3}={}){
  if(shindengen&&!Number.isInteger(firstBlock))throw Error('Shindengen start offset not block aligned');
  const blockCount=bin.length/p.blockSize;
  if(firstBlock>=blockCount)throw Error('Start offset exceeds BIN size');
- const samples=[],total=blockCount-firstBlock;
- for(let i=firstBlock;i<blockCount;i++){
+ const samples=[],possibleBlocks=blockCount-firstBlock;
+ let actualFrames=0,lastFrame=null;
+ for(let i=firstBlock;i<blockCount;){
+   // Mirror source WriteFlash.flag: advance over future FF blocks, never skip
+   // the block currently being sent. This also gives the true next-pointer.
+   const next=nextSourceWriteIndex(bin,i,profile);
    const block=bin.subarray(i*p.blockSize,(i+1)*p.blockSize);
-   const frame=createWriteFrame(block,{profile,startOffset,blockIndex:i-firstBlock,isFinal:i===blockCount-1});
-   if(samples.length<maxSamples||i===blockCount-1){
-     const item={block:i,size:frame.length,head:toHex(frame.slice(0,10)),tail:toHex(frame.slice(-6)),checksumOK:hondaChecksum(frame)===0};
-     if(samples.length<maxSamples)samples.push(item);else samples.push({...item,last:true});
-   }
+   const frame=createWriteFrame(block,{profile,startOffset,blockIndex:i-firstBlock,
+     nextBlockIndex:next-firstBlock,isFinal:next===blockCount});
+   const item={block:i,size:frame.length,head:toHex(frame.slice(0,10)),
+     tail:toHex(frame.slice(-6)),checksumOK:hondaChecksum(frame)===0};
+   if(samples.length<maxSamples)samples.push(item);
+   lastFrame=item;
+   actualFrames++;
+   i=next;
  }
+ if(lastFrame&&samples.length>0&&lastFrame.block!==samples[samples.length-1].block)
+  samples.push({...lastFrame,last:true});
  return {profile,binBytes:bin.length,startOffset,blockBytes:p.blockSize,
-   frames:total,bytesOfFrames:total*(p.blockSize+11),sampleFrames:samples,
-   note:'C# frame generation parity audit only. NO USB commands are transmitted. Blank-block skipping and ECU write session are not claimed validated.'};
+   frames:actualFrames,bytesOfFrames:actualFrames*(p.blockSize+11),
+   blocksSkipped:possibleBlocks-actualFrames,sourceSkipEnabled:profile==='KEIHINOTHER'||profile==='SHINDENGENV850',
+   sampleFrames:samples,
+   note:'C# offline WriteFlash frame generation and future FF-block skip parity only. NO USB commands are transmitted. ECU session and physical write not hardware validated.'};
 }

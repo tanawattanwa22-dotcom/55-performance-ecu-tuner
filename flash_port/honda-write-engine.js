@@ -8,7 +8,7 @@
  * signatures. This is NOT hardware validated on every ECU; bench testing is required.
  */
 import {READ_ONLY_COMMANDS,toHex,hondaChecksum,FAST_SWITCH_COMMAND} from './ftdi-webusb.js';
-import {createWriteFrame,resolveWriteProfile} from './flash-frames.js?v=315';
+import {createWriteFrame,resolveWriteProfile,nextSourceWriteIndex} from './flash-frames.js?v=380';
 import {inspectCSharpEcuType,correctKeihinChecksum,correctShindengenChecksum,deriveShindengenWriteKey} from './csharp-logic.js';
 import {csharpOffsetInference,catalogLookup} from './csharp-offsets.js?v=317';
 import {findCSharpEcuId} from './csharp-ecu-catalog.js?v=302';
@@ -82,16 +82,6 @@ function ack(r,label,expectedStatus=null){
   fail('ECU_REJECTED',label+': ECU status '+(reply.length>=5?reply[3]:'not present')+' expected '+expectedStatus);
  return reply;
 }
-function nextNonBlank(bin,index,total,blockSize){
- let next=index+1;
- while(next<total){
-  let allFF=true;
-  for(let j=next*blockSize;j<(next+1)*blockSize;j++){if(bin[j]!==255){allFF=false;break}}
-  if(!allFF)break;
-  next++;
- }
- return next;
-}
 export class HondaFlashEngine {
  constructor(usb,onEvent=()=>{},wait=sleep){
   this.usb=usb;this.onEvent=onEvent;this.wait=wait;this.state='idle';
@@ -103,7 +93,7 @@ export class HondaFlashEngine {
  async x(name,frame,opts={}){
   this.emit(name,{stage:'TX'});
   let reply;
-  try{reply=ack(await this.usb.exchangeRaw(frame,opts),name);}
+  try{reply=ack(await this.usb.exchangeRaw(frame,{...opts,mainSourceMode:true}),name);}
   catch(error){
    const detail=name+' | TX '+toHex(frame)+' | '+error.message;
    this.emit('COMMAND_FAILED',{command:name,tx:toHex(frame),error:error.message});
@@ -115,6 +105,8 @@ export class HondaFlashEngine {
  async identify({programmingPreflight=false}={}){
   if(!this.usb.ready)fail('USB_NOT_CONNECTED','เปิด FTDI กับ OTG ก่อน');
   if(this.state!=='idle'&&this.state!=='identified')fail('BUSY','มีโปรแกรมกำลังทำงาน');
+  // A previous real ECU identity must not survive a fresh probe.
+  this.identity=null;
   this.state='identifying';
   try{
    // Diagnostic-first path matches the working Main FM_diag.cs Live Data wake.
@@ -232,7 +224,14 @@ export class HondaFlashEngine {
    this.state='identified';
    this.emit('ECU_IDENTIFIED',this.identity);
    return this.identity;
-  }catch(e){this.state='stopped';this.emit('PROBE_FAILED',{error:e.message});throw e}
+  }catch(e){
+   // identify() issues only non-destructive commands. A wake/USB timeout
+   // must not permanently leave the same engine BUSY, or retain old ECU data.
+   this.identity=null;
+   this.state='idle';
+   this.emit('PROBE_FAILED',{error:e.message,writeSent:false,retryAllowed:true});
+   throw e;
+  }
  }
 
  /**
@@ -495,8 +494,8 @@ export class HondaFlashEngine {
   }else if(plan.fast)this.emit('FAST_IGNORED',{profile:plan.profile}); // C# only fast-switches KEIHINOTHER
   const writeDelay=plan.profile.startsWith('SHINDENGEN')&&!plan.fast?150:0; // C# sleepMs
   while(current<total){
-   const skipBlank=plan.profile==='KEIHINOTHER'||plan.profile==='SHINDENGENV850';
-   const next=skipBlank?nextNonBlank(plan.bin,current,total,blockSize):current+1;
+   // The same pure rule as the purchased FormMain.WriteFlash().
+   const next=nextSourceWriteIndex(plan.bin,current,plan.profile);
    const frame=createWriteFrame(plan.bin.subarray(current*blockSize,(current+1)*blockSize),{
      profile:plan.profile,startOffset:plan.startOffset,blockIndex:current-firstBlock,
      nextBlockIndex:next-firstBlock,isFinal:next===total});
@@ -507,10 +506,12 @@ export class HondaFlashEngine {
    let accepted=false;
    while(!accepted){
      const reply=await this.x('WRITE_BLOCK_'+current,frame,{timeoutMs:7000,afterWriteMs:writeDelay});
-     if(reply.length===5&&reply[3]===0){
+     // Source FormMain.WriteFlash accepts ANY checksum-valid five-byte ACK.
+     // There is no C# reply[3] status check in its five-byte branch.
+     if(reply.length===5){
        this.emit('WRITE_BLOCK_ACK',{block:current,sourceReplyStatus:reply[3]});
        accepted=true;
-     }else if(reply.length===7&&reply[3]===0&&reply[4]===0&&reply[5]===0&&sourceRetryBudget>0){
+     }else if(reply.length===7&&reply[4]===0&&reply[5]===0&&sourceRetryBudget>0){
        sourceRetryBudget--;
        this.emit('SOURCE_EXPLICIT_RETRY',{block:current,remaining:sourceRetryBudget});
      }else{

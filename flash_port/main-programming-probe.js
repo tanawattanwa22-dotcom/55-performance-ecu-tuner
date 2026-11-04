@@ -50,11 +50,12 @@ export async function probeMainProgrammingSession(port,{expectedEcuId=null,onEve
   log('TX',{name,hex:toHex(bytes),bytes:bytes.length});
   try{
    if(!port.ready)throw Error('FT232R disconnected');
-   const response=await port.exchangeRaw(bytes,{timeoutMs,
+   const response=await port.exchangeRaw(bytes,{timeoutMs,mainSourceMode:true,
     observe:e=>log('TRANSPORT_'+e.phase,{name,...Object.fromEntries(Object.entries(e).filter(([k])=>k!=='phase'))})
    });
    const reply=Uint8Array.from(response?.reply||[]);
-   if(!response?.echoOK)throw Error('Serial echo missing/mismatch');
+   // FormMain.SendCommand validates reply checksum, not serial TX echo.
+   // Log the mismatch, but let a fully valid source reply be evaluated.
    checkedHondaReply(reply);
    // Main.zip FormMain.cs SendCommand validates the declared packet length
    // and checksum; it does NOT require five bytes for the HELLO handshake.
@@ -66,7 +67,7 @@ export async function probeMainProgrammingSession(port,{expectedEcuId=null,onEve
    // byte. Keep the legacy raw byte for C# WorkerThread fallback parity.
    const status=reply.length>=5?reply[3]:null;
    log('RX',{name,hex:toHex(reply),length:reply.length,status,
-    rawByte3:reply[3],checksumOK:true,echoOK:true,durationMs:Date.now()-ts});
+    rawByte3:reply[3],checksumOK:true,echoOK:response?.echoOK??null,durationMs:Date.now()-ts});
    return {ok:true,reply,status,rawByte3:reply[3]};
   }catch(e){
    const reason=String(e?.message||e);

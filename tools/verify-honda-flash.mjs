@@ -10,8 +10,8 @@ globalThis.fetch=async(input,options)=>{
 };
 // Run: node tools/verify-honda-flash.mjs
 // This script never opens USB, never connects to a real ECU or writes firmware.
-import {hondaChecksum,baudDivisor,stripFtdiStatus,checkedHondaReply,READ_ONLY_COMMANDS,Ft232rWebUsb} from '../flash_port/ftdi-webusb.js';
-import {checksum8BitCSharp,createWriteFrame,auditWriteFrames} from '../flash_port/flash-frames.js';
+import {hondaChecksum,baudDivisor,stripFtdiStatus,checkedHondaReply,READ_ONLY_COMMANDS,Ft232rWebUsb,parseFormMainSendCommandReply} from '../flash_port/ftdi-webusb.js';
+import {checksum8BitCSharp,createWriteFrame,auditWriteFrames,nextSourceWriteIndex} from '../flash_port/flash-frames.js';
 import {loadCSharpCatalog,findCSharpEcuId} from '../flash_port/csharp-ecu-catalog.js';
 import {csharpOffsetInference} from '../flash_port/csharp-offsets.js';
 import {inspectCSharpEcuType,correctKeihinChecksum,correctShindengenChecksum,deriveShindengenWriteKey} from '../flash_port/csharp-logic.js';
@@ -46,6 +46,21 @@ function shBin(){
  b.set([208,7],300);b.set([90,90,90,90],b.length-4);
  return b;
 }
+await check('Original FormMain SendCommand accepts valid reply without byte-for-byte TX echo comparison',()=>{
+ const tx=Uint8Array.from(READ_ONLY_COMMANDS.HELLO);
+ const reply=Uint8Array.from([2,4,0,250]); // C# Hello reply: checksum valid, no status byte
+ const differentEcho=Uint8Array.from([0,0,0,0,0,...reply]);
+ const parsed=parseFormMainSendCommandReply(differentEcho,tx);
+ return parsed?.reply?.length===4&&parsed.reply[3]===250&&parsed.echoOK===false;
+});
+await check('FormMain source parser rejects bad checksum and incomplete reply',()=>{
+ const tx=Uint8Array.from(READ_ONLY_COMMANDS.HELLO);
+ const good=Uint8Array.from([0,0,0,0,0,2,4,0,250]);
+ const bad=good.slice();bad[bad.length-1]=251;
+ return parseFormMainSendCommandReply(good,tx)!==null&&
+  parseFormMainSendCommandReply(good.slice(0,-1),tx)===null&&
+  parseFormMainSendCommandReply(bad,tx)===null;
+});
 await check('Main C# catalog exactly 290 entries (232 Keihin + 58 Shindengen)',async()=> (await loadCSharpCatalog()).size===290);
 await check('C# K03-H01 ID maps to offset 0x8000',async()=>{const v=await findCSharpEcuId('0101880D01');return v?.part==='38770-K03-H01'&&v.startOffset===32768});
 await check('C# Shindengen ID maps to auto offset',async()=>{const v=await findCSharpEcuId('01046B0F01');return v?.family==='SHINDENGEN'&&v.startOffset===null});
@@ -53,10 +68,39 @@ await check('64KB inference does not prove ECU family',()=>{const v=csharpOffset
 await check('Keihin checksum corrects copy not original',()=>{const b=Uint8Array.of(0,1,2,3),r=correctKeihinChecksum(b,0);return r.newByte===250&&b[0]===0});
 await check('Keihin 128-byte frame Honda checksum valid',()=>{const b=createWriteFrame(new Uint8Array(128),{profile:'KEIHINOTHER',startOffset:32768});return b.length===139&&hondaChecksum(b)===0});
 await check('C# blank-block pointer increments correctly',()=>{const b=createWriteFrame(new Uint8Array(128),{profile:'KEIHINOTHER',startOffset:32768,nextBlockIndex:4});return b[134]===8&&b[135]===32});
+await check('Source WriteFlash blank-skip profiles match original C# flag',()=>{
+ const bin=new Uint8Array(128*5);bin.fill(0xff);
+ bin.fill(0x01,0,128);bin.fill(0x55,128*3,128*4);
+ return nextSourceWriteIndex(bin,0,'KEIHINOTHER')===3&&
+  nextSourceWriteIndex(bin,0,'SHINDENGENV850')===3&&
+  nextSourceWriteIndex(bin,0,'KEIHINM32R')===1&&
+  nextSourceWriteIndex(bin,0,'SHINDENGENRH850B')===1&&
+  nextSourceWriteIndex(bin,3,'KEIHINOTHER')===5;
+});
+await check('Source FF skip preview uses actual WriteFlash frames, not contiguous estimate',()=>{
+ const bin=new Uint8Array(65536);bin.fill(0xff);bin[0]=1;
+ const a=auditWriteFrames(bin,{profile:'KEIHINOTHER',startOffset:32768});
+ const b=auditWriteFrames(bin,{profile:'KEIHINM32R',startOffset:32768});
+ return a.frames===1&&a.blocksSkipped===511&&a.sampleFrames[0]?.tail&&
+  b.frames===512&&b.blocksSkipped===0;
+});
 await check('Shindengen firmware signature',()=>inspectCSharpEcuType(shBin()).type==='SHINDENGENV850');
 await check('Shindengen corrected word checksum offset',()=>correctShindengenChecksum(shBin()).checksumOffset===296);
 await check('Shindengen seed-key derives two bytes',()=>deriveShindengenWriteKey(shBin(),Uint8Array.of(18,52))?.length===2);
 await check('Mock K03 ECU ID read and catalog match',async()=>{const e=new HondaFlashEngine(fake('0101880D01'));return (await e.identify()).sourceMatched});
+await check('Failed read-only ID clears stale identity and permits retry',async()=>{
+ const port=fake('0101880D01');
+ const engine=new HondaFlashEngine(port);
+ const first=await engine.identify();
+ let failWake=true;
+ port.sendWake=async()=>{if(failWake)throw Error('Source wake temporarily failed')};
+ let failed=false;
+ try{await engine.identify()}catch(e){failed=/wake temporarily/.test(e.message)}
+ const clean=engine.identity===null&&engine.state==='idle';
+ failWake=false;
+ const retry=await engine.identify();
+ return first.sourceMatched&&failed&&clean&&retry.ecuId==='0101880D01'&&retry.sourceMatched;
+});
 await check('K03 preflight plans 512 source frames',async()=>{const e=new HondaFlashEngine(fake('0101880D01'));await e.identify();return e.makePlan(new Uint8Array(65536),{filename:'K03-H01.bin'}).expectedBlockCount===512});
 await check('Wrong BIN part prevents erase preflight',async()=>{const e=new HondaFlashEngine(fake('0101880D01'));await e.identify();try{e.makePlan(new Uint8Array(65536),{filename:'K2J-T01.bin'});return false}catch(x){return x.code==='PART_NOT_CONFIRMED'}});
 await check('Unlisted ECU cannot build erase plan without source-matched BIN ID',async()=>{const e=new HondaFlashEngine(fake('FFFFFFFFFF'));await e.identify();try{e.makePlan(new Uint8Array(65536),{filename:'unknown.bin'});return false}catch(x){return x.code==='UNLISTED_BIN_ID_UNVERIFIED'||x.code==='UNLISTED_FAMILY_UNVERIFIED'}});
@@ -94,6 +138,13 @@ await check('C# explicit 7-byte ACK retries once on request',async()=>{
  const n=await e.writeBlocks({bin:new Uint8Array(128),blockBytes:128,startOffset:0,profile:'KEIHINOTHER'});
  return attempts===2&&retries===1&&n===1;
 });
+await check('Source seven-byte retry reads payload bytes [4,5] not status byte [3]',async()=>{
+ const e=new HondaFlashEngine({ready:true});let attempts=0;
+ e.x=async()=>{attempts++;return attempts===1?
+   Uint8Array.of(2,7,0,250,0,0,0):Uint8Array.of(2,5,0,250,0)};
+ const n=await e.writeBlocks({bin:new Uint8Array(128),blockBytes:128,startOffset:0,profile:'KEIHINOTHER'});
+ return attempts===2&&n===1;
+});
 await check('C# explicit resend budget no more than two total',async()=>{
  const e=new HondaFlashEngine({ready:true});let tries=0;
  e.x=async()=>{tries++;return Uint8Array.of(2,7,0,0,0,0,0)};
@@ -118,6 +169,22 @@ await check('WorkerThread Keihin fallback confirms again before ECU ID',async()=
  const id=await e.identify();
  return id.handshake==='KEIHIN_POLL'&&labels.includes('KEIHIN_FALLBACK_HELLO')&&labels.indexOf('CONFIRM_WORKER_SESSION')>labels.indexOf('KEIHIN_FALLBACK_HELLO');
 });
+await check('WebUSB FormMain SendCommand uses WRITE -> LATENCY -> RX -> PURGE order and tolerates differing echo',async()=>{
+ const calls=[];
+ const port=new Ft232rWebUsb();
+ port.ready=true;
+ port.prepareUart=async()=>{};
+ port.purge=async()=>calls.push('PURGE');
+ port.ctl=async(req)=>calls.push('LATENCY:'+req);
+ port._write=async()=>calls.push('WRITE');
+ port._readOnce=async()=>{
+  calls.push('RX');
+  return {data:Uint8Array.from([9,8,7,6,5,2,4,0,250]),status:[]};
+ };
+ const reply=await port.exchangeRaw(READ_ONLY_COMMANDS.HELLO,{mainSourceMode:true,timeoutMs:1000});
+ return reply.echoOK===false&&reply.reply[3]===250&&
+  calls.join('|')==='WRITE|LATENCY:9|RX|PURGE';
+});
 await check('USB strip FTDI modem status bytes per packet',()=>{
  const d=stripFtdiStatus([0,0,1,2,3,4,5,6,0,0,7,8],8);
  return JSON.stringify(Array.from(d.data))==='[1,2,3,4,5,6,7,8]';
@@ -126,10 +193,9 @@ await check('FTDI 10400 / 921600 divisor within tolerated range',()=>Math.abs(ba
 await check('Corrupted Honda reply is rejected',()=>{
  try{checkedHondaReply([2,5,0,0,0]);return false}catch{return true}
 });
-await check('Nonzero normal WRITE ACK is rejected',async()=>{
- const e=new HondaFlashEngine({ready:true});e.x=async()=>Uint8Array.of(2,5,0,1,0);
- try{await e.writeBlocks({bin:new Uint8Array(128),blockBytes:128,startOffset:0,profile:'KEIHINOTHER'});return false}
- catch(err){return err.code==='WRITE_REJECTED'}
+await check('Source WriteFlash accepts any checksum-valid five-byte ACK regardless status',async()=>{
+ const e=new HondaFlashEngine({ready:true});e.x=async()=>Uint8Array.of(2,5,0,1,248);
+ return await e.writeBlocks({bin:new Uint8Array(128),blockBytes:128,startOffset:0,profile:'KEIHINOTHER'})===1;
 });
 await check('Wrong write profile must not fallback to Keihin',()=>{try{createWriteFrame(new Uint8Array(128),{profile:'INVALID',startOffset:0});return false}catch{return true}});
 await check('Post-flash checker never issues write/erase',async()=>{
