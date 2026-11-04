@@ -10,6 +10,7 @@
  * (the existing flash engine does that on a copy at write time).
  */
 import {BIN_ID_TABLE} from './bin-id-table.js';
+import {applyMainLockRead,applyMainLockMode} from './main-source-bin-locks.js?v=1';
 
 const hex=(u8,sep=' ')=>Array.from(u8,x=>x.toString(16).padStart(2,'0')).join(sep).toUpperCase();
 const eq=(bin,off,pat)=>pat.every((v,i)=>bin[off+i]===v);
@@ -38,49 +39,26 @@ export function readBinId(bin){
   return {ok:false,id:'',reason:'No matching pattern for '+(bin.length/1024)+' KB'};
 }
 
-/* ---- Patches (48 KB / 64 KB only) ---- */
-const SIZE_OK=n=>n===49152||n===65536;
+/* ---- FormMain.cs Lock Read/Lock Mode, all source patterns in order ---- */
 export function revertPatch(bin,undo){
-  const out=Uint8Array.from(bin);
-  for(const [pos,val] of undo) out[pos]=val;
-  return out;
+ const out=Uint8Array.from(bin);
+ // Restoration in reverse order protects the original values when source
+ // scan patterns overlap. Source writes only to the loaded BIN.
+ for(let i=undo.length-1;i>=0;i--){
+  const [pos,val]=undo[i];
+  out[pos]=val;
+ }
+ return out;
 }
-function applyPairs(bin,pairs,firstOnly){
-  const out=Uint8Array.from(bin),undo=[];
-  let hits=0;
-  for(const [search,replace] of pairs){
-    for(let i=0;i<=out.length-search.length;i++){
-      if(!eq(out,i,search)) continue;
-      hits++;
-      for(let k=0;k<replace.length;k++){undo.push([i+k,out[i+k]]);out[i+k]=replace[k];}
-      if(firstOnly) return {bytes:out,undo,hits};
-    }
-  }
-  return {bytes:out,undo,hits};
+function lockResult(bin,func,label){
+ try{
+  const result=func(bin);
+  if(!result.found)return {ok:false,error:result.message};
+  return {ok:true,bytes:result.bin,
+   undo:result.history.map(p=>[p.index,p.previous]),
+   hits:result.history.length/(label==='read'?3:5),
+   source:result.source};
+ }catch(e){return {ok:false,error:String(e?.message||e)}}
 }
-
-/** "Lock Read": first "Arn" -> "Brn" (41 72 6E -> 42 72 6E). */
-export function lockRead(bin){
-  if(!bin?.length) return {ok:false,error:'Load a BIN first'};
-  if(!SIZE_OK(bin.length)) return {ok:false,error:'BIN must be 48 KB or 64 KB'};
-  const r=applyPairs(bin,[[[0x41,0x72,0x6E],[0x42,0x72,0x6E]]],true);
-  return r.hits?{ok:true,...r}:{ok:false,error:'Cannot lock read (pattern not found)'};
-}
-
-// pairs copied 1:1 from the C# lists (search -> replace)
-const P48=[
- [[163,3,16,32,0],[131,3,0,32,0]],[[163,3,16,32,3],[130,3,0,32,0]],[[163,75,0,81,0],[163,75,0,81,0]],
- [[179,33,16,40,0],[146,33,0,40,0]],[[242,33,16,107,0],[146,33,0,40,0]],
- [[35,75,0,85,0],[3,75,16,85,0]],[[99,75,0,85,0],[3,75,16,85,0]],
-];
-const P64=[
- [[163,3,16,32,16],[131,3,0,32,0]],[[163,3,16,32,0],[131,3,18,32,0]],[[163,32,16,32,16],[131,2,18,32,18]],
- [[163,0,16,32,16],[131,0,0,32,0]],[[131,3,16,32,16],[131,3,18,32,18]],[[179,3,16,32,0],[147,3,18,32,0]],
-];
-/** "Lock Mode": replaces every occurrence of each pattern pair. */
-export function lockMode(bin){
-  if(!bin?.length) return {ok:false,error:'Load a BIN first'};
-  if(!SIZE_OK(bin.length)) return {ok:false,error:'BIN must be 48 KB or 64 KB'};
-  const r=applyPairs(bin,bin.length===49152?P48:P64,false);
-  return r.hits?{ok:true,...r}:{ok:false,error:'Cannot lock mode (pattern not found)'};
-}
+export function lockRead(bin){return lockResult(bin,applyMainLockRead,'read')}
+export function lockMode(bin){return lockResult(bin,applyMainLockMode,'mode')}
