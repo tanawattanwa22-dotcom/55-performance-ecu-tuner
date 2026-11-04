@@ -355,7 +355,8 @@ export class HondaFlashEngine {
   if(!profile.startsWith(family))fail('BIN_TYPE','ECU Type ไม่ตรงกับ ID/ตระกูล ECU');
   const p=resolveWriteProfile(profile);
   const suggested=sourceOffsetProof;
-  const offset=(rec&&Number.isInteger(startOffsetOverride))?startOffsetOverride:(catalog.startOffset??suggested.startOffset);
+  const useManualStart=Number.isInteger(startOffsetOverride)&&family==='KEIHIN';
+  const offset=useManualStart?startOffsetOverride:(catalog.startOffset??suggested.startOffset);
   if(!Number.isInteger(offset)||offset<0||offset%16)
    fail('BAD_SOURCE_MAP','Start Offset จาก C# ไม่ครบ/ผิด Alignment');
   if(bin.length%p.blockSize)fail('BLOCK_ALIGNMENT','BIN ไม่ตรงขนาดบล็อก C#');
@@ -364,7 +365,8 @@ export class HondaFlashEngine {
   const first=family==='SHINDENGEN'?offset/p.blockSize:0;
   const lastAddress=offset/16+((bin.length/p.blockSize-1)-first)*p.addressStep;
   if(lastAddress>0xffff)fail('ADDRESS_OVERFLOW','Address 16-bit เกินขอบเขตที่ตรวจได้');
-  const keihinChecksumOffset=rec&&Number.isInteger(checksumOffsetOverride)
+  const useManualChecksum=Number.isInteger(checksumOffsetOverride)&&family==='KEIHIN';
+  const keihinChecksumOffset=useManualChecksum
     ?checksumOffsetOverride:(catalog.checksumOffset??suggested.checksumOffset);
   if(family==='KEIHIN'&&!Number.isInteger(keihinChecksumOffset))
    fail('RECOVERY_NO_CHECKSUM_MAP','Main C# ไม่ได้ระบุ Checksum Offset กรุณายืนยันเลข HEX ก่อน');
@@ -383,7 +385,8 @@ export class HondaFlashEngine {
        sourceKeihinOtherFallback:sourceKeihinFallback,
        sourceBinIdEvidence:completeBinId?'FULL_ID':shortBinId?'3_BYTE_SOURCE_LOCATOR':'NONE',
        operatorConfirmedPartialId:sourceUnlisted&&!!shortBinId,
-      offsetsFromCSharp:!(rec&&(Number.isInteger(startOffsetOverride)||Number.isInteger(checksumOffsetOverride))),
+      offsetsFromCSharp:!(useManualStart||useManualChecksum),
+       sourceManualOffset:useManualStart||useManualChecksum,
       binSizeValidated:true,hardwareValidated:false}};
   this.emit('PREFLIGHT_PASS',{ecuId,part:plan.part,profile,bytes:plan.size,
     offsetHex:'0x'+offset.toString(16),blockBytes:plan.blockBytes,checksumChanged:corrected.modified});
