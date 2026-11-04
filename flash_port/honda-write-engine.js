@@ -506,10 +506,12 @@ export class HondaFlashEngine {
    let accepted=false;
    while(!accepted){
      const reply=await this.x('WRITE_BLOCK_'+current,frame,{timeoutMs:7000,afterWriteMs:writeDelay});
-     if(reply.length===5&&reply[3]===0){
+     // Source FormMain.WriteFlash accepts ANY checksum-valid five-byte ACK.
+     // There is no C# reply[3] status check in its five-byte branch.
+     if(reply.length===5){
        this.emit('WRITE_BLOCK_ACK',{block:current,sourceReplyStatus:reply[3]});
        accepted=true;
-     }else if(reply.length===7&&reply[3]===0&&reply[4]===0&&reply[5]===0&&sourceRetryBudget>0){
+     }else if(reply.length===7&&reply[4]===0&&reply[5]===0&&sourceRetryBudget>0){
        sourceRetryBudget--;
        this.emit('SOURCE_EXPLICIT_RETRY',{block:current,remaining:sourceRetryBudget});
      }else{
