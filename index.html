@@ -347,6 +347,10 @@ table.g th,table.g td{border-right:1px solid rgba(255,255,255,.35);border-bottom
    <div class="snapshot-panel" id="flashSnapshot">ยังไม่ได้บันทึก BIN ที่จูน · เปิดหน้าจูนแล้วบันทึกก่อน</div>
    <div class="flash-actions"><button class="btn" id="btnReturnTune" type="button">กลับไปจูน / บันทึก BIN</button><button class="btn" id="btnAutoOffset" type="button">ตรวจ Auto Offset</button></div>
    <div id="autoOffsetInfo" class="mu sm" style="white-space:pre-wrap;margin:9px 0">Auto Offset: ยังไม่ได้ตรวจ · ต้องเทียบกับ ECU ID จริงก่อนอัด</div>
+   <label style="display:flex;gap:8px;align-items:center;margin:8px 0">
+    <input id="mainFastWrite" type="checkbox" checked style="width:auto">
+    Fast Write (ค่าเริ่มต้น MainForm.cs)
+   </label>
    <details id="mainManualOffsetsPanel" style="margin:10px 0;padding:10px;border:1px solid #444;border-radius:10px">
     <summary>FormMain · Manual Offset (HEX)</summary>
     <label style="display:flex;align-items:center;gap:8px;margin:10px 0"><input type="checkbox" id="mainManualOffset" style="width:auto"> เปิด Manual Offset ตาม FormMain.cs</label>
@@ -1546,7 +1550,7 @@ async function inlineFlashStart(){
   // Both paths use a stable copied BIN; tuning snapshots still pass the original strict guard.
   INLINEFLASH.firstSha=await inlineFlashHash(bin);
   INLINEFLASH.filename=quick?.filename||S.saved?.filename||S.fname||('55_TUNED_'+MODELS[S.mi]?.id+'.bin');
-  const fast=!!window.__55QuickFlashFast;
+  const fast=$('#mainFastWrite')?.checked??true;
   const offsetOptions=mainFormOffsetOptions(identity.family);
   let plan;
   try{plan=INLINEFLASH.engine.makePlan(bin,{filename:INLINEFLASH.filename,...offsetOptions,fast,recovery:false})}
