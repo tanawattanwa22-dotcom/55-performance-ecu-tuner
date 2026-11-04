@@ -23,6 +23,13 @@ export const SOURCE_PATTERNS=Object.freeze({
  786432:[[779178,[0,0,0,0],779182,5],[777562,[0,0,0,0],777566,5],[9149,[0,2,0,255],9144,5]],
  1048576:[[9149,[0,0,0,255],9144,5],[11127,[0,0,0,255],11122,5],[9149,[0,2,0,255],9144,5]]
 });
+// FormMain.FormatFileSize(long) copied verbatim in decision order.
+export function formatMainFileSize(sizeInBytes){
+ if(!Number.isInteger(sizeInBytes)||sizeInBytes<0)throw Error('Invalid file byte count');
+ if(sizeInBytes>=1048576)return (sizeInBytes/1048576).toFixed(2)+' MB';
+ if(sizeInBytes>=1024)return (sizeInBytes/1024).toFixed(2)+' KB';
+ return sizeInBytes+' B';
+}
 const inRange=(b,start,len)=>Number.isInteger(start)&&start>=0&&start+len<=b.length;
 const matches=(b,at,p)=>inRange(b,at,p.length)&&p.every((x,i)=>b[at+i]===x);
 const hex=bytes=>Array.from(bytes,b=>b.toString(16).toUpperCase().padStart(2,'0')).join('');
@@ -102,7 +109,7 @@ export async function auditMainBin(bytes,{fileName='',claimedEcuId=''}={}){
  const prefix=claimedEcuId?findMainEcuPrefixInBin(bytes,claimedEcuId):null;
  const named=claimedEcuId?catalog.get(claimedEcuId.toUpperCase().trim())||null:null;
  const sums=sourceSums(bytes);
- return {tool:'55 PERFORMANCE / Main.zip BIN Audit',fileName,size:bytes.length,
+ return {tool:'55 PERFORMANCE / Main.zip BIN Audit',fileName,size:bytes.length,sourceFileSize:formatMainFileSize(bytes.length),
   supportedSourceSize:SOURCE_SIZES.includes(bytes.length),sourceBinIdText:sourceMainBinIdText(bytes),type,sums,
   scannedIds:enriched,requestedEcuId:claimedEcuId||null,requestedCatalog:named,
   prefix,sourceAudit,notes:[
