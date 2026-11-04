@@ -6,7 +6,11 @@ export const RESET_SH_COUNT_FRAMES=Object.freeze([
 ]);
 export function isSourceResetCountFrame(bytes){return RESET_SH_COUNT_FRAMES.some(f=>f.length===bytes.length&&f.every((b,i)=>b===bytes[i]));}
 export async function resetShindengenCount(port,identity,wait=ms=>new Promise(r=>setTimeout(r,ms))){
- if(!identity?.sourceMatched||identity.family!=='SHINDENGEN')throw Error('ต้องอ่าน ID และยืนยัน Shindengen จากฐาน Main ก่อน');
+ if(identity?.family!=='SHINDENGEN'||
+  !(identity.sourceMatched||
+    (identity.programmingSessionVerified===true&&
+     identity.physicalFamilyEvidence==='MAIN_SOURCE_READ_ONLY_FLASH_COUNT_ACK')))
+  throw Error('ต้องยืนยัน Shindengen จากการตอบ Flash Count จริงก่อนทำคำสั่ง Reset');
  for(const frame of RESET_SH_COUNT_FRAMES){
   await port.exchangeRaw(frame,{timeoutMs:2000});await wait(100);
  }
