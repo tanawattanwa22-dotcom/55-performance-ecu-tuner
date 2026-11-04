@@ -30,12 +30,16 @@ try{
  });
  await page.goto('http://127.0.0.1:'+server.address().port+'/flash_port/main-full-flash-simulator.html',{waitUntil:'domcontentloaded'});
  assert.equal(await page.locator('[data-test]').count(),4);
+ assert.equal(await page.locator('html').evaluate(el=>el.classList.contains('advanced-direct-granted')),false,
+  'No admin privilege is granted by the offline Chrome test');
  for(const type of ['kh','sh','rec','384']){
-  await page.locator('[data-test="'+type+'"]').click();
+  // The emulator is never connected to USB. Exercise its JS while the actual
+  // customer-facing simulator page stays behind the existing admin gate.
+  await page.evaluate(which=>document.querySelector('[data-test="'+which+'"]').click(),type);
   await page.waitForFunction(()=>/^(PASS|FAIL) · SIMULATOR$/.test(document.getElementById('status').textContent),{timeout:20000});
-  const state=await page.locator('#status').innerText();
-  assert.equal(state,'PASS · SIMULATOR',type+': '+await page.locator('#out').innerText());
-  assert((await page.locator('#out').innerText()).includes('PASS'),type+' summary missing');
+  const state=await page.locator('#status').textContent();
+  assert.equal(state,'PASS · SIMULATOR',type+': '+await page.locator('#out').textContent());
+  assert((await page.locator('#out').textContent()).includes('PASS'),type+' summary missing');
   console.log('PASS mobile simulator '+type);
  }
  assert.deepEqual(errors,[],'no browser runtime errors');
