@@ -18,6 +18,7 @@
    const fast=$('mainFastWrite')?.closest('label');
    const cable=$('klog')?.closest('details');
    const legacy=$('modelCard')?.querySelector('details');
+   const ecmLink=$('modelCard')?.querySelector('a[href^="ecm/"]');
    // Change PARENT only, never recreate inputs: core Flash listeners and
    // their state remain attached and read by the same existing functions.
    const title=document.createElement('h3');
@@ -31,6 +32,7 @@
    if(manual)advanced.append(manual);
    if(cable)advanced.append(cable);
    if(legacy){legacy.removeAttribute('style');advanced.append(legacy)}
+   if(ecmLink){ecmLink.removeAttribute('style');ecmLink.classList.add('btn');advanced.append(ecmLink)}
   }
   // Secondary Main tools and read-only probes remain in the page DOM, but
   // are removed from all ordinary customer screens via the retail CSS.
