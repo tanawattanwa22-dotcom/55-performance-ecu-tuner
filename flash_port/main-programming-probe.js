@@ -45,7 +45,9 @@ export async function probeMainProgrammingSession(port,{expectedEcuId=null,onEve
   log('TX',{name,hex:toHex(bytes),bytes:bytes.length});
   try{
    if(!port.ready)throw Error('FT232R disconnected');
-   const response=await port.exchangeRaw(bytes,{timeoutMs});
+   const response=await port.exchangeRaw(bytes,{timeoutMs,
+    observe:e=>log('TRANSPORT_'+e.phase,{name,...Object.fromEntries(Object.entries(e).filter(([k])=>k!=='phase'))})
+   });
    const reply=Uint8Array.from(response?.reply||[]);
    if(!response?.echoOK)throw Error('Serial echo missing/mismatch');
    checkedHondaReply(reply);
@@ -65,7 +67,9 @@ export async function probeMainProgrammingSession(port,{expectedEcuId=null,onEve
   if(!port.ready)throw Error('FT232R unavailable before Main source ISO wake');
   port.diagnosticReady=false;
   log('MAIN_ISO_INIT_BEGIN',{method:'InitFtdiIso'});
-  await port.initializeIso();
+  await port.initializeIso({
+   observe:e=>log('FTDI_'+e.phase,Object.fromEntries(Object.entries(e).filter(([k])=>k!=='phase')))
+  });
   log('MAIN_ISO_INIT_END');
   await port.sendWake();
   log('MAIN_SOURCE_WAKE',{hex:toHex(READ_ONLY_COMMANDS.WAKE)});

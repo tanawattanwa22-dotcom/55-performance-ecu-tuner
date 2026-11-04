@@ -193,8 +193,12 @@ export class Ft232rWebUsb {
     const result=await this.dev.transferOut(this.outEp,b);
     if(result.status!=='ok'||result.bytesWritten!==b.length)throw Error('FTDI short/failed USB write');
   }
-  async initializeIso(){
+  async initializeIso({observe=null}={}){
     if(!this.ready)throw Error('FTDI not open');
+    const trace=(phase,data={})=>{
+      if(typeof observe!=='function')return;
+      try{observe({phase,...data})}catch{} // tracing must never change ECU timing
+    };
     await this.prepareUart();
     // Exact FT_SetBitMode and baud sequence from C# InitFtdiIso().
     // Do not run against ECU until electrical interface/pinout has been verified.
@@ -203,15 +207,22 @@ export class Ft232rWebUsb {
     await this.ctl(0x0b,0);
     await this.ctl(0x04,0x0008);
     await this.setBaud(921600);
+    trace('SOURCE_BITBANG_BAUD_REQUESTED',{baud:921600});
     await this.ctl(0x09,8);
     await this.ctl(0x0b,0x0101); // mask 0x01 / async bit-bang mode 0x01
+    trace('SOURCE_BITBANG_MODE_SET',{mode:1,mask:1});
     await this._write([0x00]);
+    const lowWrittenAt=Date.now();
+    trace('SOURCE_BITBANG_LOW_USB_WRITE_OK',{byte:'00'});
     await sleep(50);
     await this._write([0x01]);
+    trace('SOURCE_BITBANG_HIGH_USB_WRITE_OK',{byte:'01',softwareTransferIntervalMs:Date.now()-lowWrittenAt});
     await this.ctl(0x0b,0);
     await this.setBaud(10400);
+    trace('SOURCE_UART_RESTORED',{baud:10400});
     await this.purge();
     await sleep(80);
+    trace('SOURCE_ISO_INIT_COMPLETED',{note:'USB command completion is not a measured K-Line waveform'});
     this._log('InitFtdiIso sequence complete (hardware reply not yet established)');
   }
   async _readOnce(deadline){
@@ -281,7 +292,7 @@ export class Ft232rWebUsb {
     await sleep(80);
     await this.purge();
   }
-  async exchangeRaw(frame,{timeoutMs,afterWriteMs=0,expectReply=true}={}){
+  async exchangeRaw(frame,{timeoutMs,afterWriteMs=0,expectReply=true,observe=null}={}){
     // C# SendCommand-compatible echo + reply. This method can transmit an ECU
     // programming frame: callers must complete hardware/profile preflight.
     if(!this.ready)throw Error('FT232R not connected');
@@ -301,33 +312,64 @@ export class Ft232rWebUsb {
     const timeout=timeoutMs??Math.min(6000,Math.max(700,200+bytes.length*10));
     if(!Number.isFinite(timeout)||timeout<80||timeout>15000)throw Error('Invalid response timeout');
     this.exchangeBusy=true;
+    // Opt-in source-probe telemetry only. Ordinary Flash/Recovery keeps its
+    // existing timing, read/write framing and failure-stop behavior unchanged.
+    const telemetry=typeof observe==='function'?observe:null;
+    let uartBytes=0,ftdiPackets=0,uartSample=[],usbChunks=0;
+    let sent=false,echoConfirmed=false;
+    const trace=(phase,fields={})=>{
+      if(!telemetry)return;
+      try{telemetry({phase,...fields})}catch{} // diagnostics cannot interrupt transfers
+    };
     try {
       await this.purge();
       await this.ctl(0x09,8);
       await this._write(bytes);
+      sent=true;
+      trace('USB_OUT_OK',{uartHex:toHex(bytes.slice(0,32)),bytesWritten:bytes.length});
       this._log('TX RAW '+toHex(bytes.length<=16?bytes:bytes.slice(0,16))+(bytes.length>16?' ... ('+bytes.length+' bytes)':''));
       if(!expectReply){await sleep(afterWriteMs);return {reply:null,echoOK:null}}
       if(afterWriteMs)await sleep(afterWriteMs);
       const end=Date.now()+timeout,stream=[];
       while(Date.now()<end){
         const rx=await this._readOnce(end);
+        usbChunks++;
+        ftdiPackets+=rx.status?.length||0;
+        uartBytes+=rx.data.length;
+        if(uartSample.length<96)uartSample.push(...rx.data.slice(0,96-uartSample.length));
+        if(usbChunks<=32||rx.data.length>0){
+          trace('USB_IN_CHUNK',{chunk:usbChunks,ftdiStatusPackets:rx.status?.length||0,
+            uartBytes:rx.data.length,uartHex:toHex(rx.data.slice(0,96)),
+            accumulatedUartBytes:uartBytes});
+        }
         stream.push(...rx.data);
         if(stream.length>bytes.length+256+64)
           throw Error('Too many bytes without valid ECU reply');
         if(stream.length<bytes.length+2)continue;
         const echo=stream.slice(0,bytes.length);
         if(echo.some((v,i)=>v!==bytes[i]))throw Error('Serial echo does not match transmitted bytes');
+        if(!echoConfirmed){trace('SOURCE_ECHO_OK',{length:bytes.length});echoConfirmed=true}
         const size=stream[bytes.length+1];
         if(size<3||size>255)throw Error('ECU reply length invalid: '+size);
         if(stream.length<bytes.length+size)continue;
         const reply=Uint8Array.from(stream.slice(bytes.length,bytes.length+size));
         checkedHondaReply(reply);
+        trace('SOURCE_REPLY_OK',{replyHex:toHex(reply.slice(0,96)),length:reply.length,
+          status:reply[3],checksumValid:true});
         this._log('RX '+toHex(reply.length<=24?reply:reply.slice(0,24))+(reply.length>24?' ...':''));
         await this.purge();
         return {reply,echoOK:true};
       }
       throw Error('No complete ECU reply before timeout');
     }catch(error){
+      const observedPhase=!sent?'WRITE_NOT_CONFIRMED':
+        uartBytes===0?'NO_UART_DATA':
+        uartBytes<bytes.length?'PARTIAL_ECHO':
+        uartBytes===bytes.length?'ECHO_ONLY':
+        echoConfirmed?'INCOMPLETE_ECU_REPLY':'UNVERIFIED_UART_DATA';
+      trace('SOURCE_RX_FAILURE',{classification:observedPhase,error:String(error?.message||error),
+        uartBytes,ftdiPackets,usbChunks,uartSampleHex:toHex(uartSample),
+        echoConfirmed,portReady:!!this.ready});
       this._log('STOP exchange: '+error.message);
       // Any ambiguous write response requires aborting the programming run.
       await this.close();
