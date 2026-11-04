@@ -97,6 +97,20 @@ await check('Keihin Normal: identify -> pre-erase -> write -> finish final ACK',
  assert(device.labels.indexOf('KH_ERASE_FINISH')<device.labels.indexOf('WRITE_BLOCK_0'));
  assert(events.some(e=>e.phase==='FLASH_SOURCE_COMPLETE'));
 });
+await check('Main C# real writer skips future FF blocks but sends current block',async()=>{
+ const {engine,device}=setup('0101880D01');
+ await engine.identify();
+ const bin=new Uint8Array(65536);bin.fill(0xff);bin[0]=0x2a;
+ const plan=engine.makePlan(bin,{filename:'K03-H01.bin'});
+ const result=await engine.flash(plan,{confirmation:'FLASH 0101880D01',
+  physicalBackupConfirmed:true,externalPowerConfirmed:true,recoveryReady:true});
+ assert.equal(result.ok,true);
+ assert.equal(device.writeCount,1,'source flag skips all later FF blocks');
+ const sent=device.frames[device.labels.findIndex(x=>x==='WRITE_BLOCK_0')];
+ assert.equal(sent[134],0,'final next-address high byte is zero');
+ assert.equal(sent[135],0,'final next-address low byte is zero');
+ assert.equal(hondaChecksum(sent),0,'source packet checksum remains correct');
+});
 await check('Main C# Keihin handshake first failure then one bounded retry',async()=>{
  const {engine,device,events}=setup('0101880D01','KH_HANDSHAKE_ONCE');
  await engine.identify();
