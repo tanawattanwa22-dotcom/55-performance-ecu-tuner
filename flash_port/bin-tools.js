@@ -10,7 +10,7 @@
  * (the existing flash engine does that on a copy at write time).
  */
 import {BIN_ID_TABLE} from './bin-id-table.js';
-import {applyMainLockRead,applyMainLockMode} from './main-source-bin-locks.js?v=1';
+import {applyMainLockRead,applyMainLockMode} from './main-source-bin-locks.js?v=2';
 
 const hex=(u8,sep=' ')=>Array.from(u8,x=>x.toString(16).padStart(2,'0')).join(sep).toUpperCase();
 const eq=(bin,off,pat)=>pat.every((v,i)=>bin[off+i]===v);
