@@ -87,7 +87,7 @@ export async function probeMainProgrammingSession(port,{expectedEcuId=null,onEve
   // closing/reopening the same authorized FT232R and re-waking the ECU.
   await restoreSourceSession('HELLO did not establish source session');
   const fallback=await exchange('KH_FALLBACK');
-  if(fallback.ok&&fallback.status!==15&&fallback.status===0){
+  if(fallback.ok&&fallback.status!==15){
    result.handshake='KEIHIN_POLL';return true;
   }
   result.handshake='FAILED';
