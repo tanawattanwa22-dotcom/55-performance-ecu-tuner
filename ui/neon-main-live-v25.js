@@ -6,6 +6,11 @@ import {MainLiveSession} from '../flash_port/main-live-session.js?v=351';
 import {resolveMainAutoMetadata} from '../flash_port/main-auto-metadata.js?v=352';
 import {localKtrCandidates} from '../flash_port/ecu-id-lookup.js?v=355';
 import {previewMainShindengenBin} from '../flash_port/main-shindengen-auto-preview.js?v=1';
+import {probeMainProgrammingSession,countDisplay} from '../flash_port/main-programming-probe.js?v=1';
+import {auditMainShindengenDryRun} from '../flash_port/main-source-dry-run.js?v=1';
+import {readEcuDat} from '../flash_port/ecu-dat-editor.js?v=1';
+let programmingProbeResult=null,programmingProbeRuns=[],programmingProbeBusy=false;
+let ecuDatRows=[],ecuDatName='',dryRunReport=null;
 let cachedBinEvidence=null;
 function autoBinEvidence(id){
  const quick=window.__55QuickFlashBin;
@@ -288,6 +293,25 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
  const rescan=document.createElement('button');rescan.className='btn';
  rescan.textContent='สแกน ECU อีกครั้ง';rescan.title='ใช้เมื่อเสียบสายที่รถหลังจากเชื่อม FT232R แล้ว';
  const row=document.createElement('div');row.className='row';row.style.flexWrap='wrap';row.append(connect,selectAgain,rescan,disconnect);
+ const programButton=document.createElement('button');programButton.className='btn';
+ programButton.type='button';programButton.id='btnMainProgrammingReadOnly';
+ programButton.textContent='สแกนโหมดโปรแกรมมิ่ง (อ่านอย่างเดียว)';
+ programButton.title='InitFtdiIso / WorkerThread จาก Main.zip: HELLO, ECU ID, Flash Count เท่านั้น · ไม่ลบ/เขียน';
+ const dataButton=document.createElement('button');dataButton.className='btn';
+ dataButton.textContent='นำเข้า ecuData.dat · อ้างอิง';dataButton.type='button';
+ const fileDat=document.createElement('input');fileDat.type='file';fileDat.accept='.dat,application/octet-stream';
+ fileDat.hidden=true;fileDat.id='mainEcuDatInput';
+ const dryRunButton=document.createElement('button');dryRunButton.className='btn';
+ dryRunButton.textContent='ตรวจ BIN Dry-run · ไม่อัด';dryRunButton.type='button';
+ const probeDownload=document.createElement('button');probeDownload.className='btn';
+ probeDownload.textContent='ดาวน์โหลด TX/RX Log';probeDownload.type='button';
+ const probeControls=document.createElement('div');probeControls.className='row';
+ probeControls.style.cssText='display:flex;flex-wrap:wrap;gap:9px;margin:12px 0';
+ probeControls.append(programButton,dataButton,dryRunButton,probeDownload);
+ const probeInfo=document.createElement('pre');probeInfo.id='mainProgrammingProbeStatus';
+ probeInfo.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;color:#d2ebff;max-height:240px;overflow:auto;padding:12px;border:1px solid #3c6684;border-radius:10px;background:#102237';
+ probeInfo.textContent='โหมดโปรแกรมมิ่งยังไม่ได้ตรวจ · เริ่มจากสแกน ECU แบบ Diagnostic ก่อน แล้วกดสแกนโหมดโปรแกรมมิ่งแยก';
+ const probePane=document.createElement('section');probePane.append(probeControls,probeInfo,fileDat);
  const note=document.createElement('p');note.className='mu sm';note.textContent='FT232R ชื่อซ้ำ (0), (1), (3) เป็นรายการที่ Android/Chrome แสดง ไม่ใช่สาย 3 เส้น • หากเคยอนุญาตเพียงรายการเดียวจะเชื่อมต่อโดยใช้สิทธิ์เดิม • เปิดหน้า Live / DTC / Flash เพื่อสแกน ECU แบบอ่านข้อมูล';
  const checks=document.createElement('div');checks.id='sharedEcuAutoChecklist';
  checks.style.cssText='display:grid;gap:7px;margin:14px 0 4px;';
@@ -317,7 +341,7 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
   setTimeout(()=>URL.revokeObjectURL(url),4000);
  };
  debug.append(debugSummary,debugText,copyLog,downloadLog);
- panel.append(heading,state,detected,row,checks,debug,note);homeScroll.prepend(panel);
+ panel.append(heading,state,detected,row,checks,probePane,debug,note);homeScroll.prepend(panel);
  // Keep one visible cable owner: hide duplicate legacy connection buttons on the home page only.
  const legacyConnectSelectors=['#homeConnect','#connectUsbHome','#homeUsbConnect'];
  for(const selector of legacyConnectSelectors){const node=document.querySelector(selector);if(node&&node!==connect)node.hidden=true;}
@@ -335,6 +359,106 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
    .finally(()=>{selectAgain.disabled=false;updateSharedState()});
  };
  rescan.onclick=()=>{void reader.rescan().then(updateSharedState).catch(e=>{state.textContent=e.message})};
+ const safeDownload=(json,filename)=>{
+  const content=JSON.stringify(json,null,2);
+  const url=URL.createObjectURL(new Blob([content],{type:'application/json;charset=utf-8'}));
+  const a=document.createElement('a');a.href=url;a.download=filename;
+  document.body.append(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),4000);
+ };
+ programButton.onclick=async()=>{
+  if(programmingProbeBusy)return;
+  if(document.getElementById('licenseGate')){
+   probeInfo.textContent='ต้องเข้าสู่ระบบ License ก่อน';return;
+  }
+  const before=reader.status();
+  if(!before.connected||!before.ecuId||reader.owner||before.autoBusy||before.connecting){
+   probeInfo.textContent='ต้องเชื่อม FT232R และอ่าน ECU ID จากกล่องจริงก่อน และหยุดงาน USB อื่น';return;
+  }
+  programmingProbeBusy=true;probeInfo.textContent='เริ่มสแกนโหมด Main.zip แบบ B · ไม่ส่ง ERASE/WRITE';
+  updateSharedState();
+  let cable=null,wakeLock=null;
+  try{
+   cable=await reader.acquire('PROGRAM_PROBE');
+   if(navigator.wakeLock?.request)wakeLock=await navigator.wakeLock.request('screen').catch(()=>null);
+   const round=Math.min(3,programmingProbeRuns.length+1);
+   const report=await probeMainProgrammingSession(cable,{
+    expectedEcuId:before.ecuId,round,
+    onEvent:e=>{
+     if(e.phase==='TX'||e.phase==='RX'||e.phase==='NO_VALID_REPLY'||e.phase==='WEBUSB_SAFE_REOPEN')
+      probeInfo.textContent+='\n'+e.elapsedMs+' ms · '+e.phase+' '+(e.name||'')+' '+
+       (e.hex||e.error||e.reason||'');
+    }
+   });
+   programmingProbeResult=report;programmingProbeRuns.push(report);
+   if(programmingProbeRuns.length>3)programmingProbeRuns.shift();
+   probeInfo.textContent='ผลสแกนจริง · '+(report.ecuId||'ไม่มี ECU ID')+
+    '\nHELLO: '+report.hello+' / Handshake: '+report.handshake+
+    '\nFlash Count: '+countDisplay(report)+
+    '\nFamily จาก ACK: '+report.family+
+    '\nSource mode: READ ONLY; ไม่อนุญาต ERASE/WRITE'+
+    (report.countError?'\nสาเหตุ: '+report.countError:'')+
+    '\nกด ดาวน์โหลด TX/RX Log เพื่อเก็บเฟรมและเวลาอย่างละเอียด';
+  }catch(e){
+   probeInfo.textContent='หยุดสแกน: '+String(e?.message||e)+
+    '\nยังไม่มีหลักฐานยืนยัน Family/Flash Count จากกล่องจริง';
+  }finally{
+   reader.release('PROGRAM_PROBE');
+   if(!reader.port?.ready)await reader.restoreCable().catch(()=>false);
+   if(wakeLock)await wakeLock.release().catch(()=>{});
+   programmingProbeBusy=false;updateSharedState();
+  }
+ };
+ dataButton.onclick=()=>fileDat.click();
+ fileDat.onchange=async()=>{
+  const file=fileDat.files?.[0];if(!file)return;
+  try{
+   if(file.size>2_000_000)throw Error('ฐานข้อมูลใหญ่เกิน 2MB');
+   const rows=readEcuDat(await file.arrayBuffer());
+   ecuDatRows=rows;ecuDatName=file.name;
+   const match=rows.filter(x=>x.ecuId===reader.status().ecuId);
+   probeInfo.textContent='นำเข้า '+file.name+' '+rows.length+' รายการ · ข้อมูลอ้างอิงเท่านั้น'+
+    '\nรหัสกล่องตรงใน DAT: '+match.length+
+    (match.length===1?'\nPart: '+match[0].part+' · '+match[0].model+
+     ' · Offset: '+match[0].startOffset+' / '+match[0].checksumOffset:'')+
+    '\nยังไม่ใช้ DAT ผู้ใช้นำเข้าเพื่ออนุมัติ ERASE/WRITE';
+  }catch(e){probeInfo.textContent='อ่าน DAT ไม่สำเร็จ: '+String(e.message||e)}
+  finally{fileDat.value='';updateSharedState()}
+ };
+ dryRunButton.onclick=async()=>{
+  if(programmingProbeBusy)return;
+  const live=reader.status(),quick=window.__55QuickFlashBin;
+  const saved=(typeof S!=='undefined'&&S?.saved?.bytes instanceof Uint8Array)?S.saved:null;
+  const bin=quick?.bytes instanceof Uint8Array?quick.bytes:saved?.bytes;
+  if(!bin){probeInfo.textContent='กรุณาเลือก BIN ของกล่องก่อนตรวจ Dry-run';return}
+  try{
+   dryRunButton.disabled=true;probeInfo.textContent='กำลังตรวจ BIN ตาม Main.zip แบบไม่ส่งข้อมูลไป ECU…';
+   dryRunReport=await auditMainShindengenDryRun(bin,{
+    ecuId:live.ecuId,probe:programmingProbeResult,datRows:ecuDatRows
+   });
+   probeInfo.textContent='ตรวจ BIN Dry-run เสร็จ (ไม่มี ERASE/WRITE)'+
+    '\nECU ID: '+dryRunReport.ecuId+
+    '\nBIN SHA-256: '+(dryRunReport.binSHA256||'ไม่มี')+
+    '\nStart: '+(dryRunReport.preview?.startOffsetHex||'ไม่ทราบ')+
+    ' / Checksum: '+(dryRunReport.preview?.checksumOffsetHex||'ไม่ทราบ')+
+    '\nFamily จาก BIN: '+(dryRunReport.preview?.type||'ยังไม่ระบุ')+
+    '\nเฟรมจำลอง: '+(dryRunReport.frameAudit?.frames??'ยังตรวจไม่ได้')+
+    '\nสิ่งที่ยังไม่ผ่าน: '+(dryRunReport.blockers.length?dryRunReport.blockers.join(' | '):'ไม่มีข้อผิดพลาดจากการคำนวณออฟไลน์')+
+    '\nไม่ใช่หลักฐานยืนยันไฟล์ตรงกล่อง · ยังไม่อนุมัติ ERASE/WRITE';
+  }catch(e){
+   dryRunReport=null;probeInfo.textContent='Dry-run ไม่ผ่าน: '+String(e?.message||e);
+  }finally{dryRunButton.disabled=false;updateSharedState()}
+ };
+ probeDownload.onclick=()=>{
+  if(!programmingProbeRuns.length&&!dryRunReport){
+   probeInfo.textContent='ยังไม่มีผลสแกนโปรแกรมมิ่งหรือ Dry-run ให้ดาวน์โหลด';return;
+  }
+  safeDownload({reportType:'55_MAIN_CSHARP_PROGRAMMING_READ_ONLY',
+   capturedAt:new Date().toISOString(),rounds:programmingProbeRuns,
+   datSource:ecuDatName||null,datMatched:ecuDatRows.find(x=>x.ecuId===reader.status().ecuId)||null,
+   dryRun:dryRunReport,flashApproved:false},
+   '55_MAIN_SOURCE_PROBE_'+new Date().toISOString().replace(/[:.]/g,'-')+'.json');
+ };
  disconnect.onclick=()=>{void reader.disconnect().then(updateSharedState)};
  let lastDetectedKey='';
  function updateDetected(st){
@@ -342,7 +466,8 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
   // It never looks at the selected BIN and does not send a USB command.
   const selected=autoBinEvidence(st.ecuId);
   const k=[st.connected,st.ecuId,st.catalogMatched,st.part,st.catalogFamily,
-   st.startOffset,st.checksumOffset,st.startOffsetText,st.checksumOffsetText,selected.key].join('|');
+   st.startOffset,st.checksumOffset,st.startOffsetText,st.checksumOffsetText,selected.key,
+   programmingProbeResult?.finishedAt||''].join('|');
   if(lastDetectedKey===k)return;
   lastDetectedKey=k;
   const data=resolveMainAutoMetadata(st);
@@ -363,6 +488,14 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
    items.push(['Auto Start จาก BIN (Main.zip)',b?.startOffsetHex||'รอเลือก BIN / ยังไม่พบ']);
    items.push(['Auto Checksum จาก BIN (Main.zip)',b?.checksumOffsetHex||'รอเลือก BIN / ยังไม่พบ']);
   }
+  if(programmingProbeResult?.ecuId===data.ecuId&&st.connected){
+   const p=programmingProbeResult;
+   items.push(['Flash Count · Main.zip (ตรวจจริง)',countDisplay(p)]);
+   items.push(['Family จาก ACK',p.countState==='CONFIRMED'?p.family:'ยังไม่ยืนยัน']);
+  }else if(data.ecuId){
+   items.push(['Flash Count · Main.zip','ยังไม่ได้ตรวจ (Diagnostic เท่านั้น)']);
+  }
+  if(selected.result?.type)items.push(['Family จาก BIN (ไม่ใช่ ECU ACK)',selected.result.type]);
   if(reference){
    items.push(['ฐาน ECM อ้างอิง (ไม่ใช่ Main.zip)',
     reference.ambiguous?reference.text:
@@ -402,6 +535,7 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
   const ktr=st.ecuId&&!st.catalogMatched?localEcmReference(st.ecuId):null;
   const binSource=autoBinEvidence(st.ecuId);
   const usbOK=st.connected;
+  const sourceProbe=programmingProbeResult?.ecuId===st.ecuId&&st.connected?programmingProbeResult:null;
   const ready=st.connected&&!st.connecting;
   const idOK=ready&&/^[0-9A-F]{10}$/.test(st.ecuId);
   const liveOK=ready&&st.liveGroupVerified;
@@ -423,6 +557,12 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
    records.splice(3,0,[false,'Auto Offset จาก BIN (Main.zip)',
     b?.ready?'Start '+b.startOffsetHex+' / Checksum '+b.checksumOffsetHex+' · BIN เท่านั้น ไม่ใช่การยืนยันเพื่อเขียน':
     (b?.message||'รอเลือก BIN ในหน้า Flash เพื่อคำนวณตาม Main.zip')]);
+  }
+  if(idOK){
+   records.splice(3,0,[sourceProbe?.countState==='CONFIRMED','Flash Count (Main.zip)',
+    sourceProbe?countDisplay(sourceProbe):'ยังไม่ได้ตรวจด้วยโหมดโปรแกรมมิ่ง (อ่านอย่างเดียว)']);
+   records.splice(4,0,[sourceProbe?.countState==='CONFIRMED','Family จาก ACK',
+    sourceProbe?.countState==='CONFIRMED'?sourceProbe.family:'ไม่ทราบ · การอนุมานจาก BIN ไม่ใช่ ACK ของกล่อง']);
   }
   if(idOK&&ktr)records.splice(3,0,[false,'ฐาน ECM อ้างอิง (ไม่ใช่ Main 290)',
    ktr.ambiguous?ktr.text:
@@ -460,13 +600,25 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
    dtcError:st.dtcError||null,
    catalogMatched:st.catalogMatched,
    familyFromMain:st.catalogFamily||null,
+   sourceProgrammingProbe:programmingProbeResult,
+   sourceProgrammingRounds:programmingProbeRuns.length,
+   familyFromAck:sourceProbe?.countState==='CONFIRMED'?sourceProbe.family:null,
+   countState:sourceProbe?.countState||'NOT_TESTED',
+   countExplanation:countDisplay(sourceProbe),
+   familyFromBin:binSource.result?.type||null,
+   userEcuDatReference:{name:ecuDatName||null,
+    match:ecuDatRows.find(x=>x.ecuId===st.ecuId)||null},
+   dryRun:dryRunReport,
    lastTransportEvents:st.usbTrace||[]
   },null,2);
   if(st.usbLastError&&!st.connecting)debug.open=true;
   connect.disabled=st.connected||st.connecting;
   selectAgain.disabled=st.connected||st.connecting;
-  rescan.disabled=!st.connected||st.autoBusy||st.running||!!reader.owner;
-  disconnect.disabled=!st.connected&&!st.connecting;
+  rescan.disabled=!st.connected||st.autoBusy||st.running||!!reader.owner||programmingProbeBusy;
+  programButton.disabled=!st.connected||st.autoBusy||st.connecting||!!reader.owner||programmingProbeBusy;
+  dryRunButton.disabled=programmingProbeBusy;
+  dataButton.disabled=programmingProbeBusy;
+  disconnect.disabled=programmingProbeBusy||(!st.connected&&!st.connecting);
  }
  const oldNotify=reader.onUpdate;
  reader.onUpdate=(...args)=>{

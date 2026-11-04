@@ -37,7 +37,8 @@ assert.equal(r1.events.filter(x=>x.phase==='TX'&&x.name==='SHINDENGEN_COUNT').le
 const s=usb({khCountFails:true}),r2=await probeMainProgrammingSession(s.port,{expectedEcuId:ecu});
 assert.equal(r2.countState,'CONFIRMED');assert.equal(r2.family,'SHINDENGEN');
 assert.equal(r2.flashCount,6);assert.equal(r2.flashApproved,false);
-assert(s.calls.includes('CLOSE')||!s.port.ready);
+assert(r2.events.some(x=>x.phase==='WEBUSB_SAFE_REOPEN'),
+ 'Safe WebUSB recovery must be observable in source TX/RX logs');
 assert(s.calls.includes('OPEN'),'must reopen permissioned FT232R after timeout');
 assert(s.calls.indexOf('OPEN')<s.calls.findIndex(x=>x==='TX_7b0602010379'),
  'must reopen+re-wake before Shindengen command');
@@ -46,7 +47,7 @@ const wrong=usb({id:'0101880D01'});
 const r3=await probeMainProgrammingSession(wrong.port,{expectedEcuId:ecu});
 assert.equal(r3.ecuId,'0101880D01');assert.equal(r3.countState,'NOT_TESTED');
 assert(!wrong.calls.some(x=>x.startsWith('TX_7d')||x.startsWith('TX_7b')));
-const dat=writeEcuDat([{ecuId:ecu,part:'',model:'PCX160',startOffset:'A000',checksumOffset:'40DE0',sizeText:'384KB',typeText:'UNKNOWN'}]);
+const dat=writeEcuDat([{ecuId:ecu,part:'K1ZP-T71',model:'PCX160',startOffset:'A000',checksumOffset:'40DE0',sizeText:'384KB',typeText:'UNKNOWN'}]);
 const decoded=parseEcuDat(dat);
 assert.equal(decoded[0].family,'UNVERIFIED','Unknown DAT type must not silently become Keihin');
 const noBin=await auditMainShindengenDryRun(null,{ecuId:ecu,probe:r2,datRows:decoded});
