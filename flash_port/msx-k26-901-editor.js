@@ -46,11 +46,11 @@ function tableById(id){return state.cfg.tables.find(t=>t.id===String(id).toUpper
 function axisValues(axis,count){
  if(axis?.link){
   const source=tableById(axis.link);
-  if(!source)return Array.from({length:count},(_,i)=>String(i+1));
+  if(!source)throw Error('XDF ไม่มีตารางแกนที่ลิงก์: '+axis.link);
   return Array.from({length:count},(_,i)=>pnum(getValue(source,Math.min(i,source.rows-1),source.cols===1?0:i%source.cols),source.precision));
  }
  if(axis?.labels?.some(x=>String(x||'').trim())){
-  return Array.from({length:count},(_,i)=>String(axis.labels[i]??i+1));
+  return Array.from({length:count},(_,i)=>String(axis.labels[i]??'—'));
  }
  if(Number.isInteger(axis?.address)){
   return Array.from({length:count},(_,i)=>{
@@ -58,7 +58,7 @@ function axisValues(axis,count){
    return pnum(v*axis.formula[0]+axis.formula[1],1)
   });
  }
- return Array.from({length:count},(_,i)=>String(i+1));
+ return Array.from({length:count},()=> '—'); // XDF axis missing: do not fabricate points
 }
 const locked=t=>['0X11B4','0X1EB','0X2863','0X3BD6','0X4193'].includes(t.id);
 function changedCell(t,r,c){

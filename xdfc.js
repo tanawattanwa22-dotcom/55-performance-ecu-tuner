@@ -82,14 +82,17 @@ function axvals(b,a,n){
 
 /* ---- แปลงเป็นรูปแบบที่แอปใช้ ---- */
 const PH=/^\s*\d+(\.0+)?\s*$/;
-function cleanLabels(lb,n){lb=lb.map(x=>x.trim()).slice(0,n);if(!lb.length||lb.every(x=>x===""||PH.test(x)))return null;while(lb.length<n)lb.push("");return lb}
-function tpsFix(eq,fam){return(fam==="K2J"&&/(0?\.09[67]\d*)/.test(eq))?"X*0.0969":eq}
+function cleanLabels(lb,n){lb=lb.map(x=>x.trim()).slice(0,n);if(!lb.length||lb.every(x=>x===""))return null;while(lb.length<n)lb.push("");return lb}
 function norm(eq){return eq.replace(/\s+/g,"").replace(/\*\./g,"*0.").replace(/\/\./g,"/0.")}
 function axis(a,n,fam){
   if(!a)return null;
   if(a.kind==="labels"){const l=cleanLabels(a.labels,n);return l?{l}:null}
   const L=a.L,step=L.cols>1?L.cs:(L.rows>1?L.rs:L.cs);
-  return{a:L.addr,n,b:L.bits,sg:+L.sg,le:+L.lsb,st:step,eq:norm(tpsFix(a.eq[0]||"X",fam)),d:a.dec};
+  // Only XDF-defined axis storage and equation; no family heuristics.
+  const equation=a.eq[0];
+  if(!equation||!SAFE.test(equation)||!Number.isInteger(L.addr)||!Number.isInteger(step)||
+     step<L.bits/8)return null;
+  return{a:L.addr,n,b:L.bits,sg:+L.sg,le:+L.lsb,st:step,eq:norm(equation),d:a.dec,source:'XDF'};
 }
 function rawTable(t,fam){
   const z=t.z;if(z.addr===null)return null;
@@ -99,12 +102,8 @@ function rawTable(t,fam){
   if(t.x&&t.x.kind==="labels"&&nc===1)x=null;
   let rowlabel="";
   if(t.y&&t.y.kind==="labels"&&nr===1){y=null;const l=cleanLabels(t.y.labels,1);rowlabel=l?l[0]:""}
-  const d={a:z.addr,r:nr,c:nc,b:z.bits,sg:+z.sg,le:+z.lsb,cs:z.cs,rs:z.rs,eq:norm(tpsFix(t.eq[0]||"X",fam)),d:t.dec,mn:t.mn,mx:t.mx};
+  const d={a:z.addr,r:nr,c:nc,b:z.bits,sg:+z.sg,le:+z.lsb,cs:z.cs,rs:z.rs,eq:norm(t.eq[0]||"X"),d:t.dec,mn:t.mn,mx:t.mx};
   if(x)d.x=x;if(y)d.y=y;if(rowlabel)d.yl=rowlabel;return d;
-}
-function patchTemps(tables){
-  const fix={0x2B23:[0x2B23,0x2B22,"X/49"],0x2B38:[0x2B36,0x2B37,"X/48.4"],0x2B4D:[0x2B4D,0x2B4C,"X/49"]};
-  tables.forEach(d=>{const f=fix[d.a];if(f){d.a=f[0];d.x={a:f[1],n:10,b:8,sg:0,le:0,st:2,eq:f[2],d:2}}});
 }
 
 /* ---- ตั้งชื่ออัตโนมัติสำหรับรุ่นที่ยังไม่รู้จัก (ใช้เฉพาะลักษณะตาราง ไม่เอาชื่อจากไฟล์มาแสดง) ---- */
@@ -155,7 +154,6 @@ function compile(bin,xdfList,known){
   });
   const order=[G.FUEL,G.IGN,G.AFR,G.TQ,G.LIM,G.SEN,G.LOCK,G.AX,G.OTH];
   out.sort((a,b)=>order.indexOf(a.g)-order.indexOf(b.g));
-  if(fam==="K2J")patchTemps(out);
   return out;
 }
 function listFlags(xdfList){

@@ -36,8 +36,8 @@ function math(raw,axis){
 function getAxis(t,id){return [...t.querySelectorAll(':scope > XDFAXIS')].find(a=>a.getAttribute('id')===id)}
 function axisLabels(t,id,count){
  const a=getAxis(t,id);const ls=[...(a?.querySelectorAll(':scope > LABEL')||[])];
- const out=Array.from({length:count},(_,i)=>String(i));
- for(const l of ls){const i=number(attr(l,'index','-1'));if(i>=0&&i<count)out[i]=attr(l,'value',String(i))}
+ const out=Array.from({length:count},()=> '—');
+ for(const l of ls){const i=number(attr(l,'index','-1'));if(i>=0&&i<count)out[i]=attr(l,'value','—')}
  return out;
 }
 function inspect(t){
