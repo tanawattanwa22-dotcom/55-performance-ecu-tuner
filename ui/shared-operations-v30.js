@@ -1,6 +1,6 @@
 // Reuse the SAME absolute ESM module URL as index.html to guarantee one FT232R owner.
 // Exact matching query strings are essential: v301 would create a second session.
-import './neon-main-live-v25.js?v=379';
+import './neon-main-live-v25.js?v=381';
 import {readSharedDtc,clearSharedDtc} from '../flash_port/shared-dtc.js?v=301';
 const $=id=>document.getElementById(id);
 let dtcBusy=false;
@@ -80,7 +80,7 @@ reset.onclick=async()=>{
  const shared=window.__55SharedEcu;let port;
  try{
   port=await shared.acquire('RESET_SH_COUNT');reset.disabled=true;
-  const {HondaFlashEngine}=await import('../flash_port/honda-write-engine.js?v=380');
+  const {HondaFlashEngine}=await import('../flash_port/honda-write-engine.js?v=381');
   const {resetShindengenCount}=await import('../flash_port/main-reset-count.js?v=375');
   const identity=await new HondaFlashEngine(port).identify({programmingPreflight:true});
   if(identity.family!=='SHINDENGEN'||!(identity.sourceMatched||
