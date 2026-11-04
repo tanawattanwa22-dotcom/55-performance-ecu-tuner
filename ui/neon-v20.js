@@ -6,7 +6,7 @@ const home=$('home'),sc=home?.querySelector(':scope > .scroll');
 if(!home||!sc||$('neonShell'))return;
 const cards=[...sc.children].filter(x=>x.classList.contains('card'));
 const memberships={
- dashboard:[],library:[],tune:['modelCard','binCard','guardCard'],
+ dashboard:[],library:[],tune:['modelCard','binCard'],
  flash:[],recovery:[],live:['liveCard','cableCard'],
  dtc:['liveCard','cableCard'],tools:['mainSourceTools'],settings:[]};
 const cats=[
@@ -52,6 +52,16 @@ const shell=mk('div');shell.id='neonShell';
 const top=mk('header','n20-head');
 const logo=home.querySelector('.top img.lg');
 if(logo){const icon=logo.cloneNode(true);icon.className='n20-icon';icon.alt='55 PERFORMANCE';top.append(icon)}
+const headerBack=action('←','', 'n20-header-back');
+headerBack.textContent='←';
+headerBack.type='button';
+headerBack.setAttribute('aria-label','ย้อนกลับ');
+headerBack.hidden=true;
+headerBack.onclick=()=>{
+ if(history.state?.p==='home'&&history.state?.n20Category!=='dashboard')history.back();
+ else navigate('dashboard');
+};
+top.prepend(headerBack);
 const name=mk('div','n20-logo','55 PERFORMANCE');name.append(mk('small','','ECU TUNER'));top.append(name);
 const drawer=mk('dialog','n20-menu-dialog');drawer.id='n20MenuDialog';
 drawer.setAttribute('aria-label','เมนูทั้งหมด');
@@ -202,22 +212,6 @@ function dashboard(){
   grid.append(b);
  }
  stage.append(grid);
- stage.append(mk('h3','n20-section-title','งานที่กำลังดำเนินการ'));
- const panel=mk('div','n20-panel');
- const m=typeof S!=='undefined'&&S.mi>=0?MODELS[S.mi]:null;
- for(const [symbol,subject,value] of [
-  ['▦','รุ่นที่เลือก',m?.id||'ยังไม่ได้เลือกรุ่น'],
-  ['💾','BIN ที่เปิดอยู่',window.__55QuickFlashBin?.filename||
-    (typeof S!=='undefined'&&S.bin?S.fname:'ยังไม่ได้เปิด BIN'),'n20JobBin'],
-  ['🔌','สถานะ ECU',status()[0],'n20JobEcu']
- ]){
-  const row=mk('div','n20-job');row.append(mk('span','',symbol));
-  const label=mk('b','',subject),small=mk('small','',value);
-  if(subject==='สถานะ ECU')small.id='n20JobEcu';
-  if(subject==='BIN ที่เปิดอยู่')small.id='n20JobBin';
-  label.append(small);row.append(label);panel.append(row);
- }
- stage.append(panel);
  const note=mk('div','n20-panel');
  note.append(mk('p','','เริ่มจากเชื่อมต่อรถ เลือกไฟล์ให้ตรงกล่อง ตรวจความพร้อม แล้วเริ่ม Fast Flash ได้จากเมนูหลัก'));
  stage.append(note);
@@ -589,7 +583,7 @@ function settingsStage(){
  service.append(action('เปิดศูนย์เครื่องมือขั้นสูง',()=>navigate('tools'),'btn'));
  stage.append(service);
 }
-function navigate(id){
+function navigate(id,{fromHistory=false}={}){
  if(!Object.prototype.hasOwnProperty.call(memberships,id))return;
  if(id==='tools'&&!window.__55AdvancedGate?.isAuthorized()){
   window.__55AdvancedGate?.open(()=>navigate('tools'));
@@ -617,7 +611,12 @@ function navigate(id){
   }
   return;
  }
+ const changed=selected!==id;
  selected=id;
+ if(changed&&!fromHistory){
+  history.pushState({p:'home',n20Category:id,retail:true},'');
+ }
+ headerBack.hidden=id==='dashboard';
  // Preflight stage layout must not leak into Library/Dashboard/Tools after back navigation.
  stage.classList.remove('n24-preflight-stage');
  home.dataset.neonPage=id;
@@ -639,10 +638,24 @@ function navigate(id){
  else if(id==='live'||id==='dtc')liveOrDtc(id);
  else if(id==='tools')toolsStage();else if(id==='settings')settingsStage();
  refreshStatus();sc.scrollTo({top:0,behavior:'auto'});
- if(id==='flash')void window.__55AutoEcu?.enter('flash');
+ if(id==='flash'&&!fromHistory)void window.__55AutoEcu?.enter('flash');
  // Recovery now mounts its own stage. Do not open a separate iframe/lab page.
 }
 window.__55NeonNavigate=navigate;
+window.addEventListener('popstate',event=>{
+ const state=event.state;
+ if(state?.p!=='home')return; // Legacy Tune/Live/Axis handlers own their pages.
+ const category=typeof state.n20Category==='string'&&Object.prototype.hasOwnProperty.call(memberships,state.n20Category)?
+  state.n20Category:'dashboard';
+ navigate(category,{fromHistory:true});
+});
+// One in-app root history guard: the first Android Back on the dashboard
+// returns to the dashboard rather than immediately closing the PWA.
+if(!history.state?.retailRoot){
+ history.replaceState({...history.state,p:'home',n20Category:'dashboard',retailRoot:true},'');
+ history.pushState({p:'home',n20Category:'dashboard',retailRoot:true,retailGuard:true},'');
+}
+
 ['sel','btnSave','btnCable','btnFlash','mtReadEcu','btnAutoOffset','btnRead','goTune'].forEach(id=>{
  $(id)?.addEventListener('click',()=>queueMicrotask(refreshStatus));
 });
