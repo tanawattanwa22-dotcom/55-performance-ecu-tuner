@@ -30,6 +30,9 @@ const shared=await readFile(new URL('../ui/shared-operations-v30.js',import.meta
 assert.match(main,/resolveMainAutoMetadata/);
 assert.match(main,/sharedEcuDetected/);
 assert.match(main,/void window\.__55AutoEcu\?\.enter\(page,\{force:true\}\)/);
-assert.match(index,/ui\/neon-main-live-v25\.js\?v=352/);
-assert.match(shared,/neon-main-live-v25\.js\?v=352/);
+const appImport=index.match(/ui\/neon-main-live-v25\.js\?v=(\d+)/);
+const sharedImport=shared.match(/neon-main-live-v25\.js\?v=(\d+)/);
+assert(appImport&&sharedImport,'Main Live source imported by home and shared operations');
+assert.equal(appImport[1],sharedImport[1],'single FT232R main reader module URL must match');
+assert(Number(appImport[1])>=352,'Main C# reader version may increase without breaking regression');
 console.log('PASS Main.zip ECU auto display: no BIN needed, known vs AUTO offsets, missing data, reset and wiring.');

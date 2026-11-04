@@ -33,7 +33,11 @@ assert(bench.includes("recoveryMode&&(!plan?.recovery||!identity?.recoveryFamily
 const start=bench.slice(bench.indexOf('async function startPage(){'),bench.indexOf('void startPage();'));
 assert(start.includes('await license()')&&start.includes('await connectEcu()')&&start.includes('await probeEcu()'),'auto entry only reads identity');
 assert(!/engine\.flash\s*\(|\$\('write'\)\.click\s*\(/.test(start),'automatic Recovery must never erase or write');
-assert(index.includes('ui/neon-preflight-v24.js?v=350')&&index.includes('ui/neon-recovery-v35.js?v=350')&&index.includes('ui/neon-v20.js?v=346')&&index.includes('ui/shared-operations-v30.js?v=354'),'new JS asset URLs cache-busted');
+assert(index.includes('ui/neon-preflight-v24.js?v=350')&&
+ index.includes('ui/neon-recovery-v35.js?v=350')&&
+ index.includes('ui/neon-v20.js?v=346')&&
+ /ui\/shared-operations-v30\.js\?v=\d+/.test(index),
+ 'Recovery/Main JS asset URLs cache-busted');
 const script=bench.match(/<script type="module">([\s\S]*?)<\/script>/);
 assert(script?.[1],'Recovery Flash Bench module exists');
 const dir=fs.mkdtempSync(path.join(os.tmpdir(),'55-recovery-'));
