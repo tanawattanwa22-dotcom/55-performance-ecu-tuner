@@ -78,4 +78,53 @@ assert.equal(inspectCSharpEcuType(both).type,'SHINDENGENV850');
 const kh=new Uint8Array(49152).fill(255);
 assert.equal(csharpOffsetInference(kh).startOffset,0x4000);
 assert.equal(csharpOffsetInference(kh).checksumOffset,0x7600);
+// Main source accepts checksum-valid 4-byte greeting frames.
+// This fake transport NEVER reaches a USB device.
+const greeting=Uint8Array.from([0x02,0x04,0x00,0xFA]);
+const greetingEngine=new HondaFlashEngine({
+ ready:true,exchangeRaw:async()=>({reply:greeting,echoOK:true})
+});
+for(const name of ['HELLO','KEIHIN_FALLBACK_HELLO','CONFIRM_WORKER_SESSION','RECHECK_HELLO']){
+ const result=await greetingEngine.x(name,Uint8Array.from([0x72,0x05,0,0xF0,0x99]));
+ assert.equal(result.length,4,'FormMain accepts checksum-valid 4-byte '+name);
+}
+await assert.rejects(
+ ()=>greetingEngine.x('SH_SEND_KEY',Uint8Array.from([0x72,0x05,0,0xF0,0x99])),
+ e=>e?.code==='BAD_ACK','Non-greeting commands must not accept 4-byte replies'
+);
+
+// FormMain.GetEcuType defaults to KEIHINOTHER for non-Shindengen BINs,
+// but only a fresh physically verified Keihin ACK and full source ID
+// locator may reach that fallback in the web port.
+const khUnknown=new Uint8Array(65536).fill(255);
+khUnknown.set([0,0,0,0],9140);
+khUnknown.set([1,1,0xD0,0x0D,1],9144);
+const khEngine=offlineEngine({family:'KEIHIN'});
+const khPlan=khEngine.makePlan(khUnknown,{filename:'keihin-unknown.bin'});
+assert.equal(khPlan.profile,'KEIHINOTHER');
+assert.equal(khPlan.checks.sourceKeihinOtherFallback,true);
+assert.equal(khPlan.startOffset,0x8000);
+assert.equal(khPlan.checksumOffset,0);
+assert.equal(khPlan.checks.hardwareValidated,false);
+
+// Chrome imports ecuData.dat as a persisted reference, not a source
+// programming-session proof or an authorized flash profile.
+const stored=new Map();
+globalThis.localStorage={
+ getItem:key=>stored.get(key)??null,
+ setItem:(key,value)=>{stored.set(key,value)}
+};
+const {saveMainDatReference,readMainDatReference,lookupMainDatReference}=
+ await import('../flash_port/main-dat-reference.js');
+assert.equal(saveMainDatReference([{
+ ecuId:ID,part:'38770-TEST',model:'Click 125',
+ startOffset:'A000',checksumOffset:'AUTO',sizeText:'384KB',typeText:'SHINDENGEN'
+}],'ecuData.dat').count,1);
+assert.equal(readMainDatReference().count,1);
+assert.equal(lookupMainDatReference(ID).part,'38770-TEST');
+assert.equal(lookupMainDatReference(ID).checksumOffset,null);
+assert.equal(lookupMainDatReference('AAAAAAAAAA'),null);
+assert.throws(()=>saveMainDatReference([{ecuId:ID},{ecuId:ID}]),/Duplicate ECU ID/);
+delete globalThis.localStorage;
+
 console.log('PASS: Main FormMain source parity offline (no USB/flash commands)');
