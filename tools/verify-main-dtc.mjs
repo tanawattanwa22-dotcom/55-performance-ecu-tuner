@@ -57,4 +57,26 @@ assert.deepEqual(log.slice(1,3).map(x=>x.frame),[
 assert(log.slice(1,3).every(x=>x.expectReply===false),
  'FM_dtc source does not wait for a clear ACK');
 console.log('PASS FM_dtc grouped 0x74/0x73 source RX and exact 2-command clear ordering');
+// Real FT232R class, fake USB: verify NO purge/read between 0x60 writes.
+// Source FM_dtc.method_107 simply sends two five-byte commands + 50ms pause.
+const {Ft232rWebUsb}=await import('../flash_port/ftdi-webusb.js');
+const nativeLog=[];
+const native=new Ft232rWebUsb();
+native.ready=true;native.prepareUart=async()=>true;
+native.purge=async()=>nativeLog.push('PURGE');
+native._write=async bytes=>nativeLog.push([...bytes]);
+native._readOnce=async()=>{throw Error('DTC clear must never wait for ACK')};
+const clearResult=await native.sendMainDtcClearFrames([
+ [0x72,0x05,0x60,0x03,0x26],[0x72,0x05,0x60,0x01,0x28]
+]);
+assert.equal(clearResult.sent,2);
+assert.deepEqual(nativeLog,[
+ [0x72,0x05,0x60,0x03,0x26],
+ [0x72,0x05,0x60,0x01,0x28]
+],'source 0x60 clear sequence has no intervening purge or reads');
+await assert.rejects(
+ ()=>native.sendMainDtcClearFrames([[0x72,0x05,0x60,0x01,0x28],[0x72,0x05,0x60,0x03,0x26]]),
+ /do not match/,'wrong bank order must be rejected');
+console.log('PASS physical FTDI driver stub: exact 2 DTC clear writes without ACK or purge');
+
 
