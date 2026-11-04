@@ -316,8 +316,10 @@ export class Ft232rWebUsb {
     await this.purge();
     await this._write(wake);
     this._log('TX WAKE (no reply required by C#): '+toHex(wake));
-    // C# SendCommand attempts a short reply; failure is ignored before HELLO.
-    await sleep(80);
+    // Main FormMain.WorkerThread ignores the WAKE reply. Reproduce
+    // SendCommand's 50+2*4 = 58ms response window before its final purge.
+    // Do not leave the former invented 80ms wake delay in this source path.
+    await sleep(formMainSendCommandTimeoutMs(wake.length));
     await this.purge();
   }
   async exchangeRaw(frame,{timeoutMs,afterWriteMs=0,expectReply=true,observe=null,mainSourceMode=false}={}){
