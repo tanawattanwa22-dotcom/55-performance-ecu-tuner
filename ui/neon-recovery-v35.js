@@ -69,7 +69,7 @@
      const shared=sharedPort();
      port=await shared.acquire(OWNER);
      if(!port?.ready)throw Error('สาย FT232R ไม่พร้อม หรือถูกใช้งานโดยเมนูอื่น');
-     const {HondaFlashEngine}=await import(new URL('flash_port/honda-write-engine.js?v=381',document.baseURI).href);
+     const {HondaFlashEngine}=await import(new URL('flash_port/honda-write-engine.js?v=391',document.baseURI).href);
      engine=new HondaFlashEngine(port,e=>log(e.phase+' '+JSON.stringify(e)));
      identity=await engine.identify({programmingPreflight:true});
      log('READ ECU_ID '+identity.ecuId+' SESSION '+identity.handshake);
@@ -97,7 +97,7 @@
    lastFailure='';busy=true;phase='VERIFY RECOVERY FAMILY';release();update();
    try{
      port=await sharedPort().acquire(OWNER);
-     const {HondaFlashEngine}=await import(new URL('flash_port/honda-write-engine.js?v=381',document.baseURI).href);
+     const {HondaFlashEngine}=await import(new URL('flash_port/honda-write-engine.js?v=391',document.baseURI).href);
      engine=new HondaFlashEngine(port,e=>{
        log(e.phase+' '+JSON.stringify(e));
        if(e.phase==='WRITE_PROGRESS'&&ui.progress)ui.progress.textContent=String(e.percent||0)+'% • WRITE ACK';
