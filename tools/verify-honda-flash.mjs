@@ -10,7 +10,7 @@ globalThis.fetch=async(input,options)=>{
 };
 // Run: node tools/verify-honda-flash.mjs
 // This script never opens USB, never connects to a real ECU or writes firmware.
-import {hondaChecksum,baudDivisor,stripFtdiStatus,checkedHondaReply,READ_ONLY_COMMANDS,Ft232rWebUsb} from '../flash_port/ftdi-webusb.js';
+import {hondaChecksum,baudDivisor,stripFtdiStatus,checkedHondaReply,READ_ONLY_COMMANDS,Ft232rWebUsb,parseFormMainSendCommandReply} from '../flash_port/ftdi-webusb.js';
 import {checksum8BitCSharp,createWriteFrame,auditWriteFrames,nextSourceWriteIndex} from '../flash_port/flash-frames.js';
 import {loadCSharpCatalog,findCSharpEcuId} from '../flash_port/csharp-ecu-catalog.js';
 import {csharpOffsetInference} from '../flash_port/csharp-offsets.js';
@@ -46,6 +46,21 @@ function shBin(){
  b.set([208,7],300);b.set([90,90,90,90],b.length-4);
  return b;
 }
+await check('Original FormMain SendCommand accepts valid reply without byte-for-byte TX echo comparison',()=>{
+ const tx=Uint8Array.from(READ_ONLY_COMMANDS.HELLO);
+ const reply=Uint8Array.from([2,4,0,250]); // C# Hello reply: checksum valid, no status byte
+ const differentEcho=Uint8Array.from([0,0,0,0,0,...reply]);
+ const parsed=parseFormMainSendCommandReply(differentEcho,tx);
+ return parsed?.reply?.length===4&&parsed.reply[3]===250&&parsed.echoOK===false;
+});
+await check('FormMain source parser rejects bad checksum and incomplete reply',()=>{
+ const tx=Uint8Array.from(READ_ONLY_COMMANDS.HELLO);
+ const good=Uint8Array.from([0,0,0,0,0,2,4,0,250]);
+ const bad=good.slice();bad[bad.length-1]=251;
+ return parseFormMainSendCommandReply(good,tx)!==null&&
+  parseFormMainSendCommandReply(good.slice(0,-1),tx)===null&&
+  parseFormMainSendCommandReply(bad,tx)===null;
+});
 await check('Main C# catalog exactly 290 entries (232 Keihin + 58 Shindengen)',async()=> (await loadCSharpCatalog()).size===290);
 await check('C# K03-H01 ID maps to offset 0x8000',async()=>{const v=await findCSharpEcuId('0101880D01');return v?.part==='38770-K03-H01'&&v.startOffset===32768});
 await check('C# Shindengen ID maps to auto offset',async()=>{const v=await findCSharpEcuId('01046B0F01');return v?.family==='SHINDENGEN'&&v.startOffset===null});
