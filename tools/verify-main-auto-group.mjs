@@ -60,6 +60,8 @@ await test('Auto chooses Group 1 after both Group 7 and Group 4 do not respond',
  assert.equal(await b.session.detectGroup(),1);
  assert.equal(b.restores,2);
  assert.equal(b.session.status().group,1);
+ assert.deepEqual(b.calls.map(x=>x[3]),[0x13,0x17],
+  'FM_diag.method_96 falls back to Group 1 WITHOUT a third probe');
 });
 await test('Manual group selection does not masquerade as detected',()=>{
  const s=new MainLiveSession();

@@ -5,7 +5,7 @@
  */
 import {MAIN_CAPTURE_COMMANDS,decodeMainDiagnosticTrace} from './main-source-diagnostic.js';
 import {Ft232rWebUsb} from './ftdi-webusb.js';
-import {HondaFlashEngine} from './honda-write-engine.js?v=381';
+import {HondaFlashEngine} from './honda-write-engine.js?v=392';
 import {loadCSharpCatalog} from './csharp-ecu-catalog.js?v=302';
 import {MAIN_DTC_READ_FRAMES,decodeMainDtcReplies} from './main-source-dtc.js';
 import {probeMainProgrammingSession} from './main-programming-probe.js?v=7';
@@ -25,7 +25,7 @@ const MAPPING=Object.freeze({
 });
 const FRAME_ALLOWLIST=new Set(Object.values(MAIN_CAPTURE_COMMANDS).flat().map(a=>a.join(',')));
 // FM_diag.cs method_96 probes Group 7 and then 4 before falling back to Group 1.
-// Probes only use the existing read-only 0x72 command allowlist.
+// Group 7/4 read probes; Group 1 is the FM_diag.cs unprobed fallback.
 export const SOURCE_AUTO_PROBE_ORDER=Object.freeze([7,4,1]);
 export function acceptedSourceProbe(reply,echoOK){
  // Source tests captured hex string length > 30 (7 echo bytes + >=9 reply bytes).
@@ -215,7 +215,33 @@ export class MainLiveSession {
  async _scanDtc({publish=false}={}){
   const entries=[];let missing=0;const failures=[];
   this.phase='DTC_BANK_DETECT';this.autoStatus='กำลังตรวจตาราง DTC ด้วยคำสั่งอ่านเท่านั้น';this.notify();
-  for(const frame of MAIN_DTC_READ_FRAMES){
+  // FM_dtc.method_110 transmits all three banks before reading each
+  // 0x74 and 0x73 response group. Browser WebUSB collects the burst once.
+  if(typeof this.port?.exchangeMainDiagnosticBurst==='function'){
+   for(const cmd of [0x74,0x73]){
+    if(this.disconnectRequested)break;
+    const frames=MAIN_DTC_READ_FRAMES.filter(frame=>frame[2]===cmd);
+    try{
+     if(!this.port?.ready){
+      await this._reopenDiagnostic();await this.port.sourceDiagnosticWake('dtc');
+     }
+     const burst=await this.port.exchangeMainDiagnosticBurst(frames);
+     if(burst.entries.length!==3)throw Error('DTC group has incomplete replies');
+     for(let i=0;i<frames.length;i++){
+      const {reply,echoOK}=burst.entries[i],bank=frames[i][3];
+      if(!echoOK)throw Error('DTC serial echo mismatch');
+      decodeMainDtcReplies([{cmd,bank,reply}]);
+      entries.push({cmd,bank,reply});
+     }
+    }catch(error){
+     failures.push(cmd.toString(16).toUpperCase()+'/1–3: '+String(error?.message||error));
+     if(!this.port?.ready&&cmd===0x74){
+      try{await this._reopenDiagnostic();await this.port.sourceDiagnosticWake('dtc')}
+      catch(e){failures.push('DTC USB reopen: '+e.message);break}
+     }
+    }
+   }
+  }else for(const frame of MAIN_DTC_READ_FRAMES){
    if(this.disconnectRequested)break;
    const cmd=frame[2],bank=frame[3];
    try{
@@ -259,7 +285,7 @@ export class MainLiveSession {
   await this.acquire('DTC_READ');
   if(typeof window!=='undefined')window.dispatchEvent(new CustomEvent('55:dtc-read-start'));
   try{
-   await this.port.sourceDiagnosticWake();
+   await this.port.sourceDiagnosticWake('dtc');
    return await this._scanDtc({publish:true});
   }catch(e){
    const result={current:[],stored:[],missing:6,success:false,
@@ -312,7 +338,7 @@ export class MainLiveSession {
    await this._checkLiveGroup();
    if(this.disconnectRequested)return false;
    if(!this.port?.ready)throw Error('FT232R หลุดระหว่างตรวจ Group');
-   await this.port.sourceDiagnosticWake();
+   await this.port.sourceDiagnosticWake('dtc');
    if(this.disconnectRequested)return false;
    await this._scanDtc();
    if(this.disconnectRequested)return false;
@@ -450,7 +476,9 @@ export class MainLiveSession {
   // Source FM_diag.cs can use Group 7, 4, and 1. If a read-only probe
   // times out, FTDI closes the pending WebUSB read. Reopen the SAME
   // user-approved device and do a fresh wake before probing the next group.
-  for(const candidate of preferredLiveScanOrder(this.ecuId,SOURCE_AUTO_PROBE_ORDER)){
+  // FM_diag.method_96 tests Group 7 then 4; Group 1 is FALLBACK,
+  // NOT a third diagnostic probe.
+  for(const candidate of [7,4]){
    if(this.stopRequested||this.disconnectRequested)return null;
    const frame=MAIN_CAPTURE_COMMANDS[candidate]?.[0];
    if(!frame||!FRAME_ALLOWLIST.has(frame.join(',')))throw Error('Group command not in Main C# allowlist');
@@ -475,10 +503,33 @@ export class MainLiveSession {
     if(this.stopRequested||this.disconnectRequested)return null;
    }
   }
-  throw Error('ECU ไม่ตอบกลุ่ม Live 7 / 4 / 1 · ตรวจ K-Line, ไฟ ECU, กุญแจ ON; '+failures.join(' | '));
+  if(this.stopRequested||this.disconnectRequested)return null;
+  // WebUSB closes a timed-out transferIn; Windows SerialPort in C# does not.
+  // Restore the SAME FT232R before the source's unprobed Group 1 cycle.
+  if(!this.port?.ready){
+   try{await this._reopenDiagnostic()}
+   catch(error){throw Error('Group 1 source fallback USB reopen failed: '+error.message)}
+  }
+  this.detectedGroup=1;this.group4Variant=null;
+  this.liveGroupError=failures.join(' | ');
+  this.notify();
+  return 1; // source's unprobed fallback; a later read must prove it works
  }
  async _cycle(group){
   const frames=MAIN_CAPTURE_COMMANDS[group],capture=[];
+  // FM_diag.method_99 sends four frames at 50ms intervals BEFORE
+  // method_11 drains the accumulated UART echo+reply bytes.
+  if(this.port?.exchangeMainDiagnosticBurst){
+   for(const frame of frames){
+    if(!FRAME_ALLOWLIST.has(frame.join(','))||frame[2]!==0x72)
+     throw Error('คำสั่งไม่ได้อยู่ในรายการ FM_diag.cs ที่อนุญาต');
+   }
+   if(this.stopRequested||this.disconnectRequested)return null;
+   const result=await this.port.exchangeMainDiagnosticBurst(frames);
+   if(result.entries.length!==4||result.entries.some(x=>!x.echoOK))
+    throw Error('Main C# Live group UART echo/response incomplete');
+   return Array.from(result.raw);
+  }
   for(let i=0;i<frames.length;i++){
    if(this.stopRequested||this.disconnectRequested)return null;
    const frame=frames[i];

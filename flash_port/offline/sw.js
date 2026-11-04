@@ -3,7 +3,7 @@
  * Never controls the existing online Flash Bench or the main tuning app.
  * Pin a complete coherent version of our flash JS for loss-of-network use.
  */
-const VERSION='55perf-offline-flash-v392';
+const VERSION='55perf-offline-flash-v393';
 const ASSETS=[
  './index.html',
  './manifest.webmanifest',
@@ -11,6 +11,7 @@ const ASSETS=[
  '../../icons/icon-512.png',
  '../offline-license.js',
  '../ftdi-webusb.js',
+ '../main-dtc-clear-source.js',
  '../main-reset-count.js',
  '../honda-write-engine.js',
  '../main-programming-probe.js',
@@ -26,7 +27,10 @@ const ASSETS=[
  '../bin-id-table.js',
  '../../license-config.js',
  '../../license-client.js',
- '../../ui/neon-tools-v20.css'
+ '../../ui/neon-tools-v20.css',
+ '../../ui/retail-premium-v1.css',
+ '../../ui/advanced-admin-gate-v1.js',
+ '../../ui/advanced-page-lock-v1.js'
 ];
 const ABS=ASSETS.map(p=>new URL(p,self.registration.scope).href);
 const ALLOWED=new Set(ABS.map(u=>new URL(u).pathname));

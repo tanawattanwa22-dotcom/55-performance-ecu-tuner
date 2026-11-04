@@ -1,4 +1,13 @@
 import assert from 'node:assert/strict';
+import {readFile as readLocalFixture} from 'node:fs/promises';
+// Node does not fetch file: ECU catalog URLs; browser does. Test local JSON
+// fixtures without the network, exactly as the existing offline simulator does.
+const nativeFetch=globalThis.fetch;
+globalThis.fetch=async(input,options)=>{
+ const url=input instanceof URL?input:new URL(String(input));
+ if(url.protocol==='file:')return new Response(await readLocalFixture(url),{status:200});
+ return nativeFetch(input,options);
+};
 import {MainLiveSession} from '../flash_port/main-live-session.js';
 import {readSharedDtc,clearSharedDtc} from '../flash_port/shared-dtc.js';
 import {getShindengenRecoveryKey} from '../flash_port/main-recovery-key-source.js';
@@ -24,11 +33,29 @@ const key=getShindengenRecoveryKey(Uint8Array.of(1,0,2,0,0,0,9,8),Uint8Array.of(
 // Recovery identification must not send a normal Keihin count command.
 const seen=[];const boot={ready:true,initializeIso:async()=>{},sendWake:async()=>{},exchangeRaw:async f=>{
  seen.push([...f]);let reply=f[2]===0x72?Uint8Array.of(0x72,11,0x72,0,0,1,2,3,0,0,0):Uint8Array.of(0x72,5,0,0,0);
+ // FormMain SendCommand validates Honda checksum: the old synthetic ACK had
+ // a zero tail and stopped the test at HELLO before testing any DTC route.
+ reply[reply.length-1]=(-reply.slice(0,-1).reduce((a,b)=>a+b,0))&255;
  return {reply};
 }};
 const engine=new HondaFlashEngine(boot);const identity=await engine.identify();assert.equal(identity.ecuId,'0102030000');assert.equal(boot.ready,true);
 assert(!seen.some(f=>f[0]===125&&f[3]===1));
 console.log('PASS shared DTC 6 banks, exact clear sequence/read verification, bad RX rejection, exclusive port lease, live stop, recovery zero divisor and boot identification');
+// The visible source-backed DTC buttons must not invoke the legacy
+// three-bank 0x60 loop or issue an extra 0x72 ECU ID before source clear.
+const fs=await import('node:fs');
+const index=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
+const sharedUI=fs.readFileSync(new URL('../ui/shared-operations-v30.js',import.meta.url),'utf8');
+const dtcUI=fs.readFileSync(new URL('../ui/neon-dtc-v23.js',import.meta.url),'utf8');
+const legacyClear=index.slice(index.indexOf('async function dtcClear(){'),
+ index.indexOf('function el2(tag,cls,txt){'));
+assert.match(legacyClear,/__55DtcOps\.clear/);
+assert.doesNotMatch(legacyClear,/reqCmd\(|0x60/);
+assert.match(sharedUI,/clearSharedDtc\(port\)/);
+assert.doesNotMatch(sharedUI,/port\.command\('ID'/);
+assert.match(dtcUI,/x\?\.sent!==2/);
+console.log('PASS main-page and Neon DTC share one FM_dtc source clear path, no legacy bank2 clear');
+
 const {RESET_SH_COUNT_FRAMES,isSourceResetCountFrame,resetShindengenCount}=await import('../flash_port/main-reset-count.js');
 assert(RESET_SH_COUNT_FRAMES.every(isSourceResetCountFrame));
 const changed=[...RESET_SH_COUNT_FRAMES[0]];changed[5]^=1;assert(!isSourceResetCountFrame(changed));
