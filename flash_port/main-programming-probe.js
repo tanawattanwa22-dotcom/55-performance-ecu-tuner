@@ -21,7 +21,11 @@ const SOURCE_NAMES=Object.freeze(Object.keys(SOURCE));
 const hexId=bytes=>toHex(bytes.slice(5,10)).replaceAll(' ','');
 const now=()=>new Date().toISOString();
 export function countDisplay(probe){
- if(!probe||probe.countState==='NOT_TESTED')return 'ยังไม่ได้ตรวจ (Diagnostic เท่านั้น)';
+ if(!probe)return 'ยังไม่ได้ตรวจ (Diagnostic เท่านั้น)';
+ if(probe.countState==='NOT_TESTED')
+  return probe.handshake==='FAILED'?
+   'ลองโหมดโปรแกรมมิ่งแล้ว แต่ HELLO / FALLBACK ไม่ตอบ · ยังไม่ได้ส่งคำสั่งนับ':
+   'เริ่มสแกนแล้ว แต่ยังไม่ถึงขั้น Flash Count: '+(probe.countError||probe.handshake);
  if(probe.countState==='CONFIRMED')return 'ตอบ = '+probe.flashCount+' ครั้ง ('+probe.family+' ACK)';
  return 'ตรวจแล้วแต่ยังไม่ยืนยัน: '+(probe.countError||probe.countState);
 }

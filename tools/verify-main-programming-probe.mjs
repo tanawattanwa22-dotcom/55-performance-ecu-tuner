@@ -1,6 +1,6 @@
 // Main.zip read-only programming probe and browser-safe session recovery mocks.
 import assert from 'node:assert/strict';
-import {hondaChecksum} from '../flash_port/ftdi-webusb.js';
+import {hondaChecksum,Ft232rWebUsb} from '../flash_port/ftdi-webusb.js';
 import {probeMainProgrammingSession,countDisplay} from '../flash_port/main-programming-probe.js';
 import {auditMainShindengenDryRun} from '../flash_port/main-source-dry-run.js';
 import {writeEcuDat} from '../flash_port/ecu-dat-editor.js';
@@ -43,6 +43,47 @@ assert(s.calls.includes('OPEN'),'must reopen permissioned FT232R after timeout')
 assert(s.calls.indexOf('OPEN')<s.calls.findIndex(x=>x==='TX_7b0602010379'),
  'must reopen+re-wake before Shindengen command');
 assert(r2.events.some(x=>x.phase==='NO_VALID_REPLY'&&x.name==='KEIHIN_COUNT'));
+// Real transport class, fake USB bus: validate raw UART/FTDI-status telemetry
+// without an ECU, and confirm normal frame parsing is unchanged.
+const hello=Uint8Array.from([0x72,0x05,0x00,0xf0,0x99]);
+const helloAck=frameReply([0x02,0x05,0x00,0x00,0x00]);
+const packet=payload=>{
+ const b=Uint8Array.from([0x01,0x60,...payload]);
+ return {status:'ok',data:new DataView(b.buffer)};
+};
+function ftdiMock(streams){
+ const port=new Ft232rWebUsb();
+ port.ready=true;port.itf=0;port.inEp=1;port.outEp=2;port.maxPacketSize=64;
+ port.prepareUart=async()=>true;port.purge=async()=>{};port.ctl=async()=>{};
+ const pending=streams.map(bytes=>packet(bytes));
+ port.dev={opened:true,async transferOut(e,data){return {status:'ok',bytesWritten:data.length}},
+  async transferIn(){await new Promise(r=>setTimeout(r,8));return pending.shift()||packet([])},
+  async releaseInterface(){},async close(){this.opened=false}};
+ return port;
+}
+const okTransport=ftdiMock([hello.slice(0,2),[...hello.slice(2),...helloAck]]);
+const events=[];
+const echoed=await okTransport.exchangeRaw(hello,{timeoutMs:240,observe:e=>events.push(e)});
+assert.equal(echoed.echoOK,true);
+assert.deepEqual(echoed.reply,helloAck);
+assert(events.some(x=>x.phase==='USB_OUT_OK'));
+assert(events.some(x=>x.phase==='USB_IN_CHUNK'&&x.uartBytes>0));
+assert(events.some(x=>x.phase==='SOURCE_ECHO_OK'));
+assert(events.some(x=>x.phase==='SOURCE_REPLY_OK'));
+const silentTransport=ftdiMock([]),silentEvents=[];
+await assert.rejects(silentTransport.exchangeRaw(hello,{
+ timeoutMs:90,observe:e=>silentEvents.push(e)
+}),/timeout|timed out/i);
+assert(silentEvents.some(x=>x.phase==='SOURCE_RX_FAILURE'&&
+ x.classification==='NO_UART_DATA'&&x.uartBytes===0));
+const echoOnlyPort=ftdiMock([hello]),echoOnlyEvents=[];
+await assert.rejects(echoOnlyPort.exchangeRaw(hello,{
+ timeoutMs:90,observe:e=>echoOnlyEvents.push(e)
+}),/timeout|timed out/i);
+assert(echoOnlyEvents.some(x=>x.phase==='SOURCE_RX_FAILURE'&&
+ x.classification==='ECHO_ONLY'&&x.uartBytes===hello.length));
+assert.match(countDisplay({countState:'NOT_TESTED',handshake:'FAILED'}),
+ /HELLO \/ FALLBACK ไม่ตอบ/);
 const wrong=usb({id:'0101880D01'});
 const r3=await probeMainProgrammingSession(wrong.port,{expectedEcuId:ecu});
 assert.equal(r3.ecuId,'0101880D01');assert.equal(r3.countState,'NOT_TESTED');

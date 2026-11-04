@@ -6,7 +6,7 @@ import {MainLiveSession} from '../flash_port/main-live-session.js?v=351';
 import {resolveMainAutoMetadata} from '../flash_port/main-auto-metadata.js?v=352';
 import {localKtrCandidates} from '../flash_port/ecu-id-lookup.js?v=355';
 import {previewMainShindengenBin} from '../flash_port/main-shindengen-auto-preview.js?v=1';
-import {probeMainProgrammingSession,countDisplay} from '../flash_port/main-programming-probe.js?v=1';
+import {probeMainProgrammingSession,countDisplay} from '../flash_port/main-programming-probe.js?v=2';
 import {auditMainShindengenDryRun} from '../flash_port/main-source-dry-run.js?v=1';
 import {readEcuDat} from '../flash_port/ecu-dat-editor.js?v=1';
 let programmingProbeResult=null,programmingProbeRuns=[],programmingProbeBusy=false;
@@ -189,8 +189,8 @@ window.__55SharedEcu={
 window.__55MainProgrammingProbe=Object.freeze({
  snapshot:()=>{
   const st=reader.status(),p=programmingProbeResult;
-  return p&&st.connected&&p.ecuId===st.ecuId?
-   {ecuId:p.ecuId,hello:p.hello,handshake:p.handshake,
+  return p&&st.connected&&p.expectedEcuId===st.ecuId?
+   {ecuId:p.ecuId||null,expectedEcuId:p.expectedEcuId,hello:p.hello,handshake:p.handshake,
     countState:p.countState,flashCount:p.flashCount,family:p.family,
     countError:p.countError,finishedAt:p.finishedAt,flashApproved:false}:null;
  }
@@ -394,9 +394,22 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
    const report=await probeMainProgrammingSession(cable,{
     expectedEcuId:before.ecuId,round,
     onEvent:e=>{
-     if(e.phase==='TX'||e.phase==='RX'||e.phase==='NO_VALID_REPLY'||e.phase==='WEBUSB_SAFE_REOPEN')
-      probeInfo.textContent+='\n'+e.elapsedMs+' ms · '+e.phase+' '+(e.name||'')+' '+
-       (e.hex||e.error||e.reason||'');
+     const visible=e.phase==='TX'||e.phase==='RX'||e.phase==='NO_VALID_REPLY'||
+      e.phase==='WEBUSB_SAFE_REOPEN'||e.phase==='TRANSPORT_SOURCE_RX_FAILURE'||
+      e.phase==='TRANSPORT_USB_OUT_OK'||e.phase==='TRANSPORT_SOURCE_REPLY_OK'||
+      e.phase==='FTDI_SOURCE_BITBANG_LOW_USB_WRITE_OK'||
+      e.phase==='FTDI_SOURCE_BITBANG_HIGH_USB_WRITE_OK';
+     if(visible){
+      const details=[e.hex||e.uartHex||e.uartSampleHex||'',
+       e.classification||'',e.error||e.reason||'',
+       Number.isInteger(e.uartBytes)?('UART '+e.uartBytes+'B'):'',
+       Number.isInteger(e.softwareTransferIntervalMs)?
+        ('USB low-to-high interval '+e.softwareTransferIntervalMs+'ms'):''
+      ].filter(Boolean).join(' · ');
+      probeInfo.textContent+='\n'+e.elapsedMs+' ms · '+e.phase+' '+(e.name||'')+' '+details;
+      if(probeInfo.textContent.length>16000)
+       probeInfo.textContent=probeInfo.textContent.slice(-12000);
+     }
     }
    });
    programmingProbeResult=report;programmingProbeRuns.push(report);
@@ -497,10 +510,10 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
    items.push(['Auto Start จาก BIN (Main.zip)',b?.startOffsetHex||'รอเลือก BIN / ยังไม่พบ']);
    items.push(['Auto Checksum จาก BIN (Main.zip)',b?.checksumOffsetHex||'รอเลือก BIN / ยังไม่พบ']);
   }
-  if(programmingProbeResult?.ecuId===data.ecuId&&st.connected){
+  if(programmingProbeResult?.expectedEcuId===data.ecuId&&st.connected){
    const p=programmingProbeResult;
    items.push(['Flash Count · Main.zip (ตรวจจริง)',countDisplay(p)]);
-   items.push(['Family จาก ACK',p.countState==='CONFIRMED'?p.family:'ยังไม่ยืนยัน']);
+   items.push(['Family จาก ACK',p.countState==='CONFIRMED'&&p.ecuId===data.ecuId?p.family:'ยังไม่ยืนยัน']);
   }else if(data.ecuId){
    items.push(['Flash Count · Main.zip','ยังไม่ได้ตรวจ (Diagnostic เท่านั้น)']);
   }
@@ -544,7 +557,7 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
   const ktr=st.ecuId&&!st.catalogMatched?localEcmReference(st.ecuId):null;
   const binSource=autoBinEvidence(st.ecuId);
   const usbOK=st.connected;
-  const sourceProbe=programmingProbeResult?.ecuId===st.ecuId&&st.connected?programmingProbeResult:null;
+  const sourceProbe=programmingProbeResult?.expectedEcuId===st.ecuId&&st.connected?programmingProbeResult:null;
   const ready=st.connected&&!st.connecting;
   const idOK=ready&&/^[0-9A-F]{10}$/.test(st.ecuId);
   const liveOK=ready&&st.liveGroupVerified;
