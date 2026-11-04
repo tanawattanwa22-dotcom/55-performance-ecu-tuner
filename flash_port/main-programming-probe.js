@@ -29,12 +29,13 @@ export function countDisplay(probe){
  if(probe.countState==='CONFIRMED')return 'ตอบ = '+probe.flashCount+' ครั้ง ('+probe.family+' ACK)';
  return 'ตรวจแล้วแต่ยังไม่ยืนยัน: '+(probe.countError||probe.countState);
 }
-export async function probeMainProgrammingSession(port,{expectedEcuId=null,onEvent=()=>{},round=1}={}){
+export async function probeMainProgrammingSession(port,{expectedEcuId=null,onEvent=()=>{},round=1,preferredFamily=null}={}){
  if(!port?.ready)throw Error('ต้องเชื่อม FT232R ที่หน้าแรกก่อน');
  if(!Number.isInteger(round)||round<1||round>3)throw Error('Invalid diagnostic round');
  const started=Date.now(),events=[];
  const result={mode:'MAIN_CSHARP_PROGRAMMING_READ_ONLY',round,
-  startedAt:now(),expectedEcuId,ecuId:null,handshake:'NOT_TESTED',
+  startedAt:now(),expectedEcuId,preferredFamily:['SHINDENGEN','KEIHIN'].includes(preferredFamily)?preferredFamily:null,
+  ecuId:null,handshake:'NOT_TESTED',
   hello:'NOT_TESTED',countState:'NOT_TESTED',family:'UNVERIFIED',
   flashCount:null,countError:null,programmingSessionVerified:false,
   flashApproved:false,source:'FormMain.cs InitFtdiIso + WorkerThread',
@@ -150,37 +151,38 @@ export async function probeMainProgrammingSession(port,{expectedEcuId=null,onEve
    return result;
   }
   result.programmingSessionVerified=true;
-  let count=await exchange('KEIHIN_COUNT',1900);
-  // FormMain.cs WorkerThread: SendCommand() returns true after frame-length
-  // and Checksum8BitHonda validation; it reads reply[6] as decimal Flash Count.
-  // reply[3] is a data byte for count frames, NOT a generic success status.
-  // The real PCX160 Shindengen response 0B 09 01 01 00 00 0E 0E CE has
-  // reply[3] = 0x01 yet is valid (length 9, checksum zero, count = 14).
-  if(count.ok&&count.reply.length>=7){
-   result.countState='CONFIRMED';result.family='KEIHIN';result.flashCount=count.reply[6];
-   log('MAIN_WORKER_COUNT_ACCEPTED',{name:'KEIHIN_COUNT',flashCount:result.flashCount,
-    frame:toHex(count.reply),validation:'SOURCE_CHECKSUM_AND_REPLY_6',rawByte3:count.rawByte3});
-   return result;
-  }
-  // Main source tries Shindengen second. Browser timeout is NOT the Windows
-  // D2XX polling model; force one source wake + re-read ID before next family
-  // probe, even if the previous response merely had a bad checksum.
-  await restoreSourceSession('Keihin count not acknowledged; try Shindengen');
+  // A catalog or previous physical observation only chooses probe priority.
+  // Never use that hint as a claimed live family. Real reply+checksum+ECU ID
+  // matching alone decides the observed read-only family and Flash Count.
+  const order=preferredFamily==='SHINDENGEN'?
+   ['SHINDENGEN_COUNT','KEIHIN_COUNT']:['KEIHIN_COUNT','SHINDENGEN_COUNT'];
+  const accept=(name,r)=>{
+   if(!r.ok||r.reply.length<7)return false;
+   result.countState='CONFIRMED';
+   result.family=name==='SHINDENGEN_COUNT'?'SHINDENGEN':'KEIHIN';
+   result.flashCount=r.reply[6]; // Main.zip FormMain.WorkerThread uses reply[6]
+   log('MAIN_WORKER_COUNT_ACCEPTED',{name,flashCount:result.flashCount,
+    frame:toHex(r.reply),validation:'SOURCE_CHECKSUM_AND_REPLY_6',rawByte3:r.rawByte3});
+   return true;
+  };
+  const first=await exchange(order[0],1900);
+  if(accept(order[0],first))return result;
+  // Browser transferIn cannot be cancelled by AbortSignal. Do not send
+  // another command on an abandoned read; reopen the same granted FT232R,
+  // wake again, and re-confirm the physical ID before the next family probe.
+  await restoreSourceSession(order[0]+' did not acknowledge; try '+order[1]);
   if(!await sourceHello()){
-   result.countState='NO_REPLY';result.countError='Session restore failed before Shindengen count';return result;
+   result.countState='NO_REPLY';result.countError='Session restore failed before '+order[1];return result;
   }
   const secondId=await exchange('ECU_ID',2300);
   if(!secondId.ok||secondId.reply.length<11||hexId(secondId.reply)!==result.ecuId){
-   result.countState='NO_REPLY';result.countError='Physical ECU ID not re-confirmed before second family probe';return result;
+   result.countState='NO_REPLY';result.countError='Physical ECU ID not re-confirmed before second family probe';
+   return result;
   }
-  count=await exchange('SHINDENGEN_COUNT',1900);
-  if(count.ok&&count.reply.length>=7){
-   result.countState='CONFIRMED';result.family='SHINDENGEN';result.flashCount=count.reply[6];
-   log('MAIN_WORKER_COUNT_ACCEPTED',{name:'SHINDENGEN_COUNT',flashCount:result.flashCount,
-    frame:toHex(count.reply),validation:'SOURCE_CHECKSUM_AND_REPLY_6',rawByte3:count.rawByte3});
-  }else{
+  const second=await exchange(order[1],1900);
+  if(!accept(order[1],second)){
    result.countState='NO_REPLY';
-   result.countError=count.error||'No checksum-valid Shindengen Flash Count reply';
+   result.countError=second.error||'No checksum-valid '+order[1]+' reply';
   }
   return result;
  }catch(e){

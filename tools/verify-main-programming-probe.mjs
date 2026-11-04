@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import {hondaChecksum,Ft232rWebUsb} from '../flash_port/ftdi-webusb.js';
 import {probeMainProgrammingSession,countDisplay} from '../flash_port/main-programming-probe.js';
+import {sourceFamilyHint,OBSERVED_READ_ONLY_IDS} from '../flash_port/main-source-family-hints.js';
 import {auditMainShindengenDryRun} from '../flash_port/main-source-dry-run.js';
 import {writeEcuDat} from '../flash_port/ecu-dat-editor.js';
 import {parseEcuDat} from '../flash_port/ecu-dat.js';
@@ -79,6 +80,19 @@ assert.equal(hondaChecksum(Uint8Array.from([0x0b,0x09,0x01,0x01,0x00,0x00,0x0e,0
 assert.equal(recordedResult.countState,'CONFIRMED');
 assert.equal(recordedResult.family,'SHINDENGEN');
 assert.equal(recordedResult.flashCount,14,'Main.zip reads reply[6]=0x0E as decimal 14');
+assert.deepEqual(OBSERVED_READ_ONLY_IDS,['0105040D01']);
+assert.equal(sourceFamilyHint(ecu).family,'SHINDENGEN');
+assert.equal(sourceFamilyHint('0101880D01','KEIHIN').family,'KEIHIN');
+assert.equal(sourceFamilyHint('AA00000000').family,null);
+const hinted=usb({recordedPcX160ShindengenReply:true,helloFourByteReply:true});
+const hintedResult=await probeMainProgrammingSession(hinted.port,{
+ expectedEcuId:ecu,preferredFamily:sourceFamilyHint(ecu).family
+});
+assert.equal(hintedResult.family,'SHINDENGEN');
+assert.equal(hintedResult.flashCount,14);
+assert.equal(hintedResult.countState,'CONFIRMED');
+assert(!hinted.calls.some(x=>x.startsWith('TX_7d')),
+ 'Known Shindengen physical ID must try 0x7B read-only before Keihin 0x7D');
 assert.equal(recordedResult.programmingSessionVerified,true);
 assert.equal(recordedResult.flashApproved,false,'Flash Count ACK never enables erase/write');
 assert.equal(recordedResult.countError,null);
