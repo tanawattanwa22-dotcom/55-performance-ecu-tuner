@@ -493,14 +493,30 @@ export class MainLiveSession {
  }
  async acquire(owner){
   if(this.owner)throw Error("สายกำลังใช้งานโดย "+this.owner);
-  if(this.connecting||this.autoBusy)throw Error('กำลังตรวจ ECU/Live/DTC อัตโนมัติ โปรดให้ตรวจเสร็จก่อนใช้สายร่วม');
+  if(this.connecting)throw Error('กำลังเปิดสาย FT232R จากหน้าแรก');
+  // Reserve the ONE shared cable before waiting; other pages must not
+  // launch overlapping Live/DTC/Flash reads during an automatic ECU scan.
   this.owner=owner;this.stop();
+  this.notify();
   try{
-   const deadline=Date.now()+10000;
-   while(this.running){if(Date.now()>deadline)throw Error("Live Data ยังไม่หยุด");await WAIT(20);}
-   if(!this.port?.ready)throw Error("เชื่อมต่อสายจากหน้าหลักก่อน");
+   const deadline=Date.now()+16000;
+   while(this.running||this.autoBusy||this.connecting){
+    if(this.disconnectRequested)throw Error('กำลังตัดการเชื่อมต่อ FT232R');
+    if(Date.now()>deadline)throw Error('งานอ่าน ECU เดิมยังไม่ปล่อยพอร์ต FT232R');
+    await WAIT(25);
+   }
+   if(this.disconnectRequested)throw Error('สาย FT232R ถูกตัดการเชื่อมต่อ');
+   if(!this.port?.ready){
+    // Main read-only probing may close the browser USB handle after timeout.
+    // Reopen the SAME already user-approved FT232R, not a second cable/picker.
+    const permitted=this.port?.lastDevice;
+    if(!permitted)throw Error('เชื่อมต่อสาย FT232R จากหน้าแรกก่อน');
+    await this.port.openSelected(permitted);
+    this.phase='USB_READY_NO_ECU';
+    this.notify();
+   }
    return this.port;
-  }catch(e){this.owner=null;throw e;}
+  }catch(e){this.owner=null;this.notify();throw e;}
  }
  release(owner){if(this.owner===owner){this.owner=null;this.notify();}}
  async start(){
