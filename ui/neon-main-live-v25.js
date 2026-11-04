@@ -497,17 +497,17 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
  binPreviewInput.onchange=async()=>{
   const file=binPreviewInput.files?.[0];if(!file)return;
   try{
-   if(!/\\.bin$/i.test(file.name))throw Error('รองรับเฉพาะ .bin; ไฟล์ ECU/ACG ต้องแปลงก่อน');
+   if(!/\.bin$/i.test(file.name))throw Error('รองรับเฉพาะ .bin; ไฟล์ ECU/ACG ต้องแปลงก่อน');
    if(!file.size||file.size>2_000_000)throw Error('BIN ว่างหรือใหญ่เกิน 2MB');
    scanPreviewBin={bytes:new Uint8Array(await file.arrayBuffer()),filename:file.name,selectedAt:Date.now()};
    cachedBinEvidence=null;dryRunReport=null;
    const result=autoBinEvidence(reader.status().ecuId).result;
    binPreviewStatus.textContent='BIN: '+file.name+' ('+scanPreviewBin.bytes.length+' bytes)'+
-    '\\nชนิดจาก Signature: '+(result?.type||'ไม่พบ')+
-    '\\nStart Offset: '+(result?.startOffsetHex||'ยังไม่พบ')+
-    '\\nChecksum Offset: '+(result?.checksumOffsetHex||'ยังไม่พบ')+
-    '\\nผลตรวจ: '+(result?.message||'ยังไม่สามารถวิเคราะห์ได้')+
-    '\\nอ่าน BIN ในอุปกรณ์เท่านั้น ไม่ได้อนุญาต ERASE/WRITE';
+    '\nชนิดจาก Signature: '+(result?.type||'ไม่พบ')+
+    '\nStart Offset: '+(result?.startOffsetHex||'ยังไม่พบ')+
+    '\nChecksum Offset: '+(result?.checksumOffsetHex||'ยังไม่พบ')+
+    '\nผลตรวจ: '+(result?.message||'ยังไม่สามารถวิเคราะห์ได้')+
+    '\nอ่าน BIN ในอุปกรณ์เท่านั้น ไม่ได้อนุญาต ERASE/WRITE';
   }catch(e){binPreviewStatus.textContent='ตรวจ BIN ไม่สำเร็จ: '+String(e.message||e)}
   finally{binPreviewInput.value='';updateSharedState()}
  };
