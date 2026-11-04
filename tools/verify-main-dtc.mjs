@@ -56,6 +56,20 @@ assert.deepEqual(log.slice(1,3).map(x=>x.frame),[
 ]);
 assert(log.slice(1,3).every(x=>x.expectReply===false),
  'FM_dtc source does not wait for a clear ACK');
+assert.equal(done.sent,2,'the exact two FM_dtc clear writes completed');
+const failedPostRead={
+ ready:true,
+ sourceDiagnosticWake:async()=>{},
+ exchangeRaw:async(_frame,opt)=>{
+  if(opt.expectReply===false)return {};
+  throw Error('TEST_POST_CLEAR_DTC_READ_TIMEOUT');
+ }
+};
+await assert.rejects(
+ ()=>clearSharedDtc(failedPostRead,async()=>{}),
+ e=>e.dtcClearSent===2&&/TEST_POST_CLEAR_DTC_READ_TIMEOUT/.test(e.message),
+ 'A post-clear DTC read error must retain both completed clear writes'
+);
 console.log('PASS FM_dtc grouped 0x74/0x73 source RX and exact 2-command clear ordering');
 // Real FT232R class, fake USB: verify NO purge/read between 0x60 writes.
 // Source FM_dtc.method_107 simply sends two five-byte commands + 50ms pause.
