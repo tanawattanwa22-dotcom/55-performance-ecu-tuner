@@ -76,7 +76,7 @@ const phases=Object.freeze({
  LIVE_GROUP_DETECT:'กำลังตรวจกลุ่ม Live 7/4/1 ตามคำตอบ ECU',
  DTC_BANK_DETECT:'กำลังตรวจตาราง DTC 0x73/0x74 ด้วยคำสั่งอ่านอย่างเดียว',
  AUTO_DETECT_PARTIAL:'พบข้อมูลบางส่วน • รายการที่ยังไม่ยืนยันจะไม่ขึ้นสีเขียว',
- LIVE_CAPTURE:'กำลังรับข้อมูลจริงจาก Main C#',
+ LIVE_CAPTURE:'กำลังอ่านข้อมูลจาก ECU',
  USB_ACCESS_DENIED:'Android ปฏิเสธ USBDevice.open() ก่อนติดต่อ ECU'
 });
 const notify=()=>{
@@ -96,7 +96,7 @@ const notify=()=>{
  const st=reader.status(),list=st.sourceReadings||[];
  const summary=document.createElement('summary');
  summary.style.cssText='font-weight:700;color:#8ddafa;cursor:pointer';
- summary.textContent='ข้อมูลเซ็นเซอร์ FM_diag.cs ครบทุกช่อง · Group '+st.group+' ('+list.length+' ค่า)';
+ summary.textContent='ข้อมูลเซ็นเซอร์เพิ่มเติม ('+list.length+' ค่า)';
  const rows=document.createElement('div');
  rows.style.cssText='display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:7px;margin-top:11px';
  for(const r of list){
@@ -123,7 +123,7 @@ const reader=new MainLiveSession(notify,()=>{
 const gs=document.getElementById('n21MainGroup');
 if(gs&&!gs.querySelector('option[value="auto"]')){
  const opt=document.createElement('option');
- opt.value='auto';opt.textContent='Auto · Main C# Group 7 / 4 / 1';
+ opt.value='auto';opt.textContent='อัตโนมัติ · ตรวจประเภทข้อมูลจาก ECU';
  gs.prepend(opt);gs.value='auto';
 }
 let lastConnectError='';
@@ -135,7 +135,7 @@ old.snapshot=()=>{
   {
    const st=reader.status();
    return {...originalSnapshot(),connected:st.connected,cable:st.cable,connecting:st.connecting,
-    ecuId:st.ecuId,model:st.part?'ECU '+st.part:'',protocol:st.connected?'Honda K-Line / Main C#':'—',
+    ecuId:st.ecuId,model:st.part?'ECU '+st.part:'',protocol:st.connected?'เชื่อมต่อ ECU แล้ว':'—',
     group:st.group,catalogFamily:st.catalogFamily,part:st.part};
   }
  // The stored model selection is NOT a vehicle identification.
@@ -152,15 +152,15 @@ old.snapshot=()=>{
   mode:'gauge',source:s.running?'ecu':'idle',demo:false,run:s.running,
   connected:s.connected,cable:s.cable,connecting:s.connecting,
   model:s.part?('ECU '+s.part):verifiedModel?.id||'',ecuId:s.ecuId,group:s.group,phase:s.phase,
-  protocol:s.connected?'Honda K-Line / Main FM_diag.cs':'—',
+  protocol:s.connected?'เชื่อมต่อ ECU แล้ว':'—',
   profAvailable:true,afrSupported:s.group!==7,
   afrSource:s.group===7?'C# Group 7 ไม่มีช่อง A/F':
-   'A/F คำนวณตาม FM_diag.cs Group '+s.group+' ไม่ได้ยืนยันว่าเป็นค่า Wideband ที่วัดจริง',
+   'A/F เป็นค่าประเมินจาก ECU · ไม่ใช่ Wideband ที่วัดโดยตรง',
   values,refreshHz:s.hz,sampleSeq:s.sampleSeq,sampleAt:s.sampleAt,
   recording:s.recording,recordSeconds:s.recordSeconds,hasLog:s.hasLog,
   message:s.error||lastConnectError||(
    s.connecting?(phases[s.phase]||'กำลังเปิด FT232R…'):
-   s.running?'กำลังอ่านข้อมูลจาก FM_diag.cs Group '+s.group:
+   s.running?'กำลังอ่านเซนเซอร์จากรถ':
    s.connected?'USB FT232R เปิดพอร์ตแล้ว • '+(s.ecuId?'ECU ID '+s.ecuId:'ยังไม่ได้เชื่อม ECU')+' • '+s.autoStatus:'กดเชื่อม FT232R เพื่อเปิดสาย (ไม่อ่าน ECU)'
   )
  };
