@@ -93,7 +93,7 @@ export class HondaFlashEngine {
  async x(name,frame,opts={}){
   this.emit(name,{stage:'TX'});
   let reply;
-  try{reply=ack(await this.usb.exchangeRaw(frame,opts),name);}
+  try{reply=ack(await this.usb.exchangeRaw(frame,{...opts,mainSourceMode:true}),name);}
   catch(error){
    const detail=name+' | TX '+toHex(frame)+' | '+error.message;
    this.emit('COMMAND_FAILED',{command:name,tx:toHex(frame),error:error.message});
