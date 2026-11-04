@@ -239,22 +239,35 @@ function autoFlashSummary(){
  }
  const st=reader.status();
  const b=window.__55QuickFlashBin?.bytes||window.__ecu?.S?.saved?.bytes||window.__ecu?.S?.bin;
- const binText=b instanceof Uint8Array&&b.length?'BIN ที่เลือก: '+b.length+' bytes (ยังต้องตรวจ ECU/BIN ID, checksum และ memory map ก่อนเขียน)':'ยังไม่ได้เลือก/บันทึก BIN สำหรับเขียน';
- const offset=(n,raw)=>Number.isInteger(n)?'0x'+n.toString(16).toUpperCase():raw==='auto'?'AUTO (Main.zip)': 'ไม่ระบุใน Main.zip';
- view.textContent='MAIN C# · AUTO ECU PREFLIGHT (READ ONLY)\n'+
-  (st.connected?'FT232R: เชื่อมต่อแล้ว':'FT232R: ยังไม่เชื่อมต่อ')+
-  '\nECU ID จริง: '+(st.ecuId||'ยังไม่ตอบ')+
-  '\nPart Code ฐาน Main: '+(st.part||'ยังไม่ตรงฐาน')+
-  '\nECU Family จากฐาน: '+(st.catalogFamily||'ยังไม่ระบุ')+
-  '\nFamily จากกล่อง (Read-only ACK): '+(st.sourceProbe?.countState==='CONFIRMED'?st.sourceProbe.family:'ยังไม่ได้ยืนยัน')+
-  '\nFlash Count จากกล่อง: '+(st.sourceProbe?.countState==='CONFIRMED'?st.sourceProbe.flashCount+' ครั้ง':'ยังไม่ได้รับ ACK')+
-  '\nStart Offset (ฐาน): '+offset(st.startOffset,st.startOffsetText)+
-  '\nChecksum Offset (ฐาน): '+offset(st.checksumOffset,st.checksumOffsetText)+
-  '\nLive Group ที่อ่านตอบ: '+(st.liveGroupVerified?st.group:'ยังไม่ยืนยัน')+
-  '\nDTC: '+(st.dtcSnapshot?.answered?.length??0)+'/6 ชุดที่ได้รับการตอบ'+
+ const binText=b instanceof Uint8Array&&b.length?
+  'ไฟล์ที่เลือก: '+(b.length/1024).toLocaleString('en-US')+' KB':'ยังไม่ได้เลือกไฟล์สำหรับอัด';
+ const toHex=n=>Number.isInteger(n)&&n>=0?'0x'+n.toString(16).toUpperCase():'ยังไม่มีข้อมูล';
+ const physicalFamily=st.sourceProbe?.countState==='CONFIRMED'&&
+  st.sourceProbe?.ecuId===st.ecuId&&st.sourceProbe?.programmingSessionVerified?
+  st.sourceProbe.family:null;
+ const family=physicalFamily||(
+  st.catalogFamily?st.catalogFamily+' (ข้อมูลอ้างอิงจากฐาน)':'ยังไม่ยืนยัน');
+ const activePlan=window.INLINEFLASH?.plan?.ecuId===st.ecuId?window.INLINEFLASH.plan:null;
+ const startOffset=activePlan?.startOffset??st.startOffset;
+ const checksumOffset=activePlan?.checksumOffset??st.checksumOffset;
+ const offsetSource=activePlan?'(จากแผนแฟลชที่ตรวจแล้ว)':'(ข้อมูลเบื้องต้น)';
+ const dtc=st.dtcSnapshot?.ecuId===st.ecuId?st.dtcSnapshot:null;
+ const dtcStatus=dtc?.success?
+  'อ่านรหัสได้แล้ว'+(dtc.missing>0?' (ผลบางส่วน)':''):
+  'ตรวจได้จากเมนู DTC';
+ const liveStatus=st.liveGroupVerified?'ตรวจพบข้อมูล Live Data':'ตรวจได้จากเมนู Live Data';
+ view.textContent='สถานะ ECU และความพร้อมก่อนแฟลช\n'+
+  'การเชื่อมต่อ: '+(st.connected?'เชื่อมต่อสายแล้ว':'ยังไม่เชื่อมต่อ')+
+  '\nECU ID: '+(st.ecuId||'รออ่านจากรถ')+
+  '\nประเภทกล่อง: '+family+
+  '\nรหัสอะไหล่: '+(st.part||'ยังไม่พบรหัสอ้างอิง')+
+  '\nStart Offset: '+toHex(startOffset)+' '+offsetSource+
+  '\nChecksum Offset: '+toHex(checksumOffset)+' '+offsetSource+
+  '\nDTC: '+dtcStatus+
+  '\nLive Data: '+liveStatus+
   '\n'+binText+'\n'+
-  (st.autoStatus||'โปรดกดสแกน ECU ถ้ากล่องยังไม่ตอบ')+
-  '\nหมายเหตุ: ต้องยืนยัน Preflight แบบเขียนแยกตาม ECU/BIN จริงก่อน ERASE/WRITE';
+  (st.ecuId?'อ่านรหัส ECU แล้ว · ตรวจไฟล์ให้ตรงกล่องก่อนเริ่มอัด':'รอเชื่อมต่อและอ่าน ECU ID')+
+  '\nสถานะที่ยังเป็นข้อมูลอ้างอิงจะไม่ถือว่าผ่านการตรวจสำหรับเขียนแฟลช';
 }
 function emitCachedDtc(st){
  const d=st.dtcSnapshot;
