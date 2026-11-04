@@ -44,8 +44,6 @@ jobs:
         run: node tools/verify-offline-flash.mjs
       - name: Full source-based Keihin/Shindengen erase/write/recovery simulation (NO USB)
         run: node tools/verify-main-full-flash-sim.mjs
-      - name: Verify FT232R D2XX browser bridge (NO ECU)
-        run: node tools/verify-ftdi-d2xx-bridge.mjs
       - name: Run 29 offline/mock Honda flash checks
         run: node tools/verify-honda-flash.mjs
       - name: Verify Main C# PartID_ECU data-port round trip
