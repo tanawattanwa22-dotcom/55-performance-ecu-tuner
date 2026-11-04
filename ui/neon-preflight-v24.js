@@ -15,6 +15,8 @@ import(new URL('flash_port/csharp-ecu-catalog.js?v=302',document.baseURI).href)
  .then(rows=>{catalog290={rows,error:null};render()})
  .catch(e=>{catalog290={rows:null,error:e?.message||String(e)};render()});
 const MAIN_BIN_ID_SIZES=new Set([32768,49152,57344,65536,98304,131072,262144,393216,524288,786432,1048576]);
+const mainFileSize=bytes=>bytes>=1048576?(bytes/1048576).toFixed(2)+' MB':
+ bytes>=1024?(bytes/1024).toFixed(2)+' KB':bytes+' B'; // FormMain.FormatFileSize
 const hasMainLocator=bytes=>bytes instanceof Uint8Array&&MAIN_BIN_ID_SIZES.has(bytes.length);
 const quickBin=()=>window.__55QuickFlashBin?.bytes instanceof Uint8Array?window.__55QuickFlashBin:null;
 const catalogRecord=identity=>identity?.ecuId?(catalog290.rows?.get(String(identity.ecuId).toUpperCase())||identity.catalog||null):null;
@@ -125,7 +127,7 @@ function render(){
  setItem('dbcount',catalog290.rows?'ฐานข้อมูลรุ่นพร้อมใช้งาน':catalog290.error?'ข้อมูลรุ่นเสริมไม่พร้อม':'กำลังโหลดข้อมูลรุ่น');
  setItem('filename',quick?quick.filename:c.valid?c.saved.filename:'ยังไม่ได้เลือก BIN');
  setItem('source',quick?'BIN ที่เลือกจากโทรศัพท์':c.valid?(c.saved.customerBin?'BIN ที่นำเข้าจากเครื่อง':'Master BIN (จากแอป)'):'—');
- setItem('size',quick?quick.bytes.length.toLocaleString('en-US')+' bytes ('+(quick.bytes.length/1024).toFixed(2)+' KB)':c.valid?c.bytes.length.toLocaleString('en-US')+' bytes ('+(c.bytes.length/1024).toFixed(2)+' KB)':'—');
+ setItem('size',quick?mainFileSize(quick.bytes.length):c.valid?mainFileSize(c.bytes.length):'—');
  setItem('sha',quick?(quick.sha256?.slice(0,20)+'…'||'กำลังตรวจ…'):hash&&hash.saved===c.saved&&c.valid?hash.hex.slice(0,20)+'…':'ยังไม่ได้คำนวณ');
  setItem('ecu',identity?.ecuId||'ยังไม่ได้อ่านจาก ECU');
  setItem('part',identity?(source?.part||identity.sourcePart||'ไม่ระบุใน Main C#'):'—');
@@ -339,7 +341,7 @@ function mount(host){
  fastLabel.append(fast,document.createTextNode(' เขียนเร็ว (Fast Write · ใช้เฉพาะโปรไฟล์ที่รองรับ)'));
  fast.onchange=()=>{window.__55QuickFlashFast=fast.checked;message=fast.checked?'เปิด Fast Write แล้ว · Flash Engine จะเลือกวิธีตาม ECU ที่ตรวจได้':'ใช้โหมดเขียนปกติ';render()};
  const previous=quickBin();
- const uploadStatus=make('p','n24-upload-status',previous?'✓ '+previous.filename+' • '+(previous.bytes.length/1024).toFixed(0)+' KB':'ยังไม่ได้เลือกไฟล์');dom.quickStatus=uploadStatus;
+ const uploadStatus=make('p','n24-upload-status',previous?'✓ '+previous.filename+' ('+mainFileSize(previous.bytes.length)+')':'ยังไม่ได้เลือกไฟล์');dom.quickStatus=uploadStatus;
  upload.onchange=async()=>{
   if(INLINEFLASH.busy){upload.value='';return}
   window.__55QuickFlashBin=null;error='';
@@ -356,7 +358,7 @@ function mount(host){
    window.dispatchEvent(new Event('55:bin-selection-changed'));
    binOffsetHint=null;
    void previewBinOffset();
-   uploadStatus.textContent='✓ '+f.name+' • '+(f.size/1024).toFixed(2)+' KB'+
+   uploadStatus.textContent='✓ '+f.name+' ('+mainFileSize(f.size)+')'+
     (sourceSizeSupported?' · เปิดไฟล์สำเร็จ':' · เปิดอ่านได้ แต่ขนาดไม่มีตัวค้นรหัส BIN ใน Main');
    message=sourceSizeSupported?
     'เปิด BIN แล้ว · ตรวจ ECU ID/Checksum/Offset ต่อได้':
