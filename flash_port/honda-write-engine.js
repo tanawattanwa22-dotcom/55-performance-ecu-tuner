@@ -12,7 +12,7 @@ import {createWriteFrame,resolveWriteProfile} from './flash-frames.js?v=315';
 import {inspectCSharpEcuType,correctKeihinChecksum,correctShindengenChecksum,deriveShindengenWriteKey} from './csharp-logic.js';
 import {csharpOffsetInference,catalogLookup} from './csharp-offsets.js?v=317';
 import {findCSharpEcuId} from './csharp-ecu-catalog.js?v=302';
-import {readBinId} from './bin-tools.js?v=317';
+import {readBinId} from './bin-tools.js?v=378';
 import {probeMainProgrammingSession} from './main-programming-probe.js?v=7';
 import {sourceFamilyHint} from './main-source-family-hints.js?v=1';
 import {lookupMainDatReference} from './main-dat-reference.js?v=1';
