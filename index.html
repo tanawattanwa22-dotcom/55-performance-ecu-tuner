@@ -2294,49 +2294,17 @@ async function dtcPrep(){
   const t0=Date.now();while(LV.busy&&Date.now()-t0<2000)await sleep2(30);
   return true;
 }
+// Legacy DTC buttons are only delegators. All DTC traffic comes from the
+// FM_dtc.cs shared FT232R owner (ui/shared-operations-v30.js), so the old
+// 0x60 bank-1/2/3 loop can NEVER run alongside the purchased source's two
+// real clear commands (bank 3, bank 1).
 async function dtcRead(){
-  if(!(await dtcPrep()))return;
-  const diag={current:[],stored:[],missing:0,error:"",success:false,timestamp:Date.now()};
-  window.dispatchEvent(new CustomEvent("55:dtc-read-start"));
-  $("#dtcRead").disabled=$("#dtcClr").disabled=true;$("#dtcMsg").textContent="กำลังอ่านรหัส...";const O=$("#dtcOut");O.textContent="";
-  let bad=0,total=0;
-  try{
-   for(const[cmd,name] of [[0x73,"รหัสที่เก็บในหน่วยความจำ"],[0x74,"รหัสที่ตรวจพบตอนนี้"]]){
-    const box=el2("div","dtcb");box.appendChild(el2("b","",name));
-    const seen=new Set();let n=0,nb=0;
-    for(let tb=1;tb<=3;tb++){
-     const f=await reqCmd(cmd,tb);
-     if(!f){bad++;nb++;diag.missing++}
-     else for(const x of dtcDecode([...f.slice(4,f.length-1)])){
-       if(seen.has(x.k))continue;seen.add(x.k);n++;total++;
-       diag[cmd===0x73?"stored":"current"].push({k:x.k,known:x.known,txt:x.txt});
-       const q=el2("div","dtcd");
-       if(x.known){q.appendChild(el2("b","","รหัส "+x.k));q.appendChild(document.createTextNode(" — "+x.txt))}
-       else q.appendChild(document.createTextNode("พบรหัสที่ยังไม่มีชื่อในตาราง (แจ้งร้านเพื่อตรวจสอบ)"));
-       box.appendChild(q)}
-     await sleep2(60)}
-    box.appendChild(el2("div","dtcr",nb===3?"กล่องไม่ตอบ":(n?"":"ไม่พบรหัสผิดพลาด")));
-    O.appendChild(box)}
-   $("#dtcMsg").textContent=(bad===6?"กล่องไม่ตอบคำสั่งอ่านรหัส (อาจไม่รองรับในรุ่นนี้)":(total?"พบรหัสผิดพลาด "+total+" รายการ":"ไม่พบรหัสผิดพลาด"))+" • อ่านเมื่อ "+new Date().toLocaleTimeString("th-TH",{hour12:false});
-  }catch(e){diag.error=String(e&&e.message||e);$("#dtcMsg").textContent="อ่านไม่สำเร็จ: "+diag.error}
-  diag.success=diag.missing<6&&!diag.error;
-  diag.timestamp=Date.now();
-  window.dispatchEvent(new CustomEvent("55:dtc-result",{detail:diag}));
-  $("#dtcRead").disabled=$("#dtcClr").disabled=false;
+ if(!window.__55DtcOps?.read)return toast('กำลังเตรียมระบบ DTC จาก Main.zip');
+ return window.__55DtcOps.read();
 }
 async function dtcClear(){
-  if(!(await dtcPrep()))return;
-  if(!confirm("ลบรหัสผิดพลาดในกล่อง (หน่วยความจำ 01-03)?\nลบแล้วกู้คืนไม่ได้ ควรจดรหัสก่อน และควรแก้ต้นเหตุก่อนลบ"))return;
-  window.dispatchEvent(new CustomEvent("55:dtc-clear-start"));
-  $("#dtcRead").disabled=$("#dtcClr").disabled=true;$("#dtcMsg").textContent="กำลังลบรหัส...";const O=$("#dtcOut");O.textContent="";
-  let ok=0,clearError="";
-  try{
-   for(let m=1;m<=3;m++){const f=await reqCmd(0x60,m),r=el2("div","dtcr");
-    if(f&&f.length>=5)ok++;await sleep2(80)}
-   $("#dtcMsg").textContent=ok===3?"ส่งคำสั่งลบครบ 3 หน่วยความจำ แนะนำกด \"อ่านรหัส\" ยืนยันอีกครั้ง":"ลบไม่ครบ ("+ok+"/3) ลองใหม่หรือตรวจสาย";
-  }catch(e){clearError=String(e&&e.message||e);$("#dtcMsg").textContent="ลบไม่สำเร็จ: "+clearError}
-  window.dispatchEvent(new CustomEvent("55:dtc-clear-result",{detail:{ok,error:clearError}}));
-  $("#dtcRead").disabled=$("#dtcClr").disabled=false;
+ if(!window.__55DtcOps?.clear)return toast('กำลังเตรียมระบบลบ DTC จาก Main.zip');
+ return window.__55DtcOps.clear();
 }
 function el2(tag,cls,txt){const e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e}
 $("#dtcRead").onclick=dtcRead;$("#dtcClr").onclick=dtcClear;
