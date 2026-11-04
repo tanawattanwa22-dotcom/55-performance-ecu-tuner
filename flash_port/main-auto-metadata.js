@@ -2,7 +2,7 @@
  * This module receives only the physical shared FT232R session snapshot.
  * Never infer a part or memory offset from selected BIN, selected model, or old session.
  */
-import {lookupMainDatReference} from './main-dat-reference.js?v=1';
+import {lookupMainDatReference} from './main-dat-reference.js?v=2';
 const ID=/^[0-9A-F]{10}$/;
 const fmt=n=>'0x'+n.toString(16).toUpperCase().padStart(8,'0');
 function offset(number,sourceText){
