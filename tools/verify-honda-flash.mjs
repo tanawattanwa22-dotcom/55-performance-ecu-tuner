@@ -11,7 +11,7 @@ globalThis.fetch=async(input,options)=>{
 // Run: node tools/verify-honda-flash.mjs
 // This script never opens USB, never connects to a real ECU or writes firmware.
 import {hondaChecksum,baudDivisor,stripFtdiStatus,checkedHondaReply,READ_ONLY_COMMANDS,Ft232rWebUsb} from '../flash_port/ftdi-webusb.js';
-import {checksum8BitCSharp,createWriteFrame,auditWriteFrames} from '../flash_port/flash-frames.js';
+import {checksum8BitCSharp,createWriteFrame,auditWriteFrames,nextSourceWriteIndex} from '../flash_port/flash-frames.js';
 import {loadCSharpCatalog,findCSharpEcuId} from '../flash_port/csharp-ecu-catalog.js';
 import {csharpOffsetInference} from '../flash_port/csharp-offsets.js';
 import {inspectCSharpEcuType,correctKeihinChecksum,correctShindengenChecksum,deriveShindengenWriteKey} from '../flash_port/csharp-logic.js';
@@ -53,10 +53,32 @@ await check('64KB inference does not prove ECU family',()=>{const v=csharpOffset
 await check('Keihin checksum corrects copy not original',()=>{const b=Uint8Array.of(0,1,2,3),r=correctKeihinChecksum(b,0);return r.newByte===250&&b[0]===0});
 await check('Keihin 128-byte frame Honda checksum valid',()=>{const b=createWriteFrame(new Uint8Array(128),{profile:'KEIHINOTHER',startOffset:32768});return b.length===139&&hondaChecksum(b)===0});
 await check('C# blank-block pointer increments correctly',()=>{const b=createWriteFrame(new Uint8Array(128),{profile:'KEIHINOTHER',startOffset:32768,nextBlockIndex:4});return b[134]===8&&b[135]===32});
+await check('Source WriteFlash blank-skip profiles match original C# flag',()=>{
+ const bin=new Uint8Array(128*5);bin.fill(0xff);
+ bin.fill(0x01,0,128);bin.fill(0x55,128*3,128*4);
+ return nextSourceWriteIndex(bin,0,'KEIHINOTHER')===3&&
+  nextSourceWriteIndex(bin,0,'SHINDENGENV850')===3&&
+  nextSourceWriteIndex(bin,0,'KEIHINM32R')===1&&
+  nextSourceWriteIndex(bin,0,'SHINDENGENRH850B')===1&&
+  nextSourceWriteIndex(bin,3,'KEIHINOTHER')===5;
+});
 await check('Shindengen firmware signature',()=>inspectCSharpEcuType(shBin()).type==='SHINDENGENV850');
 await check('Shindengen corrected word checksum offset',()=>correctShindengenChecksum(shBin()).checksumOffset===296);
 await check('Shindengen seed-key derives two bytes',()=>deriveShindengenWriteKey(shBin(),Uint8Array.of(18,52))?.length===2);
 await check('Mock K03 ECU ID read and catalog match',async()=>{const e=new HondaFlashEngine(fake('0101880D01'));return (await e.identify()).sourceMatched});
+await check('Failed read-only ID clears stale identity and permits retry',async()=>{
+ const port=fake('0101880D01');
+ const engine=new HondaFlashEngine(port);
+ const first=await engine.identify();
+ let failWake=true;
+ port.sendWake=async()=>{if(failWake)throw Error('Source wake temporarily failed')};
+ let failed=false;
+ try{await engine.identify()}catch(e){failed=/wake temporarily/.test(e.message)}
+ const clean=engine.identity===null&&engine.state==='idle';
+ failWake=false;
+ const retry=await engine.identify();
+ return first.sourceMatched&&failed&&clean&&retry.ecuId==='0101880D01'&&retry.sourceMatched;
+});
 await check('K03 preflight plans 512 source frames',async()=>{const e=new HondaFlashEngine(fake('0101880D01'));await e.identify();return e.makePlan(new Uint8Array(65536),{filename:'K03-H01.bin'}).expectedBlockCount===512});
 await check('Wrong BIN part prevents erase preflight',async()=>{const e=new HondaFlashEngine(fake('0101880D01'));await e.identify();try{e.makePlan(new Uint8Array(65536),{filename:'K2J-T01.bin'});return false}catch(x){return x.code==='PART_NOT_CONFIRMED'}});
 await check('Unlisted ECU cannot build erase plan without source-matched BIN ID',async()=>{const e=new HondaFlashEngine(fake('FFFFFFFFFF'));await e.identify();try{e.makePlan(new Uint8Array(65536),{filename:'unknown.bin'});return false}catch(x){return x.code==='UNLISTED_BIN_ID_UNVERIFIED'||x.code==='UNLISTED_FAMILY_UNVERIFIED'}});
