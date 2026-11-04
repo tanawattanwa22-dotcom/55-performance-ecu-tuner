@@ -87,6 +87,28 @@ await check('Source FF skip preview uses actual WriteFlash frames, not contiguou
 await check('Shindengen firmware signature',()=>inspectCSharpEcuType(shBin()).type==='SHINDENGENV850');
 await check('Shindengen corrected word checksum offset',()=>correctShindengenChecksum(shBin()).checksumOffset===296);
 await check('Shindengen seed-key derives two bytes',()=>deriveShindengenWriteKey(shBin(),Uint8Array.of(18,52))?.length===2);
+await check('Main FormMain SendCommand accepts checksum-valid 4-byte reply for ANY stage',async()=>{
+ const four=Uint8Array.of(0x02,0x04,0x00,0xFA);
+ const mock={ready:true,async exchangeRaw(){return {reply:four,echoOK:true}}};
+ const engine=new HondaFlashEngine(mock);
+ for(const name of ['KH_HANDSHAKE_B','KH_ERASE_PARAM','SH_PRE_ERASE_A',
+   'KH_FINAL_5','SH_FINAL5','KH_FAST_SWITCH']){
+  const out=await engine.x(name,Uint8Array.of(0x72,0x05,0x00,0xF0,0x99));
+  if(out.length!==4||out[3]!==0xFA)return false;
+ }
+ return true;
+});
+await check('Main source ACK rejects bad declared size or checksum, not short statusless frame',async()=>{
+ let packet=Uint8Array.of(0x02,0x04,0x00,0xFA);
+ const mock={ready:true,async exchangeRaw(){return {reply:packet,echoOK:true}}};
+ const engine=new HondaFlashEngine(mock);
+ let badSize=false,badSum=false;
+ packet=Uint8Array.of(0x02,0x05,0x00,0xF9);
+ try{await engine.x('HELLO',Uint8Array.of(0x72,0x05,0,0xF0,0x99))}catch(e){badSize=e.code==='BAD_ACK'}
+ packet=Uint8Array.of(0x02,0x04,0x00,0xFB);
+ try{await engine.x('HELLO',Uint8Array.of(0x72,0x05,0,0xF0,0x99))}catch(e){badSum=e.code==='BAD_ACK'}
+ return badSize&&badSum;
+});
 await check('Mock K03 ECU ID read and catalog match',async()=>{const e=new HondaFlashEngine(fake('0101880D01'));return (await e.identify()).sourceMatched});
 await check('Failed read-only ID clears stale identity and permits retry',async()=>{
  const port=fake('0101880D01');
