@@ -340,10 +340,17 @@ export class Ft232rWebUsb {
       try{telemetry({phase,...fields})}catch{} // diagnostics cannot interrupt transfers
     };
     try {
-      await this.purge();
-      await this.ctl(0x09,8);
+      // Original FormMain.SendCommand() does FT_Write, then sets 8ms
+      // latency and reads the command echo+reply. It purges AFTER the
+      // exchange, never before each command. Preserve that source order
+      // for the Flash/Recovery source path only.
+      if(!mainSourceMode){
+        await this.purge();
+        await this.ctl(0x09,8);
+      }
       await this._write(bytes);
       sent=true;
+      if(mainSourceMode)await this.ctl(0x09,8);
       trace('USB_OUT_OK',{uartHex:toHex(bytes.slice(0,32)),bytesWritten:bytes.length});
       this._log('TX RAW '+toHex(bytes.length<=16?bytes:bytes.slice(0,16))+(bytes.length>16?' ... ('+bytes.length+' bytes)':''));
       if(!expectReply){await sleep(afterWriteMs);return {reply:null,echoOK:null}}
