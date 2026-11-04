@@ -131,6 +131,8 @@ function render(){
   sourceCount?.countState==='CONFIRMED'?sourceCount.flashCount+' ครั้ง · ACK โหมดโปรแกรมมิ่ง (ยังไม่อนุญาต Flash)':
   sourceCount?.countState==='NO_REPLY'||sourceCount?.countState==='ERROR'?
    'ตรวจแล้วไม่ตอบ/ไม่ผ่าน: '+(sourceCount.countError||'ไม่มี ACK ที่ยืนยันได้'):
+  sourceCount?.countState==='NOT_TESTED'&&sourceCount.handshake==='FAILED'?
+   'ลองปลุกโหมดโปรแกรมมิ่งแล้ว แต่ HELLO/FALLBACK ไม่ตอบ · ยังไม่ได้ส่งคำสั่ง Flash Count':
   'ยังไม่ได้ตรวจ Flash Count ในโหมดโปรแกรมมิ่ง');
  setItem('sourceMatch',identity?(identity.sourceMatched?'ยืนยัน ID และ Family แล้ว':source?(source.part?'✓ พบ ECU ID ในฐาน 290 · Family เป็นค่าจากฐาน ยังไม่ยืนยันเพื่อเขียน':'พบ ECU ID แต่ไม่มี Part Code'):'อ่าน ECU ID ได้ แต่ไม่พบในฐาน 290'):'รออ่าน ECU ID จริง');
  setItem('start',plan?X(plan.startOffset):source?sourceOffset(source.startOffset,source.startOffsetText):

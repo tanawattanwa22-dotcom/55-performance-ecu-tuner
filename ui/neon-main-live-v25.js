@@ -413,8 +413,18 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
    });
    programmingProbeResult=report;programmingProbeRuns.push(report);
    if(programmingProbeRuns.length>3)programmingProbeRuns.shift();
-   probeInfo.textContent='ผลสแกนจริง · '+(report.ecuId||'ไม่มี ECU ID')+
+   const explainRx=name=>{
+    const failure=report.events.filter(e=>e.phase==='TRANSPORT_SOURCE_RX_FAILURE'&&e.name===name).at(-1);
+    const reply=report.events.find(e=>e.phase==='RX'&&e.name===name);
+    return reply?'คำตอบสมบูรณ์ '+reply.length+' ไบต์':
+     failure?(failure.classification+' · UART '+failure.uartBytes+' ไบต์'+
+      ' / FTDI status '+failure.ftdiPackets+' แพ็กเก็ต'):
+     'ไม่มีข้อมูล USB เพิ่มเติม';
+   };
+   probeInfo.textContent='ผลสแกนจริง · '+(report.ecuId||'ไม่มี ECU ID ในโหมดโปรแกรมมิ่ง')+
     '\nHELLO: '+report.hello+' / Handshake: '+report.handshake+
+    '\nHELLO USB: '+explainRx('HELLO')+
+    '\nFALLBACK USB: '+explainRx('KH_FALLBACK')+
     '\nFlash Count: '+countDisplay(report)+
     '\nFamily จาก ACK: '+report.family+
     '\nBitbang USB: '+(report.events.some(e=>e.phase==='FTDI_SOURCE_BITBANG_HIGH_USB_WRITE_OK')?

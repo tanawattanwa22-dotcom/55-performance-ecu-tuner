@@ -122,6 +122,10 @@ import fs from 'node:fs';
 const preflight=fs.readFileSync(new URL('../ui/neon-preflight-v24.js',import.meta.url),'utf8');
 const live=fs.readFileSync(new URL('../ui/neon-main-live-v25.js',import.meta.url),'utf8');
 assert(preflight.includes('ยังไม่ได้ตรวจ Flash Count ในโหมดโปรแกรมมิ่ง'),'unknown count must not be shown as an actual read failure');
+assert(preflight.includes('ลองปลุกโหมดโปรแกรมมิ่งแล้ว แต่ HELLO/FALLBACK ไม่ตอบ'),
+ 'Preflight must distinguish tried HELLO from untried Flash Count');
 assert(preflight.includes('sourceCount?.countState')&&live.includes('window.__55MainProgrammingProbe=Object.freeze('));
 assert(preflight.includes('ACK โหมดโปรแกรมมิ่ง (ยังไม่อนุญาต Flash)'));
+assert(live.includes("failure.classification+' · UART '"),
+ 'Mobile scan must explain raw RX phase/byte count without claiming ECU incompatibility');
 console.log('PASS source read-only HELLO/ID/count, WebUSB recovery, DAT and full 384KB frame/checksum dry-run');
