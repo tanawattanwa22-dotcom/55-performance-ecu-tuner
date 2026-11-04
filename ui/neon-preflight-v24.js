@@ -96,7 +96,8 @@ function render(){
  const recoveryCandidate=!!identity?.ecuId?.endsWith('0000');
  const plan=inlineIdentity?.sourceMatched?INLINEFLASH.plan:verified()?last?.plan:null;
  const source=catalogRecord(identity);
- const binEstimate=binOffsetHint?.saved===c.saved?binOffsetHint.estimated:null;
+ // The initial session may have neither BIN nor offset hint: never dereference null.
+ const binEstimate=binOffsetHint&&binOffsetHint.saved===c.saved?binOffsetHint.estimated:null;
  const fileReady=!!quick||c.valid;
  const cableReady=!!window.__55SharedEcu?.port?.ready;
  const progress=!!inlineIdentity||!!connectedId||(c.valid&&last?.saved===c.saved&&recency()&&!staleId);
