@@ -29,19 +29,24 @@ const hex=bytes=>Array.from(bytes,b=>b.toString(16).toUpperCase().padStart(2,'0'
 export function scanMainBinIds(bytes){
  if(!(bytes instanceof Uint8Array))throw TypeError('Uint8Array required');
  const rows=SOURCE_PATTERNS[bytes.length]||[];
- const results=[];
- for(const [checkOffset,checkBytes,idOffset,idLength] of rows){
+ // FormMain.SearchBinFileForPattern shows ONE final BIN ID. Most branches
+ // return at the first match; no additional IDs are collected or ranked.
+ // 56KB branch #1 (offset 50124) writes to the textbox but lacks 'return':
+ // the method always overwrites that text with branch #2/#3 or 'No matching'.
+ const firstIndex=bytes.length===57344?1:0;
+ for(let rowIndex=firstIndex;rowIndex<rows.length;rowIndex++){
+  const [checkOffset,checkBytes,idOffset,idLength]=rows[rowIndex];
   if(!matches(bytes,checkOffset,checkBytes)||!inRange(bytes,idOffset,idLength))continue;
   const id=hex(bytes.subarray(idOffset,idOffset+idLength));
-  if(/^0+$/.test(id)||/^F+$/.test(id))continue; // Uninitialized BIN padding is not an ECU ID.
-  results.push({id,idOffset,markerOffset:checkOffset,bytes:idLength,fullId:idLength===5,
-    source:'FormMain.cs SearchPattern'+Math.round(bytes.length/1024)+'KB'});
+  // Original C# does not discard 000000 / FFFFFF IDs: retain its readout.
+  return [{id,idOffset,markerOffset:checkOffset,bytes:idLength,fullId:idLength===5,
+    source:'FormMain.cs SearchPattern'+Math.round(bytes.length/1024)+'KB'}];
  }
- return results;
+ return [];
 }
 export function findMainEcuPrefixInBin(bytes,ecuId){
  const clean=String(ecuId||'').replace(/\s+/g,'').toUpperCase();
- if(!/^[0-9A-F]{6,10}$/.test(clean))throw Error('ระบุ ECU ID แบบ HEX อย่างน้อย 6 ตัว');
+ if(!/^[0-9A-F]{6,}$/.test(clean))throw Error('ระบุ ECU ID แบบ HEX อย่างน้อย 6 ตัว');
  const prefix=clean.slice(0,6);
  const target=Uint8Array.from(prefix.match(/../g).map(x=>parseInt(x,16)));
  for(let i=0;i<=bytes.length-target.length;i++)if(matches(bytes,i,target))
