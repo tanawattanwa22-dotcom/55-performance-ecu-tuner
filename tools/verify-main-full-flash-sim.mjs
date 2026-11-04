@@ -51,6 +51,8 @@ class MockHonda {
      if(this.failure!=='KH_HANDSHAKE_ONCE'){this.ready=false;this.closed=true}
      throw Error('SIMULATED_FIRST_HANDSHAKE_TIMEOUT');
   }
+  if(this.failure==='KH_HANDSHAKE_ALWAYS'&&label.startsWith('KH_HANDSHAKE_A'))
+   throw Error('SIMULATED_TIMEOUT:'+label);
   if(this.failure===label)throw Error('SIMULATED_TIMEOUT:'+label);
   if(label==='READ_ECU_ID'||label==='RECHECK_ECU_ID')return {reply:identityReply(this.id),echoOK:true};
   if(label==='SH_GET_SEED')return {reply:seedReply(),echoOK:true};
@@ -128,7 +130,7 @@ await check('After reconnect a DIFFERENT ECU is rejected before first erase comm
  assert(events.some(x=>x.phase==='FLASH_STOP'&&x.eraseMayHaveStarted===false));
 });
 await check('Failure before ERASE never reports possible erase',async()=>{
- const {engine,device,events}=setup('0101880D01','KH_HANDSHAKE_A');
+ const {engine,device,events}=setup('0101880D01','KH_HANDSHAKE_ALWAYS');
  await engine.identify();
  const plan=engine.makePlan(new Uint8Array(65536),{filename:'K03-H01.bin'});
  await assert.rejects(engine.flash(plan,{confirmation:'FLASH 0101880D01',
