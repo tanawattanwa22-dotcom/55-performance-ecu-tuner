@@ -622,7 +622,9 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
    [dtcOK,'ตาราง DTC',dtc?(dtc.answered.length+'/6 คำสั่งตอบครบ'+(dtcOK?'':' · ผลยังไม่ครบ')):'ยังไม่ได้รับคำตอบ DTC'],
    [false,'Start Offset / Checksum',st.catalogMatched?
      'ค่าอ้างอิงฐาน: '+off(st.startOffset,st.startOffsetText)+' / '+off(st.checksumOffset,st.checksumOffsetText)+' · ยังไม่เทียบ BIN':
-     'ไม่มีค่า Offset จาก Main.zip สำหรับ ECU ID นี้ · ไม่ยืนยันสำหรับเขียน']
+     binSource.result?.ready?
+     'Auto จาก BIN: Start '+binSource.result.startOffsetHex+' / Checksum '+binSource.result.checksumOffsetHex+' · อ่านไฟล์สำเร็จ แต่ยังไม่ยืนยัน Offset กับ ECU เพื่อเขียน':
+     'ไม่พบ Offset ในฐาน Main 290 และ BIN ยังไม่ให้ค่าครบ · ยังไม่ยืนยันสำหรับเขียน']
   ];
   if(idOK&&!st.catalogMatched){
    const b=binSource.result;
