@@ -23,7 +23,7 @@ export function parseEcuDat(buffer){
     const id=ecuId.toUpperCase();
     if(!/^[0-9A-F]{10}$/.test(id))continue;
     rows.push({ecuId:id,part,model:name,rawStartOffset:start,rawChecksumOffset:cks,startOffset:hexOrNull(start),checksumOffset:hexOrNull(cks),
-      sizeText:size,typeText:type,family:/shind/i.test(type)?'SHINDENGEN':'KEIHIN',source:'ecuData.dat (user file)'});
+      sizeText:size,typeText:type,family:/shind/i.test(type)?'SHINDENGEN':/keihin/i.test(type)?'KEIHIN':'UNVERIFIED',source:'ecuData.dat (user file; no flash authorization)'});
   }
   return rows;
 }
