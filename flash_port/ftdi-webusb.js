@@ -31,6 +31,16 @@ export function stripFtdiStatus(raw,packetSize=64){
 export function hondaChecksum(data){
   return (-Array.from(data).reduce((a,b)=>a+b,0))&255;
 }
+/** Original FormMain.cs SendCommand(): stopwatch limit 50 + 2*commandSize ms.
+ * Starts AFTER FT_Write, FT_SetLatencyTimer(8) and any sleepMs.
+ * WebUSB cannot cancel an in-flight bulk transfer; _readOnce safely closes
+ * the port at this deadline rather than allowing stale USB read overlap.
+ */
+export function formMainSendCommandTimeoutMs(commandSize){
+ if(!Number.isInteger(commandSize)||commandSize<1||commandSize>256)
+  throw RangeError('Invalid source command size');
+ return 50+2*commandSize;
+}
 export function checkedHondaReply(data){
   if(!data||data.length<3||data.length>255)throw Error('Honda reply length is invalid');
   if(data[1]!==data.length)throw Error('Honda reply declared length differs');
@@ -327,8 +337,13 @@ export class Ft232rWebUsb {
     }
     if(!Number.isFinite(afterWriteMs)||afterWriteMs<0||afterWriteMs>5000)
       throw Error('Invalid response delay');
-    const timeout=timeoutMs??Math.min(6000,Math.max(700,200+bytes.length*10));
-    if(!Number.isFinite(timeout)||timeout<80||timeout>15000)throw Error('Invalid response timeout');
+    // FormMain SendCommand waits exactly 50+2*commandSize after TX/latency/sleep.
+    // Do not replace this with per-stage guessed 1700–7000ms in source mode.
+    // Diagnostic and non-source WebUSB clients keep their independent windows.
+    const timeout=mainSourceMode?formMainSendCommandTimeoutMs(bytes.length):
+      (timeoutMs??Math.min(6000,Math.max(700,200+bytes.length*10)));
+    if(!Number.isFinite(timeout)||timeout<(mainSourceMode?52:80)||timeout>15000)
+      throw Error('Invalid response timeout');
     this.exchangeBusy=true;
     // Opt-in source-probe telemetry only. Ordinary Flash/Recovery keeps its
     // existing timing, read/write framing and failure-stop behavior unchanged.
@@ -340,6 +355,9 @@ export class Ft232rWebUsb {
       try{telemetry({phase,...fields})}catch{} // diagnostics cannot interrupt transfers
     };
     try {
+      if(mainSourceMode)trace('SOURCE_TIMEOUT_WINDOW',{
+        formula:'50+2*commandSize',commandSize:bytes.length,
+        sourceTimeoutMs:timeout,previousWebUsbOverrideMs:timeoutMs??null});
       // Original FormMain.SendCommand() does FT_Write, then sets 8ms
       // latency and reads the command echo+reply. It purges AFTER the
       // exchange, never before each command. Preserve that source order
