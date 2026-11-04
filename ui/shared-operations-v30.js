@@ -34,11 +34,11 @@ async function dtc(clear=false){
    (result.cleared?'ส่งคำสั่งลบ 2 ชุดแล้ว • อ่านกลับครบ 6 ตาราง ไม่พบ DTC':
     'ส่งคำสั่งลบ 2 ชุดแล้ว • อ่านกลับยังพบ DTC '+result.rows.length+' รายการ'):
    ('อ่านครบ 6 ชุด • '+(result.rows.length?'พบ '+result.rows.length+' รายการ':'ไม่พบ DTC'));
-  if(clear)clearResult={sent:2,verified:result.cleared,remaining:result.rows.length,error:''};
+  if(clear)clearResult={sent:result.sent,verified:result.cleared,remaining:result.rows.length,error:''};
  }catch(e){
   diag.error=String(e?.message||e);$('dtcMsg').textContent='ทำงานไม่สำเร็จ: '+diag.error;
   $('dtcOut').replaceChildren();
-  if(clear)clearResult={sent:0,verified:false,error:diag.error};
+  if(clear)clearResult={sent:Number(e?.dtcClearSent)||0,verified:false,error:diag.error};
  }finally{
   shared?.release('DTC');
   if(shared?.snapshot&&!shared.snapshot().connected)await shared.restoreCable?.();
