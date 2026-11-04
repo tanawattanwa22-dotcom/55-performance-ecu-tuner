@@ -351,8 +351,8 @@ export class HondaFlashEngine {
   const sourceOffsetProof=csharpOffsetInference(originalBin,{ecuId});
   const sourceKeihinFallback=sourceUnlisted&&family==='KEIHIN'&&
     detected.type==='UNDETERMINED'&&
-    Number.isInteger(sourceOffsetProof.startOffset)&&
-    Number.isInteger(sourceOffsetProof.checksumOffset);
+    Number.isInteger(catalog.startOffset??sourceOffsetProof.startOffset)&&
+    Number.isInteger(catalog.checksumOffset??sourceOffsetProof.checksumOffset);
   if(sourceUnlisted&&detected.type==='UNDETERMINED'&&!sourceKeihinFallback)
     fail('UNLISTED_TYPE_UNKNOWN','ECU นอกฐาน: ยังไม่มีหลักฐาน Signature/Memory Map จาก BIN ตาม Main.zip');
   const profile=detected.type==='UNDETERMINED'?'KEIHINOTHER':detected.type;
@@ -375,7 +375,7 @@ export class HondaFlashEngine {
   const keihinChecksumOffset=useManualChecksum
     ?checksumOffsetOverride:(catalog.checksumOffset??suggested.checksumOffset);
   if(family==='KEIHIN'&&!Number.isInteger(keihinChecksumOffset))
-   fail('RECOVERY_NO_CHECKSUM_MAP','Main C# ไม่ได้ระบุ Checksum Offset กรุณายืนยันเลข HEX ก่อน');
+   fail('RECOVERY_NO_CHECKSUM_MAP','Main C# / ecuData.dat ไม่มี Checksum Offset และตรวจไม่ได้จาก BIN');
   const corrected=family==='KEIHIN'
      ?correctKeihinChecksum(originalBin,keihinChecksumOffset)
      :correctShindengenChecksum(originalBin);
