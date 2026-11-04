@@ -51,7 +51,7 @@ for(const fragment of ['engine.identify()','engine.makePlan(data','engine.flash(
  assert(p.includes(fragment)&&(old.includes(fragment)||(fragment==='engine.identify()'&&old.includes('engine.identify({programmingPreflight:true})'))),'same original bench flash step: '+fragment);
 }
 // Compare both Flash pages to each other instead of a stale hard-coded v366.
-const engineRevision=text=>text.match(/from ['"][^'"]*honda-write-engine\\.js\\?v=(\\d+)['"]/)?.[1]||null;
+const engineRevision=text=>text.match(/from ['"][^'"]*honda-write-engine\.js\?v=(\d+)['"]/)?.[1]||null;
 const currentOfflineEngine=engineRevision(p),currentOnlineEngine=engineRevision(old);
 assert(currentOfflineEngine&&currentOfflineEngine===currentOnlineEngine,
   'offline and online must import the same current C# source Flash Engine version');
