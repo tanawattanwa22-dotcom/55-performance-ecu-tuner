@@ -53,4 +53,23 @@ assert.equal(decoded[0].family,'UNVERIFIED','Unknown DAT type must not silently 
 const noBin=await auditMainShindengenDryRun(null,{ecuId:ecu,probe:r2,datRows:decoded});
 assert.equal(noBin.flashApproved,false);assert(noBin.blockers.length);
 assert.equal((await auditMainShindengenDryRun(new Uint8Array(393216),{ecuId:ecu,probe:r2})).flashApproved,false);
-console.log('PASS source read-only HELLO, ECU ID, count 7D->7B after reopen, no false ACK/Flash and DAT unknown family');
+// Same source-inspired synthetic 384KB BIN as the existing Shindengen
+// checksum tests. This is NOT a captured BIN from a motorcycle.
+const firmware=new Uint8Array(393216).fill(0xff);
+firmware.set([0x5a,0x5a,0x5a,0x5a],firmware.length-4);
+firmware.set([17,18,19,20,21,21,23],0x100);
+firmware.set([0xd0,0x07],0x180);
+firmware.set([83,72,56,53,48],0x1000);
+firmware.set([165,165,165,165,0],0xa000);
+const orig=firmware.slice();
+const dry=await auditMainShindengenDryRun(firmware,{ecuId:ecu,probe:r2,datRows:decoded});
+assert.equal(dry.flashApproved,false,'dry run must never enable ECU writing');
+assert.equal(dry.preview.startOffset,0xa000);
+assert.equal(dry.preview.checksumOffset,0x17c);
+assert.equal(dry.frameAudit.profile,'SHINDENGENRH850B');
+assert(dry.frameAudit.frames>1000);
+assert.match(dry.binSHA256,/^[0-9a-f]{64}$/);
+assert.match(dry.correctedSHA256,/^[0-9a-f]{64}$/);
+assert.deepEqual(firmware,orig,'dry-run must never mutate selected BIN');
+assert(dry.warnings.some(w=>w.includes('DAT')));
+console.log('PASS source read-only HELLO/ID/count, WebUSB recovery, unknown DAT type and full 384KB frame/checksum dry-run');
