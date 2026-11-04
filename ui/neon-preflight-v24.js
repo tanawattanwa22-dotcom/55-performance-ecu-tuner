@@ -75,12 +75,12 @@ function card(cls,icon,title){
 }
 function addChecklist(box){
  const list=make('div','n24-check-list');const checks=[
-  ['bin','BIN ที่บันทึกยังตรงกับตารางและรุ่น'],
-  ['id','อ่าน ECU ID จากกล่องจริง'],
-  ['catalog','ฐาน Main 290 (ข้อมูลอ้างอิง ไม่ใช่เงื่อนไข Flash)'],
-  ['family','ยืนยัน Family จากเซสชัน ECU จริง'],
-  ['offset','ตรวจ Memory Map / Offset / Checksum'],
-  ['hardware','ตรวจไฟเลี้ยง สาย K-Line และวงจรกู้คืนด้วยตนเอง']
+  ['bin','ตรวจไฟล์ที่เลือกกับข้อมูลที่บันทึก'],
+  ['id','อ่าน ECU ID จากรถจริง'],
+  ['catalog','ตรวจข้อมูลรุ่นกล่องเพิ่มเติม'],
+  ['family','ตรวจประเภทกล่องจาก ECU จริง'],
+  ['offset','ตรวจ Start Offset และ Checksum'],
+  ['hardware','ตรวจสายและไฟเลี้ยงรถก่อนเขียน']
  ];
  for(const [id,label] of checks){
   const row=make('div','n24-check-row');
@@ -117,7 +117,7 @@ function render(){
   !INLINEFLASH.busy&&!INLINEFLASH.postCheck;
  const progress=!!inlineIdentity||!!connectedId||(c.valid&&last?.saved===c.saved&&recency()&&!staleId);
  setItem('model',quick?'อ่านรุ่นจาก ECU จริงอัตโนมัติ':c.model||'ยังไม่เลือกรุ่น');
- setItem('dbcount',catalog290.rows?'290 รายการ · KEIHIN 232 / SHINDENGEN 58':catalog290.error?'โหลดฐาน ECU ไม่สำเร็จ: '+catalog290.error:'กำลังโหลดฐาน ECU 290 รายการ');
+ setItem('dbcount',catalog290.rows?'ฐานข้อมูลรุ่นพร้อมใช้งาน':catalog290.error?'ข้อมูลรุ่นเสริมไม่พร้อม':'กำลังโหลดข้อมูลรุ่น');
  setItem('filename',quick?quick.filename:c.valid?c.saved.filename:'ยังไม่ได้เลือก BIN');
  setItem('source',quick?'BIN ที่เลือกจากโทรศัพท์':c.valid?(c.saved.customerBin?'BIN ที่นำเข้าจากเครื่อง':'Master BIN (จากแอป)'):'—');
  setItem('size',quick?quick.bytes.length.toLocaleString('en-US')+' bytes ('+(quick.bytes.length/1024).toFixed(2)+' KB)':c.valid?c.bytes.length.toLocaleString('en-US')+' bytes ('+(c.bytes.length/1024).toFixed(2)+' KB)':'—');
@@ -319,12 +319,12 @@ function startFlash(){
 function mount(host){
  stage=host;stage.classList.add('n24-preflight-stage');stage.replaceChildren();dom={};
  const head=make('section','n24-hero');
- head.append(make('div','n24-headline','อัดไฟล์ ECU'),make('p','','FLASH ECU / PREFLIGHT'));
- head.append(make('small','','ตรวจสอบความพร้อมของ BIN และกล่องจริงก่อนอัด โดยไม่ใช้ข้อมูลจำลอง'));stage.append(head);
+ head.append(make('div','n24-headline','FAST FLASH'),make('p','','ตรวจ ECU และไฟล์อัตโนมัติ'));
+ head.append(make('small','','เลือกไฟล์ ตรวจ ECU ID และความพร้อมก่อนเริ่มเขียนจริง'));stage.append(head);
  const choose=make('div','n24-model');
  choose.append(make('span','','รุ่นที่เลือก'));const model=make('strong','','—');dom.model=model;choose.append(model);
  choose.append(btn('เปลี่ยนรุ่น ›','n24-model-change',()=>window.__55NeonNavigate?.('library')));stage.append(choose);
- const easy=card('n24-easy','⚡','อัดไฟล์ ECU แบบง่าย');
+ const easy=card('n24-easy','⚡','อัดไฟล์ ECU');
  const uploadLabel=make('label','n24-upload-label','1. เลือก BIN ที่จูนเสร็จแล้ว');
  uploadLabel.htmlFor='n24QuickBin';
  const upload=make('input','n24-file-input');upload.type='file';upload.id='n24QuickBin';upload.accept='.bin,.rom,application/octet-stream';
@@ -411,8 +411,12 @@ function mount(host){
   a.style.cssText='display:inline-flex;align-items:center;justify-content:center;text-decoration:none;min-height:42px;background:#263547;border:1px solid #56748e';
   routes.append(a);
  }
- stage.append(routes);
- const help=make('p','n24-help','ฐาน Main.zip มี 290 ECU ID: Keihin 232 + Shindengen 58 (2 ID ไม่มี Part Code ต้นฉบับ) • การแสดง ID/Offset เป็นข้อมูลอ้างอิง ไม่ได้ยืนยันว่า BIN ตรงกับกล่อง • การอ่านและ Preflight ไม่ลบ/เขียน ECU');
+ if(!$('retailPreflightTools')){
+  routes.id='retailPreflightTools';
+  // Emergency links stay available in the locked Main Tools card only.
+  $('mainSourceDetails')?.append(routes);
+ }
+ const help=make('p','n24-help','แสดงค่า ECU ID, ประเภทกล่อง, Offset และ Checksum จากข้อมูลที่ตรวจได้ · ข้อมูลอ้างอิงยังไม่ใช่การยืนยันว่าไฟล์ตรงกล่อง • การตรวจสอบไม่ส่งคำสั่งลบหรือเขียน');
  stage.append(help);
  render();
  void previewBinOffset();
