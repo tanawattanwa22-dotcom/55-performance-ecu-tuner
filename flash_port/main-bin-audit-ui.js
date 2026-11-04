@@ -1,4 +1,4 @@
-import {auditMainBin} from './main-bin-audit.js?v=3';
+import {auditMainBin} from './main-bin-audit.js?v=4';
 const $=id=>document.getElementById(id);
 let file=null,output=null;
 const message=s=>{$('message').textContent=s};
@@ -8,7 +8,7 @@ const draw=out=>{
  'ขนาด: '+out.size.toLocaleString('en-US')+' bytes ('+(out.size/1024).toFixed(1)+' KB)',
  'ขนาดที่โปรแกรม Main C# มีตัวค้นหา: '+(out.supportedSourceSize?'รองรับ':'ไม่มี SearchPattern สำหรับขนาดนี้'),
  'BIN Signature: '+(out.type.type||'UNDETERMINED'),
- 'ผลค้น BIN ID ตามต้นฉบับ: '+(out.scannedIds[0]?.id||'ไม่พบ'),
+ 'ผลอ่าน BIN ID ตามหน้าต่าง Main: '+out.sourceBinIdText,
  'Sum8Bit: 0x'+out.sums.sum8.toString(16).toUpperCase().padStart(2,'0'),
  'Sum32Bit (LE): 0x'+out.sums.sum32.toString(16).toUpperCase().padStart(8,'0'),
  'Honda checksum if used as packet: 0x'+out.sums.checksum8Honda.toString(16).toUpperCase().padStart(2,'0'),
