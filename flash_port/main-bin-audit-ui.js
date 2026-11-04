@@ -1,4 +1,4 @@
-import {auditMainBin} from './main-bin-audit.js?v=2';
+import {auditMainBin} from './main-bin-audit.js?v=3';
 const $=id=>document.getElementById(id);
 let file=null,output=null;
 const message=s=>{$('message').textContent=s};
@@ -8,7 +8,7 @@ const draw=out=>{
  'ขนาด: '+out.size.toLocaleString('en-US')+' bytes ('+(out.size/1024).toFixed(1)+' KB)',
  'ขนาดที่โปรแกรม Main C# มีตัวค้นหา: '+(out.supportedSourceSize?'รองรับ':'ไม่มี SearchPattern สำหรับขนาดนี้'),
  'BIN Signature: '+(out.type.type||'UNDETERMINED'),
- 'จำนวน Candidate ECU ID ใน BIN: '+out.scannedIds.length,
+ 'ผลค้น BIN ID ตามต้นฉบับ: '+(out.scannedIds[0]?.id||'ไม่พบ'),
  'Sum8Bit: 0x'+out.sums.sum8.toString(16).toUpperCase().padStart(2,'0'),
  'Sum32Bit (LE): 0x'+out.sums.sum32.toString(16).toUpperCase().padStart(8,'0'),
  'Honda checksum if used as packet: 0x'+out.sums.checksum8Honda.toString(16).toUpperCase().padStart(2,'0'),
@@ -19,7 +19,7 @@ const draw=out=>{
  $('summary').textContent=lines.join('\n');
  const rows=out.scannedIds;
  const host=$('matched');host.replaceChildren();
- if(!rows.length){const p=document.createElement('p');p.className='muted';p.textContent='ไม่พบ Pattern ตามตำแหน่งใน C# (ไม่แปลว่าไฟล์ผิด)';host.append(p);return}
+ if(!rows.length){const p=document.createElement('p');p.className='muted';p.textContent='ไม่พบรหัส BIN ตามเงื่อนไขที่โปรแกรมต้นฉบับใช้';host.append(p);return}
  const table=document.createElement('table'),h=document.createElement('tr');
  for(const t of ['รหัสใน BIN','ออฟเซ็ต','Part Code / ข้อจำกัด']){const e=document.createElement('th');e.textContent=t;h.append(e)}
  table.append(h);
