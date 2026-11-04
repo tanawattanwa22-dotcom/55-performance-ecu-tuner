@@ -10,8 +10,10 @@ import {csharpOffsetInference} from '../flash_port/csharp-offsets.js?v=317';
 import {probeMainProgrammingSession,countDisplay} from '../flash_port/main-programming-probe.js?v=4';
 import {auditMainShindengenDryRun} from '../flash_port/main-source-dry-run.js?v=1';
 import {readEcuDat} from '../flash_port/ecu-dat-editor.js?v=1';
+import {saveMainDatReference,readMainDatReference} from '../flash_port/main-dat-reference.js?v=1';
 let programmingProbeResult=null,programmingProbeRuns=[],programmingProbeBusy=false;
-let ecuDatRows=[],ecuDatName='',dryRunReport=null;
+const previouslyImportedDat=readMainDatReference();
+let ecuDatRows=previouslyImportedDat.rows,ecuDatName=previouslyImportedDat.filename,dryRunReport=null;
 let cachedBinEvidence=null;
 let scanPreviewBin=null; // Local read-only preview only.
 function autoBinEvidence(id){
@@ -483,9 +485,10 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
   try{
    if(file.size>2_000_000)throw Error('ฐานข้อมูลใหญ่เกิน 2MB');
    const rows=readEcuDat(await file.arrayBuffer());
+   saveMainDatReference(rows,file.name);
    ecuDatRows=rows;ecuDatName=file.name;
    const match=rows.filter(x=>x.ecuId===reader.status().ecuId);
-   probeInfo.textContent='นำเข้า '+file.name+' '+rows.length+' รายการ · ข้อมูลอ้างอิงเท่านั้น'+
+   probeInfo.textContent='บันทึกฐาน '+file.name+' '+rows.length+' รายการไว้ใช้ตรวจ ECU ครั้งถัดไปแล้ว · ข้อมูลอ้างอิงเท่านั้น'+
     '\nรหัสกล่องตรงใน DAT: '+match.length+
     (match.length===1?'\nPart: '+match[0].part+' · '+match[0].model+
      ' · Offset: '+match[0].startOffset+' / '+match[0].checksumOffset:'')+
