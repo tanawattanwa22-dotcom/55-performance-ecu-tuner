@@ -30,8 +30,14 @@ export async function clearSharedDtc(port,wait=ms=>new Promise(r=>setTimeout(r,m
  await port.sourceDiagnosticWake('dtc');
  // FM_dtc.method_107 sends bank 3 then bank 1; no bank 2 command.
  // No clear ACK is checked by FM_dtc.method_107; method_110 later reads six DTC banks.
- for(const frame of [MAIN_DTC_CLEAR_SOURCE.clearFirst,MAIN_DTC_CLEAR_SOURCE.clearSecond]){
-  await port.exchangeRaw(frame,{expectReply:false,afterWriteMs:50});
+ const clearFrames=[MAIN_DTC_CLEAR_SOURCE.clearFirst,MAIN_DTC_CLEAR_SOURCE.clearSecond];
+ if(typeof port.sendMainDtcClearFrames==='function'){
+  // The C# clear method writes both commands before reading any data.
+  await port.sendMainDtcClearFrames(clearFrames);
+ }else{
+  // In-memory source mocks retain the exact two frames and 50ms intervals.
+  for(const frame of clearFrames)
+   await port.exchangeRaw(frame,{expectReply:false,afterWriteMs:50});
  }
  await wait(1000);
  const result=await readSharedDtc(port);
