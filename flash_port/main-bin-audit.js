@@ -98,7 +98,7 @@ export function validateMainPacketChecksum(bytes){
  return {ok:expected===bytes[bytes.length-1],expected,actual:bytes[bytes.length-1]};
 }
 export async function auditMainBin(bytes,{fileName='',claimedEcuId=''}={}){
- if(!(bytes instanceof Uint8Array)||!bytes.length)throw Error('BIN not loaded');
+ if(!(bytes instanceof Uint8Array))throw Error('BIN not loaded'); // Main File.ReadAllBytes also opens a zero-byte file.
  const catalog=await loadCSharpCatalog();
  const matchesInBin=scanMainBinIds(bytes);
  const enriched=matchesInBin.map(m=>({...m,catalog: m.fullId?(catalog.get(m.id)||null):null}));
