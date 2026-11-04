@@ -155,7 +155,8 @@ assert.equal(echoed.echoOK,true);
 assert.deepEqual(echoed.reply,helloAck);
 assert(events.some(x=>x.phase==='USB_OUT_OK'));
 assert(events.some(x=>x.phase==='USB_IN_CHUNK'&&x.uartBytes>0));
-assert(events.some(x=>x.phase==='SOURCE_ECHO_OK'));
+assert(events.some(x=>x.phase==='SOURCE_ECHO_OBSERVED'&&x.echoMatches===true),
+ 'FTDI echo is reported as observed; source mode must not infer C# echo validation');
 assert(events.some(x=>x.phase==='SOURCE_REPLY_OK'));
 const realFourByteTransport=ftdiMock([hello.slice(0,2),
  [...hello.slice(2),...pcx160Hello]]);
