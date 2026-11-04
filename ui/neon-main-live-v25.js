@@ -2,7 +2,7 @@
  * Main FM_diag.cs reader is the sole source of real-time sensor values.
  * The legacy ADX/DEMO live engine is never called by this bridge.
  */
-import {MainLiveSession} from '../flash_port/main-live-session.js?v=351';
+import {MainLiveSession} from '../flash_port/main-live-session.js?v=367';
 import {resolveMainAutoMetadata} from '../flash_port/main-auto-metadata.js?v=352';
 import {localKtrCandidates} from '../flash_port/ecu-id-lookup.js?v=355';
 import {previewMainShindengenBin} from '../flash_port/main-shindengen-auto-preview.js?v=1';
@@ -273,8 +273,11 @@ window.__55AutoEcu={
   if(reader.running&&page==='live')return true;
   // Avoid needlessly re-running the source programming probe on every menu
   // switch. New cable connect and explicit Rescan still force a new physical ID.
-  const recent=st.autoComplete&&st.ecuId&&st.sourceProbe&&
-   Date.now()-autoScannedAt<45000;
+  // The phone can keep FT232R plugged in while the motorcycle is swapped.
+  // Re-identify every time Flash or DTC is entered; a recent cached UI
+  // snapshot is not proof that the SAME physical ECU is still attached.
+  const recent=page==='live'&&st.autoComplete&&st.ecuId&&st.sourceProbe&&
+   Date.now()-autoScannedAt<5000;
   const run=async()=>{
    if(!recent||force){
     const done=await reader.rescanWithProgramming();
@@ -521,6 +524,7 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
   // It never looks at the selected BIN and does not send a USB command.
   const selected=autoBinEvidence(st.ecuId);
   const k=[st.connected,st.ecuId,st.catalogMatched,st.part,st.catalogFamily,
+   st.readOnlyObservation?.liveGroup,st.readOnlyObservation?.family,
    st.startOffset,st.checksumOffset,st.startOffsetText,st.checksumOffsetText,selected.key,
    st.sourceProbe?.finishedAt||programmingProbeResult?.finishedAt||''].join('|');
   if(lastDetectedKey===k)return;
@@ -540,6 +544,12 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
    ['Start Offset',data.startOffset],
    ['Checksum Offset',data.checksumOffset]
   ];
+  // Local learning changes probe order only; never classify an unseen ECU
+  // or supply a flash profile based on stored data.
+  if(st.readOnlyObservation?.liveGroup){
+   items.push(['Live Group ที่เคยอ่านได้',
+    'Group '+st.readOnlyObservation.liveGroup+' · รหัส ECU เดียวกัน (ยังต้องตรวจซ้ำ)']);
+  }
   if(data.ecuId&&!st.catalogMatched){
    const b=selected.result;
    items.push(['Auto Start จาก BIN (Main.zip)',b?.startOffsetHex||'รอเลือก BIN / ยังไม่พบ']);
@@ -662,6 +672,7 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
    dtcError:st.dtcError||null,
    catalogMatched:st.catalogMatched,
    familyFromMain:st.catalogFamily||null,
+   learnedReadOnlyProbeOrder:st.readOnlyObservation||null,
    sourceProgrammingProbe:st.sourceProbe||programmingProbeResult,
    sourceProgrammingRounds:programmingProbeRuns.length,
    familyFromAck:sourceProbe?.countState==='CONFIRMED'?sourceProbe.family:null,
