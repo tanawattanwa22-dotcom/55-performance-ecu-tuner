@@ -6,7 +6,7 @@
  */
 import assert from 'node:assert/strict';
 import {readBinId,findEcmIdInBin} from '../flash_port/bin-tools.js';
-import {scanMainBinIds,findMainEcuPrefixInBin,SOURCE_SIZES} from '../flash_port/main-bin-audit.js';
+import {scanMainBinIds,findMainEcuPrefixInBin,sourceMainBinIdText,SOURCE_SIZES} from '../flash_port/main-bin-audit.js';
 
 // C# source: (file size, 4-byte marker offset, marker, BIN ID offset, ID length).
 const CASES=[
@@ -37,6 +37,8 @@ for(const [size,markerAt,marker,idAt,length] of CASES){
  assert.equal(port.ok,true,'readBinId positive '+size);
  assert.equal(port.id,h(id),'readBinId value '+size);
  assert.equal(port.at,idAt,'readBinId offset '+size);
+ assert.equal(sourceMainBinIdText(bytes),h(id).match(/../g).join(' '),
+  'FormMain binid.Text renders spaced HEX '+size);
  const noMarker=new Uint8Array(size).fill(0x4E);
  assert.equal(scanMainBinIds(noMarker).length,0,'no valid marker '+size);
  assert.equal(readBinId(noMarker).ok,false,'no valid marker at source offsets '+size);
@@ -50,6 +52,16 @@ first56.set([0,0,0,0],50120);
 first56.set([1,2,3,4,5],50124);
 assert.equal(scanMainBinIds(first56).length,0,'source 56KB first candidate overwritten');
 assert.equal(readBinId(first56).ok,false,'visible 56KB source output is no match');
+assert.equal(sourceMainBinIdText(first56),'No matching pattern found in the 56 KB file.');
+assert.equal(sourceMainBinIdText(new Uint8Array(147)),'-',
+ 'unknown size does not have a FormMain SearchPattern branch');
+for(const [size,expected] of [
+ [32768,'No matching pattern found in the 48 KB file.'],
+ [98304,'No matching pattern found in the 64 KB file.'],
+ [131072,'No matching pattern found in the 64 KB file.']
+]){
+ assert.equal(sourceMainBinIdText(new Uint8Array(size).fill(0x4E)),expected);
+}
 first56.set([255,0,0,0],31870);
 first56.set([9,8,7,6,5],31874);
 assert.equal(scanMainBinIds(first56)[0].id,'0908070605');
@@ -75,6 +87,8 @@ assert.equal(readSource.offset,31);
 assert.equal(readPort.ok,true);
 assert.equal(readPort.index,31);
 assert.equal(readPort.found,'AABBCC');
+assert.throws(()=>findMainEcuPrefixInBin(raw,'AA BBCC1234'),
+ /อย่างน้อย 6 ตัว/,'C# textbox requires consecutive HEX characters');
 assert.equal(scanMainBinIds(new Uint8Array(147).fill(0x4E)).length,0,
  'Original Button1_Click can open unsupported file sizes without a BIN ID locator');
 
