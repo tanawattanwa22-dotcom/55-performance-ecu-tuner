@@ -28,18 +28,29 @@ export async function readSharedDtc(port){
 }
 export async function clearSharedDtc(port,wait=ms=>new Promise(r=>setTimeout(r,ms))){
  await port.sourceDiagnosticWake('dtc');
- // FM_dtc.method_107 sends bank 3 then bank 1; no bank 2 command.
- // No clear ACK is checked by FM_dtc.method_107; method_110 later reads six DTC banks.
+ // FM_dtc.method_107 sends bank 3 and bank 1 only, with no ACK read.
+ // A failed post-clear DTC read must NOT erase evidence that both TX occurred.
  const clearFrames=[MAIN_DTC_CLEAR_SOURCE.clearFirst,MAIN_DTC_CLEAR_SOURCE.clearSecond];
- if(typeof port.sendMainDtcClearFrames==='function'){
-  // The C# clear method writes both commands before reading any data.
-  await port.sendMainDtcClearFrames(clearFrames);
- }else{
-  // In-memory source mocks retain the exact two frames and 50ms intervals.
-  for(const frame of clearFrames)
-   await port.exchangeRaw(frame,{expectReply:false,afterWriteMs:50});
+ let sent=0;
+ try{
+  if(typeof port.sendMainDtcClearFrames==='function'){
+   const outcome=await port.sendMainDtcClearFrames(clearFrames);
+   sent=outcome.sent;
+  }else{
+   // Fake test ports preserve the source order and 50ms intervals.
+   for(const frame of clearFrames){
+    await port.exchangeRaw(frame,{expectReply:false,afterWriteMs:50});
+    sent++;
+   }
+  }
+  if(sent!==2)throw Error('FM_dtc source clear transmitted only '+sent+' of 2 commands');
+  await wait(1000);
+  const result=await readSharedDtc(port);
+  return {...result,sent,cleared:result.rows.length===0};
+ }catch(error){
+  if(error&&typeof error==='object'){
+   error.dtcClearSent=Math.max(sent,Number(error.dtcClearSent)||0);
+  }
+  throw error;
  }
- await wait(1000);
- const result=await readSharedDtc(port);
- return {...result,cleared:result.rows.length===0};
 }
