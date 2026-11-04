@@ -1,0 +1,32 @@
+<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>55 PERFORMANCE D2XX / WebUSB</title>
+<style>:root{color-scheme:dark}*{box-sizing:border-box}body{background:#10151d;color:#eef3fd;font:15px system-ui;margin:0;padding:16px}main{max-width:760px;margin:auto}h1{color:#ffaf69;font-size:23px}section{background:#202c3a;border:1px solid #374b60;border-radius:14px;padding:15px;margin:14px 0}button{background:#ffaf69;color:#122130;border:0;border-radius:8px;font:700 15px system-ui;padding:12px;margin:4px}button:disabled{opacity:.5}.sub{background:#314c64;color:white}a{color:#92d7ff}pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.55}.good{color:#94e9be}.bad{color:#ffb1a5}</style></head><body><main>
+<h1>55 PERFORMANCE · D2XX → WebUSB Driver Check</h1>
+<p>แปลงคำสั่งจาก Windows FTD2XX_NET.dll บางส่วนเป็น JavaScript สำหรับ FT232R โดยใช้ WebUSB จริง <strong>ไม่สามารถโหลด DLL ลง HTML และไม่ใช่ตัวจำลอง ECU</strong></p>
+<section><p>ถอดสายด้าน ECU และปิดแท็บที่ใช้ FTDI อยู่ก่อนตรวจ หน้านี้ <strong>ไม่ส่ง WAKE / ECU ID / ERASE / WRITE</strong></p>
+<p id="status" role="status">ยังไม่เชื่อมต่อ</p>
+<button id="pick">1 · เลือก FT232R</button><button id="check" disabled>2 · ตรวจ D2XX USB</button><button class="sub" id="disconnect">ตัดสาย</button><button class="sub" id="copy">คัดลอกผล</button>
+<pre id="log"></pre></section>
+<section><h2>รายละเอียดความเข้ากัน</h2><pre id="coverage"></pre>
+<p>FT_GetQueueStatus และ FT_Read ของ Windows D2XX ไม่สามารถใช้แบบเดิมในเบราว์เซอร์ ต้องใช้การอ่าน Echo/ACK ของ WebUSB ที่มีอยู่ในโปรแกรมแทน ผลตรวจ USB ผ่าน <strong>ไม่ได้แปลว่าแฟลช ECU ได้แล้ว</strong></p>
+<p><a href="../index.html">กลับหน้าหลัก</a> · <a href="usb-cable-diagnostic.html">ตรวจสิทธิ์ USB อย่างเดียว</a></p></section>
+<script type="module">
+import {D2xxWebUsbBridge,D2XX_COVERAGE} from './ftdi-d2xx-webusb-bridge.js';
+const e=id=>document.getElementById(id);let bridge=null,busy=false,logs=[];
+function log(s){logs.push(new Date().toISOString()+' '+s);e('log').textContent=logs.join('\n')}
+function state(s,good){e('status').textContent=s;e('status').className=good===true?'good':good===false?'bad':''}
+function toggle(b){busy=b;e('pick').disabled=b||!!bridge?.connected;e('check').disabled=b||!bridge?.connected;e('disconnect').disabled=b}
+e('coverage').textContent='รองรับ: '+D2XX_COVERAGE.mapped.join(', ')+'\n\nเฉพาะเมื่ออนุญาต TX: '+D2XX_COVERAGE.conditional.join(', ')+'\n\nยังใช้แทนตรง ๆ ไม่ได้: '+D2XX_COVERAGE.unsupported.join(', ');
+log('WebUSB='+!!navigator.usb+' HTTPS='+!!isSecureContext+' FT232R=0403:6001');
+if(!navigator.usb||!isSecureContext){state('ต้องใช้ Chrome ที่รองรับ WebUSB ผ่าน HTTPS',false);e('pick').disabled=true}
+e('pick').onclick=async()=>{if(busy)return;toggle(true);try{
+ bridge=D2xxWebUsbBridge.newCable(msg=>log(msg));log('Request FT232R USB');
+ log(JSON.stringify(await bridge.FT_Open()));state('USB เชื่อมต่อแล้ว · ยังไม่ได้อ่าน ECU',true)
+}catch(ex){state('เปิด FT232R ไม่สำเร็จ: '+ex.message,false);log(ex.name+': '+ex.message);try{await bridge?.FT_Close()}catch{}bridge=null}finally{toggle(false)}};
+e('check').onclick=async()=>{if(busy||!bridge?.connected)return;toggle(true);try{
+ log('Start USB controller-only D2XX audit');log(JSON.stringify(await bridge.auditConfiguration()));
+ state('ผ่าน: FT232R รับคำสั่ง USB Controller · ยังไม่พิสูจน์ ECU',true)
+}catch(ex){state('ตรวจไม่ผ่าน: '+ex.message,false);log(ex.name+': '+ex.message)}finally{toggle(false)}};
+e('disconnect').onclick=async()=>{if(busy)return;toggle(true);try{await bridge?.FT_Close();bridge=null;log('USB closed');state('ตัดสายแล้ว',null)}catch(ex){log(ex.message);state('ปิดสายไม่สำเร็จ',false)}finally{toggle(false)}};
+e('copy').onclick=async()=>{try{await navigator.clipboard.writeText(logs.join('\n'));log('Copied')}catch(ex){log('Copy failed: '+ex.message)}};
+window.addEventListener('pagehide',()=>{if(bridge?.connected)void bridge.FT_Close().catch(()=>{})});
+</script></main></body></html>
