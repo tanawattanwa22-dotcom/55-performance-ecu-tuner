@@ -52,6 +52,35 @@
    frame.src=new URL(path,location.href).href;
    if(!workspace.open)workspace.showModal();
   });
+  // Always offer a visible back action for fullscreen Tune / Live / DTC /
+  // RPM-axis pages. The Neon home categories have their own header Back.
+  const backButton=document.createElement('button');
+  backButton.id='retailGlobalBack';
+  backButton.type='button';
+  backButton.textContent='← ย้อนกลับ';
+  backButton.setAttribute('aria-label','ย้อนกลับไปหน้าก่อนหน้า');
+  backButton.hidden=true;
+  document.body.append(backButton);
+  const syncBack=()=>{
+   const current=document.querySelector('.page.on')?.id;
+   backButton.hidden=!!$('licenseGate')||
+    !['tune','live','rpmAxisPage'].includes(current);
+  };
+  backButton.addEventListener('click',()=>{
+   if(workspace.open){close();return}
+   if(history.state?.p==='live'||history.state?.p==='tune'||
+      history.state?.p==='rpm-axis')history.back();
+   else if(window.__55NeonNavigate)window.__55NeonNavigate('dashboard');
+  });
+  for(const id of ['home','tune','live','rpmAxisPage']){
+   const page=$(id);
+   if(page)new MutationObserver(syncBack).observe(page,{
+    attributes:true,attributeFilter:['class']
+   });
+  }
+  window.addEventListener('popstate',syncBack);
+  document.addEventListener('55:advanced-admin-granted',syncBack);
+  syncBack();
   // Secondary Main tools and read-only probes remain in the page DOM, but
   // are removed from all ordinary customer screens via the retail CSS.
   const settings=$('n20Stage');
