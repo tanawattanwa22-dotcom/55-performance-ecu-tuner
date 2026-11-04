@@ -129,9 +129,15 @@ function retailReadout(){
  const verifiedPlan=!!activePlan&&!!physicalId&&proof?.family===activePlan.profile.replace(/(?:RH850B|RH850|V850|OTHER|M32R|H8C)$/,'');
  const readyText=!portReady?'รอเชื่อมต่อรถ':!physicalId?'กำลังตรวจ ECU ID':
   !hasFile?'รอเลือกไฟล์':'ตรวจข้อมูลกล่องและไฟล์ก่อนแฟลช';
+ const dtcResult=status.dtcSnapshot?.ecuId===physicalId?status.dtcSnapshot:null;
+ const dtcText=dtcResult?.success?
+  (Number.isInteger(dtcResult.missing)&&dtcResult.missing>0?'ได้ผลอ่านบางส่วน':'ตรวจรหัสได้แล้ว'):
+  'รออ่านจากเมนู DTC';
+ const liveText=status.liveGroupVerified?'ตรวจพบข้อมูลจาก ECU':'รอเปิด Live Data';
  return {physicalId:physicalId||'รออ่านจากรถ',
   family,part:physicalId?(status.part||'ไม่พบในฐานอ้างอิง'):'—',
   start:fmtSourceHex(start),checksum:fmtSourceHex(ck),
+  dtc:dtcText,live:liveText,
   ready:readyText,verifiedPlan,
   connection:portReady?'เชื่อมต่อสายแล้ว':'ยังไม่เชื่อมต่อ',
   sourceLabel:activePlan?'จากแผนไฟล์ที่ตรวจแล้ว':'ข้อมูลเบื้องต้นจากฐานอ้างอิง/ไฟล์'};
@@ -148,6 +154,8 @@ function buildRetailStatusCard(){
    ['part','รหัสอะไหล่ ECU',false],
    ['start','Start Offset',false],
    ['checksum','Checksum Offset',false],
+   ['dtc','สถานะ DTC',false],
+   ['live','สถานะ Live Data',false],
    ['connection','การเชื่อมต่อ',false],
    ['ready','ความพร้อมก่อนแฟลช',false]
  ]){
@@ -165,7 +173,7 @@ function buildRetailStatusCard(){
 }
 function updateRetailStatus(){
  const values=retailReadout();
- for(const key of ['physicalId','family','part','start','checksum','connection','ready']){
+ for(const key of ['physicalId','family','part','start','checksum','dtc','live','connection','ready']){
   const el=$('retailStat'+key);
   if(el)el.textContent=values[key];
  }
