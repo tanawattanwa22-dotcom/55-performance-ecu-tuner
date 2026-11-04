@@ -549,7 +549,14 @@ const toolLinks=[
 ];
 function links(items){
  const box=mk('div','n20-tool-links');
- for(const [name,url] of items){const a=mk('a','',name);a.href=url;a.target='_blank';a.rel='noopener noreferrer';box.append(a)}
+ for(const [name,url] of items){
+  const a=mk('button','n20-tool-launch',name);
+  a.type='button';
+  a.addEventListener('click',()=>{
+   window.__55AdvancedGate?.openTool(url);
+  });
+  box.append(a);
+ }
  stage.append(box);
 }
 function toolsStage(){
@@ -576,7 +583,11 @@ function settingsStage(){
  info.append(mk('p','','55 PERFORMANCE ECU TUNER · Neon UI v20 · Chrome Android / WebUSB'));
  info.append(mk('p','','ปรับเฉพาะหน้าตาและเมนู ระบบ BIN, Flash Engine, ECU ID, Offset, DTC และ License ทำงานจากโค้ดเดิม'));
  stage.append(info);
- links([['📄 บันทึก Flash','flash_port/flash-audit.html'],['📑 ทดสอบโปรโตคอล','flash_port/protocol-tests.html']]);
+ const service=mk('div','n20-panel');
+ service.append(mk('b','','🔒 สำหรับไลเซนส์ระดับสูง'));
+ service.append(mk('p','','เครื่องมือฉุกเฉินและการตั้งค่าระบบ เปิดได้ด้วยบัญชีแอดมิน Supabase ที่ได้รับสิทธิ์เท่านั้น'));
+ service.append(action('เปิดศูนย์เครื่องมือขั้นสูง',()=>navigate('tools'),'btn'));
+ stage.append(service);
 }
 function navigate(id){
  if(!Object.prototype.hasOwnProperty.call(memberships,id))return;
