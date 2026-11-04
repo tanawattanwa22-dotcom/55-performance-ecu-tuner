@@ -263,3 +263,119 @@ body.retail-mode{background:radial-gradient(ellipse at 95% 0%,#1b3750 0%,transpa
 .retail-workspace-top strong{font-size:13px;letter-spacing:.3px}
 #retailWorkspaceClose{min-width:78px;min-height:42px;background:#27374f;color:#f5f9ff;border:1px solid #5b7491;border-radius:12px;font-weight:800}
 #retailWorkspaceFrame{display:block;width:100%;height:calc(100dvh - 63px);border:0;background:#081221}
+
+/* 55 PERFORMANCE RETAIL v4 — restore signature neon accents, retain sharp dark 3D depth. */
+/* Keep Match Guard computation in JS; never render its diagnostic card to customers. */
+body.retail-mode #guardCard{display:none!important}
+/* All service/bench data stays inside authorized Advanced Tools. */
+body.retail-mode:not(.retail-advanced-visible) .n21-main-group-label{display:none!important}
+.n20-header-back{
+ min-width:42px;width:42px;height:43px;display:grid;place-items:center;
+ border:1px solid #4f829b;border-radius:13px;color:#eafcff;
+ background:linear-gradient(145deg,#25465f,#16253f);font:900 24px system-ui;
+ box-shadow:0 6px 14px #0007,inset 0 1px #ffffff2b;cursor:pointer;flex:none
+}
+.n20-header-back[hidden],#retailGlobalBack[hidden]{display:none!important}
+#retailGlobalBack{
+ position:fixed;top:calc(14px + env(safe-area-inset-top));left:12px;
+ z-index:90;padding:11px 14px;min-height:46px;
+ border:1px solid #70c5e0;border-radius:14px;color:#f5fcff;
+ background:linear-gradient(135deg,#154962,#253e72 68%,#51347d);
+ box-shadow:0 9px 26px #0009,inset 0 1px #ffffff37;
+ font:800 13px system-ui,"Noto Sans Thai",sans-serif;backdrop-filter:blur(12px)
+}
+:root{
+ --retail-cyan:#31ddeb;--retail-violet:#b49bf9;--retail-silver:#c3cee4;
+ --retail-border:#436482;--retail-shadow:0 18px 40px #0009,0 5px 13px #0006,inset 0 1px #ffffff1d
+}
+body.retail-mode{
+ background:radial-gradient(ellipse at 87% 2%,#124a5947,transparent 40%),
+ radial-gradient(ellipse at 2% 52%,#43235c31,transparent 42%),#071021!important;
+}
+.n20-head{
+ background:linear-gradient(110deg,#152e52,#102747 56%,#2c2047)!important;
+ border-bottom:1px solid #477db0!important;
+ box-shadow:0 8px 25px #0008,inset 0 1px #ffffff22!important
+}
+.n20-hero{
+ background:radial-gradient(circle at 90% 16%,#1b93d14b,transparent 49%),
+ radial-gradient(circle at 8% 92%,#a532a33f,transparent 50%),
+ linear-gradient(127deg,#102d4a,#181a38 60%,#2b1643)!important;
+ border-color:#49739b!important;box-shadow:0 20px 40px #0009,inset 0 1px #ffffff25!important;
+}
+.n20-hero .n20-mark{color:#ff58aa!important;text-shadow:0 0 22px #db4e9b48!important}
+.n20-logo small{color:#38e1f6!important}
+.n20-stats{
+ background:#4e79a4!important;
+ border-color:#4c7fa7!important;
+ box-shadow:0 10px 24px #0007!important;
+}
+.n20-stats>div{background:linear-gradient(135deg,#12334e,#15203d)!important}
+.n20-nav button.active{
+ background:linear-gradient(115deg,#087e9e,#286dba 50%,#9c49cf)!important;
+ border-color:#4be6f7!important;color:#fff!important;
+ box-shadow:0 8px 18px #0008,inset 0 1px #ffffff37!important
+}
+.n20-stage-title:before{background:linear-gradient(#22e5f2,#ae70ed)!important}
+.n20-tile{
+ border-color:#3c6389!important;
+ background:radial-gradient(ellipse at 88% 5%,#4b71b94d,transparent 57%),
+ linear-gradient(148deg,#1b3353,#121e38 82%)!important;
+ box-shadow:0 16px 32px #0009,inset 0 1px #ffffff21!important;
+}
+.n20-tile[data-retail-cat="flash"],.n20-tile[data-retail-cat="dashboard"]{
+ border-color:#39afc3!important;
+ background:radial-gradient(circle at 90% 0%,#1ad6d32b,transparent 52%),
+ linear-gradient(145deg,#163f58,#15243d)!important;
+}
+.n20-tile[data-retail-cat="library"],.n20-tile[data-retail-cat="tune"]{border-color:#7f76c4!important}
+.n20-tile[data-retail-cat="live"]{border-color:#3996d7!important}
+.n20-tile[data-retail-cat="dtc"]{border-color:#ca9759!important}
+.n20-tile[data-retail-cat="settings"]{border-color:#9383c7!important}
+.n20-tile[data-retail-cat="tools"]{border-color:#965da9!important}
+.n20-tile[data-retail-cat="live"] .n20-tile-icon,
+.n20-tile[data-retail-cat="flash"] .n20-tile-icon{
+ color:#42eaf7!important;border-color:#249dbd!important;
+ background:linear-gradient(145deg,#135e78,#183256)!important
+}
+.n20-tile[data-retail-cat="library"] .n20-tile-icon,
+.n20-tile[data-retail-cat="tune"] .n20-tile-icon{
+ color:#dab2ff!important;border-color:#8b60c8!important;
+ background:linear-gradient(145deg,#4f336c,#24304d)!important
+}
+.n20-tile[data-retail-cat="dtc"] .n20-tile-icon{
+ color:#ffcf80!important;border-color:#ae7d49!important;
+ background:linear-gradient(145deg,#4a3540,#26304a)!important
+}
+.n20-tile .n20-tile-icon svg{filter:drop-shadow(0 0 6px currentColor)}
+.retail-status-card,.n20-panel,.n24-card,.n23-card,#home .card{
+ background:radial-gradient(circle at 97% 0%,#29558e30,transparent 48%),
+ linear-gradient(148deg,#172c4a,#101b32 70%,#171b36)!important;
+ border-color:#436282!important;box-shadow:var(--retail-shadow)!important
+}
+.retail-status-mark{
+ background:linear-gradient(145deg,#0f657e,#243765)!important;color:#67ebfb!important;
+ box-shadow:0 7px 18px #0007,inset 0 1px #ffffff2b!important
+}
+.retail-stat{
+ background:linear-gradient(148deg,#1a3654,#11243d)!important;
+ border-color:#3e6687!important;
+ box-shadow:inset 0 1px #ffffff1b,0 9px 17px #0006!important
+}
+.btn.ac,.n24-btn.ac,.n24-flash,#home #btnFlash{
+ background:linear-gradient(115deg,#087d9a,#2778ba 55%,#8f50cf)!important;
+ border-color:#52c4e9!important;color:#fff!important;
+ box-shadow:0 9px 24px #040b2188,inset 0 1px #ffffff34!important
+}
+#live .n21-tile:nth-child(4n+1),#live #vGauge .tile:nth-child(4n+1){border-color:#2eaed0!important}
+#live .n21-tile:nth-child(4n+2),#live #vGauge .tile:nth-child(4n+2){border-color:#a45bc4!important}
+#live .n21-tile:nth-child(4n+3),#live #vGauge .tile:nth-child(4n+3){border-color:#cb8d52!important}
+#live .n21-tile:nth-child(4n),#live #vGauge .tile:nth-child(4n){border-color:#39a48b!important}
+#live .n21-tile,#live #vGauge .tile{
+ background:linear-gradient(142deg,#173759,#181f40)!important;
+ box-shadow:0 12px 25px #0008,inset 0 1px #ffffff22!important
+}
+.n20-tile:focus-visible,.n20-header-back:focus-visible,#retailGlobalBack:focus-visible{
+ outline:2px solid #72eaff;outline-offset:3px
+}
+@media(max-width:380px){.n20-header-back{width:37px;min-width:37px;height:39px}}
