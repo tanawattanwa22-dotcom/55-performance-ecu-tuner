@@ -7,6 +7,10 @@ const observed=Object.freeze({
  '0105040D01':Object.freeze({
   family:'SHINDENGEN',source:'2026-11-04 verified physical read-only source trace',
   response:'0B 09 01 01 00 00 0E 0E CE'
+ }),
+ '0101D00D01':Object.freeze({
+  family:'SHINDENGEN',source:'2026-11-04 Click125 physical read-only count ACK verified 3/3 rounds',
+  response:'0B 09 01 01 00 00 13 13 C4'
  })
 });
 export function sourceFamilyHint(ecuId,catalogFamily=null){
