@@ -68,6 +68,9 @@ class MockHonda {
     return {reply:packet([2,7,0,0,1,0,0]),echoOK:true};
    if(this.failure==='SOURCE_5BYTE_STATUS_250'&&this.writeCount===2)
     return {reply:response(250),echoOK:true};
+   if(['SOURCE_WRITE_RETRY_TWICE','SOURCE_WRITE_RETRY_THREE_TIMES'].includes(this.failure)&&
+      this.writeCount<=(this.failure==='SOURCE_WRITE_RETRY_TWICE'?2:3))
+    return {reply:packet([2,7,0,0,0,0,0]),echoOK:true};
   }
   if(label==='KH_POLL_F4'||label==='KH_FINAL_5'||label==='SH_FINAL5')
    return {reply:response(15),echoOK:true};
@@ -178,6 +181,29 @@ await check('Source WriteFlash: five-byte checksum-valid reply is accepted regar
    physicalBackupConfirmed:true,externalPowerConfirmed:true,recoveryReady:true});
  assert.equal(result.ok,true);
  assert(device.writeCount>=2);
+});
+await check('Source WriteFlash retries 7-byte zero-zero ACK at most twice TOTAL',async()=>{
+ const {engine,device,events}=setup('0101880D01','SOURCE_WRITE_RETRY_TWICE');
+ await engine.identify();
+ const plan=engine.makePlan(new Uint8Array(65536),{filename:'K03-H01.bin'});
+ const result=await engine.flash(plan,{confirmation:'FLASH 0101880D01',
+   physicalBackupConfirmed:true,externalPowerConfirmed:true,recoveryReady:true});
+ assert.equal(result.ok,true);
+ assert.equal(device.labels.filter(x=>x==='WRITE_BLOCK_0').length,3,
+   'exactly two retries on block zero then accepted');
+ assert.equal(events.filter(x=>x.phase==='SOURCE_EXPLICIT_RETRY').length,2);
+});
+await check('Source WriteFlash stops if a THIRD 7-byte retry signal occurs',async()=>{
+ const {engine,device,events}=setup('0101880D01','SOURCE_WRITE_RETRY_THREE_TIMES');
+ await engine.identify();
+ const plan=engine.makePlan(new Uint8Array(65536),{filename:'K03-H01.bin'});
+ await assert.rejects(engine.flash(plan,{confirmation:'FLASH 0101880D01',
+   physicalBackupConfirmed:true,externalPowerConfirmed:true,recoveryReady:true}),
+   /rejected flash block/);
+ assert.equal(device.labels.filter(x=>x==='WRITE_BLOCK_0').length,3);
+ assert.equal(events.filter(x=>x.phase==='SOURCE_EXPLICIT_RETRY').length,2);
+ assert.equal(engine.state,'stopped');
+ assert(!device.labels.includes('KH_FINAL_5'));
 });
 await check('Shindengen Normal: source Seed/Key, erase, 128-byte blocks, finish',async()=>{
  const {engine,device}=setup('01046B0F01');

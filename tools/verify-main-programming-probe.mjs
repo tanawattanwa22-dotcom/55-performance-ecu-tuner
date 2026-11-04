@@ -1,6 +1,6 @@
 // Main.zip read-only programming probe and browser-safe session recovery mocks.
 import assert from 'node:assert/strict';
-import {hondaChecksum,Ft232rWebUsb} from '../flash_port/ftdi-webusb.js';
+import {hondaChecksum,Ft232rWebUsb,formMainSendCommandTimeoutMs} from '../flash_port/ftdi-webusb.js';
 import {probeMainProgrammingSession,countDisplay} from '../flash_port/main-programming-probe.js';
 import {sourceFamilyHint,OBSERVED_READ_ONLY_IDS} from '../flash_port/main-source-family-hints.js';
 import {MainLiveSession} from '../flash_port/main-live-session.js';
@@ -169,6 +169,25 @@ assert.deepEqual(realFourByteReply.reply,pcx160Hello);
 assert(fourTrace.some(e=>e.phase==='SOURCE_REPLY_OK'&&e.length===4&&
  e.status===null&&e.rawByte3===0xfa),
  'FT232R transport must never confuse a 4-byte ACK checksum FA with a reply status');
+// Source FormMain.cs SendCommand original: 50 + 2*commandSize
+assert.equal(formMainSendCommandTimeoutMs(5),60,'C# HELLO timeout is 60ms');
+assert.equal(formMainSendCommandTimeoutMs(139),328,'C# 128-byte write frame timeout is 328ms');
+assert.throws(()=>formMainSendCommandTimeoutMs(0),RangeError);
+const exactTimed=ftdiMock([hello,[...pcx160Hello]]),sourceTimingEvents=[];
+const exactTimedAnswer=await exactTimed.exchangeRaw(hello,{
+ timeoutMs:240,mainSourceMode:true,observe:e=>sourceTimingEvents.push(e)
+});
+assert.deepEqual(exactTimedAnswer.reply,pcx160Hello);
+assert(sourceTimingEvents.some(e=>e.phase==='SOURCE_TIMEOUT_WINDOW'&&
+ e.commandSize===5&&e.sourceTimeoutMs===60&&e.previousWebUsbOverrideMs===240),
+ 'FormMain mode must use source 60ms, not old 240ms override');
+const mismatchedEcho=ftdiMock([[0x00,...hello.slice(1)],[...pcx160Hello]]);
+const echoSourceResult=await mismatchedEcho.exchangeRaw(hello,{
+ timeoutMs:240,mainSourceMode:true
+});
+assert.equal(echoSourceResult.echoOK,false);
+assert.deepEqual(echoSourceResult.reply,pcx160Hello,
+ 'C# SendCommand does not compare echoed UART command bytes');
 const silentTransport=ftdiMock([]),silentEvents=[];
 await assert.rejects(silentTransport.exchangeRaw(hello,{
  timeoutMs:90,observe:e=>silentEvents.push(e)

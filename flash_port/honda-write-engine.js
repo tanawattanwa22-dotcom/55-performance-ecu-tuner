@@ -62,24 +62,17 @@ export class HondaFlashError extends Error{
 function fail(code,message){throw new HondaFlashError(code,message)}
 function ack(r,label,expectedStatus=null){
  const reply=r?.reply;
- // FormMain.SendCommand accepts a checksum-valid four-byte reply for
- // stages where the caller only checks exchange success. On four-byte
- // packets reply[3] is the checksum, NOT an ECU status.
- const statusless=new Set([
-  'HELLO','KEIHIN_FALLBACK_HELLO','CONFIRM_WORKER_SESSION','RECHECK_HELLO',
-  'KH_HANDSHAKE_A','KH_HANDSHAKE_A_RETRY','KH_HANDSHAKE_B','KH_READY',
-  'KH_PREPARE','KH_ERASE_PARAM','KH_POLL_1','KH_ERASE_RANGE','KH_POLL_2',
-  'KH_ERASE_GO','KH_POLL_3','KH_H8C_FLUSH','KH_H8C_FINAL_FLUSH',
-  'SH_HANDSHAKE_A','SH_HANDSHAKE_B','SH_PRE_ERASE_A','SH_ERASE_RANGE',
-  'SH_ERASE_MODE','SH_FINAL1','SH_FINAL2','SH_FINAL3','SH_FINAL4',
-  'KH_FINAL_1','KH_FINAL_2','KH_FINAL_3','KH_FINAL_4',
-  'KH_POLL_F1','KH_POLL_F2','KH_POLL_F3','KH_FAST_SWITCH'
- ]);
- const minBytes=statusless.has(label)?4:5;
- if(!reply||reply.length<minBytes||reply[1]!==reply.length)
-  fail('BAD_ACK',label+': ECU reply missing or malformed');
- if(expectedStatus!==null&&(reply.length<5||reply[3]!==expectedStatus))
-  fail('ECU_REJECTED',label+': ECU status '+(reply.length>=5?reply[3]:'not present')+' expected '+expectedStatus);
+ // Main.zip FormMain.SendCommand does not impose a stage-name-based 4/5-byte
+ // ACK minimum. It checks the ECU-declared packet size and Honda checksum.
+ // A four-byte reply like 02 04 00 FA has NO status byte: byte[3] is checksum.
+ // Specific C# call sites check reply[1], reply[3], reply[4..5] only when
+ // the relevant command explicitly requires those fields.
+ if(!(reply instanceof Uint8Array)||reply.length<3||
+    reply[1]!==reply.length||hondaChecksum(reply)!==0)
+  fail('BAD_ACK',label+': FormMain reply length/checksum invalid');
+ if(expectedStatus!==null&&reply[3]!==expectedStatus)
+  fail('ECU_REJECTED',label+': ECU reply[3] '+String(reply[3])+
+       ' expected '+expectedStatus);
  return reply;
 }
 export class HondaFlashEngine {
