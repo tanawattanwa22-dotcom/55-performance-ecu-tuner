@@ -254,6 +254,7 @@ export class HondaFlashEngine {
   if(!(bin instanceof Uint8Array))fail('NO_BIN','กรุณาเลือกไฟล์ BIN');
   let {ecuId,family,catalog}=this.identity;
   const rec=!!recovery;
+   const sourceUnlisted=!rec&&!this.identity.sourceMatched;
   // A programming boot ID is never eligible for NORMAL flash, even if a catalog row is added later.
   // Only the dedicated Recovery workflow may investigate the boot ID and its physical family.
   if(!rec&&/0000$/.test(ecuId))
@@ -271,17 +272,26 @@ export class HondaFlashEngine {
    family=this.identity.family;
    catalog={part:'RECOVERY-UNKNOWN',startOffset:null,checksumOffset:null,family};
   }else{
-  if(!catalog||!this.identity.sourceMatched)
-   fail('UNLISTED_ECU','ECU ID '+ecuId+' ไม่อยู่ในฐานโปรแกรม C# เดิม หยุดก่อนส่งคำสั่ง ERASE');
+  if(sourceUnlisted){
+    // FormMain.SearchInProgram is a METADATA lookup, not a prerequisite
+    // for source BIN analysis. Still require an independently fresh physical
+    // source-programming family/Flash Count ACK before constructing a plan.
+    if(this.identity.physicalFamilyEvidence!=='MAIN_SOURCE_READ_ONLY_FLASH_COUNT_ACK'||
+       this.identity.programmingSessionVerified!==true)
+      fail('UNLISTED_FAMILY_UNVERIFIED','ECU ID นอกฐาน 290: ยังไม่มี Family ACK จากโหมดโปรแกรมมิ่งจริง');
+    catalog={part:null,startOffset:null,checksumOffset:null,family};
+   }
   if(!['KEIHIN','SHINDENGEN'].includes(family))
    fail('FAMILY_UNKNOWN','ยังไม่ได้ยืนยันตระกูล ECU จากคำตอบจริง');
-  if(family==='KEIHIN'&&(!Number.isInteger(catalog.startOffset)||!Number.isInteger(catalog.checksumOffset)))
+  if(!sourceUnlisted&&family==='KEIHIN'&&(!Number.isInteger(catalog.startOffset)||!Number.isInteger(catalog.checksumOffset)))
    fail('NO_MEMORY_MAP','Keihin ต้องมี Start Offset และ Checksum Offset ในฐาน C#');
   }
   // The original C# Shindengen catalog stores "auto"; start offset and
   // checksum are derived from exact firmware signatures, not blank defaults.
-  const sourcePart=catalog.part.toUpperCase(),shortPart=sourcePart.split('-').slice(1).join('-');
-  if(!rec&&!filename.toUpperCase().includes(shortPart)&&confirmedPart.trim().toUpperCase()!==sourcePart)
+  const sourcePart=sourceUnlisted?'UNLISTED-'+ecuId:catalog.part.toUpperCase();
+   const shortPart=sourceUnlisted?'':sourcePart.split('-').slice(1).join('-');
+   if(!rec&&!sourceUnlisted&&!filename.toUpperCase().includes(shortPart)&&
+      confirmedPart.trim().toUpperCase()!==sourcePart)
    fail('PART_NOT_CONFIRMED','ชื่อ BIN ไม่ระบุ '+shortPart+' ให้กรอกรหัสอะไหล่ ECU ตามต้นฉบับ '+sourcePart+' ในช่องยืนยัน Part');
   const validSizes=new Set([32768,49152,57344,65536,98304,131072,262144,393216,524288,786432,1048576]);
   if(!validSizes.has(bin.length))fail('BIN_SIZE','ขนาด BIN ไม่อยู่ในขนาดที่ C# รองรับ');
@@ -294,14 +304,29 @@ export class HondaFlashEngine {
     !/^0{10}$/.test(embedded.id)&&!/^F{10}$/i.test(embedded.id)
       ?embedded.id.toUpperCase():null;
   if(!rec&&completeBinId&&completeBinId!==ecuId)
-   fail('BIN_ECU_ID_MISMATCH','BIN มี ECU ID '+completeBinId+
-     ' แต่ ECU ที่เสียบตอบ '+ecuId+' — หยุดก่อน ERASE');
+    fail('BIN_ECU_ID_MISMATCH','BIN มี ECU ID '+completeBinId+
+      ' แต่ ECU ที่เสียบตอบ '+ecuId+' — หยุดก่อน ERASE');
+   // Main SearchEcmIdInBinFile checks the first 3 bytes. Here that prefix
+   // must come from the C# size-specific BIN ID locator (not any random
+   // occurrence) and a 3-byte-only ID additionally needs an explicit
+   // technician confirmation, because it cannot uniquely identify firmware.
+   const shortBinId=embedded.ok&&/^[0-9A-F]{6}$/i.test(embedded.id||'')?
+     embedded.id.toUpperCase():null;
+   const partialIdMatched=!!shortBinId&&shortBinId===ecuId.slice(0,6);
+   if(sourceUnlisted){
+    if(!completeBinId&&!partialIdMatched)
+     fail('UNLISTED_BIN_ID_UNVERIFIED','ECU นอกฐาน: BIN ไม่พบ ECU ID เต็ม หรือรหัสต้น 3 ไบต์จากจุดที่ Main C# ระบุ');
+    if(!completeBinId&&confirmedPart.trim().toUpperCase()!=='CONFIRM '+ecuId)
+     fail('UNLISTED_PARTIAL_ID_CONFIRM','BIN มีเพียง ECU ID 3 ไบต์แรก ต้องยืนยันไฟล์สำรอง/รุ่นกล่องด้วยตนเองก่อนสร้างแผน');
+   }
   const detected=inspectCSharpEcuType(originalBin);
   if(family==='KEIHIN'&&detected.type.startsWith('SHINDENGEN'))
    fail('BIN_FAMILY','BIN เป็น Shindengen แต่ ECU ID อยู่ในฐาน Keihin');
   if(family==='SHINDENGEN'&&!detected.type.startsWith('SHINDENGEN'))
    fail('BIN_SIGNATURE','Shindengen ต้องมีลายเซ็น BIN ที่ C# ระบุได้');
-  const profile=detected.type==='UNDETERMINED'?'KEIHINOTHER':detected.type;
+  if(sourceUnlisted&&detected.type==='UNDETERMINED')
+    fail('UNLISTED_TYPE_UNKNOWN','BIN ของ ECU นอกฐานไม่มี Signature ระบุชนิด CPU ตาม Main C#; ห้ามเดา KEIHINOTHER');
+   const profile=detected.type==='UNDETERMINED'?'KEIHINOTHER':detected.type;
   if(rec&&this.identity.recoveryBinType!==detected.type)
    fail('RECOVERY_BIN_CHANGED','BIN เปลี่ยนหลังตรวจ Recovery Flash Count');
   if(!profile.startsWith(family))fail('BIN_TYPE','ECU Type ไม่ตรงกับ ID/ตระกูล ECU');
@@ -330,7 +355,10 @@ export class HondaFlashEngine {
     checks:{physicalIdMatched:!rec,recoveryBootIdObserved:rec,
       recoveryFamilyEvidence:rec?this.identity.recoveryFamilyEvidence:null,
       binFullId:completeBinId,binFullIdMatched:rec?null:!completeBinId||completeBinId===ecuId,
-      familyFlashCountResponded:true,partFromCSharp:!rec,
+      familyFlashCountResponded:true,partFromCSharp:!rec&&!sourceUnlisted,
+       sourceUnlistedWithProof:sourceUnlisted,
+       sourceBinIdEvidence:completeBinId?'FULL_ID':shortBinId?'3_BYTE_SOURCE_LOCATOR':'NONE',
+       operatorConfirmedPartialId:sourceUnlisted&&!!shortBinId,
       offsetsFromCSharp:!(rec&&(Number.isInteger(startOffsetOverride)||Number.isInteger(checksumOffsetOverride))),
       binSizeValidated:true,hardwareValidated:false}};
   this.emit('PREFLIGHT_PASS',{ecuId,part:plan.part,profile,bytes:plan.size,
