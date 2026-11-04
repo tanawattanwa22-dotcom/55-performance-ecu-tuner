@@ -1,7 +1,7 @@
 // Reuse the SAME absolute ESM module URL as index.html to guarantee one FT232R owner.
 // Exact matching query strings are essential: v301 would create a second session.
-import './neon-main-live-v25.js?v=401';
-import {readSharedDtc,clearSharedDtc} from '../flash_port/shared-dtc.js?v=301';
+import './neon-main-live-v25.js?v=402';
+import {readSharedDtc,clearSharedDtc} from '../flash_port/shared-dtc.js?v=302';
 const $=id=>document.getElementById(id);
 let dtcBusy=false;
 const event=(name,detail)=>window.dispatchEvent(new CustomEvent('55:'+name,{detail}));
