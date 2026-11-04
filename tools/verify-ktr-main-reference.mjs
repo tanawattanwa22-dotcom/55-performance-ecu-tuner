@@ -28,6 +28,8 @@ assert(ui.includes('ฐาน ECM อ้างอิง (ไม่ใช่ Main
 assert(ui.includes('!st.catalogMatched?localEcmReference(st.ecuId)'));
 const index=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
 const shared=fs.readFileSync(new URL('../ui/shared-operations-v30.js',import.meta.url),'utf8');
-assert(index.includes('neon-main-live-v25.js?v=353'));
-assert(shared.includes('neon-main-live-v25.js?v=353'));
+const homeVersion=index.match(/neon-main-live-v25\.js\?v=(\d+)/);
+const sharedVersion=shared.match(/neon-main-live-v25\.js\?v=(\d+)/);
+assert(homeVersion&&sharedVersion);
+assert.equal(homeVersion[1],sharedVersion[1],'The home page and shared USB owner must import the same Main Live module version');
 console.log('PASS ID 0105040D01: KTR PCX160 reference display separate from Main 290, no offsets or flash approval');

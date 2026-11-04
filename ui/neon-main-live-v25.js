@@ -6,13 +6,19 @@ import {MainLiveSession} from '../flash_port/main-live-session.js?v=350';
 import {resolveMainAutoMetadata} from '../flash_port/main-auto-metadata.js?v=352';
 import {localKtrCandidates} from '../flash_port/ecu-id-lookup.js?v=355';
 import {previewMainShindengenBin} from '../flash_port/main-shindengen-auto-preview.js?v=1';
+let cachedBinEvidence=null;
 function autoBinEvidence(id){
  const quick=window.__55QuickFlashBin;
  const saved=typeof S!=='undefined'&&S?.saved?.bytes instanceof Uint8Array?S.saved:null;
  const selected=quick?.bytes instanceof Uint8Array?quick:saved;
- if(!selected)return {selected:false,key:'NONE',result:null};
- return {selected:true,key:String(selected.selectedAt||selected.sha256||selected.filename||selected.sourceName)+'|'+selected.bytes.length,
+ if(!selected){cachedBinEvidence=null;return {selected:false,key:'NONE',result:null}}
+ if(cachedBinEvidence?.selected===selected&&cachedBinEvidence?.ecuId===id)
+  return cachedBinEvidence.evidence;
+ const evidence={selected:true,
+  key:String(selected.selectedAt||selected.sha256||selected.filename||selected.sourceName)+'|'+selected.bytes.length,
   result:previewMainShindengenBin(selected.bytes,{physicalEcuId:id})};
+ cachedBinEvidence={selected,ecuId:id,evidence};
+ return evidence;
 }
 // This lookup is display-only. Do not feed reference rows into the physical
 // reader catalog, family/preflight verification, or any ECU write/offset route.
