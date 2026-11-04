@@ -355,7 +355,8 @@ export class Ft232rWebUsb {
         const reply=Uint8Array.from(stream.slice(bytes.length,bytes.length+size));
         checkedHondaReply(reply);
         trace('SOURCE_REPLY_OK',{replyHex:toHex(reply.slice(0,96)),length:reply.length,
-          status:reply[3],checksumValid:true});
+          status:reply.length>=5?reply[3]:null,
+          rawByte3:reply[3],checksumValid:true});
         this._log('RX '+toHex(reply.length<=24?reply:reply.slice(0,24))+(reply.length>24?' ...':''));
         await this.purge();
         return {reply,echoOK:true};

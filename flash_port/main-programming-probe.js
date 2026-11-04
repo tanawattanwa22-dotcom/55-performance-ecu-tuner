@@ -55,10 +55,18 @@ export async function probeMainProgrammingSession(port,{expectedEcuId=null,onEve
    const reply=Uint8Array.from(response?.reply||[]);
    if(!response?.echoOK)throw Error('Serial echo missing/mismatch');
    checkedHondaReply(reply);
-   if(reply.length<5)throw Error('ACK shorter than 5 bytes');
-   log('RX',{name,hex:toHex(reply),length:reply.length,status:reply[3],
-    checksumOK:true,echoOK:true,durationMs:Date.now()-ts});
-   return {ok:true,reply,status:reply[3]};
+   // Main.zip FormMain.cs SendCommand validates the declared packet length
+   // and checksum; it does NOT require five bytes for the HELLO handshake.
+   // The PCX160 0105040D01 returns 02 04 00 FA (four-byte valid reply).
+   const minLength=(name==='HELLO'||name==='KH_FALLBACK')?4:
+    name==='ECU_ID'?11:7;
+   if(reply.length<minLength)throw Error(name+' reply shorter than '+minLength+' bytes');
+   // For a four-byte reply, byte[3] is the checksum (FA), NOT a status
+   // byte. Keep the legacy raw byte for C# WorkerThread fallback parity.
+   const status=reply.length>=5?reply[3]:null;
+   log('RX',{name,hex:toHex(reply),length:reply.length,status,
+    rawByte3:reply[3],checksumOK:true,echoOK:true,durationMs:Date.now()-ts});
+   return {ok:true,reply,status,rawByte3:reply[3]};
   }catch(e){
    const reason=String(e?.message||e);
    log('NO_VALID_REPLY',{name,error:reason,durationMs:Date.now()-ts,
@@ -94,7 +102,8 @@ export async function probeMainProgrammingSession(port,{expectedEcuId=null,onEve
   // is used only if the first HELLO did not yield a checksum-valid frame.
   const first=await exchange('HELLO');
   if(first.ok){
-   result.hello='VALID_REPLY_STATUS_'+first.status;
+   result.hello=first.status===null?'VALID_4_BYTE_REPLY':
+    'VALID_REPLY_STATUS_'+first.status;
    result.handshake='HELLO';
    log('MAIN_WORKER_CONFIRM_SESSION',{frame:'HELLO'});
    const confirmation=await exchange('HELLO');
@@ -109,7 +118,7 @@ export async function probeMainProgrammingSession(port,{expectedEcuId=null,onEve
   // and risking cross-command replies.
   await restoreSourceSession('HELLO did not establish source session');
   const fallback=await exchange('KH_FALLBACK');
-  if(fallback.ok&&fallback.status!==15){
+  if(fallback.ok&&fallback.rawByte3!==15){ // C# tests reply[3], not a decoded status
    result.handshake='KEIHIN_POLL';
    log('MAIN_WORKER_CONFIRM_SESSION',{frame:'KH_FALLBACK'});
    const confirmation=await exchange('KH_FALLBACK');

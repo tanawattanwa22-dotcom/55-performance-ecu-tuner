@@ -9,7 +9,7 @@ const ecu='0105040D01';
 const frameReply=(data)=>{
  const b=Uint8Array.from(data);b[b.length-1]=hondaChecksum(b.slice(0,-1));return b;
 };
-function usb({khCountFails=false,id=ecu,helloStatus=0}={}){
+function usb({khCountFails=false,id=ecu,helloStatus=0,helloFourByteReply=false}={}){
  const calls=[],dev={vendorId:0x0403},obj={
  ready:true,lastDevice:dev,dev,diagnosticReady:true,
  async initializeIso(){calls.push('INIT');this.diagnosticReady=false},
@@ -24,7 +24,9 @@ function usb({khCountFails=false,id=ecu,helloStatus=0}={}){
   if(opcode===0x72&&tx[1]===7)b=frameReply([2,11,0,0,0,...id.match(/../g).map(x=>parseInt(x,16)),0]);
   else if(opcode===0x7d)b=frameReply([2,8,0,0,0,0,4,0]);
   else if(opcode===0x7b)b=frameReply([2,8,0,0,0,0,6,0]);
-  else b=frameReply([2,5,0,helloStatus,0]);
+  else b=helloFourByteReply?
+    Uint8Array.from([0x02,0x04,0x00,0xfa]):
+    frameReply([2,5,0,helloStatus,0]);
   return {reply:b,echoOK:true};
  }};return {port:obj,calls};
 }
@@ -36,6 +38,20 @@ assert.equal(r1.flashCount,4);assert.equal(r1.flashApproved,false);
 assert.match(countDisplay(r1),/ตอบ = 4/);
 assert.equal(r1.events.filter(x=>x.phase==='TX'&&x.name==='KEIHIN_COUNT').length,1);
 assert.equal(r1.events.filter(x=>x.phase==='TX'&&x.name==='SHINDENGEN_COUNT').length,0);
+// Regression from actual PCX160 FT232R USB log on 2026-11-04:
+ // echo "72 05 00 F0 99" + checksum-valid ECU reply "02 04 00 FA".
+ // Before this patch, the probe discarded it with "ACK shorter than 5 bytes".
+const pcx160Hello=Uint8Array.from([0x02,0x04,0x00,0xfa]);
+assert.equal(hondaChecksum(pcx160Hello),0,'actual 4-byte reply has valid Honda checksum');
+const pcx=usb({helloFourByteReply:true}),pcxResult=await probeMainProgrammingSession(pcx.port,{expectedEcuId:ecu});
+assert.equal(pcxResult.hello,'CONFIRMED','two valid 4-byte HELLO replies must enter C# source ID stage');
+assert.equal(pcxResult.handshake,'HELLO');
+assert.equal(pcxResult.ecuId,ecu);
+assert(pcxResult.events.some(e=>e.phase==='RX'&&e.name==='HELLO'&&
+ e.hex==='02 04 00 FA'&&e.length===4&&e.status===null&&e.rawByte3===0xfa));
+assert.equal(pcxResult.countState,'CONFIRMED');
+assert(!pcxResult.events.some(e=>e.phase==='TX'&&e.name==='KH_FALLBACK'),
+ 'C# does not use Keihin fallback when HELLO reply is checksum-valid');
 const nonzero=usb({helloStatus:3}),nonzeroResult=await probeMainProgrammingSession(nonzero.port,{expectedEcuId:ecu});
 assert.equal(nonzeroResult.countState,'CONFIRMED',
  'C# SendCommand accepts checksum-valid HELLO even with nonzero reply status');
@@ -75,6 +91,17 @@ assert(events.some(x=>x.phase==='USB_OUT_OK'));
 assert(events.some(x=>x.phase==='USB_IN_CHUNK'&&x.uartBytes>0));
 assert(events.some(x=>x.phase==='SOURCE_ECHO_OK'));
 assert(events.some(x=>x.phase==='SOURCE_REPLY_OK'));
+const realFourByteTransport=ftdiMock([hello.slice(0,2),
+ [...hello.slice(2),...pcx160Hello]]);
+const fourTrace=[];
+const realFourByteReply=await realFourByteTransport.exchangeRaw(hello,{
+ timeoutMs:240,observe:e=>fourTrace.push(e)
+});
+assert.equal(realFourByteReply.echoOK,true);
+assert.deepEqual(realFourByteReply.reply,pcx160Hello);
+assert(fourTrace.some(e=>e.phase==='SOURCE_REPLY_OK'&&e.length===4&&
+ e.status===null&&e.rawByte3===0xfa),
+ 'FT232R transport must never confuse a 4-byte ACK checksum FA with a reply status');
 const silentTransport=ftdiMock([]),silentEvents=[];
 await assert.rejects(silentTransport.exchangeRaw(hello,{
  timeoutMs:90,observe:e=>silentEvents.push(e)

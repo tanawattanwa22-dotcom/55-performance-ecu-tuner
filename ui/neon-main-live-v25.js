@@ -6,7 +6,7 @@ import {MainLiveSession} from '../flash_port/main-live-session.js?v=351';
 import {resolveMainAutoMetadata} from '../flash_port/main-auto-metadata.js?v=352';
 import {localKtrCandidates} from '../flash_port/ecu-id-lookup.js?v=355';
 import {previewMainShindengenBin} from '../flash_port/main-shindengen-auto-preview.js?v=1';
-import {probeMainProgrammingSession,countDisplay} from '../flash_port/main-programming-probe.js?v=3';
+import {probeMainProgrammingSession,countDisplay} from '../flash_port/main-programming-probe.js?v=4';
 import {auditMainShindengenDryRun} from '../flash_port/main-source-dry-run.js?v=1';
 import {readEcuDat} from '../flash_port/ecu-dat-editor.js?v=1';
 let programmingProbeResult=null,programmingProbeRuns=[],programmingProbeBusy=false;
