@@ -4,12 +4,12 @@
  * This cannot prove hardware accuracy without verified bench ECU traces.
  */
 import {MAIN_CAPTURE_COMMANDS,decodeMainDiagnosticTrace} from './main-source-diagnostic.js';
-import {Ft232rWebUsb} from './ftdi-webusb.js?v=347';
-import {HondaFlashEngine} from './honda-write-engine.js?v=309';
+import {Ft232rWebUsb} from './ftdi-webusb.js';
+import {HondaFlashEngine} from './honda-write-engine.js?v=381';
 import {loadCSharpCatalog} from './csharp-ecu-catalog.js?v=302';
 import {MAIN_DTC_READ_FRAMES,decodeMainDtcReplies} from './main-source-dtc.js';
 import {probeMainProgrammingSession} from './main-programming-probe.js?v=7';
-import {sourceFamilyHint} from './main-source-family-hints.js?v=1';
+import {sourceFamilyHint} from './main-source-family-hints.js?v=2';
 import {getReadOnlyObservation,preferredLiveScanOrder,rememberReadOnlyObservation} from './main-readonly-profiles.js?v=1';
 
 const WAIT=ms=>new Promise(resolve=>setTimeout(resolve,ms));
