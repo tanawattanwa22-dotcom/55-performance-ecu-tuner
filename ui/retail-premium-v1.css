@@ -244,3 +244,22 @@ body.retail-mode #mainSourceDetails{color:#becde1!important}
 body.retail-mode #mainSourceDetails>summary{
  color:#a5d7e2!important;font-weight:850!important;letter-spacing:.2px;
 }
+
+/* 55 PERFORMANCE · retail finish / dimensional midnight titanium */
+body.retail-mode{background:radial-gradient(ellipse at 95% 0%,#1b3750 0%,transparent 42%),radial-gradient(ellipse at 0% 70%,#1a1934 0%,transparent 48%),#070d19!important}
+.n20-head{background:linear-gradient(125deg,#172d45 0%,#0b1528 78%)!important;box-shadow:0 10px 30px #0009,inset 0 1px #ffffff17!important}
+.n20-hero{border:1px solid #335675!important;border-radius:0 0 26px 26px!important;box-shadow:0 18px 40px #0007,inset 0 1px #ffffff12!important}
+.n20-tile,.retail-status-card,.n20-panel,.n24-card,.n23-card{box-shadow:0 17px 35px #0009,0 3px 9px #0005,inset 0 1px #ffffff16!important;border-color:#395976!important}
+.n20-tile{background:radial-gradient(circle at 96% 0%,#3e6b9144,transparent 54%),linear-gradient(155deg,#1b3149,#111a2d 78%)!important}
+.n20-tile:active{transform:translateY(2px) scale(.985)!important}
+.retail-stat{background:linear-gradient(155deg,#1a3046,#101b2d)!important;box-shadow:inset 0 1px #ffffff13,0 7px 14px #0005!important}
+.n20-nav button.active,.btn.ac,.n24-btn.ac{background:linear-gradient(125deg,#0b6677,#286b88 65%,#5156a0)!important;box-shadow:0 8px 20px #06162599,inset 0 1px #ffffff25!important}
+.n20-stage-title{letter-spacing:-.35px!important}
+.n20-tool-links button.n20-tool-launch{width:100%;min-height:57px;text-align:left;border:1px solid #415d7a;border-radius:16px;color:#eef9ff;font:750 13px system-ui,"Noto Sans Thai",sans-serif;background:linear-gradient(145deg,#203650,#121e35);padding:13px 15px;box-shadow:0 10px 20px #0006,inset 0 1px #ffffff19;cursor:pointer}
+.n20-tool-links button.n20-tool-launch:active{transform:scale(.985)}
+.retail-advanced-workspace{inset:0;margin:0!important;width:100vw;max-width:100vw;height:100dvh;max-height:100dvh;padding:0;border:0;background:#091423;color:#f1faff}
+.retail-advanced-workspace::backdrop{background:#020710eb}
+.retail-workspace-top{display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:62px;padding:12px 16px;background:linear-gradient(110deg,#172f48,#141c36);border-bottom:1px solid #44617e}
+.retail-workspace-top strong{font-size:13px;letter-spacing:.3px}
+#retailWorkspaceClose{min-width:78px;min-height:42px;background:#27374f;color:#f5f9ff;border:1px solid #5b7491;border-radius:12px;font-weight:800}
+#retailWorkspaceFrame{display:block;width:100%;height:calc(100dvh - 63px);border:0;background:#081221}
