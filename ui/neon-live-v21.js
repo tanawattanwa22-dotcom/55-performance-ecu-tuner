@@ -37,7 +37,7 @@
  </div>
  <div class="n21-connection-card">
   <button type="button" id="n21Connection" class="n21-status-block n21-connect"><span class="n21-status-ico">${icons.link}</span><span><b id="n21ConnTitle">ยังไม่เชื่อมต่อ ECU</b><small id="n21ConnSub">แตะเพื่อเชื่อมต่อ FTDI</small></span></button>
-  <div class="n21-status-block"><span class="n21-status-ico">▱</span><span><small>โปรโตคอล</small><b id="n21Protocol">—</b></span></div>
+  <div class="n21-status-block"><span class="n21-status-ico">▱</span><span><small>การสื่อสาร</small><b id="n21Protocol">—</b></span></div>
   <div class="n21-status-block"><span class="n21-status-ico">↻</span><span><small>อัตรารีเฟรชจริง</small><b id="n21Rate">— Hz</b></span></div>
   <div class="n21-status-block n21-record"><span class="n21-red-dot"></span><span><small>บันทึกข้อมูล</small><b id="n21Rec">ยังไม่บันทึก</b><small id="n21Timer">00:00:00</small></span></div>
  </div>
