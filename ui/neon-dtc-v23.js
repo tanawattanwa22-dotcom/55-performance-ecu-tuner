@@ -40,8 +40,10 @@ for(const [id,label] of [
  ['dashboard','หน้าหลัก'],['library','คลังรุ่น / BIN หลัก'],
  ['tune','จูน BIN'],['flash','อัดไฟล์ ECU'],
  ['live','Live Data'],['dtc','DTC / วินิจฉัย'],
- ['tools','เครื่องมือ C#'],['settings','ตั้งค่า / License']]){
- const button=press(label,()=>{menuDialog.close();if(id==='dtc')return;api.home(id)},'n23-menu-item');
+ ['tools','🔒 เครื่องมือขั้นสูง'],['settings','ตั้งค่า / License']]){
+ const button=press(label,()=>{menuDialog.close();if(id==='dtc')return;
+ if(id==='tools'){api.home('dashboard');queueMicrotask(()=>window.__55NeonNavigate?.('tools'));return}
+ api.home(id)},'n23-menu-item');
  menuDialog.append(button);
 }
 menuDialog.addEventListener('click',event=>{if(event.target===menuDialog)menuDialog.close()});
@@ -49,7 +51,7 @@ pane.append(menuDialog);
 const hero=create('div','n23-hero');
 const headline=create('div','n23-page-title');
 headline.append(create('span','n23-slash'),create('h1','','DTC / วินิจฉัย'));
-hero.append(headline,create('p','','อ่านและจัดการรหัสปัญหา (Diagnostic Trouble Code)'));
+hero.append(headline,create('p','','ตรวจรหัสผิดพลาดจากรถที่เชื่อมต่อจริง'));
 pane.append(hero);
 const tabs=create('div','n23-tabs');pane.append(tabs);
 let active='current',result=null,pending=false,clearState='';
@@ -68,7 +70,7 @@ const cico=create('span','n23-comm-icon');cico.innerHTML=icons.chip;
 const cmain=create('div','n23-comm-main');cmain.append(create('b','','สถานะการสื่อสาร ECU'));
 const cstate=create('strong','n23-disconnected','ยังไม่เชื่อมต่อ');cmain.append(cstate);
 const cinfo=create('div','n23-comm-extra'),cell={};
-for(const [id,label] of [['ecu','ECU'],['protocol','โปรโตคอล'],['speed','ความเร็ว']]){
+for(const [id,label] of [['ecu','ECU ID'],['protocol','ประเภทกล่อง'],['speed','การตรวจสอบ']]){
  const col=create('div','n23-comm-cell');col.append(create('small','',label));
  const val=create('b','','—');cell[id]=val;col.append(val);cinfo.append(col);
 }
@@ -81,9 +83,9 @@ const note=create('section','n23-notes'),noteTitle=create('div','n23-note-header
 noteTitle.append(create('b','','หมายเหตุ'));note.append(noteTitle);
 const ul=create('ul');
 for(const v of [
- 'อ่านรหัสที่เก็บด้วย 0x73 และรหัสปัจจุบันด้วย 0x74 จาก Honda K-Line จริง',
- 'ส่งคำขอ 3 ตารางต่อประเภท รวมสูงสุด 6 คำขอ ไม่รับรองว่า ECU ทุกกล่องรองรับ 6-bank',
- 'ไม่สมมติความรุนแรงหรือรหัสแบบ P-code เมื่อ ECU ไม่ได้ส่งข้อมูลนั้น'
+ 'อ่านรหัสผิดพลาดปัจจุบันและประวัติจากกล่อง ECU จริง',
+ 'จำนวนรหัสที่แสดงขึ้นอยู่กับข้อมูลที่รถส่งกลับมา',
+ 'ระบบไม่สร้างรหัสหรือความรุนแรงของอาการขึ้นมาเอง'
 ])ul.append(create('li','',v));
 note.append(ul);pane.append(note);
 const actions=create('div','n23-actions');
@@ -119,8 +121,11 @@ function refreshConnection(){
  cstate.classList.toggle('n23-disconnected',!s.connected);
  cstate.textContent=s.connected?(s.ecuId?'● ECU ยืนยันตัวตนแล้ว':'● FT232R เชื่อมต่อแล้ว · ยังไม่ยืนยัน ECU ID'):s.cable?'ต่อสายแล้ว · รอ ECU ID':'ยังไม่เชื่อมต่อ FT232R';
  cell.ecu.textContent=s.ecuId?(s.ecuId+(s.part?' · '+s.part:'')):'ยังไม่ยืนยัน ECU ID';
- cell.protocol.textContent=s.connected?s.protocol||'Honda K-Line / FTDI':'—';
- cell.speed.textContent='ไม่ได้ตรวจวัด';
+ const proof=s.sourceProbe?.countState==='CONFIRMED'&&s.sourceProbe?.ecuId===s.ecuId?
+ s.sourceProbe:null;
+ cell.protocol.textContent=s.ecuId?
+  (proof?.family||((s.catalogFamily||'ไม่ระบุ')+' (ฐานอ้างอิง)')):'—';
+ cell.speed.textContent=s.connected?(s.ecuId?'ECU ID ยืนยันแล้ว':'กำลังอ่าน ECU ID'):'รอเชื่อมต่อ';
  const ready=!!s.connected&&!s.connecting&&!window.__55SharedEcu?.owner;
  read.disabled=pending||!ready;
  clear.disabled=pending||!ready||!s.ecuId;
@@ -134,7 +139,7 @@ function makeCode(v){
  summary.append(icon,middle,create('span','n23-code-state',active==='history'?'เก็บในหน่วยความจำ':'ตรวจพบตอนอ่าน'),create('span','n23-code-arrow','›'));
  const details=create('div','n23-code-detail');
  details.append(create('b','','รหัส Honda '+v.k));
- details.append(create('p','',active==='history'?'อ่านจากหน่วยความจำด้วยคำสั่ง 0x73':'อ่านรหัสปัจจุบันด้วยคำสั่ง 0x74'));
+ details.append(create('p','',active==='history'?'รหัสที่ ECU บันทึกไว้ในประวัติ':'รหัสผิดพลาดปัจจุบันที่ ECU ส่งกลับมา'));
  details.append(create('p','','ความรุนแรงและสถานะ MIL ยังไม่ยืนยันจากผลตอบกลับนี้'));
  outer.append(summary,details);return outer;
 }
@@ -147,15 +152,13 @@ function render(){
   sectionTitle.textContent='ข้อมูลระบบ ECU';count.textContent='ข้อมูลจากกล่อง / ผลอ่านล่าสุด';
   const s=api.snapshot(),grid=create('div','n23-system-grid');
   const fields=[
-   ['กล่องจาก ECU ID จริง',s.part||'ยังไม่ยืนยันรุ่น ECU'],
-   ['ECU Family จากฐาน Main',s.catalogFamily||'ยังไม่ระบุ'],
-   ['Live Group ที่ตรวจจาก ECU',s.liveGroupVerified?'Group '+s.group:'ยังไม่ยืนยัน'],
-   ['สถานะ ECU',s.ecuId?'ยืนยัน ECU ID แล้ว':s.connected?'เปิด FT232R แล้ว · ยังไม่ยืนยัน ECU':'ยังไม่เชื่อมต่อ'],
-   ['โปรโตคอล',s.connected?s.protocol||'Honda K-Line / FTDI':'—'],
-   ['ความเร็วบัส','ไม่ได้ตรวจวัด'],
-   ['ระบบ DTC','Honda 0x73 / 0x74 ตาราง 01–03'],
-   ['ผลการอ่านล่าสุด',result?new Date(result.timestamp).toLocaleString('th-TH'):'ยังไม่ได้อ่าน'],
-   ['คำขอที่ตอบ',result?String(6-result.missing)+'/6':'ยังไม่ตรวจ']
+   ['ECU ID จากรถ',s.ecuId||'ยังไม่ได้อ่าน'],
+   ['ประเภทกล่อง',s.sourceProbe?.countState==='CONFIRMED'?s.sourceProbe.family:
+     (s.catalogFamily?s.catalogFamily+' (อ้างอิง)':'ยังไม่ยืนยัน')],
+   ['รหัสอะไหล่ ECU',s.part||'ยังไม่ระบุ'],
+   ['สถานะการเชื่อมต่อ',s.ecuId?'ตรวจพบ ECU แล้ว':s.connected?'ต่อสายแล้ว · กำลังตรวจ ECU':'ยังไม่เชื่อมต่อ'],
+   ['ผลการอ่าน DTC ล่าสุด',result?new Date(result.timestamp).toLocaleString('th-TH'):'ยังไม่ได้อ่าน'],
+   ['ความสมบูรณ์ของผล DTC',result?(result.missing===0?'อ่านครบส่วนที่รองรับ':'ผลตอบกลับบางส่วน'):'รอตรวจ']
   ];
   for(const [k,v] of fields){const row=create('div','n23-system-row');row.append(create('span','',k),create('strong','',v));grid.append(row)}
   list.append(grid);
