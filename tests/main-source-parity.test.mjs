@@ -127,4 +127,39 @@ assert.equal(lookupMainDatReference('AAAAAAAAAA'),null);
 assert.throws(()=>saveMainDatReference([{ecuId:ID},{ecuId:ID}]),/Duplicate ECU ID/);
 delete globalThis.localStorage;
 
+// Direct source FormMain Lock Read / Lock Mode and checked Manual Offset.
+const {lockRead,lockMode,revertPatch}=await import('../flash_port/bin-tools.js');
+for(const size of [49152,65536]){
+ const original=new Uint8Array(size).fill(255);
+ original.set([65,114,110],120);
+ original.set(size===49152?[163,3,16,32,0]:[163,3,16,32,16],850);
+ const once=lockRead(original),multi=lockMode(original);
+ assert(once.ok&&multi.ok,'FormMain source transforms exist for 48/64 KB');
+ assert.equal(once.bytes[120],66,'Lock Read changes Arn to Brn on first occurrence');
+ assert.deepEqual(revertPatch(once.bytes,once.undo),original);
+ assert.deepEqual(revertPatch(multi.bytes,multi.undo),original);
+ assert.equal(original[120],65,'BIN source unchanged until user applies patch');
+}
+const knownEngine=new HondaFlashEngine({ready:true});
+knownEngine.state='identified';
+knownEngine.identity={
+ ecuId:'0101880D01',family:'KEIHIN',sourceMatched:true,
+ count:5,catalog:{part:'38770-K03-H01',family:'KEIHIN',
+  startOffset:0x8000,checksumOffset:0}
+};
+const knownBin=new Uint8Array(65536).fill(255);
+const auto=knownEngine.makePlan(knownBin,{filename:'K03-H01.bin'});
+const manual=knownEngine.makePlan(knownBin,{filename:'K03-H01.bin',
+ startOffsetOverride:0x9000,checksumOffsetOverride:0x100});
+assert.equal(auto.startOffset,0x8000);
+assert.equal(manual.startOffset,0x9000);
+assert.equal(manual.checksumOffset,0x100);
+assert.equal(manual.checks.sourceManualOffset,true);
+assert.equal(manual.checks.offsetsFromCSharp,false);
+const shManual=engine.makePlan(bin,{filename:'click125.bin',confirmedPart:'CONFIRM '+ID,
+ startOffsetOverride:0x8000,checksumOffsetOverride:0x100});
+assert.equal(shManual.startOffset,0xA000,'GetEcuType overrides Shindengen manual start');
+assert.equal(shManual.checksumOffset,265696,'ShindengenAutoChecksum locates own checksum');
+assert.equal(shManual.checks.sourceManualOffset,false);
+
 console.log('PASS: Main FormMain source parity offline (no USB/flash commands)');
