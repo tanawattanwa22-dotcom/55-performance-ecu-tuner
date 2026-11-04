@@ -234,14 +234,20 @@ try{
  // The branded ECM library is real, backed by the untouched 152-row reference catalog.
  const ecmPage=await browser.newPage({viewport:{width:393,height:820},isMobile:true,hasTouch:true});
  await ecmPage.goto(new URL('/ecm/index.html',url).toString(),{waitUntil:'domcontentloaded',timeout:30000});
- await ecmPage.waitForSelector('#results .entry',{timeout:10000});
- assert((await ecmPage.locator('h1').innerText()).includes('55 Performance'),'ECM catalog must display the new brand');
- assert.equal((await ecmPage.locator('#total').innerText()).trim(),'152','catalog must retain 152 rows');
- assert(!(await ecmPage.locator('body').innerText()).includes('KTR Racing'),'old supplier branding must not appear in the UI');
- await ecmPage.locator('#search').fill('0101C60D01');
+ await ecmPage.waitForFunction(()=>document.querySelectorAll('#results .entry').length===152,{timeout:10000});
+ // ECM registry requires an authenticated advanced/admin role. Validate its
+ // DOM-backed catalog without visually unlocking a protected customer screen.
+ assert.equal(await ecmPage.locator('html').evaluate(el=>el.classList.contains('advanced-direct-granted')),false,
+   'ECM registry must not unlock for a customer without administrator permission');
+ assert((await ecmPage.locator('h1').textContent()).includes('55 Performance'),'ECM catalog retains owner branding');
+ assert.equal((await ecmPage.locator('#total').textContent()).trim(),'152','catalog must retain 152 rows');
+ assert(!(await ecmPage.locator('body').textContent()).includes('KTR Racing'),'old supplier branding must not appear in the UI');
+ await ecmPage.evaluate(()=>{const search=document.getElementById('search');search.value='0101C60D01';
+   search.dispatchEvent(new Event('input',{bubbles:true}));});
  assert((await ecmPage.locator('.entry').count())>=1,'search by genuine ECU ID still works');
- assert((await ecmPage.locator('.entry').first().innerText()).includes('55 Performance #'),'reference row shows branded display ID');
- await ecmPage.screenshot({path:path.join(root,'test-reports','55-performance-ecm-393.png'),fullPage:false});
+ assert((await ecmPage.locator('.entry').first().textContent()).includes('55 Performance #'),
+   'reference row retains branded display ID while admin gate is closed');
+ await ecmPage.screenshot({path:path.join(root,'test-reports','55-performance-ecm-locked-393.png'),fullPage:false});
  await ecmPage.goto(new URL('/ktr/index.html?q=0101C60D01',url).toString(),{waitUntil:'domcontentloaded'});
  await ecmPage.waitForURL(/\/ecm\/index\.html\?q=0101C60D01/,{timeout:10000});
  await ecmPage.close();
