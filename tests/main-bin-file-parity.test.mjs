@@ -7,7 +7,7 @@
 import assert from 'node:assert/strict';
 import {readBinId,findEcmIdInBin} from '../flash_port/bin-tools.js';
 import {csharpOffsetInference} from '../flash_port/csharp-offsets.js';
-import {scanMainBinIds,findMainEcuPrefixInBin,sourceMainBinIdText,SOURCE_SIZES} from '../flash_port/main-bin-audit.js';
+import {scanMainBinIds,findMainEcuPrefixInBin,sourceMainBinIdText,formatMainFileSize,SOURCE_SIZES} from '../flash_port/main-bin-audit.js';
 
 // C# source: (file size, 4-byte marker offset, marker, BIN ID offset, ID length).
 const CASES=[
@@ -24,6 +24,12 @@ const CASES=[
  [1048576,9149,[0,0,0,255],9144,5]
 ];
 assert.deepEqual([...SOURCE_SIZES],CASES.map(row=>row[0]));
+for(const [count,textValue] of [
+ [0,'0 B'],[1023,'1023 B'],[1024,'1.00 KB'],[49152,'48.00 KB'],
+ [393216,'384.00 KB'],[1048576,'1.00 MB'],[1572864,'1.50 MB']
+]){
+ assert.equal(formatMainFileSize(count),textValue,'FormMain.FormatFileSize '+count);
+}
 const h=a=>Array.from(a,n=>n.toString(16).padStart(2,'0')).join('').toUpperCase();
 let passed=0;
 for(const [size,markerAt,marker,idAt,length] of CASES){
