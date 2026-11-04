@@ -7,23 +7,21 @@ let dtcBusy=false;
 const event=(name,detail)=>window.dispatchEvent(new CustomEvent('55:'+name,{detail}));
 async function dtc(clear=false){
  if(dtcBusy)return;
- if(clear&&!confirm('ลบ DTC ตาม Main C# แล้วอ่านทั้ง 6 ชุดเพื่อยืนยัน?'))return;
+ if(clear&&!confirm('ส่งคำสั่งลบ DTC ตาม FM_dtc.cs สองชุด แล้วอ่านยืนยันอีกครั้ง?'))return;
  dtcBusy=true;const shared=window.__55SharedEcu;
  $('dtcRead').disabled=$('dtcClr').disabled=true;
  event(clear?'dtc-clear-start':'dtc-read-start');
  const diag={current:[],stored:[],missing:6,error:'',success:false,timestamp:Date.now()};
+ let clearResult=null;
  try{
   if(!shared)throw Error('ระบบสายหลักยังไม่พร้อม');
   const expected=shared.snapshot()?.ecuId||'';
-  if(clear&&!/^[0-9A-F]{10}$/.test(expected))throw Error('ต้องระบุ ECU ID จากกล่องจริงก่อนลบ DTC');
+  if(clear&&!/^[0-9A-F]{10}$/.test(expected))throw Error('ต้องมี ECU ID จริงของกล่องปัจจุบันก่อนลบ DTC');
   const port=await shared.acquire('DTC');
-  if(clear){
-    await port.sourceDiagnosticWake('dtc');
-    const reply=await port.command('ID',{timeoutMs:2200,afterWriteMs:50});
-    const found=reply.reply?.length>=11?Array.from(reply.reply.slice(5,10),v=>v.toString(16).padStart(2,'0')).join('').toUpperCase():'';
-    if(!reply.echoOK||found!==expected)throw Error('ECU ID ปัจจุบันไม่ตรงกับกล่องที่สแกนล่าสุด ยกเลิก');
-  }
-  $('dtcMsg').textContent=clear?'กำลังลบและอ่านยืนยัน…':'กำลังอ่าน DTC 6 ชุด…';
+  // No second wake or inserted ECU-ID command before DTC clear:
+  // FM_dtc.method_107 performs its own break/wake once, then commands
+  // 72 05 60 03 26 and 72 05 60 01 28 in that order.
+  $('dtcMsg').textContent=clear?'กำลังลบ 2 ชุด และอ่าน DTC กลับ…':'กำลังอ่าน DTC 6 ชุด…';
   const result=clear?await clearSharedDtc(port):await readSharedDtc(port);
   const out=$('dtcOut');out.replaceChildren();
   for(const row of result.rows){
@@ -31,18 +29,21 @@ async function dtc(clear=false){
    line.textContent=`${row.type==='CURRENT'?'ปัจจุบัน':'บันทึกไว้'} ${row.code} — ${row.description}`;
    out.append(line);diag[row.type==='CURRENT'?'current':'stored'].push({k:row.code,txt:row.description,known:row.known});
   }
-  diag.missing=0;diag.success=true;
-  $('dtcMsg').textContent=clear?(result.cleared?'ลบแล้ว • อ่านยืนยันครบ 6 ชุด ไม่พบ DTC':'ส่งคำสั่งลบแล้ว แต่ยังพบ DTC '+result.rows.length+' รายการ'):
-   'อ่านครบ 6 ชุด • '+(result.rows.length?'พบ '+result.rows.length+' รายการ':'ไม่พบ DTC');
-  if(clear)event('dtc-clear-result',{ok:result.cleared?3:0,error:result.cleared?'':'อ่านกลับแล้วยังพบ DTC'});
+  diag.missing=0;diag.success=true;diag.timestamp=Date.now();
+  $('dtcMsg').textContent=clear?
+   (result.cleared?'ส่งคำสั่งลบ 2 ชุดแล้ว • อ่านกลับครบ 6 ตาราง ไม่พบ DTC':
+    'ส่งคำสั่งลบ 2 ชุดแล้ว • อ่านกลับยังพบ DTC '+result.rows.length+' รายการ'):
+   ('อ่านครบ 6 ชุด • '+(result.rows.length?'พบ '+result.rows.length+' รายการ':'ไม่พบ DTC'));
+  if(clear)clearResult={sent:2,verified:result.cleared,remaining:result.rows.length,error:''};
  }catch(e){
-  diag.error=e.message;$('dtcMsg').textContent='ทำงานไม่สำเร็จ: '+e.message;
+  diag.error=String(e?.message||e);$('dtcMsg').textContent='ทำงานไม่สำเร็จ: '+diag.error;
   $('dtcOut').replaceChildren();
-  if(clear)event('dtc-clear-result',{ok:0,error:e.message});
+  if(clear)clearResult={sent:0,verified:false,error:diag.error};
  }finally{
   shared?.release('DTC');
   if(shared?.snapshot&&!shared.snapshot().connected)await shared.restoreCable?.();
   event('dtc-result',diag);
+  if(clear)event('dtc-clear-result',clearResult??{sent:0,verified:false,error:'ไม่พบผลลบ DTC'});
   $('dtcRead').disabled=$('dtcClr').disabled=false;dtcBusy=false;
  }
 }
@@ -97,7 +98,7 @@ reset.onclick=async()=>{
  const shared=window.__55SharedEcu;let port;
  try{
   port=await shared.acquire('RESET_SH_COUNT');reset.disabled=true;
-  const {HondaFlashEngine}=await import('../flash_port/honda-write-engine.js?v=381');
+  const {HondaFlashEngine}=await import('../flash_port/honda-write-engine.js?v=392');
   const {resetShindengenCount}=await import('../flash_port/main-reset-count.js?v=375');
   const identity=await new HondaFlashEngine(port).identify({programmingPreflight:true});
   if(identity.family!=='SHINDENGEN'||!(identity.sourceMatched||
