@@ -24,7 +24,8 @@ assert(!index.includes("prompt('BIN ไม่มี Part Code"),'Normal Flash st
 must(index,'AUTO_PART_MATCH ECU_ID','Exact embedded BIN ECU ID can supply automatic part match');
 must(engine,'if(!operatorClickConfirmed||plan.recovery||sourceUnlistedPlan)',
  'Recovery and unlisted physical ECU keep explicit typed confirmation');
-must(engine,'(!plan.recovery&&!this.identity.sourceMatched)','Normal Flash requires C#-sourced physical ECU identification');
+must(engine,'(sourceUnlistedPlan&&!unlistedValid)',
+ 'Unlisted physical ECU requires verified Main C# programming session and BIN matching');
 must(preflight,"const flash=btn('⇧ อัดไฟล์ ECU'","Simple UI offers one Flash button");
 must(preflight,'easy.append(uploadLabel,upload,uploadNote,uploadStatus,flash,recovery,miniBar,miniProgress)','Fast mode is not a mandatory front-page checkbox');
 must(bench,"const boot=!!identity?.ecuId?.endsWith('0000')",'Advanced Flash detects recovery');
