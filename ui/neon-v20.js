@@ -541,7 +541,11 @@ const toolLinks=[
  ['📚 ฐานข้อมูล ECM • 55 Performance','ecm/index.html'],
  ['🔌 ทดสอบ FTDI','flash_port/bench.html'],
  ['🧪 Flash Bench ขั้นสูง','flash_port/flash-write-lab.html'],
- ['📑 ตรวจโปรโตคอล','flash_port/source-validation-v15.html']
+ ['💾 Offline Flash / เครื่องมือสำรอง','flash_port/offline/index.html'],
+ ['🧩 ตรวจลำดับคำสั่งต้นฉบับ','flash_port/source-proof.html'],
+ ['📑 ตรวจโปรโตคอล','flash_port/source-validation-v15.html'],
+ ['🗒️ รายงานการแฟลช','flash_port/flash-audit.html'],
+ ['🧪 ทดสอบขั้นตอนแฟลชแบบจำลอง','flash_port/main-full-flash-simulator.html']
 ];
 function links(items){
  const box=mk('div','n20-tool-links');
@@ -552,7 +556,15 @@ function toolsStage(){
  heading('ศูนย์เครื่องมือขั้นสูง','เฉพาะบัญชีผู้ดูแลระบบที่ยืนยันสิทธิ์แล้ว · สำหรับการบริการและกรณีฉุกเฉิน');
  const gateNote=mk('div','n20-panel','🔒 ACCESS GRANTED · ฟังก์ชันนี้ต้องใช้สิทธิ์ผู้ดูแลระบบ Supabase');
  stage.append(gateNote);links(toolLinks);
- stage.append(mk('div','n20-panel','ด้านล่างเป็นเครื่องมือ Main C# เดิม เช่น ค้น ECM ID, Lock Read, Lock Mode, BIN ID, ECU Count และ DAT'));
+ const emergency=mk('div','n20-panel');
+ emergency.append(mk('b','','การบริการและกู้คืน ECU'));
+ emergency.append(mk('p','','ใช้เฉพาะกรณีกล่องมีปัญหาเท่านั้น · ขั้นตอนกู้คืนต้องให้ ECU ตอบรับตามโหมดที่รองรับ'));
+ emergency.append(action('⟳ เปิด Recovery สำหรับช่าง',()=>navigate('recovery'),'btn'));
+ emergency.append(action('🔒 ล็อกเครื่องมือขั้นสูง',()=>{
+   window.__55AdvancedGate?.clear();navigate('dashboard');
+ },'btn'));
+ stage.append(emergency);
+ stage.append(mk('div','n20-panel','เครื่องมือจาก Main ต้นฉบับ: ตรวจ ECU ID, BIN ID, Lock Read, Lock Mode, Offset, ECU Count และฐานข้อมูลเสริม'));
  if($('mainSourceDetails'))$('mainSourceDetails').open=true;
 }
 function settingsStage(){
