@@ -14,6 +14,7 @@ import {csharpOffsetInference,catalogLookup} from './csharp-offsets.js?v=317';
 import {findCSharpEcuId} from './csharp-ecu-catalog.js?v=302';
 import {readBinId} from './bin-tools.js?v=317';
 import {probeMainProgrammingSession} from './main-programming-probe.js?v=7';
+import {sourceFamilyHint} from './main-source-family-hints.js?v=1';
 const sleep=ms=>new Promise(ok=>setTimeout(ok,ms));
 function bytes(list){
  const b=Uint8Array.from(list);
@@ -180,7 +181,10 @@ export class HondaFlashEngine {
       this.emit('UNLISTED_DIAGNOSTIC_ONLY',{ecuId});
      }else{
       this.emit('UNLISTED_READ_ONLY_SOURCE_PROBE',{ecuId});
-      const proof=await probeMainProgrammingSession(this.usb,{expectedEcuId:ecuId,round:1});
+      const familyOrder=sourceFamilyHint(ecuId,source?.family).family;
+       const proof=await probeMainProgrammingSession(this.usb,{
+        expectedEcuId:ecuId,round:1,preferredFamily:familyOrder
+       });
       if(proof.ecuId===ecuId&&proof.countState==='CONFIRMED'&&proof.programmingSessionVerified&&
          ['KEIHIN','SHINDENGEN'].includes(proof.family)){
        family=proof.family;count=proof.flashCount;handshake=proof.handshake;
