@@ -59,6 +59,13 @@ await check('Mock K03 ECU ID read and catalog match',async()=>{const e=new Honda
 await check('K03 preflight plans 512 source frames',async()=>{const e=new HondaFlashEngine(fake('0101880D01'));await e.identify();return e.makePlan(new Uint8Array(65536),{filename:'K03-H01.bin'}).expectedBlockCount===512});
 await check('Wrong BIN part prevents erase preflight',async()=>{const e=new HondaFlashEngine(fake('0101880D01'));await e.identify();try{e.makePlan(new Uint8Array(65536),{filename:'K2J-T01.bin'});return false}catch(x){return x.code==='PART_NOT_CONFIRMED'}});
 await check('Unlisted ECU ID is rejected',async()=>{const e=new HondaFlashEngine(fake('FFFFFFFFFF'));await e.identify();try{e.makePlan(new Uint8Array(65536),{filename:'unknown.bin'});return false}catch(x){return x.code==='UNLISTED_ECU'}});
+await check('Unlisted PCX160 ID must not default to Keihin Flash Count poll',async()=>{
+ const e=new HondaFlashEngine(fake('0105040D01')),labels=[],original=e.x.bind(e);
+ e.x=async(...args)=>{labels.push(args[0]);return original(...args)};
+ const id=await e.identify({programmingPreflight:true});
+ return id.ecuId==='0105040D01'&&id.family==='UNVERIFIED'&&id.count===null&&
+  !labels.includes('KEIHIN_FLASH_COUNT')&&!labels.includes('SHINDENGEN_FLASH_COUNT');
+});
 await check('Shindengen firmware preflight offset derived',async()=>{const e=new HondaFlashEngine(fake('01046B0F01'));await e.identify();const p=e.makePlan(shBin(),{filename:'K2SA-N02.bin'});return p.startOffset===65536&&p.expectedBlockCount===1536});
 await check('Post-restart matching ECU ID, not readback verify',async()=>{
  const e=new HondaFlashEngine(fake('0101880D01'));e.state='finished';e.identity={ecuId:'0101880D01'};e.lastResult={ok:true,ecuId:'0101880D01'};

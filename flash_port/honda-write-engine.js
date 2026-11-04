@@ -167,10 +167,20 @@ export class HondaFlashEngine {
      this.emit('RECOVERY_BOOT_ID_ONLY',{ecuId});
      throw new Error('Recovery boot ID has no verified ECU family');
     }
-    const label=isSh?'SHINDENGEN_FLASH_COUNT':'KEIHIN_FLASH_COUNT';
-    const command=isSh?CMD.shPoll:CMD.khCount;
-    const r=await this.x(label,command,{timeoutMs:1800});
-    if(r.length>=7){family=isSh?'SHINDENGEN':'KEIHIN';count=r[6]}
+    if(!source?.part||!['KEIHIN','SHINDENGEN'].includes(source.family)){
+     // The purchased Main C# catalog has no verified family for this ID.
+     // Never default an unlisted real Shindengen ECU to Keihin flash-count
+     // polling: an ECM reference or BIN name is not a programming profile.
+     this.emit('UNLISTED_ECU_COUNT_PROBE_SKIPPED',{ecuId,reason:'No Main C# source family; no family-specific TX'});
+    }else if(handshake==='DIAGNOSTIC_ONLY'){
+     // A diagnostic-only session has not confirmed the programming protocol.
+     this.emit('DIAGNOSTIC_ONLY_COUNT_PROBE_SKIPPED',{ecuId,sourceFamily:source.family});
+    }else{
+     const label=isSh?'SHINDENGEN_FLASH_COUNT':'KEIHIN_FLASH_COUNT';
+     const command=isSh?CMD.shPoll:CMD.khCount;
+     const r=await this.x(label,command,{timeoutMs:1800});
+     if(r.length>=7){family=isSh?'SHINDENGEN':'KEIHIN';count=r[6]}
+    }
    }catch(e){
     // The C# source uses family-specific count responses. Stop when absent;
     // no blind attempts at the other family's programming commands.
