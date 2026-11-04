@@ -646,7 +646,7 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
     st.usbLastError?'เปิดไม่สำเร็จ: '+st.usbLastError:
     'ยังไม่ได้เลือกอุปกรณ์ หรือ Android ไม่อนุญาตให้เปิด USB'],
    [idOK,'ECU ID จากกล่องจริง',idOK?st.ecuId:(st.idError||'รอคำตอบ ECU')],
-   [idOK&&st.catalogMatched,'ฐาน Main 290 (ข้อมูลอ้างอิง)',st.catalogMatched?(st.part||'Part Code ไม่ระบุ')+' · '+st.catalogFamily:'ยังไม่พบรายการที่ตรง ECU ID'],
+   [idOK&&st.catalogMatched,'ฐาน Main 290 (ข้อมูลอ้างอิง)',st.catalogMatched?(st.part||'Part Code ไม่ระบุ')+' · '+st.catalogFamily:'ไม่พบในฐาน • ยังอ่าน ECU และวิเคราะห์ BIN ได้',true],
    [liveOK,'ตาราง Live Data',liveOK?'Group '+st.group+' · ได้รับและถอดรหัสข้อมูลครบ':'รอยืนยัน Group 7 / 4 / 1'+(st.liveGroupError?' · '+st.liveGroupError:'')],
    [dtcOK,'ตาราง DTC',dtc?(dtc.answered.length+'/6 คำสั่งตอบครบ'+(dtcOK?'':' · ผลยังไม่ครบ')):'ยังไม่ได้รับคำตอบ DTC'],
    [false,'Start Offset / Checksum',st.catalogMatched?
@@ -655,11 +655,11 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
      'Auto จาก BIN: Start '+binSource.result.startOffsetHex+' / Checksum '+binSource.result.checksumOffsetHex+' · อ่านไฟล์สำเร็จ แต่ยังไม่ยืนยัน Offset กับ ECU เพื่อเขียน':
      'ไม่พบ Offset ในฐาน Main 290 และ BIN ยังไม่ให้ค่าครบ · ยังไม่ยืนยันสำหรับเขียน']
   ];
-  if(idOK&&!st.catalogMatched){
-   const b=binSource.result;
+  if(idOK){
+    const b=binSource.result;
    records.splice(3,0,[false,'Auto Offset จาก BIN (Main.zip)',
     b?.ready?'Start '+b.startOffsetHex+' / Checksum '+b.checksumOffsetHex+' · BIN เท่านั้น ไม่ใช่การยืนยันเพื่อเขียน':
-    (b?.message||'รอเลือก BIN ในหน้า Flash เพื่อคำนวณตาม Main.zip')]);
+    (b?.message||'รอเลือก BIN หน้า Flash หรือกดปุ่มเลือก BIN ตรวจ Auto Offset/Checksum')]);
   }
   if(idOK){
    records.splice(3,0,[sourceProbe?.countState==='CONFIRMED','Flash Count (Main.zip)',
@@ -671,13 +671,14 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
    ktr.ambiguous?ktr.text:
     ktr.part+' · '+ktr.model+' · '+ktr.family+' · อ้างอิงเท่านั้น ไม่อนุญาต Flash']);
   checks.replaceChildren();
-  for(const [ok,label,detail] of records){
+  for(const [ok,label,detail,optional] of records){
+    const neutral=optional&&!ok;
    const line=document.createElement('div');
-   line.style.cssText='border:1px solid '+(ok?'#267e69':'#4b617b')+';background:'+(ok?'#102f37':'#182b3e')+
+   line.style.cssText='border:1px solid '+(neutral?'#36526c':ok?'#267e69':'#4b617b')+';background:'+(ok?'#102f37':'#182b3e')+
     ';border-radius:10px;padding:9px 10px;line-height:1.45;overflow-wrap:anywhere;';
    const title=document.createElement('strong');
-   title.style.color=ok?'#76f2bd':'#e9d39d';
-   title.textContent=(ok?'✓ ':'○ ')+label;
+   title.style.color=neutral?'#b8ccdc':ok?'#76f2bd':'#e9d39d';
+    title.textContent=(neutral?'· ':ok?'✓ ':'○ ')+label;
    const sub=document.createElement('div');
    sub.style.cssText='font-size:12px;color:#bad0df;margin-top:3px';
    sub.textContent=detail;
@@ -746,7 +747,7 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
   window.__55SyncLegacyUsb?.(reader.status());
  };
  updateSharedState();
- window.addEventListener('55:bin-selection-changed',updateSharedState);
+ window.addEventListener('55:bin-selection-changed',()=>{scanPreviewBin=null;cachedBinEvidence=null;updateSharedState();});
  window.__55SyncLegacyUsb?.(reader.status());
 }
 // Do not run ECU ID/Live/DTC probes in the background: this could close an
