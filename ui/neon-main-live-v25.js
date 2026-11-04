@@ -303,7 +303,20 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
   try{await navigator.clipboard.writeText(debugText.textContent);copyLog.textContent='คัดลอกแล้ว'}
   catch(e){window.prompt('คัดลอกข้อความผลตรวจ USB',debugText.textContent)}
  };
- debug.append(debugSummary,debugText,copyLog);
+ const downloadLog=document.createElement('button');downloadLog.className='btn';
+ downloadLog.type='button';downloadLog.textContent='บันทึกผลตรวจ ECU (JSON)';
+ downloadLog.title='เก็บผลตรวจ USB, ECU ID, Live Group และ DTC ล่าสุดไว้ตรวจสอบ โดยไม่ส่งคำสั่งใหม่ไปยัง ECU';
+ downloadLog.onclick=()=>{
+  const content=debugText.textContent;
+  if(!content)return;
+  const blob=new Blob([content],{type:'application/json;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;
+  a.download='55_ECU_DIAGNOSTIC_'+new Date().toISOString().replace(/[:.]/g,'-')+'.json';
+  document.body.append(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),4000);
+ };
+ debug.append(debugSummary,debugText,copyLog,downloadLog);
  panel.append(heading,state,detected,row,checks,debug,note);homeScroll.prepend(panel);
  // Keep one visible cable owner: hide duplicate legacy connection buttons on the home page only.
  const legacyConnectSelectors=['#homeConnect','#connectUsbHome','#homeUsbConnect'];
@@ -428,6 +441,9 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
    line.append(title,sub);checks.append(line);
   }
   debugText.textContent=JSON.stringify({
+   reportType:'55_PERFORMANCE_READ_ONLY_ECU_DIAGNOSTIC',
+   capturedAt:new Date().toISOString(),
+   note:'DTC answered count measures command replies, not zero DTCs. BIN-only offsets are not verified ECU offsets.',
    usbConnected:st.connected,
    usbPhase:st.phase,
    usbAttempts:st.usbAttempts,
@@ -440,6 +456,7 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
    liveGroup:st.liveGroupVerified?st.group:null,
    liveGroupError:st.liveGroupError||null,
    dtcAnswered:st.dtcSnapshot?.answered?.length??0,
+   dtcCodes:st.dtcSnapshot?.codes??null,
    dtcError:st.dtcError||null,
    catalogMatched:st.catalogMatched,
    familyFromMain:st.catalogFamily||null,

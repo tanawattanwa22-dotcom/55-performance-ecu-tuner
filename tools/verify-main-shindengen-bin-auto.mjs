@@ -38,4 +38,6 @@ assert(preflight.includes('unlistedPhysical||!(INLINEFLASH.postCheck'), 'Normal 
 const session=readFileSync(new URL('../flash_port/main-live-session.js',import.meta.url),'utf8');
 assert(session.includes("groupFailures.join(' | ')"),'Keep all Group 7/4/1 diagnostic failures');
 assert(live.includes('liveGroupError:st.liveGroupError||null'),'USB diagnostic log contains Live group failure messages');
+assert(live.includes('55_ECU_DIAGNOSTIC_')&&live.includes('บันทึกผลตรวจ ECU (JSON)'), 'Mobile technician can export real ECU diagnostic log without new ECU TX');
+assert(live.includes('DTC answered count measures command replies'), 'DTC replies are not falsely described as zero trouble codes');
 console.log('PASS read-only Shindengen Main.zip BIN auto inference and synchronized dashboard ECU/BIN status');
