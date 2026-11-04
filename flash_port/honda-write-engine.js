@@ -387,7 +387,10 @@ export class HondaFlashEngine {
     this.state='identified';
     const observed=await this.identify({programmingPreflight:true});
     if(observed.ecuId!==expected.ecuId||observed.family!=='KEIHIN'||
-       !observed.sourceMatched||observed.sourcePart!==expected.sourcePart)
+        !(expected.sourceMatched?
+          (observed.sourceMatched&&observed.sourcePart===expected.sourcePart):
+          (observed.programmingSessionVerified===true&&
+           observed.physicalFamilyEvidence==='MAIN_SOURCE_READ_ONLY_FLASH_COUNT_ACK')))
      fail('KH_RETRY_ECU_CHANGED',
        'ECU ID / Family / Part เปลี่ยนหลังเชื่อมต่อ FT232R ใหม่ • หยุดก่อน ERASE');
     this.state='preparing';
@@ -558,7 +561,7 @@ export class HondaFlashEngine {
     if(this.lastResult.recovery){
       if(!observed.sourceMatched||/0000$/.test(observed.ecuId))
         fail('POST_RECOVERY_UNRECOGNISED','หลัง Recovery ECU ต้องรายงาน ID จริงที่อยู่ในฐาน C# แต่ได้ '+observed.ecuId);
-    }else if(observed.ecuId!==expected||!observed.sourceMatched)
+    }else if(observed.ecuId!==expected)
       fail('POST_FLASH_MISMATCH','อ่าน ECU ID หลังรีสตาร์ตไม่ตรงกับก่อนเขียน');
     const result={postFlashEcuResponded:true,ecuId:observed.ecuId,
       sourcePart:observed.sourcePart,flashCount:observed.count,
@@ -576,9 +579,14 @@ export class HondaFlashEngine {
   if(this.state!=='identified')fail('NOT_READY','อ่านรหัส ECU ให้เสร็จก่อน');
   if(!plan?.recovery&&/0000$/.test(this.identity.ecuId))
    fail('BOOT_ID_REQUIRES_RECOVERY','Normal Flash ไม่อนุญาตให้ ERASE/WRITE เมื่อ ECU ตอบ Recovery Boot ID');
-  if(!plan||plan.ecuId!==this.identity.ecuId||!plan.profile.startsWith(this.identity.family)||
-    (plan.recovery&&!this.identity.recoveryFamilyVerified)||
-    (!plan.recovery&&!this.identity.sourceMatched))
+  const sourceUnlistedPlan=!plan?.recovery&&!this.identity.sourceMatched;
+   const unlistedValid=sourceUnlistedPlan&&plan?.checks?.sourceUnlistedWithProof===true&&
+      plan?.checks?.sourceBinIdEvidence!=='NONE'&&
+      this.identity.programmingSessionVerified===true&&
+      this.identity.physicalFamilyEvidence==='MAIN_SOURCE_READ_ONLY_FLASH_COUNT_ACK';
+   if(!plan||plan.ecuId!==this.identity.ecuId||!plan.profile.startsWith(this.identity.family)||
+     (plan.recovery&&!this.identity.recoveryFamilyVerified)||
+     (sourceUnlistedPlan&&!unlistedValid))
     fail('PLAN_INVALID','แผนเขียนไม่ตรงกับ ECU ที่ตรวจแล้ว');
   // In the normal Flash UI, pressing the dedicated "อัดไฟล์" button is the
   // operator's single explicit write action. It does NOT assert that backup,
@@ -589,7 +597,7 @@ export class HondaFlashEngine {
   // or creates a full ECU backup. No backup/voltage/repair claim is inferred.
   if(!physicalBackupConfirmed||!externalPowerConfirmed||!recoveryReady)
     fail('PRECONDITION','ต้องยืนยันไฟล์ Backup ที่มีอยู่จริง ไฟเลี้ยง/สาย K-Line และวิธีกู้ ECU ก่อน ERASE');
-  if(!operatorClickConfirmed||plan.recovery){
+  if(!operatorClickConfirmed||plan.recovery||sourceUnlistedPlan){
     if(confirmation!=='FLASH '+plan.ecuId)fail('CONFIRMATION','ต้องพิมพ์ FLASH และ ECU ID ที่อ่านได้');
   }
   if(operatorClickConfirmed&&!plan.recovery)
@@ -607,8 +615,20 @@ export class HondaFlashEngine {
    const reconfirm=await this.x('RECHECK_ECU_ID',READ_ONLY_COMMANDS.ID,{timeoutMs:1600});
    if(reconfirm.length<11||toHex(reconfirm.slice(5,10)).replaceAll(' ','')!==plan.ecuId)
     fail('ECU_ID_CHANGED','ECU ID changed during preflight: refuse ERASE');
-   if(plan.recovery){
-    const rr=await this.x('RECHECK_RECOVERY_FAMILY_COUNT',
+   if(sourceUnlistedPlan){
+     // Main WorkerThread accepts either Keihin or Shindengen count for
+     // unlisted ECU IDs. Re-confirm the SAME family/count immediately before
+     // erase: no browser-cached evidence authorizes destructive commands.
+     const countReply=await this.x('RECHECK_UNLISTED_FAMILY_COUNT',
+        this.identity.family==='SHINDENGEN'?CMD.shPoll:CMD.khCount,{timeoutMs:2000});
+     if(countReply.length<7||countReply[3]===15||
+        !Number.isInteger(this.identity.count)||countReply[6]!==this.identity.count)
+      fail('UNLISTED_FAMILY_CHANGED','Flash Count/Family จาก ECU จริงไม่ตรงกับขั้นตอนตรวจแรก • หยุดก่อน ERASE');
+     this.emit('SOURCE_UNLISTED_RECONFIRMED',{ecuId:plan.ecuId,
+       family:this.identity.family,count:countReply[6],sourceBinIdEvidence:plan.checks.sourceBinIdEvidence});
+    }
+    if(plan.recovery){
+     const rr=await this.x('RECHECK_RECOVERY_FAMILY_COUNT',
       plan.profile.startsWith('SHINDENGEN')?CMD.shPoll:CMD.khCount,{timeoutMs:2000});
     if(rr.length<7||rr[3]===15)fail('RECOVERY_FAMILY_CHANGED','Recovery Count ไม่ตอบก่อน ERASE');
     this.emit('RECOVERY_RECONFIRMED',{ecuId:plan.ecuId,family:this.identity.family});
