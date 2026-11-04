@@ -6,6 +6,7 @@ import {MainLiveSession} from '../flash_port/main-live-session.js?v=351';
 import {resolveMainAutoMetadata} from '../flash_port/main-auto-metadata.js?v=352';
 import {localKtrCandidates} from '../flash_port/ecu-id-lookup.js?v=355';
 import {previewMainShindengenBin} from '../flash_port/main-shindengen-auto-preview.js?v=1';
+import {csharpOffsetInference} from '../flash_port/csharp-offsets.js?v=317';
 import {probeMainProgrammingSession,countDisplay} from '../flash_port/main-programming-probe.js?v=4';
 import {auditMainShindengenDryRun} from '../flash_port/main-source-dry-run.js?v=1';
 import {readEcuDat} from '../flash_port/ecu-dat-editor.js?v=1';
@@ -19,9 +20,24 @@ function autoBinEvidence(id){
  if(!selected){cachedBinEvidence=null;return {selected:false,key:'NONE',result:null}}
  if(cachedBinEvidence?.selected===selected&&cachedBinEvidence?.ecuId===id)
   return cachedBinEvidence.evidence;
+ // Cover all six source C# ECU types. Exact Shindengen checksum is calculated
+ // by the source marker function; Keihin uses source offsets/signature hints.
+ // Both remain BIN-only, never a hardware write authorization.
+ const sh=previewMainShindengenBin(selected.bytes,{physicalEcuId:id});
+ let result=sh;
+ if(sh.type&&!sh.type.startsWith('SHINDENGEN')){
+  try{
+   const offset=csharpOffsetInference(selected.bytes,{ecuId:id});
+   result={...sh,type:offset.csharpClassHint,
+    startOffset:offset.startOffset,startOffsetHex:offset.startOffsetHex,
+    checksumOffset:offset.checksumOffset,checksumOffsetHex:offset.checksumOffsetHex,
+    source:offset.source,ready:false,flashApproved:false,
+    message:'BIN ข้อมูลอ้างอิงจาก GetEcuType/GetOffsetsFromBinType · ยังไม่ยืนยันรุ่น/Checksum กับ ECU จริง'};
+  }catch(e){result={...sh,message:String(e.message||e)}}
+ }
  const evidence={selected:true,
   key:String(selected.selectedAt||selected.sha256||selected.filename||selected.sourceName)+'|'+selected.bytes.length,
-  result:previewMainShindengenBin(selected.bytes,{physicalEcuId:id})};
+  result};
  cachedBinEvidence={selected,ecuId:id,evidence};
  return evidence;
 }
@@ -182,13 +198,13 @@ window.__55SharedEcu={
  acquire:owner=>reader.acquire(owner),release:owner=>reader.release(owner),
  get owner(){return reader.owner;},
  snapshot:()=>reader.status(),connect:options=>old.connect(options),disconnect:()=>reader.disconnect(),
- rescan:()=>reader.rescan(),restoreCable:()=>reader.restoreCable(),
+ rescan:()=>reader.rescanWithProgramming(),restoreCable:()=>reader.restoreCable(),
  readDtc:()=>reader.readDtc(),
  stop:()=>reader.stop(),get port(){return reader.port?.ready?reader.port:null;}
 };
 window.__55MainProgrammingProbe=Object.freeze({
  snapshot:()=>{
-  const st=reader.status(),p=programmingProbeResult;
+  const st=reader.status(),p=st.sourceProbe||programmingProbeResult;
   return p&&st.connected&&p.expectedEcuId===st.ecuId?
    {ecuId:p.ecuId||null,expectedEcuId:p.expectedEcuId,hello:p.hello,handshake:p.handshake,
     countState:p.countState,flashCount:p.flashCount,family:p.family,
@@ -198,7 +214,7 @@ window.__55MainProgrammingProbe=Object.freeze({
 window.__55MainLive={
  ready:true,group:()=>reader.group,setGroup:g=>reader.setGroup(g),
  connect:old.connect,start:old.startEcu,stop:old.stopEcu,
- snapshot:()=>reader.status(),readDtc:()=>reader.readDtc(),disconnect:()=>reader.disconnect(),rescan:()=>reader.rescan()
+ snapshot:()=>reader.status(),readDtc:()=>reader.readDtc(),disconnect:()=>reader.disconnect(),rescan:()=>reader.rescanWithProgramming()
 };
 // Main.zip FormMain.WorkerThread-inspired automatic read-only scan on page entry.
 // All pages share this ONE MainLiveSession; no extra navigator.usb.requestDevice.
@@ -225,6 +241,8 @@ function autoFlashSummary(){
   '\nECU ID จริง: '+(st.ecuId||'ยังไม่ตอบ')+
   '\nPart Code ฐาน Main: '+(st.part||'ยังไม่ตรงฐาน')+
   '\nECU Family จากฐาน: '+(st.catalogFamily||'ยังไม่ระบุ')+
+  '\nFamily จากกล่อง (Read-only ACK): '+(st.sourceProbe?.countState==='CONFIRMED'?st.sourceProbe.family:'ยังไม่ได้ยืนยัน')+
+  '\nFlash Count จากกล่อง: '+(st.sourceProbe?.countState==='CONFIRMED'?st.sourceProbe.flashCount+' ครั้ง':'ยังไม่ได้รับ ACK')+
   '\nStart Offset (ฐาน): '+offset(st.startOffset,st.startOffsetText)+
   '\nChecksum Offset (ฐาน): '+offset(st.checksumOffset,st.checksumOffsetText)+
   '\nLive Group ที่อ่านตอบ: '+(st.liveGroupVerified?st.group:'ยังไม่ยืนยัน')+
@@ -253,10 +271,13 @@ window.__55AutoEcu={
   }
   if(reader.owner||reader.connecting)return false;
   if(reader.running&&page==='live')return true;
-  const recent=page==='dashboard'&&st.autoComplete&&st.ecuId&&Date.now()-autoScannedAt<45000;
+  // Avoid needlessly re-running the source programming probe on every menu
+  // switch. New cable connect and explicit Rescan still force a new physical ID.
+  const recent=st.autoComplete&&st.ecuId&&st.sourceProbe&&
+   Date.now()-autoScannedAt<45000;
   const run=async()=>{
    if(!recent||force){
-    const done=await reader.rescan();
+    const done=await reader.rescanWithProgramming();
     autoScannedAt=Date.now();
     if(!done&&reader.status().connected)console.info('55 Performance: FT232R ready, ECU auto scan incomplete');
    }
@@ -367,7 +388,7 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
   void old.connect({forcePicker:true}).then(updateSharedState).catch(e=>{state.textContent=String(e?.message||e)})
    .finally(()=>{selectAgain.disabled=false;updateSharedState()});
  };
- rescan.onclick=()=>{void reader.rescan().then(updateSharedState).catch(e=>{state.textContent=e.message})};
+ rescan.onclick=()=>{void reader.rescanWithProgramming().then(updateSharedState).catch(e=>{state.textContent=e.message})};
  const safeDownload=(json,filename)=>{
   const content=JSON.stringify(json,null,2);
   const url=URL.createObjectURL(new Blob([content],{type:'application/json;charset=utf-8'}));
@@ -411,7 +432,8 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
      }
     }
    });
-   programmingProbeResult=report;programmingProbeRuns.push(report);
+   programmingProbeResult=report;reader.sourceProbe=report;reader.notify();
+   programmingProbeRuns.push(report);
    if(programmingProbeRuns.length>3)programmingProbeRuns.shift();
    const explainRx=name=>{
     const failure=report.events.filter(e=>e.phase==='TRANSPORT_SOURCE_RX_FAILURE'&&e.name===name).at(-1);
@@ -500,10 +522,12 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
   const selected=autoBinEvidence(st.ecuId);
   const k=[st.connected,st.ecuId,st.catalogMatched,st.part,st.catalogFamily,
    st.startOffset,st.checksumOffset,st.startOffsetText,st.checksumOffsetText,selected.key,
-   programmingProbeResult?.finishedAt||''].join('|');
+   st.sourceProbe?.finishedAt||programmingProbeResult?.finishedAt||''].join('|');
   if(lastDetectedKey===k)return;
   lastDetectedKey=k;
   const data=resolveMainAutoMetadata(st);
+  const source=st.sourceProbe?.countState==='CONFIRMED'&&
+   st.sourceProbe?.ecuId===st.ecuId?st.sourceProbe:null;
   const reference=data.ecuId&&!st.catalogMatched?localEcmReference(data.ecuId):null;
   detected.replaceChildren();
   const head=document.createElement('strong');head.textContent='ECU ID → Main.zip · ตรวจพบอัตโนมัติ';
@@ -512,7 +536,7 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
   const items=[
    ['ECU ID จากกล่อง',data.ecuId||'ยังไม่ได้อ่านจาก ECU'],
    ['Part Code',data.partCode||'—'],
-   ['ECU Family',data.family||'—'],
+   ['ECU Family',source?.family?(source.family+' · ECU ACK'):data.family?(data.family+' · Main 290'):'ยังไม่ยืนยัน'],
    ['Start Offset',data.startOffset],
    ['Checksum Offset',data.checksumOffset]
   ];
@@ -521,8 +545,8 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
    items.push(['Auto Start จาก BIN (Main.zip)',b?.startOffsetHex||'รอเลือก BIN / ยังไม่พบ']);
    items.push(['Auto Checksum จาก BIN (Main.zip)',b?.checksumOffsetHex||'รอเลือก BIN / ยังไม่พบ']);
   }
-  if(programmingProbeResult?.expectedEcuId===data.ecuId&&st.connected){
-   const p=programmingProbeResult;
+  if((st.sourceProbe||programmingProbeResult)?.expectedEcuId===data.ecuId&&st.connected){
+   const p=st.sourceProbe||programmingProbeResult;
    items.push(['Flash Count · Main.zip (ตรวจจริง)',countDisplay(p)]);
    items.push(['Family จาก ACK',p.countState==='CONFIRMED'&&p.ecuId===data.ecuId?p.family:'ยังไม่ยืนยัน']);
   }else if(data.ecuId){
@@ -542,7 +566,12 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
    cell.append(key,val);grid.append(cell);
   }
   const status=document.createElement('p');
-  status.textContent=data.message+(data.ecuId&&!st.catalogMatched?' · '+(selected.result?.message||'Main.zip ต้องใช้ BIN เพื่อหา Auto Offset'):'');
+  status.textContent=data.message+
+   (source&&!st.catalogMatched?' · นอกฐาน 290 แต่ยืนยันตระกูล '+source.family+
+    ' จาก ACK จริง / Flash Count '+source.flashCount+' ครั้ง (อ่านอย่างเดียว)':'')+
+   (source&&st.catalogMatched&&data.family!==source.family?
+    ' · คำเตือน Family จากฐานขัดกับ ACK ของ ECU; ต้องตรวจซ้ำก่อนเขียน':'')+
+   (data.ecuId&&!st.catalogMatched?' · '+(selected.result?.message||'Main.zip ต้องใช้ BIN เพื่อหา Auto Offset'):'');
   status.setAttribute('role','status');
   status.style.cssText='margin:10px 0 0;color:'+(data.complete?'#83f1c4':'#ffd39a')+';font-size:12px;line-height:1.55';
   const foot=document.createElement('small');
@@ -568,7 +597,7 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
   const ktr=st.ecuId&&!st.catalogMatched?localEcmReference(st.ecuId):null;
   const binSource=autoBinEvidence(st.ecuId);
   const usbOK=st.connected;
-  const sourceProbe=programmingProbeResult?.expectedEcuId===st.ecuId&&st.connected?programmingProbeResult:null;
+  const sourceProbe=st.sourceProbe?.expectedEcuId===st.ecuId&&st.connected?st.sourceProbe:null;
   const ready=st.connected&&!st.connecting;
   const idOK=ready&&/^[0-9A-F]{10}$/.test(st.ecuId);
   const liveOK=ready&&st.liveGroupVerified;
@@ -633,7 +662,7 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
    dtcError:st.dtcError||null,
    catalogMatched:st.catalogMatched,
    familyFromMain:st.catalogFamily||null,
-   sourceProgrammingProbe:programmingProbeResult,
+   sourceProgrammingProbe:st.sourceProbe||programmingProbeResult,
    sourceProgrammingRounds:programmingProbeRuns.length,
    familyFromAck:sourceProbe?.countState==='CONFIRMED'?sourceProbe.family:null,
    countState:sourceProbe?.countState||'NOT_TESTED',
@@ -656,6 +685,20 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
  const oldNotify=reader.onUpdate;
  reader.onUpdate=(...args)=>{
   oldNotify(...args);
+  const st=reader.status();
+  if(!st.connected||!st.ecuId){
+   programmingProbeResult=null;programmingProbeRuns=[];dryRunReport=null;
+  }else if(reader.sourceProbe?.expectedEcuId===st.ecuId&&
+   reader.sourceProbe.finishedAt!==programmingProbeResult?.finishedAt){
+   programmingProbeResult=reader.sourceProbe;
+   programmingProbeRuns=[reader.sourceProbe];
+   if(typeof probeInfo!=='undefined')
+    probeInfo.textContent='ตรวจตระกูลอัตโนมัติ · ECU '+st.ecuId+
+     '\nHELLO: '+reader.sourceProbe.hello+
+     '\nFamily จาก ECU: '+reader.sourceProbe.family+
+     '\nFlash Count: '+countDisplay(reader.sourceProbe)+
+     '\nดูรายละเอียดเพิ่มเติมได้ที่ ดาวน์โหลด TX/RX Log';
+  }
   updateSharedState();
   if(document.getElementById('home')?.dataset.neonPage==='flash')autoFlashSummary();
   window.__55SyncLegacyUsb?.(reader.status());

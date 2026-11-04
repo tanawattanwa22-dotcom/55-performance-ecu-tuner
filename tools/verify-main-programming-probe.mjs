@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {hondaChecksum,Ft232rWebUsb} from '../flash_port/ftdi-webusb.js';
 import {probeMainProgrammingSession,countDisplay} from '../flash_port/main-programming-probe.js';
 import {sourceFamilyHint,OBSERVED_READ_ONLY_IDS} from '../flash_port/main-source-family-hints.js';
+import {MainLiveSession} from '../flash_port/main-live-session.js';
 import {auditMainShindengenDryRun} from '../flash_port/main-source-dry-run.js';
 import {writeEcuDat} from '../flash_port/ecu-dat-editor.js';
 import {parseEcuDat} from '../flash_port/ecu-dat.js';
@@ -91,6 +92,25 @@ const hintedResult=await probeMainProgrammingSession(hinted.port,{
 assert.equal(hintedResult.family,'SHINDENGEN');
 assert.equal(hintedResult.flashCount,14);
 assert.equal(hintedResult.countState,'CONFIRMED');
+// Automatic next-vehicle workflow never requires clicking the separate
+// programming button: MainLiveSession.rescanWithProgramming() owns the one
+// FT232R port and adds physical read-only ACK to the shared snapshot.
+const autoReader=new MainLiveSession();
+let autoScanInvocations=0;
+autoReader.rescan=async()=>{
+ autoScanInvocations++;
+ autoReader.ecuId=ecu;autoReader.catalog=null;
+ autoReader.port=usb({recordedPcX160ShindengenReply:true,helloFourByteReply:true}).port;
+ return true;
+};
+assert.equal(await autoReader.rescanWithProgramming(),true);
+assert.equal(autoScanInvocations,1);
+assert.equal(autoReader.status().sourceProbe?.family,'SHINDENGEN');
+assert.equal(autoReader.status().sourceProbe?.flashCount,14);
+assert.equal(autoReader.status().sourceProbe?.flashApproved,false);
+autoReader.ecuId='0101880D01';
+assert.equal(autoReader.status().sourceProbe,null,
+ 'Never treat ECU A physical programming ACK as verification of ECU B');
 assert(!hinted.calls.some(x=>x.startsWith('TX_7d')),
  'Known Shindengen physical ID must try 0x7B read-only before Keihin 0x7D');
 assert.equal(recordedResult.programmingSessionVerified,true);
