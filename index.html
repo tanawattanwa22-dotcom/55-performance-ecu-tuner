@@ -335,7 +335,7 @@ table.g th,table.g td{border-right:1px solid rgba(255,255,255,.35);border-bottom
     <details style="padding:6px 0"><summary>Fast Write / Recovery และคำสั่งพิเศษ</summary>
       <p class="mu sm">Flash ปกติจะอ่าน ECU ID/Programming session เพื่อตรวจ Boot Recovery อัตโนมัติก่อน ERASE; ถ้าพบ Boot หรือแฟลชผิดพลาดจะหยุดและแนะนำเมนู Recovery (ไม่มีการลบ/เขียนอัตโนมัติ)</p>
       <a href="flash_port/flash-write-lab.html" target="_blank" rel="noopener" style="color:#ffb984">เปิด Flash Bench V18 ขั้นสูง</a>
-      <p class="mu sm">Reset Flash Count SH: ยังไม่ได้ต่อคำสั่งเข้ากับ WebUSB จึงไม่แสดงปุ่มกดที่ส่งข้อมูลจริง</p>
+      <p class="mu sm">Reset Flash Count SH: มีคำสั่งจาก FormMain.cs ในเมนูเครื่องมือไฟฟ้า และอ่าน Flash Count อีกครั้งจากกล่องจริงหลังปิด–เปิดกุญแจ</p>
       <p class="mu sm">Convert ACG/ECU → BIN: แปลงบน Chrome ได้ด้วยรหัสรูปแบบไฟล์ที่เจ้าของมี โดยไม่ฝังรหัสจากต้นฉบับลงเว็บ</p><a class="btn" href="flash_port/main-source-converter.html?v=19" target="_blank" rel="noopener" style="text-decoration:none;background:#345163;color:#fff">เปิดเครื่องมือ ACG / ECU → BIN</a>
       <a class="btn" href="flash_port/main-source-offset-lab.html?v=19" target="_blank" rel="noopener" style="text-decoration:none;background:#263f6e;color:#dcf4ff">ตรวจ Offset / Checksum BIN</a>
       <a class="btn" href="flash_port/main-source-dtc.html?v=19" target="_blank" rel="noopener" style="text-decoration:none;background:#253f57;color:#dcf4ff">อ่าน DTC C# 6 ชุด</a>
@@ -1658,6 +1658,9 @@ $("#btnFlash").onclick=inlineFlashStart;
 
 /* Honda Main C# menu bridge — real existing BIN functions, not hardware simulation */
 const MAINTOOLS={datRows:[],busy:false,lastEcu:null};
+import('./flash_port/main-dat-reference.js?v=1').then(mod=>{
+ MAINTOOLS.datRows=mod.readMainDatReference().rows;
+}).catch(()=>{});
 function mainToolsOut(message){const el=$("#mtOut");if(el)el.textContent=String(message)}
 function mainToolsAction(id,fn){$("#"+id).addEventListener('click',async()=>{
  try{await fn()}catch(e){mainToolsOut('ข้อผิดพลาด: '+(e?.message||e))}
@@ -1698,7 +1701,7 @@ mainToolsAction('mtCatalog',async()=>{
  if(!/^[0-9A-F]{10}$/.test(id))throw Error('กรอก ECU ID เป็น HEX 10 หลัก');
  const {findCSharpEcuId}=await import('./flash_port/csharp-ecu-catalog.js');const r=await findCSharpEcuId(id);
  const dat=MAINTOOLS.datRows.find(x=>x.ecuId===id);
- mainToolsOut('ECU ID: '+id+'\n'+(r?'MAIN C# : '+r.part+' / '+r.family+'\nSTART: '+mainHex(r.startOffset)+'\nCHECKSUM: '+mainHex(r.checksumOffset):'ไม่พบใน 288 รายการของ FormMain.cs')+
+ mainToolsOut('ECU ID: '+id+'\n'+(r?'MAIN C# : '+r.part+' / '+r.family+'\nSTART: '+mainHex(r.startOffset)+'\nCHECKSUM: '+mainHex(r.checksumOffset):'ไม่พบในฐาน Main 290 รายการ')+
  (dat?'\nDAT (ส่วนเสริม): '+dat.part+' / '+dat.model+' / '+dat.family:'')+'\nตารางส่วนเสริมไม่อนุมัติให้เขียนเอง');
 });
 mainToolsAction('mtDat',()=>{$('#mtDatFile').click()});
@@ -1706,8 +1709,10 @@ $('#mtDatFile').addEventListener('change',async e=>{
  try{const f=e.target.files?.[0];if(!f)return;
   if(f.size>3_000_000)throw Error('ecuData.dat ใหญ่เกินไป');
   const {parseEcuDat}=await import('./flash_port/ecu-dat.js');const rows=parseEcuDat(await f.arrayBuffer());
+  const {saveMainDatReference}=await import('./flash_port/main-dat-reference.js?v=1');
+  saveMainDatReference(rows,f.name);
   MAINTOOLS.datRows=rows;
-  mainToolsOut('นำเข้า '+f.name+' สำเร็จ '+rows.length+' รายการ\nค้นผ่าน ECU ID ในช่องด้านบนได้\nข้อมูล DAT ใช้แสดงผลเท่านั้น ไม่แก้ตาราง C# ที่ใช้อนุมัติ Flash');
+  mainToolsOut('นำเข้าและบันทึกฐาน '+f.name+' สำเร็จ '+rows.length+' รายการ\nค้นผ่าน ECU ID ในช่องด้านบนได้\nข้อมูล DAT ใช้แสดงผลเท่านั้น ไม่แก้ตาราง C# ที่ใช้อนุมัติ Flash');
  }catch(err){mainToolsOut('อ่าน ecuData.dat ไม่สำเร็จ: '+err.message)}
  finally{e.target.value=''}
 });
