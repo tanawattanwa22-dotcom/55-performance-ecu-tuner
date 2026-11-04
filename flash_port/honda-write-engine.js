@@ -15,6 +15,7 @@ import {findCSharpEcuId} from './csharp-ecu-catalog.js?v=302';
 import {readBinId} from './bin-tools.js?v=317';
 import {probeMainProgrammingSession} from './main-programming-probe.js?v=7';
 import {sourceFamilyHint} from './main-source-family-hints.js?v=1';
+import {lookupMainDatReference} from './main-dat-reference.js?v=1';
 const sleep=ms=>new Promise(ok=>setTimeout(ok,ms));
 function bytes(list){
  const b=Uint8Array.from(list);
@@ -115,8 +116,10 @@ export class HondaFlashEngine {
     const ecuId=toHex(r.slice(5,10)).replaceAll(' ','');
     if(!/^[0-9A-F]{10}$/.test(ecuId))fail('BAD_ECU_ID','Diagnostic ID malformed');
     const source=(await findCSharpEcuId(ecuId))||catalogLookup(ecuId);
+   const datReference=source?null:lookupMainDatReference(ecuId);
     this.identity={ecuId,family:'UNVERIFIED',count:null,handshake:'DIAGNOSTIC_ONLY',
-      sourcePart:source?.part||null,sourceMatched:false,catalog:source||null};
+      sourcePart:source?.part||datReference?.part||null,sourceMatched:false,
+      catalog:source||null,datReference};
     this.state='identified';
     this.emit('DIAGNOSTIC_ID_ONLY',this.identity);
     return this.identity;
@@ -160,6 +163,7 @@ export class HondaFlashEngine {
    const ecuId=toHex(idReply.slice(5,10)).replaceAll(' ','');
    if(!/^[0-9A-F]{10}$/.test(ecuId))fail('BAD_ECU_ID','ECU ID ผิดรูปแบบ');
    const source=(await findCSharpEcuId(ecuId))||catalogLookup(ecuId);
+   const datReference=source?null:lookupMainDatReference(ecuId);
    let family='UNVERIFIED',count=null,physicalFamilyEvidence=null;
    try{
     const isSh=source?.family==='SHINDENGEN';
@@ -210,8 +214,9 @@ export class HondaFlashEngine {
    }
    if(handshake==='DIAGNOSTIC_ONLY')family='UNVERIFIED';
    if(source?.part&&source.family===family)this.emit('SOURCE_ECU_MATCH',{ecuId,part:source.part});
-   this.identity={ecuId,family,count,handshake,sourcePart:source?.part||null,
+   this.identity={ecuId,family,count,handshake,sourcePart:source?.part||datReference?.part||null,
     sourceMatched:!!source?.part&&source.family===family,catalog:source||null,
+    datReference,
     physicalFamilyEvidence,programmingSessionVerified:!!physicalFamilyEvidence};
    this.state='identified';
    this.emit('ECU_IDENTIFIED',this.identity);
@@ -296,7 +301,8 @@ export class HondaFlashEngine {
   }
   // The original C# Shindengen catalog stores "auto"; start offset and
   // checksum are derived from exact firmware signatures, not blank defaults.
-  const sourcePart=sourceUnlisted?'UNLISTED-'+ecuId:catalog.part.toUpperCase();
+  const sourcePart=sourceUnlisted?
+   (this.identity.datReference?.part?.toUpperCase()||'UNLISTED-'+ecuId):catalog.part.toUpperCase();
    const shortPart=sourceUnlisted?'':sourcePart.split('-').slice(1).join('-');
    if(!rec&&!sourceUnlisted&&!filename.toUpperCase().includes(shortPart)&&
       confirmedPart.trim().toUpperCase()!==sourcePart)
