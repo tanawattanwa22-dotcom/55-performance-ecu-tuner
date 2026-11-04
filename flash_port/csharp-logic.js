@@ -26,7 +26,8 @@ export function inspectCSharpEcuType(bin){
  if(shTail){
   const v=findSignature(bin,SH_V850);
   const r=findSignature(bin,SH_RH850);
-  if(v>=0)return {type:'SHINDENGENV850',proof:'SV850 signature and 5A tail',source:'C# GetEcuType',verifiedAgainstHardware:false};
+  // Source FormMain.GetEcuType scans signatures by BIN byte position, not fixed V850 priority.
+   if(v>=0&&(r<0||v<=r))return {type:'SHINDENGENV850',proof:'SV850 signature and 5A tail (first source match)',source:'C# GetEcuType',verifiedAgainstHardware:false};
   if(r>=0){
    const isB=matches(bin,Uint8Array.of(0xa5,0xa5,0xa5,0xa5,0),40960);
    return {type:isB?'SHINDENGENRH850B':'SHINDENGENRH850',proof:'SH850 and 5A tail'+(isB?' plus start0 at 0xA000':''),source:'C# GetEcuType',verifiedAgainstHardware:false};
