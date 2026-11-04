@@ -65,6 +65,29 @@ export function parseFormMainSendCommandReply(received,command){
  const echoOK=tx.every((v,i)=>v===rx[i]);
  return {reply,echoOK};
 }
+/** Decode the accumulated response from FM_diag.method_99() or
+ * FM_dtc.method_110(): three/four writes, then a single serial read.
+ * Incomplete results return null while Chrome waits for FTDI USB packets.
+ */
+export function parseMainDiagnosticBurst(raw,frames){
+ const buffer=Uint8Array.from(raw||[]);
+ if(!Array.isArray(frames)||!frames.length)throw Error('Missing Main diagnostic frames');
+ let offset=0;const entries=[];
+ for(const requested of frames){
+  const cmd=Uint8Array.from(requested);
+  if(buffer.length-offset<cmd.length+2)return null;
+  const echoed=buffer.slice(offset,offset+cmd.length);
+  const replySize=buffer[offset+cmd.length+1];
+  if(replySize<3||replySize>255)throw Error('Source diagnostic reply length '+replySize+' invalid');
+  const end=offset+cmd.length+replySize;
+  if(end>buffer.length)return null;
+  const reply=checkedHondaReply(buffer.slice(offset+cmd.length,end));
+  entries.push({frame:cmd,reply,echoOK:cmd.every((b,i)=>b===echoed[i])});
+  offset=end;
+ }
+ if(offset!==buffer.length)throw Error('Extra UART bytes after Main diagnostic burst: '+(buffer.length-offset));
+ return {entries,raw:buffer};
+}
 export const READ_ONLY_COMMANDS=Object.freeze({
   WAKE:Object.freeze([0xfe,0x04,0x72,0x8c]),
   HELLO:Object.freeze([0x72,0x05,0x00,0xf0,0x99]),
@@ -291,9 +314,13 @@ export class Ft232rWebUsb {
       this._log('MAIN DIAG TX WAKE FE 04 72 8C');
       await sleep(30);
       await this.purge(); // C# discards output and ReadExisting before next write
-      await this._write(session==="dtc"?[0x72,0x05,0x00,0xf0,0x99]:[0x72,0x05,0x71,0x00,0x18]);
-      this._log('MAIN DIAG TX SESSION 72 05 71 00 18');
-      await sleep(50);
+      const sourceWake=session==="dtc"?[0x72,0x05,0x00,0xf0,0x99]:[0x72,0x05,0x71,0x00,0x18];
+      await this._write(sourceWake);
+      this._log('MAIN '+(session==="dtc"?'DTC':'LIVE')+' TX SESSION '+toHex(sourceWake));
+      // FM_dtc.method_107 waits 30ms; FM_diag.method_25 waits 50ms.
+      await sleep(session==="dtc"?30:50);
+      // Match DiscardOutBuffer and ReadExisting before next source group.
+      await this.purge();
       // Do not await transferIn here: Chrome has no cancellable bulk read.
       // The C# code reads only currently available bytes and can discard them.
       // A fresh group probe validates the next reply, not this wake alone.
@@ -321,6 +348,51 @@ export class Ft232rWebUsb {
     // Do not leave the former invented 80ms wake delay in this source path.
     await sleep(formMainSendCommandTimeoutMs(wake.length));
     await this.purge();
+  }
+  /** FM_diag.method_99 / FM_dtc.method_110: batch all source commands
+   * before reading, instead of waiting for a reply after each command.
+   */
+  async exchangeMainDiagnosticBurst(frames,{timeoutMs=1600}={}){
+    if(!this.ready)throw Error('FT232R not connected');
+    await this.prepareUart();
+    if(this.exchangeBusy)throw Error('FTDI exchange already active');
+    if(!Array.isArray(frames)||![3,4].includes(frames.length))
+      throw Error('Main diagnostic requires three DTC or four Live commands');
+    const txs=frames.map(f=>Uint8Array.from(f));
+    for(const frame of txs){
+      if(![5,7].includes(frame.length)||frame[0]!==0x72||frame[1]!==frame.length||
+         ![0x72,0x73,0x74].includes(frame[2])||hondaChecksum(frame)!==0)
+        throw Error('Source diagnostic read-only command invalid');
+    }
+    if(!Number.isFinite(timeoutMs)||timeoutMs<100||timeoutMs>6000)
+      throw Error('Diagnostic bulk receive timeout invalid');
+    this.exchangeBusy=true;
+    try{
+      // Do not purge between writes: C# reads the accumulated raw capture.
+      await this.purge();
+      for(const frame of txs){
+        await this._write(frame);
+        this._log('MAIN DIAG BURST TX '+toHex(frame));
+        await sleep(50);
+      }
+      const deadline=Date.now()+timeoutMs,uart=[];
+      while(Date.now()<deadline){
+        const rx=await this._readOnce(deadline);
+        uart.push(...rx.data);
+        if(uart.length>4096)throw Error('Main diagnostic burst too long');
+        const result=parseMainDiagnosticBurst(uart,txs);
+        if(result){
+          this._log('MAIN DIAG BURST RX '+uart.length+' UART bytes / '+result.entries.length+' replies');
+          await this.purge();
+          return result;
+        }
+      }
+      throw Error('Main diagnostic burst incomplete');
+    }catch(error){
+      this._log('MAIN DIAG BURST FAILED '+String(error?.message||error));
+      await this.close();
+      throw error;
+    }finally{this.exchangeBusy=false}
   }
   async exchangeRaw(frame,{timeoutMs,afterWriteMs=0,expectReply=true,observe=null,mainSourceMode=false}={}){
     // C# SendCommand-compatible echo + reply. This method can transmit an ECU
