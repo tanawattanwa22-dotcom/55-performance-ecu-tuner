@@ -208,4 +208,46 @@ assert.equal(khFromDat.startOffset,0x9000);
 assert.equal(khFromDat.checksumOffset,0x100);
 assert.equal(khFromDat.checks.startOffsetFromMainDat,true);
 
+// FormMain.WorkerThread reopens its original session when HELLO expires.
+// This test uses in-memory mocks: no browser USB and no write commands.
+const makeExpiredSourceSession=({changeId=false}={})=>{
+ const events=[],device={vendorId:0x0403,productId:0x6001};
+ const uart={ready:true,lastDevice:device,
+  async close(){this.ready=false},
+  async openSelected(d){assert.equal(d,device);this.ready=true}
+ };
+ const e=new HondaFlashEngine(uart,event=>events.push(event));
+ e.state='identified';
+ const first={ecuId:'0101880D01',family:'KEIHIN',sourceMatched:true,
+  sourcePart:'38770-K03-H01',count:5,handshake:'HELLO'};
+ e.identity={...first};
+ e.x=async(name)=>{if(name==='RECHECK_HELLO')throw Error('HELLO timed out');
+  throw Error('Unplanned ECU exchange: '+name)};
+ e.identify=async()=>{
+  e.identity={...first,ecuId:changeId?'9999999999':first.ecuId};
+  e.state='identified';
+  return e.identity;
+ };
+ let erased=false;
+ e.khPreErase=async()=>{erased=true};
+ e.writeBlocks=async()=>1;
+ e.khFinish=async()=>{};
+ const plan={ecuId:first.ecuId,profile:'KEIHINOTHER',part:first.sourcePart};
+ return {e,events,plan,getErased:()=>erased};
+};
+const resumed=makeExpiredSourceSession();
+const resumedOutcome=await resumed.e.flash(resumed.plan,{
+ operatorClickConfirmed:true,
+ physicalBackupConfirmed:true,externalPowerConfirmed:true,recoveryReady:true
+});
+assert.equal(resumedOutcome.ok,true);
+assert.equal(resumed.getErased(),true);
+assert(resumed.events.some(e=>e.phase==='MAIN_WORKER_SESSION_RESTORED'));
+const switched=makeExpiredSourceSession({changeId:true});
+await assert.rejects(()=>switched.e.flash(switched.plan,{
+ operatorClickConfirmed:true,
+ physicalBackupConfirmed:true,externalPowerConfirmed:true,recoveryReady:true
+}),e=>e?.code==='SOURCE_RESTART_ECU_CHANGED');
+assert.equal(switched.getErased(),false,'Changed ECU must stop BEFORE erase');
+
 console.log('PASS: Main FormMain source parity offline (no USB/flash commands)');
