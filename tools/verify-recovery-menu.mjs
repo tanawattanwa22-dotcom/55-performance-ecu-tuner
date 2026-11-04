@@ -10,7 +10,8 @@ const shared=get('ui/shared-operations-v30.js');
 const native=get('ui/neon-recovery-v35.js');
 const bench=get('flash_port/flash-write-lab.html');
 const index=get('index.html');
-assert(nav.includes("['recovery','⟳','Recovery / กู้ ECU'"),'Recovery has its own main-menu entry');
+assert(nav.includes("['recovery','⟳','Recovery'")&&nav.includes("if(cat[0]==='recovery')continue")&&
+ nav.includes("drawerItems.append(b)"),'Recovery has its own drawer menu route while the quick-nav remains unchanged');
 assert(nav.includes("recovery:[]"),'Recovery does not take over the regular Flash screen');
 assert(nav.includes("else if(id==='flash')")&&nav.includes("else if(id==='recovery')"),'separate Flash and Recovery routes');
 assert(shared.includes('window.__55OpenRecoveryPanel='),'Recovery opens via shared USB document');
@@ -34,7 +35,7 @@ const start=bench.slice(bench.indexOf('async function startPage(){'),bench.index
 assert(start.includes('await license()')&&start.includes('await connectEcu()')&&start.includes('await probeEcu()'),'auto entry only reads identity');
 assert(!/engine\.flash\s*\(|\$\('write'\)\.click\s*\(/.test(start),'automatic Recovery must never erase or write');
 assert(/ui\/neon-preflight-v24\.js\?v=\d+/.test(index)&&
- index.includes('ui/neon-recovery-v35.js?v=350')&&
+ /ui\/neon-recovery-v35\.js\?v=\d+/.test(index)&&
  /ui\/neon-v20\.js\?v=\d+/.test(index)&&
  /ui\/shared-operations-v30\.js\?v=\d+/.test(index),
  'Recovery/Main JS asset URLs cache-busted');
