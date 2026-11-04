@@ -333,7 +333,7 @@ function mount(host){
  const easy=card('n24-easy','⚡','อัดไฟล์ ECU');
  const uploadLabel=make('label','n24-upload-label','1. เลือก BIN ที่จูนเสร็จแล้ว');
  uploadLabel.htmlFor='n24QuickBin';
- const upload=make('input','n24-file-input');upload.type='file';upload.id='n24QuickBin';upload.accept='.bin,.rom,application/octet-stream';
+ const upload=make('input','n24-file-input');upload.type='file';upload.id='n24QuickBin';upload.accept='.bin'; // FormMain.OpenFileDialog.Filter: Bin file (*.bin)|*.bin
  const uploadNote=make('p','n24-help','เลือกไฟล์จากโทรศัพท์ได้เลย ไม่ต้องเลือกรุ่นรถเอง · ระบบจะอ่านรหัสกล่องจริงก่อนอัด');
  const fastLabel=make('label','n24-fast-label');const fast=make('input','');fast.type='checkbox';fast.id='n24FastWrite';fast.checked=!!window.__55QuickFlashFast;
  fastLabel.append(fast,document.createTextNode(' เขียนเร็ว (Fast Write · ใช้เฉพาะโปรไฟล์ที่รองรับ)'));
