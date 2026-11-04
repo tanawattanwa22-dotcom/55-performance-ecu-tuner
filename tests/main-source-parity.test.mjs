@@ -95,16 +95,35 @@ for(const name of [
  const result=await greetingEngine.x(name,Uint8Array.from([0x72,0x05,0,0xF0,0x99]));
  assert.equal(result.length,4,'FormMain accepts checksum-valid 4-byte '+name);
 }
-for(const statusful of [
+// The C# SendCommand() returns success for a valid four-byte frame regardless
+// of call site. THE CALLER then checks reply[1], reply[3], reply[4..5].
+for(const specific of [
  'SH_SEND_KEY','SH_GET_SEED','SH_ERASE_START','SH_ERASE_FINISH',
  'KH_ERASE_STATUS','KH_ERASE_FINISH','WRITE_BLOCK_1',
  'KH_POLL_F4','KH_FINAL_5','SH_FINAL5'
 ]){
- await assert.rejects(
-  ()=>greetingEngine.x(statusful,Uint8Array.from([0x72,0x05,0,0xF0,0x99])),
-  e=>e?.code==='BAD_ACK','Main needs a real ECU status byte for '+statusful
- );
+ const raw=await greetingEngine.x(specific,Uint8Array.from([0x72,0x05,0,0xF0,0x99]));
+ assert.equal(raw.length,4,'SendCommand does not impose a fake 5-byte gate on '+specific);
 }
+// Validate that the destructive CALLER nevertheless refuses a short reply
+// where the original C# requires an explicit 7-byte seed or 5/7-byte write ACK.
+const sourceStageEngine=new HondaFlashEngine({
+ ready:true,exchangeRaw:async()=>({reply:greeting,echoOK:true})
+},()=>{},async()=>{});
+await assert.rejects(
+ ()=>sourceStageEngine.shPreErase({profile:'SHINDENGENV850',fast:false}),
+ e=>e?.code==='SH_BAD_SEED','Shindengen seed still needs exactly seven bytes'
+);
+const writeStageEngine=new HondaFlashEngine({
+ ready:true,exchangeRaw:async()=>({reply:greeting,echoOK:true})
+},()=>{},async()=>{});
+await assert.rejects(
+ ()=>writeStageEngine.writeBlocks({
+   profile:'KEIHINOTHER',startOffset:0,fast:false,
+   blockBytes:128,bin:new Uint8Array(128)
+ }),
+ e=>e?.code==='WRITE_REJECTED','WriteFlash still needs five or seven bytes'
+);
 
 // FormMain.GetEcuType defaults to KEIHINOTHER for non-Shindengen BINs,
 // but only a fresh physically verified Keihin ACK and full source ID
