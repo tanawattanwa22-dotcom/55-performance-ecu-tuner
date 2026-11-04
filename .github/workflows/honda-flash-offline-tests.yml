@@ -15,6 +15,7 @@ on:
       - "tools/verify-main-diagnostic.mjs"
       - "tools/verify-main-auto-group.mjs"
       - "tools/verify-main-bin-sizes.mjs"
+      - "tests/**"
       - "package.json"
       - ".github/workflows/honda-flash-offline-tests.yml"
   pull_request:
@@ -22,6 +23,7 @@ on:
       - "flash_port/**"
       - "tools/verify-honda-flash.mjs"
       - "tools/verify-main-diagnostic.mjs"
+      - "tests/**"
       - "package.json"
   workflow_dispatch:
 
@@ -40,6 +42,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - name: Regression: Main FormMain source parity for unlisted ECU, HELLO and DAT (NO USB)
+        run: node tests/main-source-parity.test.mjs
       - name: Verify read-only Main programming probe, timeout recovery and DAT trust (NO ECU)
         run: node tools/verify-main-programming-probe.mjs
       - name: Verify V28 signed Offline Flash and shared original source engine
