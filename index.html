@@ -1520,7 +1520,7 @@ async function inlineFlashStart(){
   const shared=window.__55SharedEcu;
   if(!shared)throw Error('ระบบสายหลักยังไม่พร้อม');
   INLINEFLASH.port=await shared.acquire('INLINE_FLASH');
-  const {HondaFlashEngine}=await import('./flash_port/honda-write-engine.js?v=378');
+  const {HondaFlashEngine}=await import('./flash_port/honda-write-engine.js?v=379');
   // The login screen checked the license when this app session started.
   // No network/license check may block physical ECU diagnostics or flash.
   INLINEFLASH.engine=new HondaFlashEngine(INLINEFLASH.port,ev=>{
@@ -1569,7 +1569,7 @@ async function inlineFlashStart(){
    }else{
    if(e.code!=='PART_NOT_CONFIRMED')throw e;
    // Source BIN ID scan may supply a full five-byte match; three-byte prefixes do not.
-   const {readBinId}=await import('./flash_port/bin-tools.js?v=378');
+   const {readBinId}=await import('./flash_port/bin-tools.js?v=379');
    const embedded=readBinId(bin);
    const exactId=embedded.ok&&embedded.id?.toUpperCase()===identity.ecuId;
    if(exactId&&identity.sourcePart){
@@ -1662,7 +1662,7 @@ $("#btnFlash").onclick=inlineFlashStart;
 
 /* Honda Main C# menu bridge — real existing BIN functions, not hardware simulation */
 const MAINTOOLS={datRows:[],busy:false,lastEcu:null};
-import('./flash_port/main-dat-reference.js?v=1').then(mod=>{
+import('./flash_port/main-dat-reference.js?v=2').then(mod=>{
  MAINTOOLS.datRows=mod.readMainDatReference().rows;
 }).catch(()=>{});
 function mainToolsOut(message){const el=$("#mtOut");if(el)el.textContent=String(message)}
@@ -1674,14 +1674,14 @@ const mainHex=n=>Number.isInteger(n)?'0x'+n.toString(16).toUpperCase():'ไม�
 mainToolsAction('mtOpenBin',()=>{$('#btnRead').click()});
 mainToolsAction('mtSaveBin',()=>{requireMainBin();saveBin()});
 mainToolsAction('mtInspect',async()=>{
- requireMainBin();const {readBinId}=await import('./flash_port/bin-tools.js?v=378');const r=readBinId(S.bin);
+ requireMainBin();const {readBinId}=await import('./flash_port/bin-tools.js?v=379');const r=readBinId(S.bin);
  mainToolsOut('FILE: '+S.fname+'\nSIZE: '+S.bin.length+' bytes\nBIN ID: '+(r.ok?r.id:'ไม่พบ')+'\n'+(r.reason||'source pattern matched at '+mainHex(r.at))+'\nผลตรวจ BIN ID ไม่ใช่การยืนยันสิทธิ์ในการ ERASE');
 });
 mainToolsAction('mtFindId',async()=>{
  requireMainBin();let ecu=$('#mtEcuId').value.trim().toUpperCase().replace(/\s+/g,'');
  if(!ecu&&MAINTOOLS.lastEcu)ecu=MAINTOOLS.lastEcu.ecuId;
  if(!/^[0-9A-F]{10}$/.test(ecu))throw Error('ใส่ ECU ID 10 หลักก่อน หรือกดอ่าน ECU ID จริง');
- const {findEcmIdInBin}=await import('./flash_port/bin-tools.js?v=378');const r=findEcmIdInBin(S.bin,ecu);
+ const {findEcmIdInBin}=await import('./flash_port/bin-tools.js?v=379');const r=findEcmIdInBin(S.bin,ecu);
  mainToolsOut('ECU ID: '+ecu+'\n'+(r.ok?'พบ 3 ไบต์แรกใน BIN @ '+mainHex(r.index):'ไม่พบ pattern ใน BIN')+'\nผลค้นหา pattern เป็นข้อมูลประกอบ ไม่ยืนยันว่าไฟล์ตรงกล่อง');
 });
 const MAIN_LOCK_STATE={read:null,mode:null};
@@ -1696,7 +1696,7 @@ function mainSourceApplyBinDiff(label,edited){
 }
 async function mainToolsPatch(mode){
  requireMainBin();if(INLINEFLASH.busy)throw Error('มีงานแฟลชกำลังทำงาน');
- const {lockRead,lockMode,revertPatch}=await import('./flash_port/bin-tools.js?v=378');
+ const {lockRead,lockMode,revertPatch}=await import('./flash_port/bin-tools.js?v=379');
  const label=mode==='read'?'Lock Read':'Lock Mode';
  const button=$('#'+(mode==='read'?'mtLockRead':'mtLockMode'));
  const prior=MAIN_LOCK_STATE[mode];
@@ -1741,7 +1741,7 @@ $('#mtDatFile').addEventListener('change',async e=>{
  try{const f=e.target.files?.[0];if(!f)return;
   if(f.size>3_000_000)throw Error('ecuData.dat ใหญ่เกินไป');
   const {parseEcuDat}=await import('./flash_port/ecu-dat.js');const rows=parseEcuDat(await f.arrayBuffer());
-  const {saveMainDatReference}=await import('./flash_port/main-dat-reference.js?v=1');
+  const {saveMainDatReference}=await import('./flash_port/main-dat-reference.js?v=2');
   saveMainDatReference(rows,f.name);
   MAINTOOLS.datRows=rows;
   mainToolsOut('นำเข้าและบันทึกฐาน '+f.name+' สำเร็จ '+rows.length+' รายการ\nค้นผ่าน ECU ID ในช่องด้านบนได้\nข้อมูล DAT ใช้แสดงผลเท่านั้น ไม่แก้ตาราง C# ที่ใช้อนุมัติ Flash');
@@ -1765,7 +1765,7 @@ mainToolsAction('mtReadEcu',async()=>{
  let owns=false;
  try{
   const port=await shared.acquire('MAIN_TOOLS');owns=true;
-  const {HondaFlashEngine}=await import('./flash_port/honda-write-engine.js?v=378');
+  const {HondaFlashEngine}=await import('./flash_port/honda-write-engine.js?v=379');
   const engine=new HondaFlashEngine(port,ev=>inlineFlashLog('MAIN READ '+JSON.stringify(ev)));
   mainToolsOut('กำลังอ่าน ECU ID และ Flash Count จาก FT232R สายกลาง…');
   const data=await engine.identify({programmingPreflight:true});MAINTOOLS.lastEcu=data;
@@ -3264,12 +3264,12 @@ function v3Draw(){
 })();
 </script>
 
-<script src="ui/neon-preflight-v24.js?v=378"></script>
-<script src="ui/neon-recovery-v35.js?v=378"></script>
+<script src="ui/neon-preflight-v24.js?v=379"></script>
+<script src="ui/neon-recovery-v35.js?v=379"></script>
 <script src="ui/neon-v20.js?v=347"></script>
 <script src="ui/neon-live-v21.js?v=335"></script>
 <script src="ui/neon-dtc-v23.js?v=350"></script>
-<script type="module" src="ui/neon-main-live-v25.js?v=378"></script>
+<script type="module" src="ui/neon-main-live-v25.js?v=379"></script>
 
 <style>#licenseGate{position:fixed;inset:0;z-index:2147483647;background:#0b1220;color:white;display:flex;align-items:center;justify-content:center;font:16px system-ui}#licenseGate .wrap{width:min(94vw,440px);padding:25px;background:#1b2b40;border:1px solid #536783;border-radius:16px}#licenseGate input,#licenseGate button{box-sizing:border-box;width:100%;margin:5px 0;padding:12px;border-radius:9px;background:#243a55;color:white;border:1px solid #6c7e9d}#licenseGate button{background:#b65720}#licenseGate small{color:#c5d2e2}</style>
 <div id="licenseGate"><div class="wrap"><h2>55 PERFORMANCE ECU TUNER</h2><p>เปิดใช้งานด้วย License Key • 1 คีย์ / 1 เครื่อง</p><input id="licEmail" type="email" placeholder="อีเมล"><input id="licPass" type="password" placeholder="รหัสผ่าน"><button id="licLogin">เข้าสู่ระบบ</button><small style="display:block;margin:2px 0 8px;color:#8fd6ff;font-weight:700">ระบบสมัครสมาชิก V10 • แก้ตรวจอีเมลและแคชแล้ว</small><button id="licSignup" type="button" style="background:#284660;border-color:#6c7e9d">สมัครบัญชีลูกค้าใหม่ (ฟรี)</button><small style="display:block;line-height:1.5;margin:5px 0 9px">ลูกค้าใหม่กรอกอีเมลของตนเองและตั้งรหัสผ่านอย่างน้อย 8 ตัวอักษรเพื่อสมัคร หากมีบัญชีอยู่แล้วให้กดเข้าสู่ระบบ ไม่ต้องสมัครซ้ำ ระบบอาจส่งอีเมลยืนยัน</small><input id="licKey" placeholder="กรอก License Key"><button id="licActivate">เปิดใช้งานคีย์</button><button id="licCheck">ตรวจสิทธิ์อีกครั้ง</button><small id="licMsg">กรุณาเข้าสู่ระบบก่อนใช้งาน</small></div></div>
@@ -3280,6 +3280,6 @@ document.getElementById('licSignup').onclick=async()=>{const el=document.getElem
 document.getElementById('licActivate').onclick=async()=>{try{await api('activate',{key:document.getElementById('licKey').value,device});await check()}catch(e){message(e)}};
 document.getElementById('licCheck').onclick=()=>check().catch(message);check().catch(message);
 window.__ecuLicenseLogout=logout;
-})();</script><script type="module" src="ui/shared-operations-v30.js?v=378"></script>
+})();</script><script type="module" src="ui/shared-operations-v30.js?v=379"></script>
 </body>
 </html>
