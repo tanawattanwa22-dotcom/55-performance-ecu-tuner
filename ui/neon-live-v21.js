@@ -22,7 +22,7 @@
  const keys=["rpm","tps","map","ect","iat","bat","inj","ign","afr"];
  const names={rpm:"RPM",tps:"TPS",map:"MAP",ect:"ECT",iat:"IAT",bat:"Battery",inj:"Injection",ign:"Ignition",afr:"AFR / A/F"};
  const units={rpm:"รอบ/นาที",tps:"°",map:"kPa",ect:"°C",iat:"°C",bat:"V",inj:"ms",ign:"°BTDC",afr:"AFR"};
- const descriptions={rpm:"ความเร็วรอบเครื่องยนต์",tps:"มุมลิ้นเร่งจาก Main C#",map:"ความดันไอดี",ect:"อุณหภูมิน้ำหล่อเย็น",iat:"อุณหภูมิไอดี",bat:"แรงดันแบตเตอรี่",inj:"ระยะเวลาฉีดน้ำมัน",ign:"องศาจุดระเบิด",afr:"ค่า A/F ที่คำนวณตาม FM_diag.cs (ไม่ใช่ Wideband ที่ยืนยันแล้ว)"};
+ const descriptions={rpm:"ความเร็วรอบเครื่องยนต์",tps:"มุมเปิดลิ้นเร่ง",map:"ความดันไอดี",ect:"อุณหภูมิน้ำหล่อเย็น",iat:"อุณหภูมิไอดี",bat:"แรงดันแบตเตอรี่",inj:"ระยะเวลาฉีดน้ำมัน",ign:"องศาจุดระเบิด",afr:"ค่า A/F ที่ ECU ประเมิน (ไม่ใช่ Wideband ที่ยืนยันแล้ว)"};
  const groups={engine:keys,fuel:["inj","tps","map","afr"],electric:["bat","ign","ect"],sensors:["tps","map","ect","iat","afr"]};
  const icon=document.querySelector("#tune img.lg");
  const header=document.createElement("div");header.id="n21Header";
@@ -56,7 +56,7 @@
   </div>
  </div>
  <div class="n21-metric-grid">${keys.map(k=>`<button type="button" class="n21-metric n21-${k}" data-n21-key="${k}" aria-label="${names[k]}"><span class="n21-metric-icon">${icons[k]}</span><span class="n21-metric-name"><b>${names[k]}</b><small>${descriptions[k]}</small></span><span class="n21-metric-right"><span class="n21-signal">▁▃▅</span><strong id="n21Value-${k}">—</strong><small>${units[k]}</small></span></button>`).join("")}</div>
- <div id="n21AfrNote" class="n21-afr-provenance" role="note">A/F อ้างอิงสูตร FM_diag.cs • ไม่รับรองว่าเป็นเซนเซอร์ Wideband</div>
+ <div id="n21AfrNote" class="n21-afr-provenance" role="note">A/F เป็นค่าที่ประเมินจาก ECU • ไม่ใช่ผลจากเซนเซอร์ Wideband โดยตรง</div>
  <div class="n21-summary-head"><div class="n21-section-title"><span class="n21-slash"></span><b>สรุปค่า</b><small>(Min / Max / ปัจจุบัน)</small></div><span id="n21SummaryTime">ไม่มีข้อมูลบันทึก</span></div>
  <div class="n21-summary"><div class="n21-summary-name"><b id="n21SummaryName">RPM</b><small id="n21SummaryUnit">รอบ/นาที</small></div><div><small>ต่ำสุด (Min)</small><strong id="n21Min" class="n21-cyan">—</strong></div><div><small>สูงสุด (Max)</small><strong id="n21Max" class="n21-pink">—</strong></div><div class="n21-summary-now"><small>ปัจจุบัน (Now)</small><strong id="n21SummaryNow">—</strong></div></div>
  <div class="n21-actions">
@@ -64,7 +64,7 @@
   <button type="button" id="n21Reset" class="n21-action n21-action-reset">${icons.reset}<span><b>รีเซ็ตค่า Min-Max</b><small>Reset Min-Max</small></span></button>
   <button type="button" id="n21Csv" class="n21-action n21-action-csv">${icons.csv}<span><b>ส่งออก CSV</b><small>Export CSV</small></span></button>
  </div>
- <div class="n21-live-controls"><button type="button" id="n21Read" class="n21-secondary">⇄ เชื่อมต่อ / เริ่มอ่าน ECU</button><label class="n21-main-group-label">รูปแบบข้อมูลจาก Main C# <select id="n21MainGroup" aria-label="เลือกรูปแบบ Live Data ของ Main C#"><option value="1">Group 1 · A/F คำนวณ</option><option value="4">Group 4 · A/F คำนวณ</option><option value="7">Group 7 · ไม่มี A/F</option></select></label></div>
+ <div class="n21-live-controls"><button type="button" id="n21Read" class="n21-secondary">⇄ เชื่อมต่อ / เริ่มอ่าน ECU</button><label class="n21-main-group-label">รูปแบบการอ่านข้อมูล <select id="n21MainGroup" aria-label="เลือกรูปแบบการอ่านข้อมูล"><option value="1">Group 1 · A/F คำนวณ</option><option value="4">Group 4 · A/F คำนวณ</option><option value="7">Group 7 · ไม่มี A/F</option></select></label></div>
  <div id="n21SourceNotice" class="n21-source-notice">ยังไม่ได้เชื่อมต่อ ECU • ค่าจะเป็น — จนกว่าจะอ่านได้จริง</div>
 `;
  $("lvBody").insertBefore(pane,$("lvBody").firstElementChild);
@@ -121,7 +121,7 @@
    s.phase==='ECU_ID_PROBE'?'เปิด USB แล้ว · กำลังอ่าน ECU ID':
    'กำลังเชื่อมต่อ FT232R / ECU ID';
   $("n21ConnSub").textContent=s.connected?
-   (s.ecuId?"ECU ID "+s.ecuId+" · Main FM_diag.cs":"สายเปิดพอร์ตแล้ว · ยังไม่ได้อ่าน/ต่อรถ"):
+   (s.ecuId?"ECU ID "+s.ecuId+" · ออนไลน์":"สายเปิดพอร์ตแล้ว · ยังไม่ได้อ่าน/ต่อรถ"):
    s.connecting?activeStage:
    s.phase==='USB_ACCESS_DENIED'?'USB Access denied • ดูข้อความข้อผิดพลาด':
    "แตะเพื่อเลือกสายและเปิด USB เท่านั้น";
@@ -142,13 +142,13 @@
   $("n21SummaryTime").textContent=s.recording?"บันทึก "+hhmmss(s.recordSeconds):s.demo?"โหมดจำลอง":"ข้อมูล "+samples.length+" ชุด";
   $("n21SourceNotice").textContent=s.message||"ยังไม่ได้เชื่อมต่อ ECU • ค่าที่ไม่มีจะแสดง —";
   $("n21SourceNotice").classList.toggle("n21-demo-note",s.demo);
-  $("n21AfrNote").textContent=s.afrSource||"Main C# Group 7 ไม่มีค่า A/F";
+  $("n21AfrNote").textContent=s.afrSource||"ECU ไม่ส่งค่า A/F";
   for(const k of keys){const value=k==="afr"&&(s.demo||!s.afrSupported)?null:values[k];meterEls[k].textContent=fmt(value,k);pane.querySelector(`[data-n21-key="${k}"]`).classList.toggle("n21-missing",value==null)}
   $("n21NowName").textContent=names[selected]+" (ปัจจุบัน)";$("n21NowValue").textContent=fmt(values[selected],selected);$("n21NowUnit").textContent=units[selected];
   $("n21SummaryName").textContent=names[selected];$("n21SummaryUnit").textContent=units[selected];
   const r=stats.get(selected);$("n21Min").textContent=fmt(r?.min,selected);$("n21Max").textContent=fmt(r?.max,selected);
   $("n21SummaryNow").textContent=fmt(values[selected],selected);
-  $("n21ChartFoot").textContent=samples.some(p=>p[selected]!=null)?"กราฟข้อมูล FM_diag.cs • ช่วง "+windowMs/1000+" วินาที":"รอข้อมูล "+names[selected]+" จาก ECU จริง";
+  $("n21ChartFoot").textContent=samples.some(p=>p[selected]!=null)?"กราฟข้อมูลจาก ECU • ช่วง "+windowMs/1000+" วินาที":"รอข้อมูล "+names[selected]+" จาก ECU จริง";
   if(now-lastRender>=160){lastRender=now;requestAnimationFrame(draw)}
  }
  $("n21Back").onclick=()=>api.home("dashboard");
