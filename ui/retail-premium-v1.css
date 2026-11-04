@@ -1,0 +1,221 @@
+/* 55 PERFORMANCE · RETAIL EDITION 2026
+ * Visual-only layer. ECU, BIN, DTC and WebUSB handlers remain untouched.
+ */
+:root{
+ --bg:#070c16;--p1:#101929;--p2:#172338;--ln:#2a4056;
+ --tx:#edf5fb;--mu:#99aec1;--ac:#48c5d8;--ac2:#76b2e7;
+ --ok:#4dd8b0;--wn:#e7b979;--bd:#e6818b;
+ --retail-surface:#101b2e;--retail-surface-deep:#0c1424;
+ --retail-border:#2f4561;--retail-cyan:#55d1df;
+ --retail-silver:#b2c6d9;--retail-violet:#a9a3ec;
+ --retail-shadow:0 14px 34px rgba(0,3,13,.35),inset 0 1px rgba(255,255,255,.05);
+}
+html,body{background:#070c16!important;color:#edf5fb!important}
+body.retail-mode{
+ background:
+  radial-gradient(circle at 85% -7%,rgba(46,119,162,.16),transparent 37%),
+  radial-gradient(circle at -12% 64%,rgba(92,74,159,.11),transparent 45%),
+  #070c16!important;
+}
+#home,.page{background:transparent!important}
+#home .scroll,#lvBody{background:transparent!important}
+#neonShell{color:var(--tx)}
+.n20-head{
+ background:linear-gradient(135deg,rgba(17,32,55,.98),rgba(11,19,36,.98))!important;
+ border-bottom:1px solid rgba(98,143,179,.31)!important;
+ box-shadow:0 7px 26px rgba(0,0,0,.25)!important;
+ padding:12px 15px!important;
+}
+.n20-icon{border-radius:15px!important;box-shadow:0 0 0 1px rgba(94,208,228,.16),0 7px 24px #020815aa!important}
+.n20-logo{color:#f5f7fe!important;letter-spacing:.2px!important;font-weight:900!important;text-shadow:0 2px 8px #080f2080}
+.n20-logo small{color:#65d2db!important;letter-spacing:2.1px!important}
+.n20-top-right{background:rgba(19,40,64,.8)!important;border-color:#3a5e7b!important;border-radius:14px!important}
+.n20-hero{
+ background:
+ radial-gradient(circle at 90% 5%,rgba(72,169,192,.19),transparent 45%),
+ radial-gradient(circle at 0% 85%,rgba(100,75,155,.14),transparent 48%),
+ linear-gradient(127deg,#0e2437,#131c32 64%,#191b36)!important;
+ border-bottom:1px solid #314968!important;padding:22px 17px!important;
+}
+.n20-hero:before{opacity:.38;box-shadow:none!important}
+.n20-hero:after{background:#75cfde44!important}
+.n20-nav{
+ background:rgba(9,17,31,.94)!important;
+ border-bottom:1px solid rgba(86,124,163,.22)!important;
+ padding:9px 11px!important;gap:8px!important;
+}
+.n20-nav button{
+ background:#16263b!important;color:#bdd3e1!important;
+ border:1px solid #2c4963!important;border-radius:12px!important;
+ font-weight:700!important;letter-spacing:.1px;
+}
+.n20-nav button.active{
+ background:linear-gradient(115deg,#175267,#284e73)!important;
+ border-color:#6db9d0!important;color:#f7fdff!important;
+ box-shadow:inset 0 1px rgba(255,255,255,.1),0 5px 14px #061722!important;
+}
+.n20-stage{padding:10px 11px 18px!important}
+.n20-stage-title{font-size:20px!important;font-weight:900!important;letter-spacing:-.5px!important}
+.n20-stage-title:before{background:linear-gradient(180deg,#66dde5,#888ee9)!important}
+.n20-stage-sub{color:#9db4c8!important;font-size:13px!important;line-height:1.6!important}
+.n20-grid{gap:12px!important}
+.n20-tile{
+ border-radius:19px!important;min-height:128px!important;
+ border:1px solid #365574!important;
+ background:
+  radial-gradient(ellipse at 90% 8%,rgba(99,148,198,.15),transparent 55%),
+  linear-gradient(148deg,#162a42,#111c31 84%)!important;
+ box-shadow:var(--retail-shadow)!important;
+ padding:15px!important;gap:9px!important;
+ color:#f5fbff!important;
+ transition:transform .16s ease,box-shadow .2s ease,border-color .2s ease;
+}
+.n20-tile:hover{border-color:#6faaba!important;box-shadow:0 14px 32px #0008,0 0 0 1px #61bfd529!important}
+.n20-tile:active{transform:translateY(1px) scale(.99)!important}
+.n20-tile .n20-tile-icon{
+ border:1px solid #3c7186!important;
+ background:linear-gradient(145deg,#193e53,#18314a)!important;
+ color:#7bdfec!important;border-radius:13px!important;
+ box-shadow:inset 0 1px #ffffff17,0 8px 20px #0006!important;
+}
+.n20-tile-label{color:#f5f8ff!important;font-weight:800!important}
+.n20-tile-desc{color:#9db4c8!important;line-height:1.45!important}
+.n20-tile-arrow{color:#8fd9e1!important}
+.n20-tile[data-retail-cat="flash"]{
+ background:
+ radial-gradient(circle at 80% 0%,rgba(83,210,220,.14),transparent 58%),
+ linear-gradient(135deg,#18384c,#142239 85%)!important;
+ border-color:#558da4!important;
+}
+.n20-tile[data-retail-cat="tools"]{
+ border-color:#4b4773!important;background:linear-gradient(140deg,#202039,#151b31)!important;
+}
+.n20-panel,.n24-card,.n23-card,#home .card,
+#vDtc .card,#vAfr .card,.retail-status-card{
+ background:linear-gradient(148deg,#132339,#101a2d 65%,#10172a)!important;
+ border:1px solid #314966!important;
+ border-radius:19px!important;
+ box-shadow:var(--retail-shadow)!important;
+}
+.n20-panel{padding:17px!important}
+.n20-job{border-color:#233c58!important}
+.n20-job span:first-child{color:#68cfdf!important;background:#173448!important}
+.n20-panel b{color:#effaff!important}
+.n20-panel p{color:#a7bed1!important;line-height:1.6!important}
+#home .card{padding:16px!important}
+.card h2{font-size:17px!important;color:#edf6fc!important}
+.btn,button.mini,.n24-btn,.n23-btn{
+ border-radius:12px!important;
+ font-weight:750!important;
+ transition:filter .2s ease,transform .15s ease;
+}
+.btn:not([disabled]),.n24-btn:not([disabled]){
+ box-shadow:inset 0 1px rgba(255,255,255,.13),0 5px 14px rgba(0,0,0,.22)!important
+}
+.btn.ac,.n24-flash,.n24-btn.ac{
+ color:#f7fcff!important;
+ background:linear-gradient(130deg,#176a81,#2c668a)!important;
+ border-color:#5fbbd3!important;
+}
+.btn:active,.n24-btn:active{transform:scale(.985)}
+button[disabled]{opacity:.48!important;cursor:not-allowed!important}
+.n20-menu-dialog,.n23-menu-dialog{
+ background:linear-gradient(160deg,#14243b,#0d1425 75%)!important;
+ border-color:#446581!important;color:#eef6fa!important;
+}
+.n20-menu-dialog::backdrop,.n23-menu-dialog::backdrop{
+ background:rgba(0,3,13,.77)!important;backdrop-filter:blur(8px);
+}
+#licenseGate{
+ background:radial-gradient(circle at 55% 10%,#1a4254,#080d1b 70%)!important;
+}
+#licenseGate .wrap{
+ border-color:#456784!important;
+ border-radius:22px!important;
+ background:linear-gradient(155deg,#142c40,#111a30)!important;
+ box-shadow:0 25px 80px #0009!important;
+}
+#licenseGate button{background:linear-gradient(130deg,#176f7e,#276b88)!important;border-color:#4da5bf!important}
+.n24-flash-container,.n24-preflight,.n24-stage{
+ color:var(--tx)!important
+}
+.n24-advanced{border-color:#384962!important;background:#142237!important}
+.n24-advanced summary{color:#b8cbe1!important}
+#n24AutoEcuStatus{
+ background:linear-gradient(145deg,#123048,#14213a)!important;
+ border:1px solid #467991!important;border-radius:17px!important;
+ color:#deedf8!important;line-height:1.7!important;
+ box-shadow:var(--retail-shadow)!important;
+}
+#autoOffsetInfo,#n24Stage p,#dtcMsg{color:#b2c6d6}
+.n23-pane{background:#080e1e!important}
+.n23-brand{background:linear-gradient(125deg,#10253e,#0e1930)!important;border-bottom-color:#38536d!important}
+.n23-card{box-shadow:var(--retail-shadow)!important}
+/* Customer-facing diagnosis retains ECU ID / family and fault codes, not raw bus data. */
+body.retail-mode:not(.retail-advanced-visible) #klog,
+body.retail-mode:not(.retail-advanced-visible) #sharedEcuDebug,
+body.retail-mode:not(.retail-advanced-visible) .n24-advanced,
+body.retail-mode:not(.retail-advanced-visible) #mainManualOffsetsPanel,
+body.retail-mode:not(.retail-advanced-visible) #mainFastWriteLabel{
+ display:none!important;
+}
+#mainSourceTools.n20-hidden{display:none!important}
+.retail-status-card{padding:17px;margin:13px 0 17px}
+.retail-status-heading{display:flex;gap:10px;align-items:center;margin:0 0 14px;color:#c9edf2;font-weight:800;letter-spacing:.2px}
+.retail-status-mark{width:35px;height:35px;display:grid;place-items:center;border-radius:10px;background:#174354;color:#8ce0e7}
+.retail-status-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.retail-stat{
+ padding:12px 11px;background:linear-gradient(145deg,#0b1a2c,#15283b);
+ border:1px solid #2b4760;border-radius:13px;min-width:0;
+}
+.retail-stat small{display:block;color:#8eabc0;font-size:11px;line-height:1.4;margin-bottom:7px}
+.retail-stat strong{display:block;color:#f2fbff;font-size:14px;overflow-wrap:anywhere;font-weight:800}
+.retail-stat.wide{grid-column:span 2}
+.retail-stat .retail-ok{color:#71dfbf}
+.retail-stat .retail-pending{color:#e4bc82}
+.retail-status-foot{color:#a9c0d3;font-size:11px;margin:10px 1px 0}
+.retail-status-actions{display:flex;gap:9px;margin-top:14px;flex-wrap:wrap}
+.retail-status-actions .btn{flex:1;min-width:122px;padding:11px 9px}
+.n20-tile[data-retail-cat="tools"] .n20-tile-label:before{content:"🔒 ";font-size:12px}
+.retail-admin-dialog{
+ border:0;max-width:min(92vw,440px);width:min(92vw,440px);
+ padding:0;background:transparent;color:#f4fbff;max-height:calc(100dvh - 30px);
+ box-shadow:0 28px 80px #000b;border-radius:24px;
+}
+.retail-admin-dialog::backdrop{background:rgba(0,3,12,.82);backdrop-filter:blur(10px)}
+.retail-admin-surface{
+ padding:25px 21px;background:
+ radial-gradient(circle at 96% 0%,rgba(89,120,180,.24),transparent 50%),
+ linear-gradient(150deg,#13253c,#0d182a);
+ border:1px solid #4a6f8c;border-radius:24px;display:flex;flex-direction:column;gap:11px;
+}
+.retail-admin-lock{
+ display:grid;place-items:center;width:51px;height:51px;
+ border:1px solid #598c9d;border-radius:15px;background:#164254;
+ color:#72dfdf;font-size:25px;box-shadow:inset 0 1px #ffffff18,0 9px 24px #0005;
+}
+.retail-admin-eyebrow{font-size:10px;color:#91d5db;font-weight:850;letter-spacing:1.7px}
+.retail-admin-surface h2{margin:0;color:#f6fbff;font-size:25px}
+.retail-admin-surface p{margin:0;color:#a7bfd3;line-height:1.55;font-size:13px}
+.retail-admin-surface label{display:block;color:#d7e8f2;font-size:12px;font-weight:800}
+.retail-admin-surface input{
+ box-sizing:border-box;width:100%;margin-top:7px;padding:13px 12px;
+ border:1px solid #3e5d78;background:#0b1729;color:#f5fdff;
+ border-radius:11px;outline:none;font-size:15px;
+}
+.retail-admin-surface input:focus{border-color:#74cbd7;box-shadow:0 0 0 3px #54c2d922}
+.retail-admin-actions{display:flex;gap:10px}
+.retail-admin-actions button{flex:1;padding:12px 8px;border-radius:11px;border:1px solid #4d6882;font-size:14px;font-weight:800}
+.retail-admin-cancel{background:#1b2b42;color:#c4d6e8}
+.retail-admin-submit{background:linear-gradient(130deg,#177485,#246b91);color:white;border-color:#65b9c9!important}
+.retail-admin-message{min-height:16px;color:#e8b782!important}
+.retail-admin-foot{font-size:11px;color:#7899b0;line-height:1.5}
+body.retail-mode #n20Stage[data-category="tools"] .n20-stage-title{
+ color:#edecff!important
+}
+@media (max-width:370px){
+ .n20-tile{padding:12px!important;min-height:122px!important}
+ .n20-tile-label{font-size:13px!important}
+ .retail-stat{padding:10px 9px}
+}
+@media (prefers-reduced-motion:reduce){.n20-tile,.btn{transition:none!important}}
