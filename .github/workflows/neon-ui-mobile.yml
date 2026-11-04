@@ -37,6 +37,8 @@ jobs:
         run: sudo apt-get update -qq && sudo apt-get install -y -qq fonts-thai-tlwg
       - name: Check runner Chrome
         run: which google-chrome || which google-chrome-stable
+      - name: Verify XDF-only axis write guard
+        run: node tools/verify-xdf-axis-only.mjs
       - name: Run 320–720px responsive UI tests (no ECU connection)
         run: node tools/verify-neon-browser.mjs
       - name: Exercise full CSharp flash software emulator in mobile Chrome

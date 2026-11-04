@@ -74,14 +74,14 @@ function axis(t,which,byId){
   return {a:linked.addr,b:linked.bits,sg:false,le:linked.little,st:linked.step,d:linked.precision,eq:linked.rawEquation,n:count,rpm:a.link==='0X2769'};
  }
  if(Array.isArray(a?.labels)){
-  return {l:Array.from({length:count},(_,i)=>String(a.labels[i]??i+1))};
+  return {l:Array.from({length:count},(_,i)=>String(a.labels[i]??''))};
  }
  if(Number.isInteger(a?.address)){
   if(a.address+(count-1)*a.step+a.bits/8>N)throw Error('XDF axis outside BIN: '+t.id);
   return {a:a.address,b:a.bits,sg:false,le:a.little,st:a.step,d:1,n:count,rpm:false,
     eq:'X*'+a.formula[0]+(a.formula[1]>=0?'+':'')+a.formula[1]};
  }
- return {l:Array.from({length:count},(_,i)=>String(i+1))};
+ return null; // No definition in XDF: do not invent breakpoints.
 }
 function prepare(meta,bin){
  if(meta?.part!==PART||meta.size!==N||meta.tables?.length!==29||meta.flags?.length!==9)
@@ -176,7 +176,18 @@ function validateCustomer(bytes){
  }
  return {ok:true,changed};
 }
-const api={ensure,validateCustomer,isProtectedByte:offset=>!allowed?.has(offset),
+function axisVerified(tableId,which,actual,count){
+ if(!defs||!['x','y'].includes(which)||!Number.isInteger(count))return false;
+ const t=defs.tables.find(x=>x.xdfId===tableId),expected=t?.[which];
+ return Boolean(expected&&actual&&Number.isInteger(expected.a)&&expected.n===count&&
+  ['a','b','sg','le','st','eq','d','n','rpm'].every(k=>expected[k]===actual[k]));
+}
+function tableVerified(actual){
+ if(!defs||!actual?.xdfId)return false;
+ const expected=defs.tables.find(t=>t.xdfId===actual.xdfId);
+ return Boolean(expected&&['a','r','c','rs','cs','b','sg','le','eq'].every(k=>expected[k]===actual[k]));
+}
+const api={modelId:ID,ensure,validateCustomer,axisVerified,tableVerified,isProtectedByte:offset=>!allowed?.has(offset),
  get switches(){return defs?.sw.length||0},
  get rpmTables(){return defs?.tables.filter(t=>t.g==='ตัดรอบ').length||0},
  get loaded(){return !!defs},get tables(){return defs?.tables.length||0},get allowedCount(){return allowed?.size||0},

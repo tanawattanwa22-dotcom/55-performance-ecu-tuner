@@ -1,0 +1,36 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+const src=fs.readFileSync(new URL('../flash_port/xdf-axis-guard.js',import.meta.url),'utf8');
+const ctx={};vm.runInNewContext(src,ctx);
+const g=ctx.__55XdfAxisGuard;
+assert(g);
+const axis={a:400,b:16,sg:0,le:1,st:2,eq:'X*10',d:0,n:3,rpm:true};
+const table={xdfId:'0X123',g:'น้ำมัน',t:'Fuel map',a:100,r:3,c:3,rs:6,cs:2,b:16,x:axis};
+const msx={id:'MSX-GEN1-K26-901',xdf:true},old={id:'K2J-T01'};
+const provider={modelId:'MSX-GEN1-K26-901',loaded:true,
+ axisVerified:(id,key,a,n)=>id==='0X123'&&key==='x'&&n===3&&a.a===400&&a.eq==='X*10',
+ tableVerified:()=>true,isProtectedByte:()=>false};
+const testChanges=(model,changes,p=provider,t=[table])=>g.validateChanges(model,t,changes,p);
+assert.equal(g.axisProven(msx,table,'x',provider),true);
+assert.equal(g.axisProven(old,table,'x',provider),false);
+assert.equal(testChanges(old,[[400,1]]).ok,false);
+assert.equal(testChanges(old,[[401,1]]).ok,false);
+assert.equal(testChanges(old,[[402,1]]).ok,false);
+assert.equal(testChanges(old,[[100,1]]).ok,true);
+assert.equal(testChanges(msx,[[400,1]]).ok,true);
+assert.equal(testChanges(msx,[[400,1]],{...provider,loaded:false}).ok,false);
+assert.equal(testChanges(msx,[[400,1]],{...provider,modelId:'OTHER'}).ok,false);
+assert.equal(testChanges(msx,[[400,1]],{...provider,axisVerified:()=>false}).ok,false);
+assert.equal(testChanges(msx,[[400,1]],{...provider,isProtectedByte:()=>true}).ok,false);
+const at={xdfId:'0XAX',g:'แกน',t:'RPM',a:480,b:8,r:1,c:3,rs:3,cs:1};
+assert.equal(testChanges(old,[[480,1]],provider,[at]).ok,false);
+assert.equal(testChanges(msx,[[480,1]],provider,[at]).ok,true);
+const app=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
+const bridge=fs.readFileSync(new URL('../flash_port/msx-k26-legacy-bridge.js',import.meta.url),'utf8');
+assert(app.includes('validateChanges(MODELS[S.mi],M.tables,list,window.__55MSX)'));
+assert(app.includes('if(!verifiedXdfAxis(t,ax))'));
+assert(app.includes('if(!verifiedXdfAxis(e.table,e.key))'));
+assert(app.includes('if(!xdfAxisReady())return toast(axisWriteReason()'));
+assert(bridge.includes('axisVerified,tableVerified'));
+console.log('PASS XDF-only axis writes, no-XDF deny, model mismatch deny, protected bytes deny');

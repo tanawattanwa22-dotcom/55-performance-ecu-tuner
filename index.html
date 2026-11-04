@@ -517,7 +517,7 @@ table.g th,table.g td{border-right:1px solid rgba(255,255,255,.35);border-bottom
   <div><b>แก้แกนรอบเครื่อง RPM</b><small id="axisPageModel">-</small></div>
  </div>
  <div class="axis-screen-body">
-  <p class="axis-instruction">เปลี่ยนจุดรอบ RPM เช่น 9,000 → 11,000 โดยค่าน้ำมัน/ไฟในช่องเดิมไม่เปลี่ยน · ระบบตรวจว่าตำแหน่งแกนไม่ทับข้อมูลตาราง · การเพิ่มรอบตัด ECU ต้องแก้ตารางรอบตัดแยกต่างหาก</p>
+  <p class="axis-instruction">แก้แกนได้เฉพาะจุดที่นิยามจาก XDF ที่ตรวจแล้วของรุ่นนี้ ไม่มี XDF จะไม่สร้างตำแหน่งหรือแกน RPM เอง · การแก้แกนต้องไม่เปลี่ยนค่าตารางน้ำมัน/ไฟ</p>
   <label class="axis-select-label" for="axisPageChoice">เลือกชุดแกน RPM</label>
   <select id="axisPageChoice" class="axis-select"></select>
   <p id="axisPageInfo" class="axis-info"></p>
@@ -578,6 +578,7 @@ table.g th,table.g td{border-right:1px solid rgba(255,255,255,.35);border-bottom
 })(globalThis);
 
 </script>
+<script src="flash_port/xdf-axis-guard.js?v=1"></script>
 <script>
 "use strict";
 let DEFS={},BINS={};
@@ -615,6 +616,13 @@ function compile(id){
   });
   return{id,tables:tabs,sw:d.sw||[]};
 }
+function verifiedXdfAxis(t,key){
+ return window.__55XdfAxisGuard?.axisProven(MODELS[S.mi],t,key,window.__55MSX)===true;
+}
+function xdfAxisReady(){
+ return window.__55XdfAxisGuard?.source(MODELS[S.mi],window.__55MSX)===true;
+}
+const axisWriteReason=()=> "ต้องมี XDF ของรุ่นนี้ที่ยืนยันตำแหน่งและสูตรแกนก่อน · ไม่มี XDF ห้ามเขียนหรือเดาแกน";
 function axName(eq){
   if(!eq)return"";
   if(/0\.274656|3\.64086/.test(eq))return"รอบ";
@@ -659,6 +667,11 @@ function changedBytes(){let n=0;for(let i=curCk()==="sum0"?1:0;i<S.bin.length;i+
 
 /* ---------- edit core with undo ---------- */
 function commit(label,list){
+  if(!M||!S.bin)return false;
+  const xdfCheck=window.__55XdfAxisGuard?.validateChanges(MODELS[S.mi],M.tables,list,window.__55MSX);
+  if(!xdfCheck?.ok){
+   toast('ไม่เขียนแกน: '+(xdfCheck?.reason||axisWriteReason()),4800);return false;
+  }
   if(MODELS[S.mi]?.xdf){
    if(!window.__55MSX?.loaded){toast("ยังไม่ได้ตรวจนิยาม XDF ของ MSX");return false}
    for(const [at] of list){
@@ -855,6 +868,7 @@ function openTune(){
   if(!S.bin&&!useEmbedded())return;
   if(!checkFam()){toast("ไฟล์ไม่ตรงกับรุ่นที่เลือก");return}
   const msxOriginal=!!MODELS[S.mi]?.xdf;
+  S.axEdit=false;$("#axT").classList.remove("on");
   $("#tune").classList.toggle("msx-original",msxOriginal);
   if(msxOriginal){
    zoom=50;document.documentElement.style.setProperty("--cw","50px");
@@ -884,7 +898,9 @@ function buildTabs(){
   }):M.tables.filter(t=>!ADV.has(t.g));
   const chip=t=>`<div class="chip" data-i="${t.i}">${esc(t.t)}<i class="dot" style="display:none"></i></div>`;
   const sw=M.sw.length?`<div class="chip" data-i="-1">สวิตช์ (${M.sw.length})</div>`:"";
-  const rpmChip='<div class="chip" data-action="rpm-axis" role="button" tabindex="0">แก้แกนรอบ RPM</div>';
+  const rpmChip=xdfAxisReady()?
+   '<div class="chip" data-action="rpm-axis" role="button" tabindex="0">แก้แกน RPM · XDF</div>':
+   '<div class="chip" data-action="rpm-axis" role="button" tabindex="0" aria-disabled="true">แก้แกน RPM · ต้องมี XDF</div>';
   $("#tabs").innerHTML=isMsx
    ?shown.slice(0,3).map(chip).join("")+rpmChip+sw+shown.slice(3).map(chip).join("")
    :rpmChip+sw+shown.map(chip).join("");
@@ -898,8 +914,8 @@ function rpmAxisKey(t){
  if(!t)return null;
  for(const key of ["y","x"]){
   const a=t[key];
-  if(a&&a.a!==undefined&&!a.l&&a.k?.a&&
-     (a.rpm===true||axName(a.eq)==="รอบ"))return key;
+  if(a?.rpm===true&&a.a!==undefined&&!a.l&&a.k?.a&&
+     verifiedXdfAxis(t,key))return key;
  }
  return null;
 }
@@ -909,14 +925,14 @@ function rpmAxisEntries(){
  const entries=new Map();
  for(const t of M.tables){
   for(const key of ["y","x"]){
-   if(rpmAxisKey(t)!==key&&!(t[key]?.rpm===true))continue;
+   if(rpmAxisKey(t)!==key||!verifiedXdfAxis(t,key))continue;
    const a=t[key],n=key==="y"?t.r:t.c;
    if(!a||a.l||!Number.isInteger(a.a)||!Number.isInteger(a.st)||![8,16].includes(a.b)||!a.k?.a||
       a.st<a.b/8||n<2||n>256)continue;
    const end=a.a+(n-1)*a.st+a.b/8;
    if(a.a<0||end>S.bin.length)continue;
    const fingerprint=[a.a,a.b,a.st,a.le,a.sg,a.eq,n].join("|");
-   if(!entries.has(fingerprint))entries.set(fingerprint,{axis:a,n,key,tables:[],name:t.t,fp:fingerprint});
+   if(!entries.has(fingerprint))entries.set(fingerprint,{axis:a,n,key,table:t,tables:[],name:t.t,fp:fingerprint});
    entries.get(fingerprint).tables.push(t.t);
   }
  }
@@ -935,6 +951,8 @@ function axisPageCancel(){
 }
 function axisPageWritable(a,n){
  const writable=[];
+ if(!axisPageCurrent||!verifiedXdfAxis(axisPageCurrent.table,axisPageCurrent.key))
+  return Array.from({length:n},()=>false);
  for(let i=0;i<n;i++){
   const at=a.a+i*a.st,addresses=Array.from({length:a.b/8},(_,j)=>at+j);
   const protectedMsx=MODELS[S.mi]?.xdf&&
@@ -978,6 +996,7 @@ function axisPageRender(){
 }
 function axisPageSave(){
  const e=axisPageCurrent;if(!e||!M||!S.bin)return;
+ if(!verifiedXdfAxis(e.table,e.key))return toast(axisWriteReason(),4500);
  const a=e.axis,n=e.n;
  const inputs=[...$("#axisPageRows").querySelectorAll("input[data-axis-point]")];
  const error=message=>{$("#axisPageMessage").textContent=message};
@@ -1050,6 +1069,7 @@ function axisPageSave(){
 }
 function activateRpmAxis(){
  if(!M||S.mi<0||!S.bin)return toast("เลือกรุ่นและ BIN ก่อน");
+ if(!xdfAxisReady())return toast(axisWriteReason(),5000);
  axisPageEntries=rpmAxisEntries();
  if(!axisPageEntries.length)return toast("ไม่พบแกน RPM ที่มีตำแหน่งและสูตรครบในรุ่นนี้",4000);
  const current=rpmAxisKey(curT());
@@ -1091,12 +1111,16 @@ function selectTable(i){
   S.ti=i;S.sel=null;S.anchor=null;
   if(i<0){
     $("#tTitle").textContent="สวิตช์ / ล็อก";$("#tSub").textContent="เปิด-ปิดฟังก์ชันของกล่อง";$("#tUnit").textContent="";
-    $("#fp").style.display="none";$("#zm").style.display=$("#zp").style.display=$("#axT").style.display="none";
+    $("#fp").style.display="none";$("#zm").style.display=$("#zp").style.display=$("#axT").style.display="none";$("#axT").disabled=true;S.axEdit=false;
     renderSw();markTabs();const a=$('#tabs .chip[data-i="-1"]');if(a)a.scrollIntoView({inline:"center",block:"nearest"});return;
   }
   $("#fp").style.display="";$("#zm").style.display=$("#zp").style.display=$("#axT").style.display="";
   const t=curT();
   $("#tTitle").textContent=t.t;$("#tSub").textContent=MODELS[S.mi]?.xdf?"":t.s||"";$("#tUnit").textContent=t.u||"";
+  const xdfHasAxis=verifiedXdfAxis(t,'x')||verifiedXdfAxis(t,'y');
+  $("#axT").disabled=!xdfHasAxis;
+  $("#axT").title=xdfHasAxis?'แก้จุดแกนตาม XDF ที่ตรวจแล้ว':axisWriteReason();
+  if(!xdfHasAxis){S.axEdit=false;$("#axT").classList.remove("on");}
   $("#roNote").style.display=t.ro?"":"none";
   $("#roNote").textContent=MODELS[S.mi]?.xdf?"อ่านอย่างเดียว: ตารางนี้เป็นข้อมูลอ้างอิงหรือมีตำแหน่งซ้อนกัน":"ตารางนี้เป็นแกนอ้างอิง แก้ไม่ได้";
   const st=Math.max(Math.pow(10,-(t.d||0)),Math.abs(t.k.a));
@@ -1235,6 +1259,7 @@ function sharers(s){
 }
 function editAxis(ax,i){
   const t=curT(),s=t?.[ax];
+  if(!verifiedXdfAxis(t,ax)){toast(axisWriteReason(),4800);return}
   if(!s||s.l||s.a===undefined){toast("แกนนี้เป็นป้ายชื่อตามนิยาม แก้ไม่ได้");return}
   if(!s.k?.a||![8,16].includes(s.b)||!Number.isInteger(s.st)||s.st<s.b/8){
    toast("นิยามแกนไม่มีสูตรหรือช่วงไบต์ที่ยืนยันได้",3500);return;
@@ -1272,7 +1297,13 @@ function editAxis(ax,i){
   if(vals.some((x,k)=>k&&x<vals[k-1]))warn=" ⚠ แกนไม่เรียงจากน้อยไปมาก";
   toast("แก้แกนแล้ว ใช้ร่วมกับ: "+sh.join(", ")+warn,4200);
 }
-$("#axT").onclick=e=>{S.axEdit=!S.axEdit;e.target.classList.toggle("on",S.axEdit);if(S.axEdit)toast("แตะตัวเลขหัวแถว/หัวคอลัมน์เพื่อแก้ค่าแกน",2200)};
+$("#axT").onclick=e=>{
+ if(!xdfAxisReady()||!(verifiedXdfAxis(curT(),'x')||verifiedXdfAxis(curT(),'y'))){
+  S.axEdit=false;e.target.classList.remove("on");return toast(axisWriteReason(),4800);
+ }
+ S.axEdit=!S.axEdit;e.target.classList.toggle("on",S.axEdit);
+ if(S.axEdit)toast("แกนนี้อ่านตำแหน่งจาก XDF แล้ว · แตะหัวตารางเพื่อแก้",2300);
+};
 /* switches */
 function swOn(w){return !!w?.i?.length&&w.i.every(([a,m,want])=>want?(S.bin[a]&m)===m:(S.bin[a]&m)===0)}
 function renderSw(){
