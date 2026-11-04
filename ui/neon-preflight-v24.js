@@ -14,6 +14,8 @@ import(new URL('flash_port/csharp-ecu-catalog.js?v=302',document.baseURI).href)
  .then(mod=>mod.loadCSharpCatalog())
  .then(rows=>{catalog290={rows,error:null};render()})
  .catch(e=>{catalog290={rows:null,error:e?.message||String(e)};render()});
+const MAIN_BIN_ID_SIZES=new Set([32768,49152,57344,65536,98304,131072,262144,393216,524288,786432,1048576]);
+const hasMainLocator=bytes=>bytes instanceof Uint8Array&&MAIN_BIN_ID_SIZES.has(bytes.length);
 const quickBin=()=>window.__55QuickFlashBin?.bytes instanceof Uint8Array?window.__55QuickFlashBin:null;
 const catalogRecord=identity=>identity?.ecuId?(catalog290.rows?.get(String(identity.ecuId).toUpperCase())||identity.catalog||null):null;
 const sourceOffset=(n,raw)=>Number.isInteger(n)?X(n):raw==='auto'?'AUTO (Main C#)':raw===''?'ไม่ระบุใน Main C#':'—';
@@ -110,6 +112,9 @@ function render(){
  // The initial session may have neither BIN nor offset hint: never dereference null.
  const binEstimate=binOffsetHint&&binOffsetHint.saved===c.saved?binOffsetHint.estimated:null;
  const fileReady=!!quick||c.valid;
+ // Main Button1_Click reads any selected file first. SearchPattern methods
+ // exist for only 11 sizes; source BIN import must not be blocked by that.
+ const sourceBinSizeSupported=hasMainLocator(quick?.bytes||c.bytes);
  const cableReady=!!window.__55SharedEcu?.port?.ready;
  // Physical ECU absent from the purchased Main C# catalog: show the reason,
  // never suggest this BIN-only analysis authorizes erase or write.
@@ -170,7 +175,7 @@ function render(){
  dom.read.disabled=working||!!INLINEFLASH.busy||!!document.getElementById('licenseGate');
  dom.check.disabled=working||!c.valid||!identity||!recency()||last?.saved!==c.saved;
  dom.flash.disabled=working||!!INLINEFLASH.busy||(recoveryCandidate&&!INLINEFLASH.postCheck)||
-   !(INLINEFLASH.postCheck||(fileReady&&cableReady))||
+   !(INLINEFLASH.postCheck||(fileReady&&sourceBinSizeSupported&&cableReady))||
   !!$('btnFlash')?.hidden||!!$('btnFlash')?.disabled;
  dom.flash.textContent=INLINEFLASH.busy?'กำลังตรวจ / อัดไฟล์ ECU':
   INLINEFLASH.postCheck?'✓ ตรวจ ECU หลังเปิดกุญแจใหม่':
@@ -210,6 +215,7 @@ function render(){
   INLINEFLASH.busy?'กำลังตรวจและอัดไฟล์ ECU':
   ready?'ผ่านการตรวจซอฟต์แวร์ (ยังไม่ได้ ERASE)':
   unlistedPhysical?(fileReady?'ECU นอกฐาน Main 290 • ตรวจ BIN / Family สดเมื่อกด Flash':'อ่าน ECU ID ได้แล้ว • รอเลือก BIN'):
+  fileReady&&!sourceBinSizeSupported?'เปิด BIN แล้ว • ขนาดไฟล์ไม่มีตัวค้น BIN ID จาก Main':
   fileReady&&cableReady?'พร้อมตรวจ ECU / BIN ก่อนอัด':
   working?'กำลังอ่าน ECU / ตรวจ Preflight':identity?.ecuId&&source?.part&&!identity.sourceMatched?'พบ ECU ID ในฐาน · รอยืนยัน Family':'รอเลือก BIN และเชื่อม FT232R';
  dom.title.classList.toggle('ready',ready);
@@ -340,8 +346,9 @@ function mount(host){
   try{
    const f=upload.files?.[0];
    if(!f){uploadStatus.textContent='ยังไม่ได้เลือกไฟล์';return}
-   const lengths=[32768,49152,57344,65536,98304,131072,262144,393216,524288,786432,1048576];
-   if(!lengths.includes(f.size))throw Error('BIN ขนาด '+f.size+' bytes ไม่อยู่ในขนาดที่ Flash Engine รองรับ · ยังไม่อัด');
+   // The original C# OpenFileDialog loads bytes before SearchBinFileForPattern.
+   // Size is a later scan/write decision, not an input-file rejection.
+   const sourceSizeSupported=MAIN_BIN_ID_SIZES.has(f.size);
    const bytes=new Uint8Array(await f.arrayBuffer());
    const digest=await crypto.subtle.digest('SHA-256',bytes);
    const sha256=[...new Uint8Array(digest)].map(b=>b.toString(16).padStart(2,'0')).join('');
@@ -349,8 +356,11 @@ function mount(host){
    window.dispatchEvent(new Event('55:bin-selection-changed'));
    binOffsetHint=null;
    void previewBinOffset();
-   uploadStatus.textContent='✓ '+f.name+' • '+(f.size/1024).toFixed(0)+' KB · พร้อมตรวจ ECU';
-   message='เลือก BIN แล้ว · เชื่อมสายจากหน้าแรกและกดปุ่มอัด เพื่อให้ระบบตรวจ ECU/Checksum/Offset';
+   uploadStatus.textContent='✓ '+f.name+' • '+(f.size/1024).toFixed(2)+' KB'+
+    (sourceSizeSupported?' · เปิดไฟล์สำเร็จ':' · เปิดอ่านได้ แต่ขนาดไม่มีตัวค้นรหัส BIN ใน Main');
+   message=sourceSizeSupported?
+    'เปิด BIN แล้ว · ตรวจ ECU ID/Checksum/Offset ต่อได้':
+    'เปิดไฟล์ตาม Main ได้แล้ว แต่ขนาดนี้ไม่มี SearchPattern สำหรับการตรวจ BIN ID · ยังไม่เปิดคำสั่งแฟลช';
   }catch(e){uploadStatus.textContent='เลือกไฟล์ไม่สำเร็จ: '+e.message;error=e.message}
   finally{window.__55refreshFlashButton?.();render();upload.value='';if(window.__55SharedEcu?.snapshot?.().ecuId)void autoPrepare();}
  };
