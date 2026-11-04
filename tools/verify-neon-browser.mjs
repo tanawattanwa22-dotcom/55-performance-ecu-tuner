@@ -146,7 +146,9 @@ try{
   await page.evaluate(()=>{const input=document.getElementById('n21MainGroup');input.value='7';input.dispatchEvent(new Event('change',{bubbles:true}));});
   assert((await page.locator('#n21AfrNote').innerText()).includes('ไม่มีช่อง A/F'),'Group 7 cannot fabricate A/F');
   await page.evaluate(()=>{const input=document.getElementById('n21MainGroup');input.value='1';input.dispatchEvent(new Event('change',{bubbles:true}));});
-  assert((await page.locator('#n21AfrNote').innerText()).includes('FM_diag.cs'),'A/F is labelled Main C# calculated data');
+  assert((await page.locator('#n21AfrNote').innerText()).includes('ค่าประเมินจาก ECU')&&
+    (await page.locator('#n21AfrNote').innerText()).includes('ไม่ใช่ Wideband'),
+    'Main ECU A/F is shown as an estimate, never mislabelled as a measured Wideband reading');
   await overflowing('Original Neon Live (Main FM_diag backend) '+width);
   if(width===393)await page.screenshot({path:path.join(root,'test-reports','neon-live-main-v25-393.png'),fullPage:false});
   await page.evaluate(()=>document.querySelector('#n21Back').click());
