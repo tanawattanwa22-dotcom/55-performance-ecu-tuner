@@ -504,6 +504,12 @@ export class MainLiveSession {
    }
   }
   if(this.stopRequested||this.disconnectRequested)return null;
+  // WebUSB closes a timed-out transferIn; Windows SerialPort in C# does not.
+  // Restore the SAME FT232R before the source's unprobed Group 1 cycle.
+  if(!this.port?.ready){
+   try{await this._reopenDiagnostic()}
+   catch(error){throw Error('Group 1 source fallback USB reopen failed: '+error.message)}
+  }
   this.detectedGroup=1;this.group4Variant=null;
   this.liveGroupError=failures.join(' | ');
   this.notify();
