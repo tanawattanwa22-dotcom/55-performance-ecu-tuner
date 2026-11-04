@@ -188,9 +188,11 @@ try{
    await page.evaluate(()=>window.__55NeonNavigate('dashboard'));
   }
   await page.evaluate(()=>document.querySelector('#v20Nav [data-cat="tools"]').click());
-  assert.equal(await page.locator('#mainSourceTools').evaluate(el=>el.classList.contains('n20-hidden')),false);
-  assert(await page.locator('#n20Stage .n20-tool-links a').count()>=9,'all external C# tools linked');
-  await overflowing('Tools '+width);
+  assert.equal(await page.locator('#mainSourceTools').evaluate(el=>el.classList.contains('n20-hidden')),true,
+   'Advanced Main C# tools remain hidden without Supabase admin authorization');
+  assert.equal(await page.locator('#n20Stage .n20-tool-links button').count(),0,
+   'No privileged tools are exposed to unapproved accounts');
+  await overflowing('Unauthorised Tools '+width);
   await page.evaluate(()=>document.querySelector('#v20Nav [data-cat="settings"]').click());
   assert((await page.locator('#n20Stage').innerText()).includes('License'));
   await overflowing('Settings '+width);
