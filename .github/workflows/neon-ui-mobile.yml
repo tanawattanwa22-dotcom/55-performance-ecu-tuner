@@ -7,6 +7,10 @@ on:
       - "index.html"
       - "ui/**"
       - "flash_port/**/*.html"
+      - "flash_port/**"
+      - "xdfc.js"
+      - "msx-k26-xdf.html"
+      - "tools/verify-xdf-axis-only.mjs"
       - "tools/verify-neon-browser.mjs"
       - "tools/verify-main-full-flash-browser.mjs"
       - "tools/verify-offline-flash-browser.mjs"
@@ -16,6 +20,9 @@ on:
       - "flash_port/**"
       - "tools/verify-main-full-flash-browser.mjs"
       - "tools/verify-neon-browser.mjs"
+      - "tools/verify-xdf-axis-only.mjs"
+      - "xdfc.js"
+      - "msx-k26-xdf.html"
       - ".github/workflows/neon-ui-mobile.yml"
   workflow_dispatch:
 

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
+import {execFileSync} from 'node:child_process';
 const src=fs.readFileSync(new URL('../flash_port/xdf-axis-guard.js',import.meta.url),'utf8');
 const ctx={};vm.runInNewContext(src,ctx);
 const g=ctx.__55XdfAxisGuard;
@@ -38,4 +39,8 @@ const msxEditor=fs.readFileSync(new URL('../flash_port/msx-k26-901-editor.js',im
 assert(!converter.includes('patchTemps('),'no handwritten replacement XDF axis addresses');
 assert(!converter.includes('tpsFix('),'no handwritten replacement XDF axis formulas');
 assert(!msxEditor.includes('String(i+1)'),'no fabricated breakpoint labels');
-console.log('PASS XDF-only axis writes, no-XDF deny, model mismatch deny, protected bytes deny');
+for(const file of ['xdfc.js','flash_port/xdf-axis-guard.js',
+ 'flash_port/msx-k26-legacy-bridge.js','flash_port/msx-k26-901-editor.js']){
+ execFileSync(process.execPath,['--check',new URL('../'+file,import.meta.url).pathname]);
+}
+console.log('PASS XDF-only axis writes, no-XDF deny, model mismatch deny, protected bytes deny, JS syntax');
