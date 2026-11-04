@@ -219,3 +219,28 @@ body.retail-mode #n20Stage[data-category="tools"] .n20-stage-title{
  .retail-stat{padding:10px 9px}
 }
 @media (prefers-reduced-motion:reduce){.n20-tile,.btn{transition:none!important}}
+
+/* Retail hides the original read-only probe/testing console.
+ * Underlying listeners and automatic operations are not removed. */
+body.retail-mode:not(.retail-advanced-visible) #sharedEcuPanel,
+body.retail-mode:not(.retail-advanced-visible) #modelCard details,
+body.retail-mode:not(.retail-advanced-visible) #cableCard details{
+ display:none!important;
+}
+.retail-service-section{
+ margin:19px 0 10px;padding:0 0 9px;border-bottom:1px solid #355173;
+ color:#c3e4ec;font-size:16px;font-weight:800;
+}
+body.retail-mode .n20-tool-links>a{
+ border:1px solid #3a526e!important;
+ background:linear-gradient(142deg,#152a42,#151c35)!important;
+ border-radius:15px!important;
+ color:#f0f7fb!important;
+ box-shadow:0 9px 21px #0006,inset 0 1px #ffffff12;
+ padding:14px 13px!important;
+}
+body.retail-mode #mainSourceTools h2{color:#cfcefb!important}
+body.retail-mode #mainSourceDetails{color:#becde1!important}
+body.retail-mode #mainSourceDetails>summary{
+ color:#a5d7e2!important;font-weight:850!important;letter-spacing:.2px;
+}
