@@ -81,7 +81,8 @@ assert.equal(hondaChecksum(Uint8Array.from([0x0b,0x09,0x01,0x01,0x00,0x00,0x0e,0
 assert.equal(recordedResult.countState,'CONFIRMED');
 assert.equal(recordedResult.family,'SHINDENGEN');
 assert.equal(recordedResult.flashCount,14,'Main.zip reads reply[6]=0x0E as decimal 14');
-assert.deepEqual(OBSERVED_READ_ONLY_IDS,['0105040D01']);
+assert.deepEqual(OBSERVED_READ_ONLY_IDS,['0105040D01','0101D00D01']);
+assert.equal(sourceFamilyHint('0101D00D01').family,'SHINDENGEN');
 assert.equal(sourceFamilyHint(ecu).family,'SHINDENGEN');
 assert.equal(sourceFamilyHint('0101880D01','KEIHIN').family,'KEIHIN');
 assert.equal(sourceFamilyHint('AA00000000').family,null);
