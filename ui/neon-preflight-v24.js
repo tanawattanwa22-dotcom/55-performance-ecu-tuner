@@ -235,7 +235,7 @@ async function readECU(){
  try{
   // Reuse the physical FT232R opened from the home dashboard.
   const [{HondaFlashEngine}]=await Promise.all([
-   import(new URL('flash_port/honda-write-engine.js?v=378',document.baseURI).href)]);
+   import(new URL('flash_port/honda-write-engine.js?v=379',document.baseURI).href)]);
   if(typeof api!=='function')throw Error('ไม่พบตัวตรวจ License');
   const license=await api('check',{device:localStorage.getItem('55_device_id')});
   if(!license?.active)throw Error('License ไม่ได้เปิดใช้งาน');
@@ -289,7 +289,7 @@ async function runCheck(){
      return;
     }
     if(e.code!=='PART_NOT_CONFIRMED')throw e;
-    const {readBinId}=await import(new URL('flash_port/bin-tools.js?v=317',document.baseURI).href);
+    const {readBinId}=await import(new URL('flash_port/bin-tools.js?v=379',document.baseURI).href);
     const embedded=readBinId(c.bytes);
     if(!embedded.ok||String(embedded.id).toUpperCase()!==last.identity.ecuId)throw e;
     plan=last.engine.makePlan(c.bytes.slice(),{filename:c.saved.filename,confirmedPart:last.identity.sourcePart,fast:false,recovery:false});
