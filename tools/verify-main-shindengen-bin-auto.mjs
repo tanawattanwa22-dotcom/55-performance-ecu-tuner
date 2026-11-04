@@ -37,7 +37,9 @@ assert(ui.includes('id="n20Connection"')&&ui.includes('id="n20Save"')&&
 assert(live.includes('window.__55V20RefreshStatus?.()'),'Live ECU scan updates dashboard status as well');
 const preflight=readFileSync(new URL('../ui/neon-preflight-v24.js',import.meta.url),'utf8');
 assert(preflight.includes('unlistedPhysical')&&preflight.includes('!catalogRecord(connectedId)'), 'No Main source ECU catalog entry blocks the physical Flash button');
-assert(preflight.includes('unlistedPhysical||!(INLINEFLASH.postCheck'), 'Normal Flash action disabled when real ECU is missing Main catalog');
+assert(preflight.includes('sourceFamilyAck')&&preflight.includes("MAIN_SOURCE_READ_ONLY_FLASH_COUNT_ACK")&&
+ preflight.includes('sourceBinSizeSupported'),
+ 'Unlisted ECU is checked using physical Main C# Flash Count ACK and supported BIN size');
 const session=readFileSync(new URL('../flash_port/main-live-session.js',import.meta.url),'utf8');
 assert(session.includes("groupFailures.join(' | ')"),'Keep all Group 7/4/1 diagnostic failures');
 assert(live.includes('liveGroupError:st.liveGroupError||null'),'USB diagnostic log contains Live group failure messages');
