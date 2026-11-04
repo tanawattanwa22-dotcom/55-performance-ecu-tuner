@@ -42,7 +42,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Regression: Main FormMain source parity for unlisted ECU, HELLO and DAT (NO USB)
+      - name: "Regression: Main FormMain source parity for unlisted ECU, HELLO and DAT (NO USB)"
         run: node tests/main-source-parity.test.mjs
       - name: Verify read-only Main programming probe, timeout recovery and DAT trust (NO ECU)
         run: node tools/verify-main-programming-probe.mjs
