@@ -1450,13 +1450,15 @@ async function inlineFlashStart(){
   const shared=window.__55SharedEcu;
   if(!shared)throw Error('ระบบสายหลักยังไม่พร้อม');
   INLINEFLASH.port=await shared.acquire('INLINE_FLASH');
-  const {HondaFlashEngine}=await import('./flash_port/honda-write-engine.js?v=321');
+  const {HondaFlashEngine}=await import('./flash_port/honda-write-engine.js?v=366');
   // The login screen checked the license when this app session started.
   // No network/license check may block physical ECU diagnostics or flash.
   INLINEFLASH.engine=new HondaFlashEngine(INLINEFLASH.port,ev=>{
    inlineFlashLog('ENGINE '+JSON.stringify(ev));
-   if(ev.phase==='WRITE_PROGRESS'){erasedOrSent=true;inlineFlashProgress(ev.percent)}
-   else if(ev.phase==='ERASE_BEGIN'||ev.phase==='SH_ERASE_BEGIN'||ev.phase==='WRITE_BLOCK_ACK')erasedOrSent=true;
+   if(ev.phase==='WRITE_PROGRESS'){erasedOrSent=true;INLINEFLASH.flashAttempted=true;inlineFlashProgress(ev.percent)}
+   else if(ev.phase==='ERASE_BEGIN'||ev.phase==='SH_ERASE_BEGIN'||ev.phase==='WRITE_BLOCK_ACK'){
+    erasedOrSent=true;INLINEFLASH.flashAttempted=true;
+   }
   });
   inlineFlashNote('กำลังอ่านรหัส ECU จริงด้วยโปรโตคอล C# V18...');
   const identity=await INLINEFLASH.engine.identify({programmingPreflight:true});
@@ -1536,8 +1538,8 @@ async function inlineFlashStart(){
     return;
   }
   inlineFlashLog('MANUAL_BENCH_APPROVAL backup/power/recovery = confirmed by operator, not electronically measured');
-  inlineFlashNote('ยืนยัน Preflight แล้ว • เริ่ม ERASE/WRITE ตาม Main.zip • ห้ามปิดแอปหรือถอดสาย');
-  INLINEFLASH.flashAttempted=true;INLINEFLASH.status='WRITING_NO_READBACK';
+  inlineFlashNote('ยืนยัน Preflight แล้ว • กำลังเข้าโหมดโปรแกรมตาม Main.zip • ห้ามปิดแอปหรือถอดสาย');
+  INLINEFLASH.flashAttempted=false;INLINEFLASH.status='PREPARING_SOURCE_PROTOCOL';
   let wake=null;
   try{
    if(navigator.wakeLock?.request)wake=await navigator.wakeLock.request('screen').catch(()=>null);

@@ -69,7 +69,7 @@
      const shared=sharedPort();
      port=await shared.acquire(OWNER);
      if(!port?.ready)throw Error('สาย FT232R ไม่พร้อม หรือถูกใช้งานโดยเมนูอื่น');
-     const {HondaFlashEngine}=await import(new URL('flash_port/honda-write-engine.js?v=321',document.baseURI).href);
+     const {HondaFlashEngine}=await import(new URL('flash_port/honda-write-engine.js?v=366',document.baseURI).href);
      engine=new HondaFlashEngine(port,e=>log(e.phase+' '+JSON.stringify(e)));
      identity=await engine.identify({programmingPreflight:true});
      log('READ ECU_ID '+identity.ecuId+' SESSION '+identity.handshake);
@@ -97,7 +97,7 @@
    lastFailure='';busy=true;phase='VERIFY RECOVERY FAMILY';release();update();
    try{
      port=await sharedPort().acquire(OWNER);
-     const {HondaFlashEngine}=await import(new URL('flash_port/honda-write-engine.js?v=321',document.baseURI).href);
+     const {HondaFlashEngine}=await import(new URL('flash_port/honda-write-engine.js?v=366',document.baseURI).href);
      engine=new HondaFlashEngine(port,e=>{
        log(e.phase+' '+JSON.stringify(e));
        if(e.phase==='WRITE_PROGRESS'&&ui.progress)ui.progress.textContent=String(e.percent||0)+'% • WRITE ACK';
@@ -154,7 +154,9 @@
      phase='RECOVERY_FLASH_FAILED';lastFailure=e.message;
      note('Recovery หยุด: '+e.message+'\nห้ามสันนิษฐานว่า ECU ยังใช้งานได้ และห้ามเขียนซ้ำโดยไม่ตรวจโหมดก่อน',true);
      log('RECOVERY FLASH STOP '+e.message);
-     try{sessionStorage.setItem('55_flash_recovery_hint',JSON.stringify({at:Date.now(),ecuId:identity?.ecuId,error:e.message,eraseMayHaveStarted:true}))}catch(_){}
+     try{sessionStorage.setItem('55_flash_recovery_hint',JSON.stringify({
+       at:Date.now(),ecuId:identity?.ecuId,error:e.message,eraseMayHaveStarted:!!engine?.eraseStageEntered
+      }))}catch(_){}
      postCheck=false;release();
    }finally{
      if(wake)try{await wake.release()}catch(_){}
