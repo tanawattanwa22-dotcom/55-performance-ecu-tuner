@@ -60,9 +60,13 @@ export class HondaFlashError extends Error{
 function fail(code,message){throw new HondaFlashError(code,message)}
 function ack(r,label,expectedStatus=null){
  const reply=r?.reply;
- if(!reply||reply.length<5||reply[1]!==reply.length)fail('BAD_ACK',label+': ECU reply missing or malformed');
- if(expectedStatus!==null&&reply[3]!==expectedStatus)
-  fail('ECU_REJECTED',label+': ECU status '+reply[3]+' expected '+expectedStatus);
+ // FormMain accepts checksum-valid HELLO replies with four bytes.
+ // On a 4-byte response byte[3] is the checksum, not a status.
+ const greeting=['HELLO','KEIHIN_FALLBACK_HELLO','CONFIRM_WORKER_SESSION','RECHECK_HELLO'].includes(label);
+ if(!reply||reply.length<(greeting?4:5)||reply[1]!==reply.length)
+  fail('BAD_ACK',label+': ECU reply missing or malformed');
+ if(expectedStatus!==null&&(reply.length<5||reply[3]!==expectedStatus))
+  fail('ECU_REJECTED',label+': ECU status '+(reply.length>=5?reply[3]:'not present')+' expected '+expectedStatus);
  return reply;
 }
 function nextNonBlank(bin,index,total,blockSize){
@@ -92,7 +96,7 @@ export class HondaFlashEngine {
    this.emit('COMMAND_FAILED',{command:name,tx:toHex(frame),error:error.message});
    throw new HondaFlashError(error.code||'COMMAND_FAILED',detail);
   }
-  this.emit(name,{stage:'RX',status:reply[3]});
+  this.emit(name,{stage:'RX',status:reply.length>=5?reply[3]:null,rawByte3:reply[3],replyLength:reply.length});
   return reply;
  }
  async identify({programmingPreflight=false}={}){
