@@ -104,7 +104,7 @@ function render(){
  const staleId=!!last?.identity?.ecuId&&!!connectedId?.ecuId&&last.identity.ecuId!==connectedId.ecuId;
  const identity=inlineIdentity||(recency()&&!staleId?last?.identity:null)||connectedId;
  const recoveryCandidate=!!identity?.ecuId?.endsWith('0000');
- const plan=inlineIdentity?.sourceMatched?INLINEFLASH.plan:verified()?last?.plan:null;
+ const plan=(inlineIdentity?.sourceMatched||INLINEFLASH.plan?.checks?.sourceUnlistedWithProof)?INLINEFLASH.plan:verified()?last?.plan:null;
  const source=catalogRecord(identity);
  const sourceCount=window.__55MainProgrammingProbe?.snapshot?.();
  // The initial session may have neither BIN nor offset hint: never dereference null.
@@ -124,9 +124,11 @@ function render(){
  setItem('sha',quick?(quick.sha256?.slice(0,20)+'…'||'กำลังตรวจ…'):hash&&hash.saved===c.saved&&c.valid?hash.hex.slice(0,20)+'…':'ยังไม่ได้คำนวณ');
  setItem('ecu',identity?.ecuId||'ยังไม่ได้อ่านจาก ECU');
  setItem('part',identity?(source?.part||identity.sourcePart||'ไม่ระบุใน Main C#'):'—');
- setItem('family',identity?(source?.family||
-  (sourceCount?.countState==='CONFIRMED'?sourceCount.family+' · ACK โหมดโปรแกรมมิ่ง (อ้างอิงเท่านั้น)':
-   identity.family||'ไม่ระบุ')):'—');
+ setItem('family',identity?(identity.programmingSessionVerified&&identity.family!=='UNVERIFIED'?
+  identity.family+' · Family จาก ECU ACK จริง':
+  sourceCount?.countState==='CONFIRMED'&&sourceCount.ecuId===identity.ecuId?
+    sourceCount.family+' · Flash Count ACK (อ่านจริง)':
+  source?.family?source.family+' · อ้างอิงฐาน C# (ยังไม่ยืนยัน)':identity.family||'ไม่ระบุ'):'—');
  setItem('flashcount',Number.isInteger(identity?.count)?identity.count+' ครั้ง':
   sourceCount?.countState==='CONFIRMED'?sourceCount.flashCount+' ครั้ง · ACK โหมดโปรแกรมมิ่ง (ยังไม่อนุญาต Flash)':
   sourceCount?.countState==='NO_REPLY'||sourceCount?.countState==='ERROR'?
@@ -134,7 +136,11 @@ function render(){
   sourceCount?.countState==='NOT_TESTED'&&sourceCount.handshake==='FAILED'?
    'ลองปลุกโหมดโปรแกรมมิ่งแล้ว แต่ HELLO/FALLBACK ไม่ตอบ · ยังไม่ได้ส่งคำสั่ง Flash Count':
   'ยังไม่ได้ตรวจ Flash Count ในโหมดโปรแกรมมิ่ง');
- setItem('sourceMatch',identity?(identity.sourceMatched?'ยืนยัน ID และ Family แล้ว':source?(source.part?'✓ พบ ECU ID ในฐาน 290 · Family เป็นค่าจากฐาน ยังไม่ยืนยันเพื่อเขียน':'พบ ECU ID แต่ไม่มี Part Code'):'อ่าน ECU ID ได้ แต่ไม่พบในฐาน 290'):'รออ่าน ECU ID จริง');
+ setItem('sourceMatch',identity?(identity.sourceMatched?'ยืนยัน ECU ID / Family จาก ECU จริง':
+  identity.programmingSessionVerified&&identity.physicalFamilyEvidence==='MAIN_SOURCE_READ_ONLY_FLASH_COUNT_ACK'?
+  'ECU นอกฐาน 290 · Family / Flash Count ยืนยันจาก ECU จริง':
+  source?(source.part?'พบรหัสในฐาน Main แต่ Family ยังไม่ยืนยันจริง':'พบรหัสแต่ไม่มี Part Code'):
+  'อ่าน ECU ID ได้ • ไม่อยู่ในฐาน Main 290 (ไม่บังคับ)'):'รออ่าน ECU ID จริง');
  setItem('start',plan?X(plan.startOffset):source?sourceOffset(source.startOffset,source.startOffsetText):
   binEstimate?.startOffsetHex?binEstimate.startOffsetHex+' • BIN เท่านั้น':'—');
  setItem('checksum',plan?X(plan.checksumOffset):source?sourceOffset(source.checksumOffset,source.checksumOffsetText):
@@ -157,7 +163,7 @@ function render(){
  };
  for(const [k,obj] of Object.entries(dom).filter(([k])=>k.startsWith('check_'))){
   const key=k.slice(6),ok=status[key];
-  obj.state.textContent=ok?'ผ่าน':key==='hardware'?'ต้องตรวจด้วยตนเอง':key==='family'&&identity?.ecuId?'ยังไม่ยืนยัน':'รอตรวจ';
+  obj.state.textContent=ok?'ผ่าน':key==='catalog'?'ข้อมูลอ้างอิงเท่านั้น':key==='hardware'?'ต้องตรวจด้วยตนเอง':key==='family'&&identity?.ecuId?'ยังไม่ยืนยัน':'รอตรวจ';
   obj.ico.textContent=ok?'✓':key==='hardware'?'!':'○';
   obj.row.classList.toggle('passed',ok);
  }
@@ -184,7 +190,7 @@ function render(){
   if(!cableReady)blockers.push('ยังไม่ได้เชื่อมต่อ FT232R จากหน้าแรก');
   if(recoveryCandidate)blockers.push('ECU ID ลงท้าย 0000: อาจอยู่ใน Recovery Boot • หยุด Flash ปกติ และยืนยัน Boot/Family ผ่านเมนู Recovery');
   if(!identity?.ecuId){if(fileReady&&cableReady&&!INLINEFLASH.busy)blockers.push('กดปุ่มอัดเพื่อให้อ่าน ECU ID/Part/Family อัตโนมัติ');}
-  else if(!catalogRecord(identity))blockers.push('ECU ID '+identity.ecuId+' ไม่อยู่ใน Main 290 • เปิดและตรวจ BIN ได้ แต่ยังไม่มีโปรไฟล์เขียนยืนยัน');
+  else if(!catalogRecord(identity))blockers.push('ECU นอกฐาน Main 290: ต้องตรวจ BIN ID/Family/Offset/Checksum กับ ECU จริงก่อน ERASE');
   else if(!catalogRecord(identity)?.part)blockers.push('ต้นฉบับไม่มี Part Code สำหรับ ECU ID '+identity.ecuId);
   else if(!identity.sourceMatched)blockers.push('พบ ECU ID ในฐานแล้ว แต่ Family ยังไม่ได้ยืนยันจากเซสชัน ECU จริง ('+identity.handshake+')');
   if(identity?.ecuId&&!plan)blockers.push(unlistedPhysical?'ECU นอกฐาน: ให้ Flash Engine ยืนยัน Family ACK / BIN ID / Offset / Checksum ในขั้นตอนก่อนลบ':'ยังไม่ผ่านการตรวจ Offset/Checksum/Part');
@@ -265,10 +271,10 @@ async function runCheck(){
   if(!last||!recency()||!physicalIdMatchesLast()||last.saved!==c.saved||last.model!==c.model)throw Error('ผล ECU ID หมดอายุ ไม่ตรง ECU ที่ต่อสายล่าสุด หรือคนละไฟล์ · กรุณาอ่าน ECU ID ใหม่');
   if(last.identity.ecuId?.endsWith('0000'))throw Error('พบ Recovery Boot ID: หยุด Preflight ของ Flash ปกติและเปิดเมนู Recovery');
   const catalog=catalogRecord(last.identity);
-  if(!catalog)throw Error('อ่าน ECU ID '+last.identity.ecuId+' แล้ว แต่ไม่มีรหัสนี้ในฐาน Main C# 290 รายการ');
-  if(!catalog.part)throw Error('ECU ID '+last.identity.ecuId+' อยู่ในฐาน แต่ต้นฉบับไม่มี Part Code · ใช้อ้างอิงเท่านั้น');
-  if(!last.identity.sourceMatched){
-   message='ตรวจฐาน Main C# ผ่าน: ECU ID '+last.identity.ecuId+' / '+catalog.part+' ('+catalog.family+') • ยังไม่ได้ยืนยัน Family จากเซสชัน '+last.identity.handshake+' จึงยังไม่อนุญาต ERASE/WRITE';
+  const sourceFamilyAck=last.identity.programmingSessionVerified===true&&
+   last.identity.physicalFamilyEvidence==='MAIN_SOURCE_READ_ONLY_FLASH_COUNT_ACK';
+  if(!last.identity.sourceMatched&&!sourceFamilyAck){
+   message='ยังไม่มี Family/Flash Count ACK ที่ตรวจจากกล่องจริงสำหรับ '+last.identity.ecuId+' • ต้องตรวจโหมดโปรแกรมมิ่งก่อน';
    last.plan=null;
    return;
   }
@@ -277,6 +283,11 @@ async function runCheck(){
   let plan;
    try{plan=last.engine.makePlan(c.bytes.slice(),{filename:c.saved.filename,fast:false,recovery:false})}
    catch(e){
+    if(e.code==='UNLISTED_PARTIAL_ID_CONFIRM'){
+     last.plan=null;
+     message='ECU นอกฐาน: ตรวจ BIN/Family เบื้องต้นได้ แต่ BIN ให้รหัส ECU เพียง 3 ไบต์ตาม FormMain • กดอัดเพื่อตรวจยืนยันไฟล์ที่ตรงกับกล่องก่อน ERASE';
+     return;
+    }
     if(e.code!=='PART_NOT_CONFIRMED')throw e;
     const {readBinId}=await import(new URL('flash_port/bin-tools.js?v=317',document.baseURI).href);
     const embedded=readBinId(c.bytes);
