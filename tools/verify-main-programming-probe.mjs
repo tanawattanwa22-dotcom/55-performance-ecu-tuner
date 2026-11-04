@@ -9,7 +9,7 @@ const ecu='0105040D01';
 const frameReply=(data)=>{
  const b=Uint8Array.from(data);b[b.length-1]=hondaChecksum(b.slice(0,-1));return b;
 };
-function usb({khCountFails=false,id=ecu}={}){
+function usb({khCountFails=false,id=ecu,helloStatus=0}={}){
  const calls=[],dev={vendorId:0x0403},obj={
  ready:true,lastDevice:dev,dev,diagnosticReady:true,
  async initializeIso(){calls.push('INIT');this.diagnosticReady=false},
@@ -24,16 +24,21 @@ function usb({khCountFails=false,id=ecu}={}){
   if(opcode===0x72&&tx[1]===7)b=frameReply([2,11,0,0,0,...id.match(/../g).map(x=>parseInt(x,16)),0]);
   else if(opcode===0x7d)b=frameReply([2,8,0,0,0,0,4,0]);
   else if(opcode===0x7b)b=frameReply([2,8,0,0,0,0,6,0]);
-  else b=frameReply([2,5,0,0,0]);
+  else b=frameReply([2,5,0,helloStatus,0]);
   return {reply:b,echoOK:true};
  }};return {port:obj,calls};
 }
 const k=usb(),r1=await probeMainProgrammingSession(k.port,{expectedEcuId:ecu});
 assert.equal(r1.countState,'CONFIRMED');assert.equal(r1.family,'KEIHIN');
+assert.equal(k.calls.filter(x=>x==='TX_720500f099').length,2,
+ 'C# WorkerThread must confirm HELLO by transmitting it twice before ECU ID');
 assert.equal(r1.flashCount,4);assert.equal(r1.flashApproved,false);
 assert.match(countDisplay(r1),/ตอบ = 4/);
 assert.equal(r1.events.filter(x=>x.phase==='TX'&&x.name==='KEIHIN_COUNT').length,1);
 assert.equal(r1.events.filter(x=>x.phase==='TX'&&x.name==='SHINDENGEN_COUNT').length,0);
+const nonzero=usb({helloStatus:3}),nonzeroResult=await probeMainProgrammingSession(nonzero.port,{expectedEcuId:ecu});
+assert.equal(nonzeroResult.countState,'CONFIRMED',
+ 'C# SendCommand accepts checksum-valid HELLO even with nonzero reply status');
 const s=usb({khCountFails:true}),r2=await probeMainProgrammingSession(s.port,{expectedEcuId:ecu});
 assert.equal(r2.countState,'CONFIRMED');assert.equal(r2.family,'SHINDENGEN');
 assert.equal(r2.flashCount,6);assert.equal(r2.flashApproved,false);

@@ -6,7 +6,7 @@ import {MainLiveSession} from '../flash_port/main-live-session.js?v=351';
 import {resolveMainAutoMetadata} from '../flash_port/main-auto-metadata.js?v=352';
 import {localKtrCandidates} from '../flash_port/ecu-id-lookup.js?v=355';
 import {previewMainShindengenBin} from '../flash_port/main-shindengen-auto-preview.js?v=1';
-import {probeMainProgrammingSession,countDisplay} from '../flash_port/main-programming-probe.js?v=2';
+import {probeMainProgrammingSession,countDisplay} from '../flash_port/main-programming-probe.js?v=3';
 import {auditMainShindengenDryRun} from '../flash_port/main-source-dry-run.js?v=1';
 import {readEcuDat} from '../flash_port/ecu-dat-editor.js?v=1';
 let programmingProbeResult=null,programmingProbeRuns=[],programmingProbeBusy=false;
@@ -397,8 +397,7 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
      const visible=e.phase==='TX'||e.phase==='RX'||e.phase==='NO_VALID_REPLY'||
       e.phase==='WEBUSB_SAFE_REOPEN'||e.phase==='TRANSPORT_SOURCE_RX_FAILURE'||
       e.phase==='TRANSPORT_USB_OUT_OK'||e.phase==='TRANSPORT_SOURCE_REPLY_OK'||
-      e.phase==='FTDI_SOURCE_BITBANG_LOW_USB_WRITE_OK'||
-      e.phase==='FTDI_SOURCE_BITBANG_HIGH_USB_WRITE_OK';
+      e.phase==='MAIN_WORKER_CONFIRM_SESSION';
      if(visible){
       const details=[e.hex||e.uartHex||e.uartSampleHex||'',
        e.classification||'',e.error||e.reason||'',
@@ -418,6 +417,8 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
     '\nHELLO: '+report.hello+' / Handshake: '+report.handshake+
     '\nFlash Count: '+countDisplay(report)+
     '\nFamily จาก ACK: '+report.family+
+    '\nBitbang USB: '+(report.events.some(e=>e.phase==='FTDI_SOURCE_BITBANG_HIGH_USB_WRITE_OK')?
+      'บันทึกช่วงเวลาการส่ง 00→01 แล้ว (ดูไฟล์ TX/RX Log)':'ไม่มีข้อมูลบิตแบงก์ครบ')+
     '\nSource mode: READ ONLY; ไม่อนุญาต ERASE/WRITE'+
     (report.countError?'\nสาเหตุ: '+report.countError:'')+
     '\nกด ดาวน์โหลด TX/RX Log เพื่อเก็บเฟรมและเวลาอย่างละเอียด';

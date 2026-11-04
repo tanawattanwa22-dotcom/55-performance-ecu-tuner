@@ -88,15 +88,32 @@ export async function probeMainProgrammingSession(port,{expectedEcuId=null,onEve
   await originalWake();
  }
  async function sourceHello(){
-  let hello=await exchange('HELLO');
-  if(hello.ok&&hello.status===0){result.hello='ACK';result.handshake='HELLO';return true}
-  result.hello=hello.ok?'STATUS_'+hello.status:'NO_REPLY';
-  // Do not send a second source frame following a browser timeout without
-  // closing/reopening the same authorized FT232R and re-waking the ECU.
+  // FormMain.cs WorkerThread: SendCommand(HELLO) chooses the session frame,
+  // then sends that frame a SECOND time before reading ECU ID. A valid HELLO
+  // reply is accepted by C# regardless of status byte. The Keihin fallback
+  // is used only if the first HELLO did not yield a checksum-valid frame.
+  const first=await exchange('HELLO');
+  if(first.ok){
+   result.hello='VALID_REPLY_STATUS_'+first.status;
+   result.handshake='HELLO';
+   log('MAIN_WORKER_CONFIRM_SESSION',{frame:'HELLO'});
+   const confirmation=await exchange('HELLO');
+   if(confirmation.ok){result.hello='CONFIRMED';return true}
+   result.hello='CONFIRM_NO_REPLY';
+   result.handshake='FAILED';
+   return false;
+  }
+  result.hello='NO_REPLY';
+  // A Chrome transferIn timeout may leave an unresolved read in the browser.
+  // Reopen/re-wake a granted FT232R before the fallback rather than purging
+  // and risking cross-command replies.
   await restoreSourceSession('HELLO did not establish source session');
   const fallback=await exchange('KH_FALLBACK');
   if(fallback.ok&&fallback.status!==15){
-   result.handshake='KEIHIN_POLL';return true;
+   result.handshake='KEIHIN_POLL';
+   log('MAIN_WORKER_CONFIRM_SESSION',{frame:'KH_FALLBACK'});
+   const confirmation=await exchange('KH_FALLBACK');
+   if(confirmation.ok){result.hello='FALLBACK_CONFIRMED';return true}
   }
   result.handshake='FAILED';
   return false;
