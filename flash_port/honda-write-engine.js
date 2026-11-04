@@ -13,6 +13,7 @@ import {inspectCSharpEcuType,correctKeihinChecksum,correctShindengenChecksum,der
 import {csharpOffsetInference,catalogLookup} from './csharp-offsets.js?v=317';
 import {findCSharpEcuId} from './csharp-ecu-catalog.js?v=302';
 import {readBinId} from './bin-tools.js?v=317';
+import {probeMainProgrammingSession} from './main-programming-probe.js?v=7';
 const sleep=ms=>new Promise(ok=>setTimeout(ok,ms));
 function bytes(list){
  const b=Uint8Array.from(list);
@@ -52,7 +53,7 @@ const CMD=Object.freeze({
  shFinish5:bytes([124,5,2,13,112])
 });
 export const CSHARP_ECU_CATALOG_ROWS=290;
-export const FLASH_ENGINE_VERSION='csharp-keihin-shindengen-bench-v15';
+export const FLASH_ENGINE_VERSION='csharp-keihin-shindengen-source-unlisted-v16';
 export class HondaFlashError extends Error{
  constructor(code,message){super(message);this.name='HondaFlashError';this.code=code}
 }
@@ -154,7 +155,7 @@ export class HondaFlashEngine {
    const ecuId=toHex(idReply.slice(5,10)).replaceAll(' ','');
    if(!/^[0-9A-F]{10}$/.test(ecuId))fail('BAD_ECU_ID','ECU ID ผิดรูปแบบ');
    const source=(await findCSharpEcuId(ecuId))||catalogLookup(ecuId);
-   let family='UNVERIFIED',count=null;
+   let family='UNVERIFIED',count=null,physicalFamilyEvidence=null;
    try{
     const isSh=source?.family==='SHINDENGEN';
     // Recovery ID has no normal catalog/count session. Do not send a Keihin
@@ -168,10 +169,23 @@ export class HondaFlashEngine {
      throw new Error('Recovery boot ID has no verified ECU family');
     }
     if(!source?.part||!['KEIHIN','SHINDENGEN'].includes(source.family)){
-     // The purchased Main C# catalog has no verified family for this ID.
-     // Never default an unlisted real Shindengen ECU to Keihin flash-count
-     // polling: an ECM reference or BIN name is not a programming profile.
-     this.emit('UNLISTED_ECU_COUNT_PROBE_SKIPPED',{ecuId,reason:'No Main C# source family; no family-specific TX'});
+     // FormMain.WorkerThread also works without a catalog row: it tries both
+     // source Flash Count families after a real programming-session ECU ID.
+     // Re-confirm physical identity before each alternate frame.
+     if(handshake==='DIAGNOSTIC_ONLY'){
+      this.emit('UNLISTED_DIAGNOSTIC_ONLY',{ecuId});
+     }else{
+      this.emit('UNLISTED_READ_ONLY_SOURCE_PROBE',{ecuId});
+      const proof=await probeMainProgrammingSession(this.usb,{expectedEcuId:ecuId,round:1});
+      if(proof.ecuId===ecuId&&proof.countState==='CONFIRMED'&&proof.programmingSessionVerified&&
+         ['KEIHIN','SHINDENGEN'].includes(proof.family)){
+       family=proof.family;count=proof.flashCount;handshake=proof.handshake;
+       physicalFamilyEvidence='MAIN_SOURCE_READ_ONLY_FLASH_COUNT_ACK';
+       this.emit('UNLISTED_SOURCE_FAMILY_CONFIRMED',{
+        ecuId,family,count,binCompatibilityVerified:false});
+      }else this.emit('UNLISTED_SOURCE_FAMILY_UNVERIFIED',{
+       ecuId,error:proof.countError||proof.countState});
+     }
     }else if(handshake==='DIAGNOSTIC_ONLY'){
      // A diagnostic-only session has not confirmed the programming protocol.
      this.emit('DIAGNOSTIC_ONLY_COUNT_PROBE_SKIPPED',{ecuId,sourceFamily:source.family});
@@ -179,7 +193,7 @@ export class HondaFlashEngine {
      const label=isSh?'SHINDENGEN_FLASH_COUNT':'KEIHIN_FLASH_COUNT';
      const command=isSh?CMD.shPoll:CMD.khCount;
      const r=await this.x(label,command,{timeoutMs:1800});
-     if(r.length>=7){family=isSh?'SHINDENGEN':'KEIHIN';count=r[6]}
+     if(r.length>=7){family=isSh?'SHINDENGEN':'KEIHIN';count=r[6];physicalFamilyEvidence='MAIN_SOURCE_READ_ONLY_FLASH_COUNT_ACK'}
     }
    }catch(e){
     // The C# source uses family-specific count responses. Stop when absent;
@@ -188,7 +202,9 @@ export class HondaFlashEngine {
    }
    if(handshake==='DIAGNOSTIC_ONLY')family='UNVERIFIED';
    if(source?.part&&source.family===family)this.emit('SOURCE_ECU_MATCH',{ecuId,part:source.part});
-   this.identity={ecuId,family,count,handshake,sourcePart:source?.part||null,sourceMatched:!!source?.part&&source.family===family,catalog:source||null};
+   this.identity={ecuId,family,count,handshake,sourcePart:source?.part||null,
+    sourceMatched:!!source?.part&&source.family===family,catalog:source||null,
+    physicalFamilyEvidence,programmingSessionVerified:!!physicalFamilyEvidence};
    this.state='identified';
    this.emit('ECU_IDENTIFIED',this.identity);
    return this.identity;
