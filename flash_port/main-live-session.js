@@ -10,6 +10,7 @@ import {loadCSharpCatalog} from './csharp-ecu-catalog.js?v=302';
 import {MAIN_DTC_READ_FRAMES,decodeMainDtcReplies} from './main-source-dtc.js';
 import {probeMainProgrammingSession} from './main-programming-probe.js?v=7';
 import {sourceFamilyHint} from './main-source-family-hints.js?v=1';
+import {getReadOnlyObservation,preferredLiveScanOrder,rememberReadOnlyObservation} from './main-readonly-profiles.js?v=1';
 
 const WAIT=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const KEYS=['rpm','tps','map','ect','iat','bat','inj','ign','afr'];
@@ -65,6 +66,7 @@ export class MainLiveSession {
    startOffset:this.catalog?.startOffset??null,checksumOffset:this.catalog?.checksumOffset??null,
    startOffsetText:this.catalog?.startOffsetText??null,checksumOffsetText:this.catalog?.checksumOffsetText??null,
    catalogMatched:!!this.catalog,autoStatus:this.autoStatus,autoComplete:this.autoComplete,
+   readOnlyObservation:getReadOnlyObservation(this.ecuId),
    sourceProbe:this.sourceProbe&&this.ecuId===this.sourceProbe.expectedEcuId?{
     expectedEcuId:this.sourceProbe.expectedEcuId,ecuId:this.sourceProbe.ecuId,
     family:this.sourceProbe.family,flashCount:this.sourceProbe.flashCount,
@@ -182,7 +184,7 @@ export class MainLiveSession {
   this.phase='LIVE_GROUP_DETECT';this.autoStatus='กำลังทดสอบตาราง Live 7 / 4 / 1';this.notify();
   this.detectedGroup=null;this.liveGroupError='';
   const groupFailures=[];
-  for(const group of SOURCE_AUTO_PROBE_ORDER){
+  for(const group of preferredLiveScanOrder(this.ecuId,SOURCE_AUTO_PROBE_ORDER)){
    if(this.disconnectRequested)break;
    this.phase='LIVE_GROUP_'+group;this.notify();
    try{
@@ -193,6 +195,8 @@ export class MainLiveSession {
     const rpm=diagnosticToNeon(readings,group).rpm;
     if(!Number.isFinite(rpm))throw Error('Group '+group+' has no valid RPM');
     this.detectedGroup=group;this.group4Variant=null;
+    // Save only a group that responded to the CURRENT physical ECU ID.
+    rememberReadOnlyObservation({ecuId:this.ecuId,liveGroup:group});
     this.notify();break;
    }catch(e){
     groupFailures.push('Group '+group+': '+String(e?.message||e));
@@ -388,12 +392,17 @@ export class MainLiveSession {
   this.autoStatus='Main.zip · ยืนยัน Family / Flash Count จาก ECU จริงโดยอัตโนมัติ (ไม่ลบ/เขียน)';
   this.sourceProbeError='';this.notify();
   try{
-   const preferredFamily=sourceFamilyHint(expectedId,this.catalog?.family).family;
+   const preferredFamily=sourceFamilyHint(expectedId,this.catalog?.family).family||
+    getReadOnlyObservation(expectedId)?.family||null;
    const report=await probeMainProgrammingSession(this.port,{
     expectedEcuId:expectedId,preferredFamily,round:1
    });
    if(this.ecuId===expectedId&&!this.disconnectRequested){
     this.sourceProbe=report;this.autoSourceProbes++;
+    // Cached family is only a read-order hint; an ECU ACK plus matching
+    // physical ID is required before updating it. Never persist flash count.
+    if(report.countState==='CONFIRMED'&&report.ecuId===expectedId)
+     rememberReadOnlyObservation({ecuId:expectedId,family:report.family});
     this.sourceProbeError=report.countState==='CONFIRMED'?'':String(report.countError||'ยังไม่มี Family ACK');
     this.autoStatus=report.countState==='CONFIRMED'?
      'สแกนอัตโนมัติ '+expectedId+' · '+report.family+' ACK · Flash Count '+report.flashCount+' ครั้ง (อ่านอย่างเดียว)':
@@ -441,7 +450,7 @@ export class MainLiveSession {
   // Source FM_diag.cs can use Group 7, 4, and 1. If a read-only probe
   // times out, FTDI closes the pending WebUSB read. Reopen the SAME
   // user-approved device and do a fresh wake before probing the next group.
-  for(const candidate of SOURCE_AUTO_PROBE_ORDER){
+  for(const candidate of preferredLiveScanOrder(this.ecuId,SOURCE_AUTO_PROBE_ORDER)){
    if(this.stopRequested||this.disconnectRequested)return null;
    const frame=MAIN_CAPTURE_COMMANDS[candidate]?.[0];
    if(!frame||!FRAME_ALLOWLIST.has(frame.join(',')))throw Error('Group command not in Main C# allowlist');
@@ -457,6 +466,7 @@ export class MainLiveSession {
     const {reply,echoOK}=await this.port.exchangeRaw(frame,{timeoutMs:1700,afterWriteMs:50});
     if(!acceptedSourceProbe(reply,echoOK))throw Error('ECU reply does not match source diagnostic framing');
     this.detectedGroup=candidate;
+    rememberReadOnlyObservation({ecuId:this.ecuId,liveGroup:candidate});
     if(candidate===4&&reply.length>10)this.group4Variant=reply[9]===255&&reply[10]===255?4:8;
     this.error='';this.liveGroupError='';this.notify();return candidate;
    }catch(e){
