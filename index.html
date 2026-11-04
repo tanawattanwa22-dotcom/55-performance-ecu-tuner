@@ -3176,12 +3176,12 @@ function v3Draw(){
 })();
 </script>
 
-<script src="ui/neon-preflight-v24.js?v=352"></script>
+<script src="ui/neon-preflight-v24.js?v=353"></script>
 <script src="ui/neon-recovery-v35.js?v=350"></script>
 <script src="ui/neon-v20.js?v=347"></script>
 <script src="ui/neon-live-v21.js?v=335"></script>
 <script src="ui/neon-dtc-v23.js?v=350"></script>
-<script type="module" src="ui/neon-main-live-v25.js?v=357"></script>
+<script type="module" src="ui/neon-main-live-v25.js?v=358"></script>
 
 <style>#licenseGate{position:fixed;inset:0;z-index:2147483647;background:#0b1220;color:white;display:flex;align-items:center;justify-content:center;font:16px system-ui}#licenseGate .wrap{width:min(94vw,440px);padding:25px;background:#1b2b40;border:1px solid #536783;border-radius:16px}#licenseGate input,#licenseGate button{box-sizing:border-box;width:100%;margin:5px 0;padding:12px;border-radius:9px;background:#243a55;color:white;border:1px solid #6c7e9d}#licenseGate button{background:#b65720}#licenseGate small{color:#c5d2e2}</style>
 <div id="licenseGate"><div class="wrap"><h2>55 PERFORMANCE ECU TUNER</h2><p>เปิดใช้งานด้วย License Key • 1 คีย์ / 1 เครื่อง</p><input id="licEmail" type="email" placeholder="อีเมล"><input id="licPass" type="password" placeholder="รหัสผ่าน"><button id="licLogin">เข้าสู่ระบบ</button><small style="display:block;margin:2px 0 8px;color:#8fd6ff;font-weight:700">ระบบสมัครสมาชิก V10 • แก้ตรวจอีเมลและแคชแล้ว</small><button id="licSignup" type="button" style="background:#284660;border-color:#6c7e9d">สมัครบัญชีลูกค้าใหม่ (ฟรี)</button><small style="display:block;line-height:1.5;margin:5px 0 9px">ลูกค้าใหม่กรอกอีเมลของตนเองและตั้งรหัสผ่านอย่างน้อย 8 ตัวอักษรเพื่อสมัคร หากมีบัญชีอยู่แล้วให้กดเข้าสู่ระบบ ไม่ต้องสมัครซ้ำ ระบบอาจส่งอีเมลยืนยัน</small><input id="licKey" placeholder="กรอก License Key"><button id="licActivate">เปิดใช้งานคีย์</button><button id="licCheck">ตรวจสิทธิ์อีกครั้ง</button><small id="licMsg">กรุณาเข้าสู่ระบบก่อนใช้งาน</small></div></div>
@@ -3192,6 +3192,6 @@ document.getElementById('licSignup').onclick=async()=>{const el=document.getElem
 document.getElementById('licActivate').onclick=async()=>{try{await api('activate',{key:document.getElementById('licKey').value,device});await check()}catch(e){message(e)}};
 document.getElementById('licCheck').onclick=()=>check().catch(message);check().catch(message);
 window.__ecuLicenseLogout=logout;
-})();</script><script type="module" src="ui/shared-operations-v30.js?v=359"></script>
+})();</script><script type="module" src="ui/shared-operations-v30.js?v=360"></script>
 </body>
 </html>

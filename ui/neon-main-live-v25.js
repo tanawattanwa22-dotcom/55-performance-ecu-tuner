@@ -186,6 +186,15 @@ window.__55SharedEcu={
  readDtc:()=>reader.readDtc(),
  stop:()=>reader.stop(),get port(){return reader.port?.ready?reader.port:null;}
 };
+window.__55MainProgrammingProbe=Object.freeze({
+ snapshot:()=>{
+  const st=reader.status(),p=programmingProbeResult;
+  return p&&st.connected&&p.ecuId===st.ecuId?
+   {ecuId:p.ecuId,hello:p.hello,handshake:p.handshake,
+    countState:p.countState,flashCount:p.flashCount,family:p.family,
+    countError:p.countError,finishedAt:p.finishedAt,flashApproved:false}:null;
+ }
+});
 window.__55MainLive={
  ready:true,group:()=>reader.group,setGroup:g=>reader.setGroup(g),
  connect:old.connect,start:old.startEcu,stop:old.stopEcu,

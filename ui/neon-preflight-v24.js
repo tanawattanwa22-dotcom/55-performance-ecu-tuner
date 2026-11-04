@@ -106,6 +106,7 @@ function render(){
  const recoveryCandidate=!!identity?.ecuId?.endsWith('0000');
  const plan=inlineIdentity?.sourceMatched?INLINEFLASH.plan:verified()?last?.plan:null;
  const source=catalogRecord(identity);
+ const sourceCount=window.__55MainProgrammingProbe?.snapshot?.();
  // The initial session may have neither BIN nor offset hint: never dereference null.
  const binEstimate=binOffsetHint&&binOffsetHint.saved===c.saved?binOffsetHint.estimated:null;
  const fileReady=!!quick||c.valid;
@@ -123,8 +124,14 @@ function render(){
  setItem('sha',quick?(quick.sha256?.slice(0,20)+'…'||'กำลังตรวจ…'):hash&&hash.saved===c.saved&&c.valid?hash.hex.slice(0,20)+'…':'ยังไม่ได้คำนวณ');
  setItem('ecu',identity?.ecuId||'ยังไม่ได้อ่านจาก ECU');
  setItem('part',identity?(source?.part||identity.sourcePart||'ไม่ระบุใน Main C#'):'—');
- setItem('family',identity?(source?.family||identity.family||'ไม่ระบุ'):'—');
- setItem('flashcount',Number.isInteger(identity?.count)?identity.count+' ครั้ง':'อ่านไม่ได้');
+ setItem('family',identity?(source?.family||
+  (sourceCount?.countState==='CONFIRMED'?sourceCount.family+' · ACK โหมดโปรแกรมมิ่ง (อ้างอิงเท่านั้น)':
+   identity.family||'ไม่ระบุ')):'—');
+ setItem('flashcount',Number.isInteger(identity?.count)?identity.count+' ครั้ง':
+  sourceCount?.countState==='CONFIRMED'?sourceCount.flashCount+' ครั้ง · ACK โหมดโปรแกรมมิ่ง (ยังไม่อนุญาต Flash)':
+  sourceCount?.countState==='NO_REPLY'||sourceCount?.countState==='ERROR'?
+   'ตรวจแล้วไม่ตอบ/ไม่ผ่าน: '+(sourceCount.countError||'ไม่มี ACK ที่ยืนยันได้'):
+  'ยังไม่ได้ตรวจ Flash Count ในโหมดโปรแกรมมิ่ง');
  setItem('sourceMatch',identity?(identity.sourceMatched?'ยืนยัน ID และ Family แล้ว':source?(source.part?'✓ พบ ECU ID ในฐาน 290 · Family เป็นค่าจากฐาน ยังไม่ยืนยันเพื่อเขียน':'พบ ECU ID แต่ไม่มี Part Code'):'อ่าน ECU ID ได้ แต่ไม่พบในฐาน 290'):'รออ่าน ECU ID จริง');
  setItem('start',plan?X(plan.startOffset):source?sourceOffset(source.startOffset,source.startOffsetText):
   binEstimate?.startOffsetHex?binEstimate.startOffsetHex+' • BIN เท่านั้น':'—');
