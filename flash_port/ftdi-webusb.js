@@ -363,15 +363,20 @@ export class Ft232rWebUsb {
       frame.length!==source[i].length||frame.some((byte,j)=>byte!==source[i][j])))
       throw Error('DTC clear frames do not match purchased FM_dtc.method_107');
     this.exchangeBusy=true;
+    let sent=0;
     try{
       for(const cmd of source){
         await this._write(cmd);
+        sent++;
         this._log('MAIN DTC CLEAR TX '+toHex(cmd)+' (NO SOURCE ACK)');
         await sleep(50);
       }
-      return {sent:2};
+      return {sent};
     }catch(error){
-      this._log('MAIN DTC CLEAR FAILED '+String(error?.message||error));
+      // This is a count of completed WebUSB writes, NOT a verified ECU ACK.
+      if(error&&typeof error==='object')error.dtcClearSent=sent;
+      this._log('MAIN DTC CLEAR FAILED '+String(error?.message||error)+
+        ' / completed USB writes '+sent+'/2');
       await this.close();
       throw error;
     }finally{this.exchangeBusy=false}
