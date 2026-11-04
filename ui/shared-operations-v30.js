@@ -80,14 +80,16 @@ reset.onclick=async()=>{
  const shared=window.__55SharedEcu;let port;
  try{
   port=await shared.acquire('RESET_SH_COUNT');reset.disabled=true;
-  const {HondaFlashEngine}=await import('../flash_port/honda-write-engine.js?v=301');
-  const {resetShindengenCount}=await import('../flash_port/main-reset-count.js?v=301');
-  const identity=await new HondaFlashEngine(port).identify();
-  if(!identity.sourceMatched||identity.family!=='SHINDENGEN')throw Error('ใช้ได้เฉพาะ Shindengen ที่ยืนยัน ID แล้ว');
+  const {HondaFlashEngine}=await import('../flash_port/honda-write-engine.js?v=374');
+  const {resetShindengenCount}=await import('../flash_port/main-reset-count.js?v=374');
+  const identity=await new HondaFlashEngine(port).identify({programmingPreflight:true});
+  if(identity.family!=='SHINDENGEN'||!(identity.sourceMatched||
+    identity.programmingSessionVerified===true&&identity.physicalFamilyEvidence==='MAIN_SOURCE_READ_ONLY_FLASH_COUNT_ACK'))
+   throw Error('ต้องยืนยัน Shindengen ด้วย Flash Count ACK จาก ECU จริง');
   if(!confirm('รีเซ็ตจำนวนครั้งแฟลชของ '+identity.ecuId+'?\nตาม Main: ปิด–เปิดกุญแจ 5 วินาที แล้วกดตกลงเพื่อส่งคำสั่ง'))return;
   await resetShindengenCount(port,identity);
   if(!confirm('ส่งคำสั่งแล้ว ยังไม่ยืนยันผล\nปิด–เปิดกุญแจ 5 วินาที แล้วกดตกลงเพื่ออ่านตรวจจำนวนครั้ง'))return;
-  const observed=await new HondaFlashEngine(port).identify();
+  const observed=await new HondaFlashEngine(port).identify({programmingPreflight:true});
   if(observed.ecuId!==identity.ecuId||observed.count!==0)throw Error('อ่านกลับแล้วไม่ยืนยันว่ารีเซ็ตเป็น 0 • count='+observed.count);
   alert('อ่านกลับจาก ECU เดิมแล้ว: จำนวนครั้งแฟลช = 0');
  }catch(e){alert('รีเซ็ตไม่สำเร็จ: '+e.message);}
