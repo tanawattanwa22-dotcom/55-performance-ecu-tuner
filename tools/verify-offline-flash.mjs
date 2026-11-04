@@ -61,6 +61,12 @@ const sw=asText('flash_port/offline/sw.js');
 assert(sw.includes("scope /flash_port/offline/ ONLY"));
 assert(sw.includes("'../honda-write-engine.js'"));
 assert(sw.includes("'../offline-license.js'"));
+assert(sw.includes("'../../data/ecu-catalog-290.json'"),
+  'offline cache must include Main.zip 290-ID catalog required by source lookup');
+assert(p.includes("Ft232rWebUsb.choose()")&&p.includes("standalonePort.openSelected(dev)"),
+  'standalone offline page must be able to open its own permitted FT232R without parent');
+assert(p.includes("await shared.acquire('FLASH_PANEL')")&&p.includes("if(shared?.port?.ready)"),
+  'embedded offline page MUST reuse the single parent FT232R before any standalone open');
 assert(!sw.includes("'../../index.html'"),'online home never cached by offline worker');
 const root=asText('sw.js');
 assert(!root.includes('55perf-offline-flash-'),'do not modify root cache behavior');

@@ -80,6 +80,18 @@ import {HondaFlashEngine} from '../honda-write-engine.js?v=366';
 const $=id=>document.getElementById(id);
 let authorized=false,bundleReady=false,port=null,engine=null,identity=null,plan=null,busy=false,flashing=false,wakeLock=null;
 let lastPlanEvidence=null,flashOutcome='NOT_STARTED'; // immutable evidence survives plan reset after Final ACK
+let cableOwner=null,standalonePort=null;
+// Embedded Flash must reuse the main dashboard's one physical FT232R.
+// Direct offline PWA has no parent dashboard, so it may own one FT232R itself.
+async function releaseFlashCable(){
+ const owner=cableOwner;cableOwner=null;
+ if(owner==='shared'){
+  (window.parent!==window?window.parent:window).__55SharedEcu?.release('FLASH_PANEL');
+ }else if(owner==='standalone'&&standalonePort){
+  const p=standalonePort;standalonePort=null;
+  if(p.ready)await p.close();
+ }
+}
 const logs=[];
 const push=(v)=>{const s=new Date().toLocaleTimeString('th-TH')+' '+v;logs.push(s);if(logs.length%5===0||!flashing){$('log').textContent=logs.slice(-130).join('\n');$('log').scrollTop=$('log').scrollHeight}};
 function refreshButtons(){
@@ -170,23 +182,40 @@ $('connect').onclick=async()=>{
  if(!authorized)return;
  busy=true;refreshButtons();
  try{
-  // Flash and Recovery reuse the single FT232R opened on the home page.
-  // Standalone tabs cannot share a WebUSB interface across documents.
-  const shared=window.parent!==window?window.parent.__55SharedEcu:window.__55SharedEcu;
-  if(!shared?.port?.ready)throw Error('กรุณากลับหน้าหลัก เชื่อมต่อ FT232R แล้วเปิด Flash จากหน้าเดียวกัน');
-  port=await shared.acquire('FLASH_PANEL');identity=null;plan=null;$('ecuMatch').hidden=true;engine=new HondaFlashEngine(port,ev=>{
+  const embedded=window.parent!==window;
+  const shared=embedded?window.parent.__55SharedEcu:window.__55SharedEcu;
+  if(shared?.port?.ready){
+   // One physical cable across Home, Flash, Recovery, Live and DTC.
+   port=await shared.acquire('FLASH_PANEL');cableOwner='shared';
+  }else if(embedded){
+   throw Error('ยังไม่เชื่อม FT232R จากหน้าหลัก • ปิดหน้า Flash แล้วเชื่อมสายที่หน้าแรกก่อน');
+  }else{
+   // Standalone offline PWA only. WebUSB chooser MUST begin synchronously in
+   // this actual user click; no awaiting catalog, license or other requests.
+   const chooser=Ft232rWebUsb.choose();
+   const dev=await chooser;
+   standalonePort=new Ft232rWebUsb(text=>push('FT232R '+text));
+   cableOwner='standalone';
+   await standalonePort.openSelected(dev);
+   port=standalonePort;
+  }
+  identity=null;plan=null;$('ecuMatch').hidden=true;engine=new HondaFlashEngine(port,ev=>{
    const detail=Object.fromEntries(Object.entries(ev).filter(([k])=>k!=='at'&&k!=='phase'));
    if(ev.phase==='WRITE_PROGRESS'){$('bar').style.width=ev.percent+'%';$('percent').textContent=ev.percent+'% • '+ev.bytesCovered+'/'+ev.totalBytes+' bytes acknowledged'}
    push(ev.phase+' '+JSON.stringify(detail));
   });
   $('usb').textContent='FT232R เปิดสำเร็จ → ยังไม่ได้อ่าน ECU';
-  push('FT232R connected; flash session not started');
- }catch(e){(window.parent!==window?window.parent:window).__55SharedEcu?.release('FLASH_PANEL');$('usb').textContent='USB ERROR: '+e.message;push(e.message)}
+  push('FT232R connected via '+cableOwner+'; flash session not started');
+ }catch(e){
+  await releaseFlashCable().catch(err=>push('USB cleanup: '+err.message));
+  port=null;engine=null;identity=null;plan=null;
+  $('usb').textContent='USB ERROR: '+e.message;push(e.message);
+ }
  finally{busy=false;refreshButtons()}
 };
 $('disconnect').onclick=async()=>{
  if(flashing)return;busy=true;refreshButtons();
- try{(window.parent!==window?window.parent:window).__55SharedEcu?.release('FLASH_PANEL')}finally{
+ try{await releaseFlashCable()}finally{
   port=null;engine=null;identity=null;plan=null;$('ecuMatch').hidden=true;
   $('usb').textContent='ตัดสายแล้ว';$('ecu').textContent='ยังไม่ได้อ่าน ECU';
   busy=false;refreshButtons();
@@ -364,5 +393,13 @@ $('saveLog').onclick=()=>{
 window.addEventListener('beforeunload',e=>{if(flashing){e.preventDefault();e.returnValue='ECU FLASH IN PROGRESS'}});
 (async()=>{try{await prepareOfflineAssets()}catch(e){bundleReady=false;$('offlineFiles').className='status bad';$('offlineFiles').textContent='ไฟล์ออฟไลน์ยังไม่พร้อม: '+e.message}await license()})();
 window.__55PanelBusy=()=>busy||flashing;
-window.__55ReleasePanel=()=>{if(busy||flashing)return false;(window.parent!==window?window.parent:window).__55SharedEcu?.release('FLASH_PANEL');return true;};
+window.__55ReleasePanel=()=>{
+ if(busy||flashing)return false;
+ // The iframe uses the borrowed Home port; a standalone app closes on exit.
+ if(cableOwner==='shared'){(window.parent!==window?window.parent:window).__55SharedEcu?.release('FLASH_PANEL');cableOwner=null;}
+ return true;
+};
+window.addEventListener('pagehide',()=>{
+ if(!flashing&&cableOwner==='standalone')void releaseFlashCable().catch(()=>{});
+});
 </script></body></html>

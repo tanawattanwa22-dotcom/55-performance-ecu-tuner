@@ -3,7 +3,7 @@
  * Never controls the existing online Flash Bench or the main tuning app.
  * Pin a complete coherent version of our flash JS for loss-of-network use.
  */
-const VERSION='55perf-offline-flash-v36.0';
+const VERSION='55perf-offline-flash-v36.1';
 const ASSETS=[
  './index.html',
  './manifest.webmanifest',
@@ -17,6 +17,7 @@ const ASSETS=[
  '../csharp-logic.js',
  '../csharp-offsets.js',
  '../csharp-ecu-catalog.js',
+ '../../data/ecu-catalog-290.json', // Required by Main C# ECU ID lookup in both online/offline flash
  '../bin-tools.js',
  '../bin-id-table.js',
  '../../license-config.js',

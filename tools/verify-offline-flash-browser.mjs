@@ -62,7 +62,14 @@ try{
  await page.reload({waitUntil:'domcontentloaded',timeout:20000});
  await page.waitForFunction(()=>document.getElementById('offlineState')?.textContent.includes('OFFLINE READY'),{timeout:20000});
  assert.equal(await page.locator('#offlineFiles').evaluate(el=>el.classList.contains('ok')),true,'all flash modules available with zero network');
+ const catalogRows=await page.evaluate(async()=>{
+  const {loadCSharpCatalog}=await import('/flash_port/csharp-ecu-catalog.js?v=302');
+  return (await loadCSharpCatalog()).size;
+ });
+ assert.equal(catalogRows,290,'Main.zip catalog of 290 ECU IDs must load successfully with network OFF');
+ console.log('PASS all 290 Keihin/Shindengen ECU catalog rows are available offline');
  assert.equal(await page.locator('#connect').isDisabled(),false,'license can be validated without Supabase call');
+ assert.equal(await page.evaluate(()=>typeof navigator.usb!=='undefined'),true,'Chrome WebUSB must be present in standalone offline page');
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+3),true,'no horizontal overflow');
  console.log('PASS genuine browser network disconnection + full reload + offline Flash UI and cryptographic permit validation');
  await page.evaluate(()=>localStorage.setItem('55_perf_offline_permit_v1','forged.invalid'));

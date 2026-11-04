@@ -10,11 +10,12 @@
 ## First-time setup while online
 
 1. Log in to the original 55 Performance app and confirm that the online License is active for this device UUID.
-2. Open Offline Flash V28 while online. The embedded service worker pre-caches the HTML, JS, CSS, manifest and icons.
+2. Open Offline Flash V28 while online. The isolated service worker pre-caches HTML, JS, CSS, manifest, icons **and the 290-row Main.zip ECU ID JSON database**.
 3. Tap **เตรียม / ต่ออายุออฟไลน์**. This calls a new, separate Supabase Edge Function `offline-flash-license` with the current authenticated JWT and original device ID.
 4. The function checks the exact existing `ecu_licenses` entitlement for that account/device and signs a P-256 permit expiring at the **earlier** of the underlying license expiry or 72 hours after issuance.
 5. The browser verifies the P-256 signature, purpose, device hash, issuance, expiry and max TTL and stores a short-lived permit locally.
 6. Test with network disconnected: open the **offline page URL** (not the original homepage), then press **ตรวจออฟไลน์**. The offline service worker serves the complete pinned bundle.
+7. When accessed *inside the main app dialog*, the offline page uses the same shared FT232R owner. When opened as a **standalone offline URL/PWA**, it can request one FT232R via WebUSB in the connect button's user gesture; no separate Windows D2XX driver is needed. Do not open/claim the same cable in another tab simultaneously.
 
 ## What stays offline
 
@@ -35,5 +36,5 @@
 ## Verification
 
 - `node tools/verify-offline-flash.mjs` checks permits (signature, device, expiry, clock), source-engine parity and page isolation.
-- `node tools/verify-offline-flash-browser.mjs` installs the offline Service Worker, reloads the **real Chrome browser with network disconnected**, checks the signed-permit gate and fail-closed behavior.
+- `node tools/verify-offline-flash-browser.mjs` installs the offline Service Worker, reloads the **real Chrome browser with network disconnected**, loads the **complete Main.zip 290-ID catalog**, checks the signed-permit gate and fail-closed behavior.
 - Same `tools/verify-honda-flash.mjs` and `tools/verify-main-full-flash-sim.mjs` offline mock suite continues to cover the physical command sequences without hardware I/O.
