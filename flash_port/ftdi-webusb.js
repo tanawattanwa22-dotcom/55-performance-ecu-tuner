@@ -1,4 +1,5 @@
 import {isSourceResetCountFrame} from './main-reset-count.js?v=301';
+import {MAIN_DTC_CLEAR_SOURCE} from './main-dtc-clear-source.js?v=301';
 /*
  * 55 PERFORMANCE — FT232R WebUSB transport, for controlled bench validation.
  * Protocol basis: owner's C# InitFtdiIso/SendCommand (not a Windows D2XX DLL).
@@ -348,6 +349,32 @@ export class Ft232rWebUsb {
     // Do not leave the former invented 80ms wake delay in this source path.
     await sleep(formMainSendCommandTimeoutMs(wake.length));
     await this.purge();
+  }
+  /** FM_dtc.method_107: EXACT two clear commands, 50ms after each,
+   * no ACK reads or UART purge between the two source writes.
+   * We explicitly refuse to issue an invented bank-2 clear command.
+   */
+  async sendMainDtcClearFrames(frames){
+    if(!this.ready)throw Error('FT232R not connected');
+    await this.prepareUart();
+    if(this.exchangeBusy)throw Error('FTDI exchange already active');
+    const source=[MAIN_DTC_CLEAR_SOURCE.clearFirst,MAIN_DTC_CLEAR_SOURCE.clearSecond];
+    if(!Array.isArray(frames)||frames.length!==2||frames.some((frame,i)=>
+      frame.length!==source[i].length||frame.some((byte,j)=>byte!==source[i][j])))
+      throw Error('DTC clear frames do not match purchased FM_dtc.method_107');
+    this.exchangeBusy=true;
+    try{
+      for(const cmd of source){
+        await this._write(cmd);
+        this._log('MAIN DTC CLEAR TX '+toHex(cmd)+' (NO SOURCE ACK)');
+        await sleep(50);
+      }
+      return {sent:2};
+    }catch(error){
+      this._log('MAIN DTC CLEAR FAILED '+String(error?.message||error));
+      await this.close();
+      throw error;
+    }finally{this.exchangeBusy=false}
   }
   /** FM_diag.method_99 / FM_dtc.method_110: batch all source commands
    * before reading, instead of waiting for a reply after each command.
