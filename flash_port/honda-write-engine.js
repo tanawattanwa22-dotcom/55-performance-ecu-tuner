@@ -501,13 +501,18 @@ export class HondaFlashEngine {
   // operator's single explicit write action. It does NOT assert that backup,
   // voltage or recovery equipment were electronically verified.
   // Recovery and advanced/offline paths retain their existing manual approvals.
+  // Even one-tap flash must not bypass operator confirmation of bench prerequisites.
+  // These are HUMAN declarations; neither FT232R nor Main.zip measures voltage
+  // or creates a full ECU backup. No backup/voltage/repair claim is inferred.
+  if(!physicalBackupConfirmed||!externalPowerConfirmed||!recoveryReady)
+    fail('PRECONDITION','ต้องยืนยันไฟล์ Backup ที่มีอยู่จริง ไฟเลี้ยง/สาย K-Line และวิธีกู้ ECU ก่อน ERASE');
   if(!operatorClickConfirmed||plan.recovery){
     if(confirmation!=='FLASH '+plan.ecuId)fail('CONFIRMATION','ต้องพิมพ์ FLASH และ ECU ID ที่อ่านได้');
-    if(!physicalBackupConfirmed||!externalPowerConfirmed||!recoveryReady)
-      fail('PRECONDITION','ต้องยืนยัน Backup, ไฟเลี้ยง และเครื่องมือกู้คืนกล่องสำรอง');
   }
   if(operatorClickConfirmed&&!plan.recovery)
-    this.emit('OPERATOR_ONE_TAP',{ecuId:plan.ecuId,acknowledgement:'FLASH_BUTTON_CLICK',powerAndBackupExternallyVerified:false});
+    this.emit('OPERATOR_ONE_TAP',{ecuId:plan.ecuId,acknowledgement:'FLASH_BUTTON_CLICK',
+      backupConfirmedByOperator:true,powerConfirmedByOperator:true,recoveryConfirmedByOperator:true,
+      powerAndBackupElectronicallyVerified:false});
   if(!this.usb.ready)fail('USB_LOST','FTDI USB ไม่ได้เชื่อมต่อแล้ว');
   let eraseStarted=false;
   try {

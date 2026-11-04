@@ -128,6 +128,15 @@ await check('Shindengen Recovery source BIN: offline-only plan and Seed/Key path
  assert(device.labels.includes('SH_SEND_KEY'));
  assert(device.labels.includes('SH_ERASE_FINISH'));
 });
+await check('One-tap does not bypass backup/power/recovery confirmations',async()=>{
+ const {engine,device}=setup('0101880D01');
+ await engine.identify();
+ const plan=engine.makePlan(new Uint8Array(65536),{filename:'K03-H01.bin'});
+ const before=device.labels.length;
+ await assert.rejects(engine.flash(plan,{operatorClickConfirmed:true}),/Backup|ไฟเลี้ยง|PRECONDITION/);
+ assert.equal(device.labels.length,before,'must not even send RECHECK_HELLO before physical approval');
+ assert.equal(engine.state,'identified');
+});
 await check('Hard stop before ERASE when wrong confirmation',async()=>{
  const {engine,device}=setup('0101880D01');await engine.identify();
  const plan=engine.makePlan(new Uint8Array(65536),{filename:'K03-H01.bin'});

@@ -1490,10 +1490,21 @@ async function inlineFlashStart(){
     inlineFlashLog('AUTO_PART_MATCH ECU_ID '+identity.ecuId+' equals BIN_ID '+embedded.id);
     plan=INLINEFLASH.engine.makePlan(bin,{filename:INLINEFLASH.filename,confirmedPart:identity.sourcePart,fast,recovery:false});
    }else{
-    // One-tap flow never asks the operator to type a part code. Without a
-    // trustworthy filename/embedded full-ID match, stop before ERASE.
-    throw Error('BIN ยังยืนยัน Part Code '+(identity.sourcePart||'')+
-      ' ไม่ได้จากชื่อไฟล์หรือ ECU ID ใน BIN • หยุดก่อน ERASE เพื่อป้องกันอัดผิดกล่อง');
+    // Main C# SearchInProgram knows the physical ECU's part, but that fact
+    // alone cannot certify an arbitrary downloaded BIN. Ask the technician
+    // to confirm an existing matched backup/reference file; no typing needed.
+    const manuallyMatched=confirm('55 PERFORMANCE • ตรวจ Part Code ก่อนอัด\\n\\nECU ID: '+identity.ecuId+
+      '\\nPart Code จาก Main.zip: '+identity.sourcePart+
+      '\\nBIN: '+INLINEFLASH.filename+
+      '\\n\\nไม่พบ Part Code ในชื่อไฟล์ และไม่มี ECU ID เต็มใน BIN ให้จับคู่ได้อัตโนมัติ'+
+      '\\n\\nคุณได้ตรวจจากไฟล์ต้นฉบับ/ฉลาก ECU แล้วว่า BIN นี้ตรงกล่องจริงหรือไม่?'+
+      '\\nกด ยกเลิก หากยังไม่สามารถยืนยันได้');
+    if(!manuallyMatched)
+      throw Error('หยุดก่อน ERASE: ยังไม่ยืนยันความเข้ากันของ BIN กับ Part Code '+(identity.sourcePart||''));
+    inlineFlashLog('OPERATOR_MATCHED_PART '+identity.sourcePart+' WITH FILE '+INLINEFLASH.filename+
+      ' (manual only, no full BIN ID evidence)');
+    plan=INLINEFLASH.engine.makePlan(bin,{filename:INLINEFLASH.filename,
+      confirmedPart:identity.sourcePart,fast,recovery:false});
    }
   }
   INLINEFLASH.plan=plan;
@@ -1501,15 +1512,41 @@ async function inlineFlashStart(){
   inlineFlashLog('PLAN '+JSON.stringify({ecuId:plan.ecuId,part:plan.part,profile:plan.profile,
    offset:plan.startOffset,size:plan.size,frames:plan.expectedBlockCount,
    binBefore:INLINEFLASH.firstSha,binAfter:INLINEFLASH.writeSha}));
-  // The operator explicitly initiated this flow with the Flash button.
-  // Hardware/firmware constraints stay in the engine, including a fresh
-  // ECU ID check immediately before sending any destructive command.
-  inlineFlashNote('Preflight ผ่าน • เริ่ม ERASE/WRITE ตามคำสั่งที่พอร์ตจาก Main.zip • ห้ามปิดแอปหรือถอดสาย');
+  // Single confirmation instead of typed HEX: this is an explicit MANUAL
+  // declaration, not electronic voltage measurement or a full ECU backup.
+  // The real engine still rechecks ECU ID and will refuse mismatched plans.
+  const benchConfirmed=confirm(
+    '55 PERFORMANCE • ยืนยันก่อน ERASE (ECU สำรอง)\\n\\n'+
+    'ECU ID: '+plan.ecuId+'\\nPart Code: '+plan.part+
+    '\\nไฟล์: '+plan.filename+'\\nขนาด: '+plan.size+' ไบต์'+
+    '\\nStart Offset: 0x'+plan.startOffset.toString(16).toUpperCase()+
+    '\\nChecksum Offset: 0x'+plan.checksumOffset.toString(16).toUpperCase()+
+    '\\nโหมด: '+plan.profile+(plan.fast?' / FAST':' / NORMAL')+
+    '\\n\\nโปรดยืนยันว่าคุณตรวจครบ 3 ข้อนี้ด้วยตัวเอง:\\n'+
+    '1. มีไฟล์ Backup ที่ถูกต้องของ ECU กล่องนี้จริง\\n'+
+    '2. มีไฟเลี้ยง ECU คงที่และวงจร K-Line 12V ที่ถูกต้อง (ไม่ต่อ FT232R TTL ตรง)\\n'+
+    '3. มีอุปกรณ์และวิธี Recovery ที่ตรวจสอบแล้ว\\n\\n'+
+    'กด ตกลง = เริ่ม ERASE/WRITE จริง และห้ามตัดไฟ/ถอดสายระหว่างเขียน'+
+    '\\nกด ยกเลิก = หยุดก่อน ERASE'
+  );
+  if(!benchConfirmed){
+    INLINEFLASH.status='CANCELLED_BEFORE_ERASE';
+    inlineFlashLog('OPERATOR_CANCELLED_BEFORE_ERASE');
+    inlineFlashNote('ยกเลิกก่อน ERASE • ยังไม่ได้ส่งคำสั่งลบ/เขียน ECU');
+    return;
+  }
+  inlineFlashLog('MANUAL_BENCH_APPROVAL backup/power/recovery = confirmed by operator, not electronically measured');
+  inlineFlashNote('ยืนยัน Preflight แล้ว • เริ่ม ERASE/WRITE ตาม Main.zip • ห้ามปิดแอปหรือถอดสาย');
   INLINEFLASH.flashAttempted=true;INLINEFLASH.status='WRITING_NO_READBACK';
   let wake=null;
   try{
    if(navigator.wakeLock?.request)wake=await navigator.wakeLock.request('screen').catch(()=>null);
-   const result=await INLINEFLASH.engine.flash(plan,{operatorClickConfirmed:true});
+   const result=await INLINEFLASH.engine.flash(plan,{
+     operatorClickConfirmed:true,
+     physicalBackupConfirmed:benchConfirmed,
+     externalPowerConfirmed:benchConfirmed,
+     recoveryReady:benchConfirmed
+   });
    INLINEFLASH.status='SOURCE_FINAL_ACK_NO_READBACK_VERIFIED';
    inlineFlashProgress(100);
    inlineFlashLog('SOURCE FINAL ACK '+JSON.stringify(result));
