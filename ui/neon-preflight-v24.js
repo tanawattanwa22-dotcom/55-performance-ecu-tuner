@@ -190,10 +190,10 @@ function render(){
   if(!cableReady)blockers.push('ยังไม่ได้เชื่อมต่อ FT232R จากหน้าแรก');
   if(recoveryCandidate)blockers.push('ECU ID ลงท้าย 0000: อาจอยู่ใน Recovery Boot • หยุด Flash ปกติ และยืนยัน Boot/Family ผ่านเมนู Recovery');
   if(!identity?.ecuId){if(fileReady&&cableReady&&!INLINEFLASH.busy)blockers.push('กดปุ่มอัดเพื่อให้อ่าน ECU ID/Part/Family อัตโนมัติ');}
-  else if(!catalogRecord(identity))blockers.push('ECU นอกฐาน Main 290: ต้องตรวจ BIN ID/Family/Offset/Checksum กับ ECU จริงก่อน ERASE');
+  else if(!catalogRecord(identity)){/* Main 290 is optional: do not present catalog absence as a blocker. */}
   else if(!catalogRecord(identity)?.part)blockers.push('ต้นฉบับไม่มี Part Code สำหรับ ECU ID '+identity.ecuId);
   else if(!identity.sourceMatched)blockers.push('พบ ECU ID ในฐานแล้ว แต่ Family ยังไม่ได้ยืนยันจากเซสชัน ECU จริง ('+identity.handshake+')');
-  if(identity?.ecuId&&!plan)blockers.push(unlistedPhysical?'ECU นอกฐาน: ให้ Flash Engine ยืนยัน Family ACK / BIN ID / Offset / Checksum ในขั้นตอนก่อนลบ':'ยังไม่ผ่านการตรวจ Offset/Checksum/Part');
+  if(identity?.ecuId&&!plan&&!unlistedPhysical)blockers.push('ยังไม่ผ่านการตรวจ Offset/Checksum/Part');
   if(($('btnFlash')?.hidden||$('btnFlash')?.disabled)&&!INLINEFLASH.busy)blockers.push('Flash Engine ยังไม่พร้อม หรือ License ไม่พร้อม');
   if(working||INLINEFLASH.busy)blockers.push('โปรแกรมกำลังทำงาน');
   dom.gateReason.textContent=INLINEFLASH.postCheck?'Final ACK สำเร็จ · ปิดกุญแจ OFF แล้วเปิด ON เพื่อกดตรวจ ECU ID อีกครั้ง':INLINEFLASH.busy?'กำลังตรวจและอัดผ่าน Flash Engine จาก Main C#':blockers.length?'ยังไม่พร้อมอัด: '+[...new Set(blockers)].join(' • '):
@@ -209,7 +209,7 @@ function render(){
   recoveryCandidate?'ตรวจพบ Recovery Boot ID • Flash ปกติถูกล็อก':
   INLINEFLASH.busy?'กำลังตรวจและอัดไฟล์ ECU':
   ready?'ผ่านการตรวจซอฟต์แวร์ (ยังไม่ได้ ERASE)':
-  unlistedPhysical?(fileReady?'อ่าน BIN และ ECU ID ได้แล้ว • ยังไม่พร้อมเขียน ECU':'อ่าน ECU ID ได้แล้ว • ยังไม่พร้อมเขียน ECU'):
+  unlistedPhysical?(fileReady?'ECU นอกฐาน Main 290 • ตรวจ BIN / Family สดเมื่อกด Flash':'อ่าน ECU ID ได้แล้ว • รอเลือก BIN'):
   fileReady&&cableReady?'พร้อมตรวจ ECU / BIN ก่อนอัด':
   working?'กำลังอ่าน ECU / ตรวจ Preflight':identity?.ecuId&&source?.part&&!identity.sourceMatched?'พบ ECU ID ในฐาน · รอยืนยัน Family':'รอเลือก BIN และเชื่อม FT232R';
  dom.title.classList.toggle('ready',ready);
