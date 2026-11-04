@@ -362,7 +362,12 @@ export class HondaFlashEngine {
   const p=resolveWriteProfile(profile);
   const suggested=sourceOffsetProof;
   const useManualStart=Number.isInteger(startOffsetOverride)&&family==='KEIHIN';
-  const offset=useManualStart?startOffsetOverride:(catalog.startOffset??suggested.startOffset);
+  // FormMain.WorkerThread calls GetEcuType() BEFORE WriteFlash().
+  // For Shindengen, GetEcuType() ALWAYS rewrites TbStartOffset from the BIN
+  // signature (A000 for RH850B, 10000 for V850/RH850), overriding any DAT
+  // or operator textbox offset. Keihin retains the stored/manual address.
+  const offset=family==='SHINDENGEN'?suggested.startOffset:
+    useManualStart?startOffsetOverride:(catalog.startOffset??suggested.startOffset);
   if(!Number.isInteger(offset)||offset<0||offset%16)
    fail('BAD_SOURCE_MAP','Start Offset จาก C# ไม่ครบ/ผิด Alignment');
   if(bin.length%p.blockSize)fail('BLOCK_ALIGNMENT','BIN ไม่ตรงขนาดบล็อก C#');
@@ -388,7 +393,8 @@ export class HondaFlashEngine {
       binFullId:completeBinId,binFullIdMatched:rec?null:!completeBinId||completeBinId===ecuId,
       familyFlashCountResponded:true,partFromCSharp:!rec&&!sourceUnlisted,
        partFromMainDat:sourceUnlisted&&!!this.identity.datReference?.part,
-       startOffsetFromMainDat:sourceUnlisted&&Number.isInteger(this.identity.datReference?.startOffset),
+       startOffsetFromMainDat:sourceUnlisted&&family==='KEIHIN'&&
+         !useManualStart&&Number.isInteger(this.identity.datReference?.startOffset),
        sourceUnlistedWithProof:sourceUnlisted,
        sourceKeihinOtherFallback:sourceKeihinFallback,
        sourceBinIdEvidence:completeBinId?'FULL_ID':shortBinId?'3_BYTE_SOURCE_LOCATOR':'NONE',
