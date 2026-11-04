@@ -97,6 +97,15 @@ function refreshStatus(){
  let saved=false;
  try{saved=!!S.saved&&TuneBinFlow.matches(S.saved,S.bin,{model:m?.id,sourceName:S.fname,customerBin:S.custom})}catch{}
  $('n20Save').textContent=saved?'บันทึก BIN แล้ว':'ยังไม่บันทึก';
+ const liveJob=$('n20JobEcu');
+ if(liveJob)liveJob.textContent=t;
+ const binJob=$('n20JobBin');
+ if(binJob){
+  const quick=window.__55QuickFlashBin;
+  binJob.textContent=quick?.bytes instanceof Uint8Array?
+    (quick.filename||'เลือก BIN ในหน้า Flash แล้ว'):
+    (typeof S!=='undefined'&&S.bin?S.fname:'ยังไม่ได้เปิด BIN');
+ }
 }
 window.__55V20RefreshStatus=refreshStatus;
 function heading(t,desc){
@@ -124,11 +133,15 @@ function dashboard(){
  const m=typeof S!=='undefined'&&S.mi>=0?MODELS[S.mi]:null;
  for(const [symbol,subject,value] of [
   ['▦','รุ่นที่เลือก',m?.id||'ยังไม่ได้เลือกรุ่น'],
-  ['💾','BIN ที่เปิดอยู่',typeof S!=='undefined'&&S.bin?S.fname:'ยังไม่ได้เปิด BIN'],
-  ['🔌','สถานะ ECU',status()[0]]
+  ['💾','BIN ที่เปิดอยู่',window.__55QuickFlashBin?.filename||
+    (typeof S!=='undefined'&&S.bin?S.fname:'ยังไม่ได้เปิด BIN'),'n20JobBin'],
+  ['🔌','สถานะ ECU',status()[0],'n20JobEcu']
  ]){
   const row=mk('div','n20-job');row.append(mk('span','',symbol));
-  const label=mk('b','',subject);label.append(mk('small','',value));row.append(label);panel.append(row);
+  const label=mk('b','',subject),small=mk('small','',value);
+  if(subject==='สถานะ ECU')small.id='n20JobEcu';
+  if(subject==='BIN ที่เปิดอยู่')small.id='n20JobBin';
+  label.append(small);row.append(label);panel.append(row);
  }
  stage.append(panel);
  const note=mk('div','n20-panel');

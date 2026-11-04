@@ -35,7 +35,7 @@ assert(start.includes('await license()')&&start.includes('await connectEcu()')&&
 assert(!/engine\.flash\s*\(|\$\('write'\)\.click\s*\(/.test(start),'automatic Recovery must never erase or write');
 assert(/ui\/neon-preflight-v24\.js\?v=\d+/.test(index)&&
  index.includes('ui/neon-recovery-v35.js?v=350')&&
- index.includes('ui/neon-v20.js?v=346')&&
+ /ui\/neon-v20\.js\?v=\d+/.test(index)&&
  /ui\/shared-operations-v30\.js\?v=\d+/.test(index),
  'Recovery/Main JS asset URLs cache-busted');
 const script=bench.match(/<script type="module">([\s\S]*?)<\/script>/);

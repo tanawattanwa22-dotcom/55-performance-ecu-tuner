@@ -376,6 +376,7 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
  function updateSharedState(){
   const st=reader.status();
   updateDetected(st);
+  window.__55V20RefreshStatus?.();
   state.textContent=st.connected?
    ('✓ FT232R เปิดพอร์ตแล้ว · '+(st.ecuId?'ECU ID '+st.ecuId:'ยังไม่ได้ต่อหรืออ่าน ECU')+
     (st.error?' · การอ่าน ECU ล่าสุด: '+st.error:'')):
