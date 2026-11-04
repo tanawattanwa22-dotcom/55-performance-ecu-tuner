@@ -62,6 +62,8 @@ jobs:
         run: node tools/verify-main-legacy-converter.mjs
       - name: Verify C# DTC six-memory read parsing
         run: node tools/verify-main-dtc.mjs
+      - name: Verify one shared DTC source clear path and exclusive FT232R port
+        run: node tools/verify-shared-operations.mjs
       - name: Validate V19 mobile category UI, pages and script syntax
         run: node tools/verify-ui-v19.mjs
       - name: Verify saved BIN snapshot and mobile customer flash handoff
