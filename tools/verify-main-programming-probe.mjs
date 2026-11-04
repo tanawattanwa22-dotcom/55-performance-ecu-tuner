@@ -9,7 +9,8 @@ const ecu='0105040D01';
 const frameReply=(data)=>{
  const b=Uint8Array.from(data);b[b.length-1]=hondaChecksum(b.slice(0,-1));return b;
 };
-function usb({khCountFails=false,id=ecu,helloStatus=0,helloFourByteReply=false}={}){
+function usb({khCountFails=false,id=ecu,helloStatus=0,helloFourByteReply=false,
+ keihinByte3=0,recordedPcX160ShindengenReply=false,corruptShindengenChecksum=false}={}){
  const calls=[],dev={vendorId:0x0403},obj={
  ready:true,lastDevice:dev,dev,diagnosticReady:true,
  async initializeIso(){calls.push('INIT');this.diagnosticReady=false},
@@ -22,8 +23,13 @@ function usb({khCountFails=false,id=ecu,helloStatus=0,helloFourByteReply=false}=
   }
   let b;
   if(opcode===0x72&&tx[1]===7)b=frameReply([2,11,0,0,0,...id.match(/../g).map(x=>parseInt(x,16)),0]);
-  else if(opcode===0x7d)b=frameReply([2,8,0,0,0,0,4,0]);
-  else if(opcode===0x7b)b=frameReply([2,8,0,0,0,0,6,0]);
+  else if(opcode===0x7d)b=frameReply([2,8,0,keihinByte3,0,0,4,0]);
+  else if(opcode===0x7b){
+   b=recordedPcX160ShindengenReply?
+    Uint8Array.from([0x0b,0x09,0x01,0x01,0x00,0x00,0x0e,0x0e,0xce]):
+    frameReply([2,8,0,0,0,0,6,0]);
+   if(corruptShindengenChecksum)b[b.length-1]^=0x01;
+  }
   else b=helloFourByteReply?
     Uint8Array.from([0x02,0x04,0x00,0xfa]):
     frameReply([2,5,0,helloStatus,0]);
@@ -58,6 +64,31 @@ assert.equal(nonzeroResult.countState,'CONFIRMED',
 const s=usb({khCountFails:true}),r2=await probeMainProgrammingSession(s.port,{expectedEcuId:ecu});
 assert.equal(r2.countState,'CONFIRMED');assert.equal(r2.family,'SHINDENGEN');
 assert.equal(r2.flashCount,6);assert.equal(r2.flashApproved,false);
+const byte3Keihin=usb({keihinByte3:1});
+const byte3KeihinResult=await probeMainProgrammingSession(byte3Keihin.port,{expectedEcuId:ecu});
+assert.equal(byte3KeihinResult.countState,'CONFIRMED',
+ 'C# accepts checksum-valid Keihin count reply even with reply[3] != 0');
+assert.equal(byte3KeihinResult.flashCount,4);
+// Replayed verbatim source response from owner PCX160 0105040D01
+// 2026-11-04 08:24:35Z: 7B 06 02 01 03 79 -> 0B 09 01 01 00 00 0E 0E CE.
+// Earlier web port incorrectly reported "Invalid reply length/status 9 / 1".
+const recorded=usb({khCountFails:true,helloFourByteReply:true,recordedPcX160ShindengenReply:true});
+const recordedResult=await probeMainProgrammingSession(recorded.port,{expectedEcuId:ecu});
+assert.equal(hondaChecksum(Uint8Array.from([0x0b,0x09,0x01,0x01,0x00,0x00,0x0e,0x0e,0xce])),0,
+ 'Owner-supplied Shindengen reply checksum must be valid');
+assert.equal(recordedResult.countState,'CONFIRMED');
+assert.equal(recordedResult.family,'SHINDENGEN');
+assert.equal(recordedResult.flashCount,14,'Main.zip reads reply[6]=0x0E as decimal 14');
+assert.equal(recordedResult.programmingSessionVerified,true);
+assert.equal(recordedResult.flashApproved,false,'Flash Count ACK never enables erase/write');
+assert.equal(recordedResult.countError,null);
+assert(recordedResult.events.some(e=>e.phase==='MAIN_WORKER_COUNT_ACCEPTED'&&
+ e.flashCount===14&&e.rawByte3===1&&e.name==='SHINDENGEN_COUNT'));
+const corrupt=usb({khCountFails:true,helloFourByteReply:true,recordedPcX160ShindengenReply:true,
+ corruptShindengenChecksum:true});
+const corruptResult=await probeMainProgrammingSession(corrupt.port,{expectedEcuId:ecu});
+assert.notEqual(corruptResult.countState,'CONFIRMED','Checksum-invalid count must still fail');
+assert.equal(corruptResult.flashApproved,false);
 assert(r2.events.some(x=>x.phase==='WEBUSB_SAFE_REOPEN'),
  'Safe WebUSB recovery must be observable in source TX/RX logs');
 assert(s.calls.includes('OPEN'),'must reopen permissioned FT232R after timeout');

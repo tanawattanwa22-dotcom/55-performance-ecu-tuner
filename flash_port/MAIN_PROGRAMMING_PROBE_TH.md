@@ -41,3 +41,12 @@ node tools/verify-main-source-manager.mjs
 ```
 
 ทั้งหมดเป็น mock/replay หรือการวิเคราะห์ไฟล์ ไม่มี USB หรือ ECU ของรถจริง
+
+
+## บันทึกผล PCX160 จริง 2026-11-04 08:24:35Z
+
+จาก TX/RX log ที่ผู้ใช้ส่งมา ECU ID `0105040D01` ตอบ HELLO แบบ 4 ไบต์ `02 04 00 FA` สองรอบ และยืนยัน ECU ID `0105040D01` ในเซสชันโปรแกรมมิ่ง จากนั้น Keihin Flash Count ไม่ตอบ แต่ Shindengen Flash Count `7B 06 02 01 03 79` ตอบ `0B 09 01 01 00 00 0E 0E CE` (ความยาว 9, Checksum ผ่าน)
+
+**แก้ parser ให้ตรง FormMain.cs WorkerThread:** `SendCommand` ตรวจความยาวและ Checksum ไม่ได้กำหนดว่า byte[3] ต้องเป็นศูนย์; `reply[6]=0x0E` จึงอ่านเป็น Flash Count **14 ครั้ง** ตามซอร์สเดิม การทดสอบจำลองรีเพลย์เฟรมจริงนี้ป้องกัน Regression ที่เคยรายงาน `Invalid reply length/status 9 / 1`
+
+ค่า Flash Count ที่ตอบกลับไม่ได้ยืนยันว่าชุดคำสั่งเขียน, BIN, แผนที่หน่วยความจำ หรือขั้นตอน Recovery ใช้กับกล่องนี้ได้ และไม่ถูกนำไปปลดล็อก ERASE/WRITE

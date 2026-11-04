@@ -151,8 +151,15 @@ export async function probeMainProgrammingSession(port,{expectedEcuId=null,onEve
   }
   result.programmingSessionVerified=true;
   let count=await exchange('KEIHIN_COUNT',1900);
-  if(count.ok&&count.reply.length>=7&&count.status===0){
+  // FormMain.cs WorkerThread: SendCommand() returns true after frame-length
+  // and Checksum8BitHonda validation; it reads reply[6] as decimal Flash Count.
+  // reply[3] is a data byte for count frames, NOT a generic success status.
+  // The real PCX160 Shindengen response 0B 09 01 01 00 00 0E 0E CE has
+  // reply[3] = 0x01 yet is valid (length 9, checksum zero, count = 14).
+  if(count.ok&&count.reply.length>=7){
    result.countState='CONFIRMED';result.family='KEIHIN';result.flashCount=count.reply[6];
+   log('MAIN_WORKER_COUNT_ACCEPTED',{name:'KEIHIN_COUNT',flashCount:result.flashCount,
+    frame:toHex(count.reply),validation:'SOURCE_CHECKSUM_AND_REPLY_6',rawByte3:count.rawByte3});
    return result;
   }
   // Main source tries Shindengen second. Browser timeout is NOT the Windows
@@ -167,11 +174,13 @@ export async function probeMainProgrammingSession(port,{expectedEcuId=null,onEve
    result.countState='NO_REPLY';result.countError='Physical ECU ID not re-confirmed before second family probe';return result;
   }
   count=await exchange('SHINDENGEN_COUNT',1900);
-  if(count.ok&&count.reply.length>=7&&count.status===0){
+  if(count.ok&&count.reply.length>=7){
    result.countState='CONFIRMED';result.family='SHINDENGEN';result.flashCount=count.reply[6];
+   log('MAIN_WORKER_COUNT_ACCEPTED',{name:'SHINDENGEN_COUNT',flashCount:result.flashCount,
+    frame:toHex(count.reply),validation:'SOURCE_CHECKSUM_AND_REPLY_6',rawByte3:count.rawByte3});
   }else{
    result.countState='NO_REPLY';
-   result.countError=count.error||('Invalid reply length/status '+(count.reply?.length||0)+' / '+String(count.status));
+   result.countError=count.error||'No checksum-valid Shindengen Flash Count reply';
   }
   return result;
  }catch(e){
