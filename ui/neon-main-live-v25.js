@@ -13,10 +13,13 @@ import {readEcuDat} from '../flash_port/ecu-dat-editor.js?v=1';
 let programmingProbeResult=null,programmingProbeRuns=[],programmingProbeBusy=false;
 let ecuDatRows=[],ecuDatName='',dryRunReport=null;
 let cachedBinEvidence=null;
+let scanPreviewBin=null; // Local read-only preview only.
 function autoBinEvidence(id){
  const quick=window.__55QuickFlashBin;
- const saved=typeof S!=='undefined'&&S?.saved?.bytes instanceof Uint8Array?S.saved:null;
- const selected=quick?.bytes instanceof Uint8Array?quick:saved;
+ const saved=window.__ecu?.S?.saved;
+ const selected=scanPreviewBin?.bytes instanceof Uint8Array?scanPreviewBin:
+  quick?.bytes instanceof Uint8Array?quick:
+  saved?.bytes instanceof Uint8Array?saved:null;
  if(!selected){cachedBinEvidence=null;return {selected:false,key:'NONE',result:null}}
  if(cachedBinEvidence?.selected===selected&&cachedBinEvidence?.ecuId===id)
   return cachedBinEvidence.evidence;
@@ -334,17 +337,24 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
  dataButton.textContent='นำเข้า ecuData.dat · อ้างอิง';dataButton.type='button';
  const fileDat=document.createElement('input');fileDat.type='file';fileDat.accept='.dat,application/octet-stream';
  fileDat.hidden=true;fileDat.id='mainEcuDatInput';
+ const binPreviewButton=document.createElement('button');binPreviewButton.className='btn';
+ binPreviewButton.type='button';binPreviewButton.textContent='เลือก BIN ตรวจ Auto Offset / Checksum';
+ const binPreviewInput=document.createElement('input');binPreviewInput.type='file';
+ binPreviewInput.accept='.bin,application/octet-stream';binPreviewInput.hidden=true;
+ const binPreviewStatus=document.createElement('p');binPreviewStatus.setAttribute('role','status');
+ binPreviewStatus.style.cssText='font-size:12px;color:#bad0df;white-space:pre-wrap;line-height:1.6';
+ binPreviewStatus.textContent='เลือก BIN เพื่อวิเคราะห์ Offset/Checksum จาก FormMain.cs แม้ ECU ID ไม่อยู่ใน Main 290 • ไม่ส่งคำสั่งเขียน';
  const dryRunButton=document.createElement('button');dryRunButton.className='btn';
  dryRunButton.textContent='ตรวจ BIN Dry-run · ไม่อัด';dryRunButton.type='button';
  const probeDownload=document.createElement('button');probeDownload.className='btn';
  probeDownload.textContent='ดาวน์โหลด TX/RX Log';probeDownload.type='button';
  const probeControls=document.createElement('div');probeControls.className='row';
  probeControls.style.cssText='display:flex;flex-wrap:wrap;gap:9px;margin:12px 0';
- probeControls.append(programButton,dataButton,dryRunButton,probeDownload);
+ probeControls.append(programButton,dataButton,binPreviewButton,dryRunButton,probeDownload);
  const probeInfo=document.createElement('pre');probeInfo.id='mainProgrammingProbeStatus';
  probeInfo.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;color:#d2ebff;max-height:240px;overflow:auto;padding:12px;border:1px solid #3c6684;border-radius:10px;background:#102237';
  probeInfo.textContent='โหมดโปรแกรมมิ่งยังไม่ได้ตรวจ · เริ่มจากสแกน ECU แบบ Diagnostic ก่อน แล้วกดสแกนโหมดโปรแกรมมิ่งแยก';
- const probePane=document.createElement('section');probePane.append(probeControls,probeInfo,fileDat);
+ const probePane=document.createElement('section');probePane.append(probeControls,binPreviewStatus,probeInfo,fileDat,binPreviewInput);
  const note=document.createElement('p');note.className='mu sm';note.textContent='FT232R ชื่อซ้ำ (0), (1), (3) เป็นรายการที่ Android/Chrome แสดง ไม่ใช่สาย 3 เส้น • หากเคยอนุญาตเพียงรายการเดียวจะเชื่อมต่อโดยใช้สิทธิ์เดิม • เปิดหน้า Live / DTC / Flash เพื่อสแกน ECU แบบอ่านข้อมูล';
  const checks=document.createElement('div');checks.id='sharedEcuAutoChecklist';
  checks.style.cssText='display:grid;gap:7px;margin:14px 0 4px;';
@@ -483,11 +493,30 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
   }catch(e){probeInfo.textContent='อ่าน DAT ไม่สำเร็จ: '+String(e.message||e)}
   finally{fileDat.value='';updateSharedState()}
  };
+ binPreviewButton.onclick=()=>binPreviewInput.click();
+ binPreviewInput.onchange=async()=>{
+  const file=binPreviewInput.files?.[0];if(!file)return;
+  try{
+   if(!/\\.bin$/i.test(file.name))throw Error('รองรับเฉพาะ .bin; ไฟล์ ECU/ACG ต้องแปลงก่อน');
+   if(!file.size||file.size>2_000_000)throw Error('BIN ว่างหรือใหญ่เกิน 2MB');
+   scanPreviewBin={bytes:new Uint8Array(await file.arrayBuffer()),filename:file.name,selectedAt:Date.now()};
+   cachedBinEvidence=null;dryRunReport=null;
+   const result=autoBinEvidence(reader.status().ecuId).result;
+   binPreviewStatus.textContent='BIN: '+file.name+' ('+scanPreviewBin.bytes.length+' bytes)'+
+    '\\nชนิดจาก Signature: '+(result?.type||'ไม่พบ')+
+    '\\nStart Offset: '+(result?.startOffsetHex||'ยังไม่พบ')+
+    '\\nChecksum Offset: '+(result?.checksumOffsetHex||'ยังไม่พบ')+
+    '\\nผลตรวจ: '+(result?.message||'ยังไม่สามารถวิเคราะห์ได้')+
+    '\\nอ่าน BIN ในอุปกรณ์เท่านั้น ไม่ได้อนุญาต ERASE/WRITE';
+  }catch(e){binPreviewStatus.textContent='ตรวจ BIN ไม่สำเร็จ: '+String(e.message||e)}
+  finally{binPreviewInput.value='';updateSharedState()}
+ };
  dryRunButton.onclick=async()=>{
   if(programmingProbeBusy)return;
   const live=reader.status(),quick=window.__55QuickFlashBin;
-  const saved=(typeof S!=='undefined'&&S?.saved?.bytes instanceof Uint8Array)?S.saved:null;
-  const bin=quick?.bytes instanceof Uint8Array?quick.bytes:saved?.bytes;
+  const saved=window.__ecu?.S?.saved?.bytes instanceof Uint8Array?window.__ecu.S.saved:null;
+  const bin=scanPreviewBin?.bytes instanceof Uint8Array?scanPreviewBin.bytes:
+   quick?.bytes instanceof Uint8Array?quick.bytes:saved?.bytes;
   if(!bin){probeInfo.textContent='กรุณาเลือก BIN ของกล่องก่อนตรวจ Dry-run';return}
   try{
    dryRunButton.disabled=true;probeInfo.textContent='กำลังตรวจ BIN ตาม Main.zip แบบไม่ส่งข้อมูลไป ECU…';
@@ -550,7 +579,7 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
    items.push(['Live Group ที่เคยอ่านได้',
     'Group '+st.readOnlyObservation.liveGroup+' · รหัส ECU เดียวกัน (ยังต้องตรวจซ้ำ)']);
   }
-  if(data.ecuId&&!st.catalogMatched){
+  if(data.ecuId){
    const b=selected.result;
    items.push(['Auto Start จาก BIN (Main.zip)',b?.startOffsetHex||'รอเลือก BIN / ยังไม่พบ']);
    items.push(['Auto Checksum จาก BIN (Main.zip)',b?.checksumOffsetHex||'รอเลือก BIN / ยังไม่พบ']);
@@ -617,7 +646,7 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
     st.usbLastError?'เปิดไม่สำเร็จ: '+st.usbLastError:
     'ยังไม่ได้เลือกอุปกรณ์ หรือ Android ไม่อนุญาตให้เปิด USB'],
    [idOK,'ECU ID จากกล่องจริง',idOK?st.ecuId:(st.idError||'รอคำตอบ ECU')],
-   [idOK&&st.catalogMatched,'พบในฐาน Main 290',st.catalogMatched?(st.part||'Part Code ไม่ระบุ')+' · '+st.catalogFamily:'ยังไม่พบรายการที่ตรง ECU ID'],
+   [idOK&&st.catalogMatched,'ฐาน Main 290 (ข้อมูลอ้างอิง)',st.catalogMatched?(st.part||'Part Code ไม่ระบุ')+' · '+st.catalogFamily:'ยังไม่พบรายการที่ตรง ECU ID'],
    [liveOK,'ตาราง Live Data',liveOK?'Group '+st.group+' · ได้รับและถอดรหัสข้อมูลครบ':'รอยืนยัน Group 7 / 4 / 1'+(st.liveGroupError?' · '+st.liveGroupError:'')],
    [dtcOK,'ตาราง DTC',dtc?(dtc.answered.length+'/6 คำสั่งตอบครบ'+(dtcOK?'':' · ผลยังไม่ครบ')):'ยังไม่ได้รับคำตอบ DTC'],
    [false,'Start Offset / Checksum',st.catalogMatched?
