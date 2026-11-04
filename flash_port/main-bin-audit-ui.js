@@ -1,11 +1,11 @@
-import {auditMainBin} from './main-bin-audit.js?v=4';
+import {auditMainBin} from './main-bin-audit.js?v=5';
 const $=id=>document.getElementById(id);
 let file=null,output=null;
 const message=s=>{$('message').textContent=s};
 const draw=out=>{
  const lines=[
  'ไฟล์: '+out.fileName,
- 'ขนาด: '+out.size.toLocaleString('en-US')+' bytes ('+(out.size/1024).toFixed(1)+' KB)',
+ 'ขนาด: '+out.sourceFileSize+' ('+out.size.toLocaleString('en-US')+' bytes)',
  'ขนาดที่โปรแกรม Main C# มีตัวค้นหา: '+(out.supportedSourceSize?'รองรับ':'ไม่มี SearchPattern สำหรับขนาดนี้'),
  'BIN Signature: '+(out.type.type||'UNDETERMINED'),
  'ผลอ่าน BIN ID ตามหน้าต่าง Main: '+out.sourceBinIdText,
