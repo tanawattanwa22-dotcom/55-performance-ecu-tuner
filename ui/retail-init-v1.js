@@ -34,6 +34,24 @@
    if(legacy){legacy.removeAttribute('style');advanced.append(legacy)}
    if(ecmLink){ecmLink.removeAttribute('style');ecmLink.classList.add('btn');advanced.append(ecmLink)}
   }
+  // Service pages open only in a parent-owned, admin-gated workspace.
+  // Their existing DOM and script listeners stay intact.
+  const workspace=document.createElement('dialog');
+  workspace.id='retailAdvancedWorkspace';
+  workspace.className='retail-advanced-workspace';
+  workspace.innerHTML='<div class="retail-workspace-top"><strong>🔒 55 PERFORMANCE · SERVICE CENTER</strong><button type="button" id="retailWorkspaceClose" aria-label="ปิดเครื่องมือ">✕ ปิด</button></div><iframe id="retailWorkspaceFrame" title="เครื่องมือช่างขั้นสูง" referrerpolicy="same-origin"></iframe>';
+  document.body.append(workspace);
+  const frame=$('retailWorkspaceFrame');
+  const close=()=>{frame.removeAttribute('src');if(workspace.open)workspace.close();};
+  $('retailWorkspaceClose').addEventListener('click',close);
+  workspace.addEventListener('close',()=>frame.removeAttribute('src'));
+  document.addEventListener('55:open-advanced-url',event=>{
+   if(!window.__55AdvancedGate?.isAuthorized())return;
+   const path=event.detail?.url;
+   if(typeof path!=='string'||!(/^(?:flash_port\\/|ecm\\/)[a-z0-9_./-]+\\.html$/i).test(path)||path.includes('..'))return;
+   frame.src=new URL(path,location.href).href;
+   if(!workspace.open)workspace.showModal();
+  });
   // Secondary Main tools and read-only probes remain in the page DOM, but
   // are removed from all ordinary customer screens via the retail CSS.
   const settings=$('n20Stage');
