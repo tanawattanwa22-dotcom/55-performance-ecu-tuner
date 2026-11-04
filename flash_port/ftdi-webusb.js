@@ -37,6 +37,24 @@ export function checkedHondaReply(data){
   if(hondaChecksum(data)!==0)throw Error('Honda reply checksum mismatch');
   return Uint8Array.from(data);
 }
+/**
+ * FormMain.cs SendCommand(): collected UART data consists of commandSize
+ * echoed bytes followed by a framed reply. Source checks the reply length and
+ * Checksum8BitHonda, but DOES NOT compare the echoed bytes with its TX frame.
+ * Return null for incomplete or invalid captures, as the C# loop would wait.
+ * This pure parser is also used by the live source Flash/Recovery transport.
+ */
+export function parseFormMainSendCommandReply(received,command){
+ const rx=Uint8Array.from(received||[]);
+ const tx=Uint8Array.from(command||[]);
+ if(tx.length===0||rx.length<tx.length+2)return null;
+ const replyLength=rx[tx.length+1];
+ if(replyLength===0||rx.length-tx.length!==replyLength)return null;
+ const reply=rx.slice(rx.length-replyLength);
+ if(hondaChecksum(reply)!==0)return null;
+ const echoOK=tx.every((v,i)=>v===rx[i]);
+ return {reply,echoOK};
+}
 export const READ_ONLY_COMMANDS=Object.freeze({
   WAKE:Object.freeze([0xfe,0x04,0x72,0x8c]),
   HELLO:Object.freeze([0x72,0x05,0x00,0xf0,0x99]),
@@ -292,7 +310,7 @@ export class Ft232rWebUsb {
     await sleep(80);
     await this.purge();
   }
-  async exchangeRaw(frame,{timeoutMs,afterWriteMs=0,expectReply=true,observe=null}={}){
+  async exchangeRaw(frame,{timeoutMs,afterWriteMs=0,expectReply=true,observe=null,mainSourceMode=false}={}){
     // C# SendCommand-compatible echo + reply. This method can transmit an ECU
     // programming frame: callers must complete hardware/profile preflight.
     if(!this.ready)throw Error('FT232R not connected');
@@ -347,19 +365,32 @@ export class Ft232rWebUsb {
           throw Error('Too many bytes without valid ECU reply');
         if(stream.length<bytes.length+2)continue;
         const echo=stream.slice(0,bytes.length);
-        if(echo.some((v,i)=>v!==bytes[i]))throw Error('Serial echo does not match transmitted bytes');
-        if(!echoConfirmed){trace('SOURCE_ECHO_OK',{length:bytes.length});echoConfirmed=true}
+        const echoMatches=echo.every((v,i)=>v===bytes[i]);
+        // FormMain.SendCommand does not compare the echo bytes. The legacy
+        // strict option is retained for non-FormMain diagnostic clients.
+        if(!mainSourceMode&&!echoMatches)throw Error('Serial echo does not match transmitted bytes');
+        if(!echoConfirmed){
+          trace('SOURCE_ECHO_OBSERVED',{length:bytes.length,echoMatches,validatedBySource:!mainSourceMode});
+          echoConfirmed=true;
+        }
         const size=stream[bytes.length+1];
-        if(size<3||size>255)throw Error('ECU reply length invalid: '+size);
+        if(!mainSourceMode&&(size<3||size>255))throw Error('ECU reply length invalid: '+size);
         if(stream.length<bytes.length+size)continue;
-        const reply=Uint8Array.from(stream.slice(bytes.length,bytes.length+size));
-        checkedHondaReply(reply);
+        let reply;
+        if(mainSourceMode){
+          const source=parseFormMainSendCommandReply(stream,bytes);
+          if(!source)continue; // C# waits until timeout when reply/checksum invalid
+          reply=source.reply;
+        }else{
+          reply=Uint8Array.from(stream.slice(bytes.length,bytes.length+size));
+          checkedHondaReply(reply);
+        }
         trace('SOURCE_REPLY_OK',{replyHex:toHex(reply.slice(0,96)),length:reply.length,
           status:reply.length>=5?reply[3]:null,
           rawByte3:reply[3],checksumValid:true});
         this._log('RX '+toHex(reply.length<=24?reply:reply.slice(0,24))+(reply.length>24?' ...':''));
         await this.purge();
-        return {reply,echoOK:true};
+        return {reply,echoOK:echoMatches};
       }
       throw Error('No complete ECU reply before timeout');
     }catch(error){
