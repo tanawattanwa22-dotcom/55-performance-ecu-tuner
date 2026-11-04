@@ -1695,7 +1695,7 @@ mainToolsAction('mtReadEcu',async()=>{
   const {HondaFlashEngine}=await import('./flash_port/honda-write-engine.js?v=375');
   const engine=new HondaFlashEngine(port,ev=>inlineFlashLog('MAIN READ '+JSON.stringify(ev)));
   mainToolsOut('กำลังอ่าน ECU ID และ Flash Count จาก FT232R สายกลาง…');
-  const data=await engine.identify();MAINTOOLS.lastEcu=data;
+  const data=await engine.identify({programmingPreflight:true});MAINTOOLS.lastEcu=data;
   $('#mtEcuId').value=data.ecuId;
   mainToolsOut('ECU ID: '+data.ecuId+'\nPart: '+(data.sourcePart||'ไม่พบในฐาน C#')+'\nFAMILY: '+data.family+'\nFLASH COUNT: '+(data.count??'ไม่ทราบ')+'\nSOURCE MATCH: '+(data.sourceMatched?'ตรง':'ยังไม่ยืนยัน')+'\nไม่ได้ส่งคำสั่ง ERASE/WRITE');
  }finally{
