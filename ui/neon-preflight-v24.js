@@ -308,7 +308,9 @@ function mount(host){
   }catch(e){uploadStatus.textContent='เลือกไฟล์ไม่สำเร็จ: '+e.message;error=e.message}
   finally{window.__55refreshFlashButton?.();render();upload.value='';if(window.__55SharedEcu?.snapshot?.().ecuId)void autoPrepare();}
  };
- const flash=btn('⇧ อัดไฟล์ ECU','n24-btn n24-flash n24-easy-flash',startFlash);dom.flash=flash;
+ const flash=btn('⇧ อัดไฟล์ ECU','n24-btn n24-flash n24-easy-flash',startFlash);
+ // Fail closed before the first asynchronous catalog/USB render.
+ flash.disabled=true;dom.flash=flash;
  const recovery=btn('⟳ เข้าสู่ Recovery · ตรวจ ECU อีกครั้ง','n24-btn n24-read',()=>{
   if(INLINEFLASH.busy)return errorOut('รอการทำงาน Flash ให้จบก่อน');
   if(window.__55OpenRecoveryPanel)window.__55OpenRecoveryPanel();
@@ -322,7 +324,7 @@ function mount(host){
  file.append(line('filename','ชื่อไฟล์'),line('source','ประเภทไฟล์'),line('size','ขนาดไฟล์'),line('sha','Checksum (SHA-256)'));stage.append(file);
  const ecu=card('n24-ecu','▣','ข้อมูล ECU (Identification)');
  ecu.append(line('dbcount','ฐานข้อมูลจาก Main.zip','กำลังโหลด…'));
- ecu.append(line('ecu','ECU ID'),line('part','Part Code'),line('family','Family'),line('flashcount','Flash Count'),line('sourceMatch','Source Match'));stage.append(ecu);
+ ecu.append(line('ecu','ECU ID','ยังไม่ได้อ่านจาก ECU'),line('part','Part Code'),line('family','Family'),line('flashcount','Flash Count'),line('sourceMatch','Source Match'));stage.append(ecu);
  const map=card('n24-map','▱','Auto Offset / Memory Map');
  map.append(line('start','Start Offset'),line('checksum','Checksum Offset'),line('block','Block Size'),line('profile','C# ECU Profile'),line('offsetState','สถานะตรวจ'));stage.append(map);
  const h=make('h3','n24-section-head','ขั้นตอนการอัดไฟล์ (Workflow)');stage.append(h);

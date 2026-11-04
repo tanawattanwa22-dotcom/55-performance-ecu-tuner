@@ -111,6 +111,8 @@ try{
   }
 
   await page.evaluate(()=>document.querySelector('#v20Nav [data-cat="flash"]').click());
+  await page.waitForTimeout(30);
+  assert.equal(jsErrors.length,0,'No JS crash when mounting Flash UI: '+JSON.stringify(jsErrors));
   assert.equal(await page.locator('#flashCard').evaluate(el=>el.classList.contains('n20-hidden')),true,'old Flash form hidden behind V24');
   assert.equal(await page.locator('#n20Stage .n24-hero').isVisible(),true,'real-state V24 Flash dashboard visible');
   assert.equal(await page.locator('#n20Stage .n24-panel').count(),5,'BIN upload, ECU, Offset and checklist panels');

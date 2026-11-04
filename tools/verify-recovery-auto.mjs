@@ -15,8 +15,10 @@ must(index,"identity.ecuId?.endsWith('0000')",'Normal Flash detects boot ID befo
 must(index,"inlineFlashRecovery('BOOT',detail,identity.ecuId)",'Normal Flash displays Recovery route when boot ID detected');
 must(index,"inlineFlashRecovery('FAILED',e.message,INLINEFLASH.ecuId)",'Normal Flash reports possible Recovery after write failure');
 must(index,"sessionStorage.setItem('55_flash_recovery_hint'",'Failure hint survives panel switching');
-// Normal Flash is now connect cable, choose BIN, tap Flash: no checkbox/typed modal.
+// Normal Flash uses one button with a final human bench approval dialog (no typed HEX).
 must(index,'operatorClickConfirmed:true','Normal Flash passes a single explicit operator click to the engine');
+must(index,'const benchConfirmed=confirm(','Normal Flash presents manual bench approval before ERASE');
+must(engine,"if(!physicalBackupConfirmed||!externalPowerConfirmed||!recoveryReady)",'Engine requires operator bench approvals even on one-tap');
 assert(!index.includes('inlineFlashConfirm('),'Normal Flash no longer opens manual approval dialog');
 assert(!index.includes("prompt('BIN ไม่มี Part Code"),'Normal Flash stops ambiguous BIN instead of asking the operator to type a guessed Part Code');
 must(index,'AUTO_PART_MATCH ECU_ID','Exact embedded BIN ECU ID can supply automatic part match');
@@ -67,8 +69,14 @@ const noUsb=new HondaFlashEngine({ready:false});
 noUsb.state='identified';
 noUsb.identity={ecuId:'0101880D01',family:'KEIHIN',sourceMatched:true};
 await assert.rejects(
-  noUsb.flash({ecuId:'0101880D01',profile:'KEIHINOTHER',recovery:false},{operatorClickConfirmed:true}),
+  noUsb.flash({ecuId:'0101880D01',profile:'KEIHINOTHER',recovery:false},{
+   operatorClickConfirmed:true,physicalBackupConfirmed:true,externalPowerConfirmed:true,recoveryReady:true}),
   e=>e.code==='USB_LOST'
+);
+// Explicitly prove a naked one-tap cannot proceed without physical approval.
+await assert.rejects(
+ noUsb.flash({ecuId:'0101880D01',profile:'KEIHINOTHER',recovery:false},{operatorClickConfirmed:true}),
+ e=>e.code==='PRECONDITION'
 );
 const unknownId=new HondaFlashEngine({ready:true});
 unknownId.state='identified';
