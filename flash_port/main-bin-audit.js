@@ -44,8 +44,30 @@ export function scanMainBinIds(bytes){
  }
  return [];
 }
+// Source FormMain.SearchBinFileForPattern writes this exact user-facing
+// textbox result after all branches complete. Preserve its original
+// no-match strings, including the 32/96/128 KB source copy/paste labels.
+export function sourceMainBinIdText(bytes){
+ if(!(bytes instanceof Uint8Array))throw TypeError('Uint8Array required');
+ const rows=scanMainBinIds(bytes);
+ if(rows.length)return rows[0].id.match(/../g).join(' ');
+ const noMatch={
+  32768:'No matching pattern found in the 48 KB file.',
+  49152:'No matching pattern found in the 48 KB file.',
+  57344:'No matching pattern found in the 56 KB file.',
+  65536:'No matching pattern found in the 64 KB file.',
+  98304:'No matching pattern found in the 64 KB file.',
+  131072:'No matching pattern found in the 64 KB file.',
+  262144:'No matching pattern found in the 256 KB file.',
+  393216:'No matching pattern found in the 384 KB file.',
+  524288:'No matching pattern found in the 512 KB file.',
+  786432:'No matching pattern found in the 768 KB file.',
+  1048576:'No matching pattern found in the 1024 KB file.'
+ };
+ return noMatch[bytes.length]||'-';
+}
 export function findMainEcuPrefixInBin(bytes,ecuId){
- const clean=String(ecuId||'').replace(/\s+/g,'').toUpperCase();
+ const clean=String(ecuId||'').toUpperCase(); // FormMain validates raw textbox HEX, not whitespace-normalized HEX.
  if(!/^[0-9A-F]{6,}$/.test(clean))throw Error('ระบุ ECU ID แบบ HEX อย่างน้อย 6 ตัว');
  const prefix=clean.slice(0,6);
  const target=Uint8Array.from(prefix.match(/../g).map(x=>parseInt(x,16)));
@@ -81,7 +103,7 @@ export async function auditMainBin(bytes,{fileName='',claimedEcuId=''}={}){
  const named=claimedEcuId?catalog.get(claimedEcuId.toUpperCase().trim())||null:null;
  const sums=sourceSums(bytes);
  return {tool:'55 PERFORMANCE / Main.zip BIN Audit',fileName,size:bytes.length,
-  supportedSourceSize:SOURCE_SIZES.includes(bytes.length),type,sums,
+  supportedSourceSize:SOURCE_SIZES.includes(bytes.length),sourceBinIdText:sourceMainBinIdText(bytes),type,sums,
   scannedIds:enriched,requestedEcuId:claimedEcuId||null,requestedCatalog:named,
   prefix,sourceAudit,notes:[
    'ECU ID inside a BIN is not a physical ECU ID.',
