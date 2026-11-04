@@ -23,8 +23,18 @@ async function previewBinOffset(){
  if(!item.valid||!(item.bytes instanceof Uint8Array)){binOffsetHint=null;render();return}
  if(binOffsetHint?.saved===item.saved){render();return}
  try{
-  const {csharpOffsetInference}=await import(new URL('flash_port/csharp-offsets.js?v=317',document.baseURI).href);
+  const [{csharpOffsetInference},{previewMainShindengenBin}]=await Promise.all([
+   import(new URL('flash_port/csharp-offsets.js?v=317',document.baseURI).href),
+   import(new URL('flash_port/main-shindengen-auto-preview.js?v=1',document.baseURI).href)]);
   const estimated=csharpOffsetInference(item.bytes.slice());
+  const sourceAuto=previewMainShindengenBin(item.bytes);
+  if(sourceAuto.ready){
+   estimated.startOffset=sourceAuto.startOffset;
+   estimated.startOffsetHex=sourceAuto.startOffsetHex;
+   estimated.checksumOffset=sourceAuto.checksumOffset;
+   estimated.checksumOffsetHex=sourceAuto.checksumOffsetHex;
+   estimated.eligibleForHardwareWrite=false;
+  }
   const latest=current();
   if(latest.saved===item.saved)binOffsetHint={saved:item.saved,estimated};
  }catch(e){binOffsetHint={saved:item.saved,error:e.message}}
@@ -302,6 +312,7 @@ function mount(host){
    const digest=await crypto.subtle.digest('SHA-256',bytes);
    const sha256=[...new Uint8Array(digest)].map(b=>b.toString(16).padStart(2,'0')).join('');
    window.__55QuickFlashBin={filename:f.name,bytes,sha256,selectedAt:Date.now()};
+   window.dispatchEvent(new Event('55:bin-selection-changed'));
    binOffsetHint=null;
    void previewBinOffset();
    uploadStatus.textContent='✓ '+f.name+' • '+(f.size/1024).toFixed(0)+' KB · พร้อมตรวจ ECU';

@@ -1,0 +1,30 @@
+import assert from 'node:assert/strict';
+import {previewMainShindengenBin} from '../flash_port/main-shindengen-auto-preview.js';
+const N=393216;
+function bin(){
+ const b=new Uint8Array(N).fill(0xff);
+ b.set([0x5a,0x5a,0x5a,0x5a],N-4);
+ b.set([17,18,19,20,21,21,23],0x100);
+ b.set([0xd0,0x07],0x180);
+ return b;
+}
+const v=bin();v.set([83,86,56,53,48],0x1000);
+const orig=v.slice();
+const a=previewMainShindengenBin(v,{physicalEcuId:'0105040D01'});
+assert.equal(a.ready,true);
+assert.equal(a.startOffset,0x10000);
+assert.equal(a.checksumOffset,0x17c);
+assert.equal(a.flashApproved,false);
+assert.deepEqual(v,orig);
+const b=bin();b.set([83,72,56,53,48],0x1000);
+b.set([165,165,165,165,0],0xa000);
+assert.equal(previewMainShindengenBin(b).startOffset,0xa000);
+b.set([0,0,0,0,0],0xa000);
+assert.equal(previewMainShindengenBin(b).startOffset,0x10000);
+const missing=bin();missing.set([83,86,56,53,48],0x1000);missing.set([0,0],0x180);
+const noCheck=previewMainShindengenBin(missing);
+assert.equal(noCheck.ready,false);
+assert.equal(noCheck.status,'CHECKSUM_UNRESOLVED');
+assert.equal(previewMainShindengenBin(new Uint8Array(N)).ready,false);
+assert.equal(previewMainShindengenBin(null).status,'NO_BIN');
+console.log('PASS read-only Shindengen Main.zip BIN auto inference: 384KB offsets/checksum, no false write approval');

@@ -5,6 +5,15 @@
 import {MainLiveSession} from '../flash_port/main-live-session.js?v=350';
 import {resolveMainAutoMetadata} from '../flash_port/main-auto-metadata.js?v=352';
 import {localKtrCandidates} from '../flash_port/ecu-id-lookup.js?v=355';
+import {previewMainShindengenBin} from '../flash_port/main-shindengen-auto-preview.js?v=1';
+function autoBinEvidence(id){
+ const quick=window.__55QuickFlashBin;
+ const saved=typeof S!=='undefined'&&S?.saved?.bytes instanceof Uint8Array?S.saved:null;
+ const selected=quick?.bytes instanceof Uint8Array?quick:saved;
+ if(!selected)return {selected:false,key:'NONE',result:null};
+ return {selected:true,key:String(selected.selectedAt||selected.sha256||selected.filename||selected.sourceName)+'|'+selected.bytes.length,
+  result:previewMainShindengenBin(selected.bytes,{physicalEcuId:id})};
+}
 // This lookup is display-only. Do not feed reference rows into the physical
 // reader catalog, family/preflight verification, or any ECU write/offset route.
 function localEcmReference(ecuId){
@@ -312,8 +321,9 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
  function updateDetected(st){
   // This reads metadata from the already-decoded physical Main C# catalog only.
   // It never looks at the selected BIN and does not send a USB command.
+  const selected=autoBinEvidence(st.ecuId);
   const k=[st.connected,st.ecuId,st.catalogMatched,st.part,st.catalogFamily,
-   st.startOffset,st.checksumOffset,st.startOffsetText,st.checksumOffsetText].join('|');
+   st.startOffset,st.checksumOffset,st.startOffsetText,st.checksumOffsetText,selected.key].join('|');
   if(lastDetectedKey===k)return;
   lastDetectedKey=k;
   const data=resolveMainAutoMetadata(st);
@@ -329,6 +339,11 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
    ['Start Offset',data.startOffset],
    ['Checksum Offset',data.checksumOffset]
   ];
+  if(data.ecuId&&!st.catalogMatched){
+   const b=selected.result;
+   items.push(['Auto Start จาก BIN (Main.zip)',b?.startOffsetHex||'รอเลือก BIN / ยังไม่พบ']);
+   items.push(['Auto Checksum จาก BIN (Main.zip)',b?.checksumOffsetHex||'รอเลือก BIN / ยังไม่พบ']);
+  }
   if(reference){
    items.push(['ฐาน ECM อ้างอิง (ไม่ใช่ Main.zip)',
     reference.ambiguous?reference.text:
@@ -341,7 +356,8 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
    const val=document.createElement('b');val.textContent=value;val.style.cssText='display:block;color:#fff;font-size:14px;overflow-wrap:anywhere';
    cell.append(key,val);grid.append(cell);
   }
-  const status=document.createElement('p');status.textContent=data.message;
+  const status=document.createElement('p');
+  status.textContent=data.message+(data.ecuId&&!st.catalogMatched?' · '+(selected.result?.message||'Main.zip ต้องใช้ BIN เพื่อหา Auto Offset'):'');
   status.setAttribute('role','status');
   status.style.cssText='margin:10px 0 0;color:'+(data.complete?'#83f1c4':'#ffd39a')+';font-size:12px;line-height:1.55';
   const foot=document.createElement('small');
@@ -364,6 +380,7 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
   const off=(n,raw)=>Number.isInteger(n)?fmt(n):raw==='auto'?'AUTO จาก BIN':'ยังไม่ระบุ';
   const dtc=st.dtcSnapshot;
   const ktr=st.ecuId&&!st.catalogMatched?localEcmReference(st.ecuId):null;
+  const binSource=autoBinEvidence(st.ecuId);
   const usbOK=st.connected;
   const ready=st.connected&&!st.connecting;
   const idOK=ready&&/^[0-9A-F]{10}$/.test(st.ecuId);
@@ -381,6 +398,12 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
      'ค่าอ้างอิงฐาน: '+off(st.startOffset,st.startOffsetText)+' / '+off(st.checksumOffset,st.checksumOffsetText)+' · ยังไม่เทียบ BIN':
      'ไม่มีค่า Offset จาก Main.zip สำหรับ ECU ID นี้ · ไม่ยืนยันสำหรับเขียน']
   ];
+  if(idOK&&!st.catalogMatched){
+   const b=binSource.result;
+   records.splice(3,0,[false,'Auto Offset จาก BIN (Main.zip)',
+    b?.ready?'Start '+b.startOffsetHex+' / Checksum '+b.checksumOffsetHex+' · BIN เท่านั้น ไม่ใช่การยืนยันเพื่อเขียน':
+    (b?.message||'รอเลือก BIN ในหน้า Flash เพื่อคำนวณตาม Main.zip')]);
+  }
   if(idOK&&ktr)records.splice(3,0,[false,'ฐาน ECM อ้างอิง (ไม่ใช่ Main 290)',
    ktr.ambiguous?ktr.text:
     ktr.part+' · '+ktr.model+' · '+ktr.family+' · อ้างอิงเท่านั้น ไม่อนุญาต Flash']);
@@ -425,6 +448,7 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
   window.__55SyncLegacyUsb?.(reader.status());
  };
  updateSharedState();
+ window.addEventListener('55:bin-selection-changed',updateSharedState);
  window.__55SyncLegacyUsb?.(reader.status());
 }
 // Do not run ECU ID/Live/DTC probes in the background: this could close an
