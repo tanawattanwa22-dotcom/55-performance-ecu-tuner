@@ -30,7 +30,10 @@ assert.equal(previewMainShindengenBin(null).status,'NO_BIN');
 import {readFileSync} from 'node:fs';
 const ui=readFileSync(new URL('../ui/neon-v20.js',import.meta.url),'utf8');
 const live=readFileSync(new URL('../ui/neon-main-live-v25.js',import.meta.url),'utf8');
-assert(ui.includes("small.id='n20JobEcu'")&&ui.includes("small.id='n20JobBin'"));
+assert(ui.includes('id="n20Connection"')&&ui.includes('id="n20Save"')&&
+ ui.includes("window.__55V20RefreshStatus=refreshStatus")&&
+ ui.includes("const physical=window.__55SharedEcu?.snapshot?.()"),
+ "Home shows current shared FT232R connection and current BIN save status");
 assert(live.includes('window.__55V20RefreshStatus?.()'),'Live ECU scan updates dashboard status as well');
 const preflight=readFileSync(new URL('../ui/neon-preflight-v24.js',import.meta.url),'utf8');
 assert(preflight.includes('unlistedPhysical')&&preflight.includes('!catalogRecord(connectedId)'), 'No Main source ECU catalog entry blocks the physical Flash button');
