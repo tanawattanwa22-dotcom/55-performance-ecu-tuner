@@ -215,7 +215,33 @@ export class MainLiveSession {
  async _scanDtc({publish=false}={}){
   const entries=[];let missing=0;const failures=[];
   this.phase='DTC_BANK_DETECT';this.autoStatus='กำลังตรวจตาราง DTC ด้วยคำสั่งอ่านเท่านั้น';this.notify();
-  for(const frame of MAIN_DTC_READ_FRAMES){
+  // FM_dtc.method_110 transmits all three banks before reading each
+  // 0x74 and 0x73 response group. Browser WebUSB collects the burst once.
+  if(typeof this.port?.exchangeMainDiagnosticBurst==='function'){
+   for(const cmd of [0x74,0x73]){
+    if(this.disconnectRequested)break;
+    const frames=MAIN_DTC_READ_FRAMES.filter(frame=>frame[2]===cmd);
+    try{
+     if(!this.port?.ready){
+      await this._reopenDiagnostic();await this.port.sourceDiagnosticWake('dtc');
+     }
+     const burst=await this.port.exchangeMainDiagnosticBurst(frames);
+     if(burst.entries.length!==3)throw Error('DTC group has incomplete replies');
+     for(let i=0;i<frames.length;i++){
+      const {reply,echoOK}=burst.entries[i],bank=frames[i][3];
+      if(!echoOK)throw Error('DTC serial echo mismatch');
+      decodeMainDtcReplies([{cmd,bank,reply}]);
+      entries.push({cmd,bank,reply});
+     }
+    }catch(error){
+     failures.push(cmd.toString(16).toUpperCase()+'/1–3: '+String(error?.message||error));
+     if(!this.port?.ready&&cmd===0x74){
+      try{await this._reopenDiagnostic();await this.port.sourceDiagnosticWake('dtc')}
+      catch(e){failures.push('DTC USB reopen: '+e.message);break}
+     }
+    }
+   }
+  }else for(const frame of MAIN_DTC_READ_FRAMES){
    if(this.disconnectRequested)break;
    const cmd=frame[2],bank=frame[3];
    try{
@@ -259,7 +285,7 @@ export class MainLiveSession {
   await this.acquire('DTC_READ');
   if(typeof window!=='undefined')window.dispatchEvent(new CustomEvent('55:dtc-read-start'));
   try{
-   await this.port.sourceDiagnosticWake();
+   await this.port.sourceDiagnosticWake('dtc');
    return await this._scanDtc({publish:true});
   }catch(e){
    const result={current:[],stored:[],missing:6,success:false,
@@ -312,7 +338,7 @@ export class MainLiveSession {
    await this._checkLiveGroup();
    if(this.disconnectRequested)return false;
    if(!this.port?.ready)throw Error('FT232R หลุดระหว่างตรวจ Group');
-   await this.port.sourceDiagnosticWake();
+   await this.port.sourceDiagnosticWake('dtc');
    if(this.disconnectRequested)return false;
    await this._scanDtc();
    if(this.disconnectRequested)return false;
