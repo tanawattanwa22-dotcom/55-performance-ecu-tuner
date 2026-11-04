@@ -29,6 +29,21 @@ const seen=[];const boot={ready:true,initializeIso:async()=>{},sendWake:async()=
 const engine=new HondaFlashEngine(boot);const identity=await engine.identify();assert.equal(identity.ecuId,'0102030000');assert.equal(boot.ready,true);
 assert(!seen.some(f=>f[0]===125&&f[3]===1));
 console.log('PASS shared DTC 6 banks, exact clear sequence/read verification, bad RX rejection, exclusive port lease, live stop, recovery zero divisor and boot identification');
+// The visible source-backed DTC buttons must not invoke the legacy
+// three-bank 0x60 loop or issue an extra 0x72 ECU ID before source clear.
+const fs=await import('node:fs');
+const index=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
+const sharedUI=fs.readFileSync(new URL('../ui/shared-operations-v30.js',import.meta.url),'utf8');
+const dtcUI=fs.readFileSync(new URL('../ui/neon-dtc-v23.js',import.meta.url),'utf8');
+const legacyClear=index.slice(index.indexOf('async function dtcClear(){'),
+ index.indexOf('function el2(tag,cls,txt){'));
+assert.match(legacyClear,/__55DtcOps\.clear/);
+assert.doesNotMatch(legacyClear,/reqCmd\(|0x60/);
+assert.match(sharedUI,/clearSharedDtc\(port\)/);
+assert.doesNotMatch(sharedUI,/port\.command\('ID'/);
+assert.match(dtcUI,/x\?\.sent!==2/);
+console.log('PASS main-page and Neon DTC share one FM_dtc source clear path, no legacy bank2 clear');
+
 const {RESET_SH_COUNT_FRAMES,isSourceResetCountFrame,resetShindengenCount}=await import('../flash_port/main-reset-count.js');
 assert(RESET_SH_COUNT_FRAMES.every(isSourceResetCountFrame));
 const changed=[...RESET_SH_COUNT_FRAMES[0]];changed[5]^=1;assert(!isSourceResetCountFrame(changed));
