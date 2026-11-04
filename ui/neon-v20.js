@@ -52,7 +52,7 @@ const shell=mk('div');shell.id='neonShell';
 const top=mk('header','n20-head');
 const logo=home.querySelector('.top img.lg');
 if(logo){const icon=logo.cloneNode(true);icon.className='n20-icon';icon.alt='55 PERFORMANCE';top.append(icon)}
-const headerBack=action('←','', 'n20-header-back');
+const headerBack=action('←',()=>{},'n20-header-back');
 headerBack.textContent='←';
 headerBack.type='button';
 headerBack.setAttribute('aria-label','ย้อนกลับ');
