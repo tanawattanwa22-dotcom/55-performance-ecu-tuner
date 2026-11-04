@@ -62,6 +62,13 @@ await check('Source WriteFlash blank-skip profiles match original C# flag',()=>{
   nextSourceWriteIndex(bin,0,'SHINDENGENRH850B')===1&&
   nextSourceWriteIndex(bin,3,'KEIHINOTHER')===5;
 });
+await check('Source FF skip preview uses actual WriteFlash frames, not contiguous estimate',()=>{
+ const bin=new Uint8Array(65536);bin.fill(0xff);bin[0]=1;
+ const a=auditWriteFrames(bin,{profile:'KEIHINOTHER',startOffset:32768});
+ const b=auditWriteFrames(bin,{profile:'KEIHINM32R',startOffset:32768});
+ return a.frames===1&&a.blocksSkipped===511&&a.sampleFrames[0]?.tail&&
+  b.frames===512&&b.blocksSkipped===0;
+});
 await check('Shindengen firmware signature',()=>inspectCSharpEcuType(shBin()).type==='SHINDENGENV850');
 await check('Shindengen corrected word checksum offset',()=>correctShindengenChecksum(shBin()).checksumOffset===296);
 await check('Shindengen seed-key derives two bytes',()=>deriveShindengenWriteKey(shBin(),Uint8Array.of(18,52))?.length===2);
