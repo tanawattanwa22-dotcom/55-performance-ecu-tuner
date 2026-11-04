@@ -59,7 +59,7 @@ await check('Shindengen seed-key derives two bytes',()=>deriveShindengenWriteKey
 await check('Mock K03 ECU ID read and catalog match',async()=>{const e=new HondaFlashEngine(fake('0101880D01'));return (await e.identify()).sourceMatched});
 await check('K03 preflight plans 512 source frames',async()=>{const e=new HondaFlashEngine(fake('0101880D01'));await e.identify();return e.makePlan(new Uint8Array(65536),{filename:'K03-H01.bin'}).expectedBlockCount===512});
 await check('Wrong BIN part prevents erase preflight',async()=>{const e=new HondaFlashEngine(fake('0101880D01'));await e.identify();try{e.makePlan(new Uint8Array(65536),{filename:'K2J-T01.bin'});return false}catch(x){return x.code==='PART_NOT_CONFIRMED'}});
-await check('Unlisted ECU never enters erase plan without physical source family ACK',async()=>{const e=new HondaFlashEngine(fake('FFFFFFFFFF'));await e.identify();try{e.makePlan(new Uint8Array(65536),{filename:'unknown.bin'});return false}catch(x){return x.code==='UNLISTED_FAMILY_UNVERIFIED'}});
+await check('Unlisted ECU cannot build erase plan without source-matched BIN ID',async()=>{const e=new HondaFlashEngine(fake('FFFFFFFFFF'));await e.identify();try{e.makePlan(new Uint8Array(65536),{filename:'unknown.bin'});return false}catch(x){return x.code==='UNLISTED_BIN_ID_UNVERIFIED'||x.code==='UNLISTED_FAMILY_UNVERIFIED'}});
 await check('Unlisted PCX160 uses real Shindengen read-only Flash Count ACK, never a catalog guess',async()=>{
  const e=new HondaFlashEngine(fake('0105040D01')),labels=[],original=e.x.bind(e);
  e.x=async(...args)=>{labels.push(args[0]);return original(...args)};
