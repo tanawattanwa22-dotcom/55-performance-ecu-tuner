@@ -84,14 +84,27 @@ const greeting=Uint8Array.from([0x02,0x04,0x00,0xFA]);
 const greetingEngine=new HondaFlashEngine({
  ready:true,exchangeRaw:async()=>({reply:greeting,echoOK:true})
 });
-for(const name of ['HELLO','KEIHIN_FALLBACK_HELLO','CONFIRM_WORKER_SESSION','RECHECK_HELLO']){
+for(const name of [
+ 'HELLO','KEIHIN_FALLBACK_HELLO','CONFIRM_WORKER_SESSION','RECHECK_HELLO',
+ 'KH_HANDSHAKE_A','KH_HANDSHAKE_B','KH_READY','KH_PREPARE',
+ 'KH_ERASE_PARAM','KH_ERASE_RANGE','KH_POLL_1','KH_POLL_2',
+ 'SH_HANDSHAKE_A','SH_HANDSHAKE_B','SH_PRE_ERASE_A',
+ 'SH_FINAL1','SH_FINAL2','SH_FINAL3','SH_FINAL4',
+ 'KH_FINAL_1','KH_FINAL_2','KH_POLL_F1','KH_FAST_SWITCH'
+]){
  const result=await greetingEngine.x(name,Uint8Array.from([0x72,0x05,0,0xF0,0x99]));
  assert.equal(result.length,4,'FormMain accepts checksum-valid 4-byte '+name);
 }
-await assert.rejects(
- ()=>greetingEngine.x('SH_SEND_KEY',Uint8Array.from([0x72,0x05,0,0xF0,0x99])),
- e=>e?.code==='BAD_ACK','Non-greeting commands must not accept 4-byte replies'
-);
+for(const statusful of [
+ 'SH_SEND_KEY','SH_GET_SEED','SH_ERASE_START','SH_ERASE_FINISH',
+ 'KH_ERASE_STATUS','KH_ERASE_FINISH','WRITE_BLOCK_1',
+ 'KH_POLL_F4','KH_FINAL_5','SH_FINAL5'
+]){
+ await assert.rejects(
+  ()=>greetingEngine.x(statusful,Uint8Array.from([0x72,0x05,0,0xF0,0x99])),
+  e=>e?.code==='BAD_ACK','Main needs a real ECU status byte for '+statusful
+ );
+}
 
 // FormMain.GetEcuType defaults to KEIHINOTHER for non-Shindengen BINs,
 // but only a fresh physically verified Keihin ACK and full source ID
