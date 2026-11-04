@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {MAIN_CAPTURE_COMMANDS,decodeMainDiagnosticTrace} from '../flash_port/main-source-diagnostic.js';
+import {Ft232rWebUsb,parseMainDiagnosticBurst,hondaChecksum} from '../flash_port/ftdi-webusb.js';
 for(const group of [1,4,7]){
  const cmds=MAIN_CAPTURE_COMMANDS[group];
  assert.equal(cmds.length,4,'four C# diagnostic requests per group');
@@ -21,6 +22,39 @@ for(const group of [1,4,7]){
  assert.throws(()=>decodeMainDiagnosticTrace(trace.slice(0,24),group),/too short/);
  console.log('Group '+group+': '+decoded.length+' C# decoded fields, 4 read-only checksum-valid frames PASS');
 }
+// FM_diag.method_99 writes FOUR commands separated by 50ms, then one
+// method_11 serial drain. Do not interleave separate read exchanges.
+const sourceFrames=MAIN_CAPTURE_COMMANDS[1];
+const reply=()=>{const bytes=new Uint8Array(13);bytes[0]=0x72;bytes[1]=13;bytes[2]=0x72;bytes[12]=hondaChecksum(bytes.slice(0,12));return bytes};
+const rawCapture=Uint8Array.from(sourceFrames.flatMap(f=>[...f,...reply()]));
+assert.equal(rawCapture.length,80);
+const parsed=parseMainDiagnosticBurst(rawCapture,sourceFrames);
+assert.equal(parsed.entries.length,4);
+assert(parsed.entries.every(x=>x.echoOK));
+assert.deepEqual(parsed.raw,rawCapture);
+assert.equal(parseMainDiagnosticBurst(rawCapture.slice(0,-1),sourceFrames),null,
+ 'Source capture parser must wait for the final bytes');
+assert.equal(decodeMainDiagnosticTrace(parsed.raw,1).length,23);
+// Fake FTDI bulk reader: no hardware or browser. Verify all TX happen BEFORE
+// any RX, and the returned wire capture is the actual UART echo/replies.
+const burstWrites=[];
+const burstPort=new Ft232rWebUsb();
+burstPort.ready=true;burstPort.itf=0;burstPort.inEp=1;burstPort.outEp=2;
+burstPort.maxPacketSize=128;burstPort.prepareUart=async()=>true;burstPort.purge=async()=>{};
+burstPort.dev={opened:true,
+ async transferOut(ep,bytes){burstWrites.push([...bytes]);return {status:'ok',bytesWritten:bytes.length}},
+ async transferIn(){
+  assert.equal(burstWrites.length,4,'FM_diag does not read until all four TX are sent');
+  const packet=Uint8Array.from([0x01,0x60,...rawCapture]);
+  return {status:'ok',data:new DataView(packet.buffer)};
+ },
+ async releaseInterface(){},async close(){this.opened=false}
+};
+const captured=await burstPort.exchangeMainDiagnosticBurst(sourceFrames,{timeoutMs:600});
+assert.deepEqual(burstWrites,sourceFrames);
+assert.deepEqual(captured.raw,rawCapture);
+console.log('FM_diag original four-frame write-first timing and single accumulated read PASS');
+
 assert.throws(()=>decodeMainDiagnosticTrace('ZZ',1),/Invalid/);
 assert.throws(()=>decodeMainDiagnosticTrace(new Uint8Array(100),0),/Unknown/);
 
