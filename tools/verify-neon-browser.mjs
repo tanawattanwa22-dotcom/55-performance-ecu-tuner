@@ -41,9 +41,10 @@ try{
    const gate=document.getElementById('licenseGate');if(gate)gate.style.visibility='hidden';
    const splash=document.getElementById('spl');if(splash)splash.style.visibility='hidden';});
   await page.waitForTimeout(350);
-  assert.equal(await page.locator('#v20Nav button').count(),9,'9 real UI categories including Recovery');
-  assert.equal(await page.locator('#n20Stage .n20-tile').count(),9,'9 dashboard tiles including Recovery');
-  assert.equal(await page.locator('#n20MenuDialog .n20-menu-items button').count(),9,'hamburger drawer contains every category');
+  assert.equal(await page.locator('#v20Nav button').count(),8,'8 quick-nav categories; Recovery is kept in the menu drawer');
+  assert.equal(await page.locator('#n20Stage .n20-tile').count(),8,'8 dashboard tiles; Recovery remains a separate drawer route');
+  assert.equal(await page.locator('#n20MenuDialog .n20-menu-items button').count(),9,'hamburger drawer contains all 9 categories including Recovery');
+   assert.equal(await page.locator('#n20MenuDialog .n20-menu-items button').filter({hasText:'Recovery'}).count(),1,'Recovery is directly accessible from the main menu');
   await page.evaluate(()=>document.querySelector('.n20-menu-button').click());
   assert.equal(await page.locator('#n20MenuDialog').evaluate(el=>el.open),true,'hamburger opens real dialog');
   await page.evaluate(()=>document.querySelector('.n20-menu-close').click());
