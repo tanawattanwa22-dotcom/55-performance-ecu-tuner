@@ -6,6 +6,7 @@
  */
 import assert from 'node:assert/strict';
 import {readBinId,findEcmIdInBin} from '../flash_port/bin-tools.js';
+import {csharpOffsetInference} from '../flash_port/csharp-offsets.js';
 import {scanMainBinIds,findMainEcuPrefixInBin,sourceMainBinIdText,SOURCE_SIZES} from '../flash_port/main-bin-audit.js';
 
 // C# source: (file size, 4-byte marker offset, marker, BIN ID offset, ID length).
@@ -65,6 +66,34 @@ for(const [size,expected] of [
 first56.set([255,0,0,0],31870);
 first56.set([9,8,7,6,5],31874);
 assert.equal(scanMainBinIds(first56)[0].id,'0908070605');
+
+// Independent FormMain.GetOffsetsFromBinType cases: called after opening a BIN
+// when Main could not find its ECU ID in the embedded catalog/ecuData.dat.
+for(const [size,start,ck] of [
+ [49152,0x4000,0x7600],
+ [57344,0,0xDFEF],
+ [65536,0x8000,0],
+ [98304,0x8000,0],
+ [131072,0xE0000,0xB000]
+]){
+ const file=new Uint8Array(size).fill(0x4E);
+ const got=csharpOffsetInference(file);
+ assert.equal(got.startOffset,start,'FormMain start from BIN size '+size);
+ assert.equal(got.checksumOffset,ck,'FormMain checksum from BIN size '+size);
+}
+for(const [size,signature,expectedChecksum] of [
+ [262144,[255,255,255,0,0,0,0],0x3FFF8], // khRh850Sig
+ [524288,[255,255,255,255,255,255,255],0x7FFF8], // khMpc560Sig
+ [1048576,[255,255,255,170,170,170,170],0xFFFF8] // khSH705XSig
+]){
+ const file=new Uint8Array(size).fill(0x4E);
+ file.set(signature,size-signature.length);
+ const got=csharpOffsetInference(file);
+ assert.equal(got.startOffset,0,'FormMain tail-signature start '+size);
+ assert.equal(got.checksumOffset,expectedChecksum,'FormMain tail-signature checksum '+size);
+}
+assert.equal(csharpOffsetInference(new Uint8Array(393216).fill(0x4E)).startOffset,null,
+ '384KB without actual SH signature must not invent an address');
 
 // C# SearchPattern64KB first match wins, even if other markers would match.
 // It also does not suppress all-zero or all-FF ID values.
