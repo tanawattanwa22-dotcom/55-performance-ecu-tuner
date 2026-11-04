@@ -31,14 +31,26 @@ class MockHonda {
   this.id=id;this.failure=failure;this.ready=true;
   this.frames=[];this.labels=[];this.writeCount=0;this.baud=[];
   this.current='';this.closed=false;this.lastDevice={vendorId:0x0403,productId:0x6001};
+  this.handshakeFailures=0;this.reopenCount=0;this.originalId=id;
  }
  async initializeIso(){if(!this.ready)throw Error('offline port closed')}
  async sendWake(){if(!this.ready)throw Error('offline port closed')}
+ async openSelected(device){
+  assert.equal(device,this.lastDevice,'reuse same approved FT232R');
+  this.ready=true;this.closed=false;this.reopenCount++;
+  if(this.failure==='KH_REPLACED_ON_RECONNECT')this.id='01046B0F01';
+ }
  async setBaud(rate){this.baud.push(rate)}
  async close(){this.ready=false;this.closed=true}
  async exchangeRaw(frame){
   const label=this.current,bytes=Uint8Array.from(frame);
   this.frames.push(bytes);this.labels.push(label);
+  if(label==='KH_HANDSHAKE_A'&&
+    ['KH_HANDSHAKE_ONCE','KH_DISCONNECT_ONCE','KH_REPLACED_ON_RECONNECT'].includes(this.failure)&&
+    this.handshakeFailures++===0){
+     if(this.failure!=='KH_HANDSHAKE_ONCE'){this.ready=false;this.closed=true}
+     throw Error('SIMULATED_FIRST_HANDSHAKE_TIMEOUT');
+  }
   if(this.failure===label)throw Error('SIMULATED_TIMEOUT:'+label);
   if(label==='READ_ECU_ID'||label==='RECHECK_ECU_ID')return {reply:identityReply(this.id),echoOK:true};
   if(label==='SH_GET_SEED')return {reply:seedReply(),echoOK:true};
@@ -82,6 +94,47 @@ await check('Keihin Normal: identify -> pre-erase -> write -> finish final ACK',
   assert(device.labels.includes(phase),'missing C# phase '+phase);
  assert(device.labels.indexOf('KH_ERASE_FINISH')<device.labels.indexOf('WRITE_BLOCK_0'));
  assert(events.some(e=>e.phase==='FLASH_SOURCE_COMPLETE'));
+});
+await check('Main C# Keihin handshake first failure then one bounded retry',async()=>{
+ const {engine,device,events}=setup('0101880D01','KH_HANDSHAKE_ONCE');
+ await engine.identify();
+ const plan=engine.makePlan(new Uint8Array(65536),{filename:'K03-H01.bin'});
+ const result=await engine.flash(plan,{confirmation:'FLASH 0101880D01',
+   physicalBackupConfirmed:true,externalPowerConfirmed:true,recoveryReady:true});
+ assert.equal(result.ok,true);
+ assert.equal(device.labels.filter(x=>x==='KH_HANDSHAKE_A').length,1);
+ assert.equal(device.labels.filter(x=>x==='KH_HANDSHAKE_A_RETRY').length,1);
+ assert(events.some(x=>x.phase==='KH_HANDSHAKE_SOURCE_RETRY'&&x.eraseStarted===false));
+});
+await check('Closed Android USB can reopen same approved FT232R and verify physical ECU',async()=>{
+ const {engine,device,events}=setup('0101880D01','KH_DISCONNECT_ONCE');
+ await engine.identify();
+ const plan=engine.makePlan(new Uint8Array(65536),{filename:'K03-H01.bin'});
+ const result=await engine.flash(plan,{confirmation:'FLASH 0101880D01',
+   physicalBackupConfirmed:true,externalPowerConfirmed:true,recoveryReady:true});
+ assert.equal(result.ok,true);
+ assert.equal(device.reopenCount,1);
+ assert.equal(device.labels.filter(x=>x==='READ_ECU_ID').length,2);
+ assert(events.some(x=>x.phase==='KH_RETRY_SAME_ECU_CONFIRMED'));
+});
+await check('After reconnect a DIFFERENT ECU is rejected before first erase command',async()=>{
+ const {engine,device,events}=setup('0101880D01','KH_REPLACED_ON_RECONNECT');
+ await engine.identify();
+ const plan=engine.makePlan(new Uint8Array(65536),{filename:'K03-H01.bin'});
+ await assert.rejects(engine.flash(plan,{confirmation:'FLASH 0101880D01',
+   physicalBackupConfirmed:true,externalPowerConfirmed:true,recoveryReady:true}),/ECU ID \/ Family \/ Part เปลี่ยน/);
+ assert.equal(device.reopenCount,1);
+ assert(!device.labels.includes('KH_PREPARE'));
+ assert(events.some(x=>x.phase==='FLASH_STOP'&&x.eraseMayHaveStarted===false));
+});
+await check('Failure before ERASE never reports possible erase',async()=>{
+ const {engine,device,events}=setup('0101880D01','KH_HANDSHAKE_A');
+ await engine.identify();
+ const plan=engine.makePlan(new Uint8Array(65536),{filename:'K03-H01.bin'});
+ await assert.rejects(engine.flash(plan,{confirmation:'FLASH 0101880D01',
+   physicalBackupConfirmed:true,externalPowerConfirmed:true,recoveryReady:true}),/SIMULATED_TIMEOUT/);
+ assert(!device.labels.includes('KH_PREPARE'));
+ assert(events.some(x=>x.phase==='FLASH_STOP'&&x.eraseMayHaveStarted===false));
 });
 await check('Keihin corrupted write ACK aborts after erase; no finish phase',async()=>{
  const {engine,device,events}=setup('0101880D01','REJECT_WRITE_2');

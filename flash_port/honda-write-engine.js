@@ -311,10 +311,37 @@ export class HondaFlashEngine {
     offsetHex:'0x'+offset.toString(16),blockBytes:plan.blockBytes,checksumChanged:corrected.modified});
   return plan;
  }
+ // Main C# KeihinPreWriteFlash retries the FIRST hello once after 500ms.
+ // If WebUSB closed the port after a timed-out bulk read, safely reopen
+ // the SAME approved FT232R, re-read the physical ECU ID and family, and
+ // refuse the retry if that identity has changed. No erase during retry.
  async khPreErase(){
   this.state='preparing';
   this.emit('PREWRITE_BEGIN');
-  await this.x('KH_HANDSHAKE_A',CMD.kh1,{timeoutMs:2500});
+  const expected={...this.identity};
+  try{
+   await this.x('KH_HANDSHAKE_A',CMD.kh1,{timeoutMs:2500});
+  }catch(firstError){
+   this.emit('KH_HANDSHAKE_SOURCE_RETRY',{attempt:2,maxAttempts:2,
+     firstError:firstError.message,eraseStarted:false});
+   await this.wait(500);
+   if(!this.usb.ready){
+    const dev=this.usb.lastDevice;
+    if(!dev||typeof this.usb.openSelected!=='function')
+     fail('KH_RETRY_USB_LOST','FT232R ปิดหลัง timeout และไม่มีสิทธิ์อุปกรณ์เดิมให้เปิดใหม่');
+    await this.usb.openSelected(dev);
+    this.state='identified';
+    const observed=await this.identify({programmingPreflight:true});
+    if(observed.ecuId!==expected.ecuId||observed.family!=='KEIHIN'||
+       !observed.sourceMatched||observed.sourcePart!==expected.sourcePart)
+     fail('KH_RETRY_ECU_CHANGED',
+       'ECU ID / Family / Part เปลี่ยนหลังเชื่อมต่อ FT232R ใหม่ • หยุดก่อน ERASE');
+    this.state='preparing';
+    this.emit('KH_RETRY_SAME_ECU_CONFIRMED',{ecuId:observed.ecuId,
+      sourcePart:observed.sourcePart,destructive:false});
+   }
+   await this.x('KH_HANDSHAKE_A_RETRY',CMD.kh1,{timeoutMs:2500});
+  }
   await this.x('KH_HANDSHAKE_B',CMD.kh2,{timeoutMs:2500});
   await this.wait(200);
   await this.x('KH_READY',CMD.khPoll,{timeoutMs:2500});
@@ -323,6 +350,7 @@ export class HondaFlashEngine {
    await this.wait(1000);
   }
   await this.wait(500);
+  this.eraseStageEntered=true;
   this.emit('ERASE_BEGIN'); // First following command begins destructive phase
   await this.x('KH_PREPARE',CMD.khPrepare,{timeoutMs:2400,afterWriteMs:250});
   await this.x('KH_ERASE_PARAM',CMD.khErase1,{timeoutMs:2400});
@@ -415,6 +443,7 @@ export class HondaFlashEngine {
   keyFrame[6]=hondaChecksum(keyFrame.slice(0,6));
   const keyReply=await this.x('SH_SEND_KEY',keyFrame,{timeoutMs:3200,afterWriteMs:latency});
   if(keyReply.length!==5||keyReply[3]!==0)fail('SH_KEY_REJECTED','Seed/Key authentication rejected');
+  this.eraseStageEntered=true;
   this.emit('SH_ERASE_BEGIN');
   await this.x('SH_PRE_ERASE_A',CMD.shErase1,{timeoutMs:3500,afterWriteMs:latency});
   await this.x('SH_ERASE_RANGE',CMD.shErase2,{timeoutMs:3500,afterWriteMs:latency});
@@ -514,7 +543,8 @@ export class HondaFlashEngine {
       backupConfirmedByOperator:true,powerConfirmedByOperator:true,recoveryConfirmedByOperator:true,
       powerAndBackupElectronicallyVerified:false});
   if(!this.usb.ready)fail('USB_LOST','FTDI USB ไม่ได้เชื่อมต่อแล้ว');
-  let eraseStarted=false;
+  // Do not report destructive activity during handshake, seed/key or wait.
+  this.eraseStageEntered=false;
   try {
    this.emit('FLASH_START',{ecuId:plan.ecuId,part:plan.part});
    // User may have spent time choosing BIN; renew the ECU session and
@@ -529,7 +559,6 @@ export class HondaFlashEngine {
     if(rr.length<7||rr[3]===15)fail('RECOVERY_FAMILY_CHANGED','Recovery Count ไม่ตอบก่อน ERASE');
     this.emit('RECOVERY_RECONFIRMED',{ecuId:plan.ecuId,family:this.identity.family});
    }
-   eraseStarted=true; // Never claim unchanged ECU after entering the erase sequence.
    if(plan.profile.startsWith('SHINDENGEN'))await this.shPreErase(plan);
    else await this.khPreErase();
    const blocks=await this.writeBlocks(plan);
@@ -545,7 +574,9 @@ export class HondaFlashEngine {
   }catch(e){
    this.fastBaudActive=false;
    this.state='stopped';
-   this.emit('FLASH_STOP',{error:e.message,eraseMayHaveStarted:eraseStarted,recoveryRequired:eraseStarted});
+   this.emit('FLASH_STOP',{error:e.message,
+     eraseMayHaveStarted:!!this.eraseStageEntered,
+     recoveryRequired:!!this.eraseStageEntered});
    if(this.usb.ready)await this.usb.close().catch(()=>{});
    throw e;
   }
