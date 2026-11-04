@@ -174,7 +174,9 @@ try{
   await page.evaluate(()=>document.querySelector('#n23Pane [data-tab="history"]').click());
   assert((await page.locator('#n23Pane .n23-section-head').innerText()).includes('หน่วยความจำ'),'stored/history tab works');
   await page.evaluate(()=>document.querySelector('#n23Pane [data-tab="system"]').click());
-  assert((await page.locator('#n23Pane .n23-system-grid').innerText()).includes('Honda 0x73'),'real ECU system info tab works');
+  assert((await page.locator('#n23Pane .n23-system-grid').innerText()).includes('ECU ID จากรถ')&&
+    (await page.locator('#n23Pane .n23-system-grid').innerText()).includes('สถานะการเชื่อมต่อ'),
+    'real ECU system info tab shows physical ID and connection without a fabricated protocol label');
   await page.evaluate(()=>document.querySelector('#n23Pane [data-tab="current"]').click());
   if(width===393)await page.screenshot({path:path.join(root,'test-reports','neon-dtc-v23-393.png'),fullPage:false});
   await page.evaluate(()=>document.querySelector('#n23Pane .n23-brand-home').click());
