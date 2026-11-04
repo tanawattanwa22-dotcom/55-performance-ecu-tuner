@@ -70,14 +70,14 @@ const keys=['rpm','tps','map','ect','iat','bat','inj','ign','afr'];
 const empty=()=>Object.fromEntries(keys.map(k=>[k,null]));
 const phases=Object.freeze({
  USB_CHOOSER:'เลือก FT232R จาก Android เพื่อเปิด USB โดยตรง',
- USB_OPEN:'กำลังเปิด FT232R ผ่าน WebUSB (ยังไม่ติดต่อ ECU)',
- ECU_ID_PROBE:'เปิด FT232R แล้ว • กำลังปลุกและอ่าน ECU ID',
+ USB_OPEN:'กำลังเปิดสายเชื่อมต่อ',
+ ECU_ID_PROBE:'เชื่อมสายแล้ว • กำลังอ่าน ECU ID จากรถ',
  DIAGNOSTIC_READY:'พร้อมใช้งาน • แสดงผลตรวจแยกตาม ECU ID / Live / DTC ด้านล่าง',
- LIVE_GROUP_DETECT:'กำลังตรวจกลุ่ม Live 7/4/1 ตามคำตอบ ECU',
- DTC_BANK_DETECT:'กำลังตรวจตาราง DTC 0x73/0x74 ด้วยคำสั่งอ่านอย่างเดียว',
+ LIVE_GROUP_DETECT:'กำลังค้นหาข้อมูลเซนเซอร์ที่ ECU รองรับ',
+ DTC_BANK_DETECT:'กำลังตรวจสอบรหัสปัญหาจาก ECU',
  AUTO_DETECT_PARTIAL:'พบข้อมูลบางส่วน • รายการที่ยังไม่ยืนยันจะไม่ขึ้นสีเขียว',
  LIVE_CAPTURE:'กำลังอ่านข้อมูลจาก ECU',
- USB_ACCESS_DENIED:'Android ปฏิเสธ USBDevice.open() ก่อนติดต่อ ECU'
+ USB_ACCESS_DENIED:'โทรศัพท์ยังไม่อนุญาตให้เปิดสายเชื่อมต่อ'
 });
 const notify=()=>{
  window.__55LiveV21?.render?.();
