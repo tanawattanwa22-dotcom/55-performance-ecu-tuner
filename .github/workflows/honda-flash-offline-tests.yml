@@ -72,3 +72,5 @@ jobs:
         run: node tools/verify-main-auto-group.mjs
       - name: Verify Main C# 384KB BIN ID / source sizes without ECU
         run: node tools/verify-main-bin-sizes.mjs
+      - name: Check original FormMain BIN reader on all 11 sizes, source match order and 56KB overwrite
+        run: node tests/main-bin-file-parity.test.mjs
