@@ -48,7 +48,7 @@
   document.addEventListener('55:open-advanced-url',event=>{
    if(!window.__55AdvancedGate?.isAuthorized())return;
    const path=event.detail?.url;
-   if(typeof path!=='string'||!(/^(?:flash_port\\/|ecm\\/)[a-z0-9_./-]+\\.html$/i).test(path)||path.includes('..'))return;
+   if(typeof path!=='string'||!(/^(?:flash_port\/|ecm\/)[a-z0-9_./-]+\.html$/i).test(path)||path.includes('..'))return;
    frame.src=new URL(path,location.href).href;
    if(!workspace.open)workspace.showModal();
   });
