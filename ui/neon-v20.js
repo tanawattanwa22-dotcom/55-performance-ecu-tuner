@@ -10,15 +10,15 @@ const memberships={
  flash:[],recovery:[],live:['liveCard','cableCard'],
  dtc:['liveCard','cableCard'],tools:['mainSourceTools'],settings:[]};
 const cats=[
- ['dashboard','⌂','หน้าหลัก','ภาพรวม สถานะ งานปัจจุบัน','#38c5f8'],
- ['library','▤','คลังรุ่น / BIN หลัก','ค้นหาและเลือก BIN หลักของแต่ละรุ่น','#b375ff'],
- ['tune','▦','จูน BIN','แก้ตารางน้ำมัน/ไฟจุดระเบิด บันทึก BIN','#34ddb1'],
- ['flash','⇧','อัดไฟล์ ECU','อ่าน ECU ID ตรวจ Offset และ Preflight','#fa67c8'],
- ['recovery','⟳','Recovery / กู้ ECU','ตรวจ ECU ID และ Boot Mode ก่อนเลือกขั้นตอนกู้','#ffad62'],
- ['live','∿','Live Data','เกจ AFR และบันทึกข้อมูลจริง','#39aaff'],
- ['dtc','⚠','DTC / วินิจฉัย','อ่านรหัสข้อผิดพลาดและข้อมูล ECU','#f6b356'],
- ['tools','⌘','เครื่องมือ C#','BIN, DAT, FTDI และเครื่องมือช่าง','#40d8ec'],
- ['settings','⚙','ตั้งค่า / License','บัญชีและสิทธิ์ใช้งาน','#9aabcd']];
+ ['dashboard','⌂','หน้าหลัก','สถานะกล่องและความพร้อมของรถ','#55d1df'],
+ ['library','▤','คลังไฟล์','เลือกรุ่นและไฟล์ที่ต้องการ','#9da8e6'],
+ ['tune','▦','ปรับแต่ง ECU','ปรับแผนที่และบันทึกไฟล์','#4dc9b4'],
+ ['flash','⇧','Fast Flash','ตรวจสอบไฟล์และอัด ECU','#62ccdc'],
+ ['recovery','⟳','Recovery','ใช้เมื่อ ECU ต้องกู้คืนเท่านั้น','#d7ab80'],
+ ['live','∿','Live Data','ดูเซ็นเซอร์และค่ารถแบบเรียลไทม์','#7bb4df'],
+ ['dtc','⚠','วินิจฉัย DTC','อ่านและลบรหัสผิดพลาด','#e2bb86'],
+ ['tools','⌘','เครื่องมือขั้นสูง','เฉพาะผู้ดูแลระบบ · ต้องยืนยันสิทธิ์','#9997d8'],
+ ['settings','⚙','ตั้งค่า / License','บัญชีและสิทธิ์ใช้งาน','#8db8cf']];
 const iconPath={
  dashboard:'<path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/>',
  library:'<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 7h8M8 12h8M8 17h8"/>',
@@ -39,11 +39,11 @@ const titleText={
  dashboard:['ศูนย์ควบคุม ECU','เลือกหมวดเพื่อเริ่มทำงาน'],
  library:['คลังรุ่น / BIN หลัก','รายการไฟล์หลักที่มีในแอปจริง'],
  tune:['จูน BIN','เลือก BIN หลักหรือนำเข้า แล้วเปิดตารางจูน'],
- flash:['อัดไฟล์ ECU / Preflight','ตรวจไฟล์ ECU ID และ Offset ก่อนยืนยันการเขียน'],
+ flash:['Fast Flash','ตรวจ ECU ID, รุ่นกล่อง, Offset, Checksum และความพร้อมก่อนอัด'],
  recovery:['Recovery / กู้คืน ECU','ตรวจสถานะตอบกลับจริงก่อนเลือกขั้นตอนกู้ ไม่ส่ง ERASE/WRITE อัตโนมัติ'],
  live:['Live Data','ข้อมูลเซ็นเซอร์และกราฟตามสถานะเชื่อมต่อจริง'],
  dtc:['DTC / วินิจฉัย','ตรวจและจัดการรหัสข้อผิดพลาด'],
- tools:['เครื่องมือ Main C#','เครื่องมือ BIN, DAT, FTDI และการทดสอบ'],
+ tools:['เครื่องมือขั้นสูง','สำหรับสิทธิ์ระดับสูง / ผู้ดูแลระบบ Supabase เท่านั้น'],
  settings:['ตั้งค่า / License','บัญชีและข้อมูลแอป']};
 const mk=(tag,cls,content)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(content!==undefined)e.textContent=content;return e;};
 const action=(txt,handler,cls='btn')=>{const b=mk('button',cls,txt);b.type='button';b.onclick=handler;return b};
@@ -76,7 +76,7 @@ stats.innerHTML='<div><small>🔌 การเชื่อมต่อ</small><s
  '<div><small>🏍️ รุ่นที่เลือก</small><strong id="n20Model">ยังไม่เลือกรุ่น</strong></div>'+
  '<div><small>💾 BIN สำหรับอัด</small><strong id="n20Save">ยังไม่บันทึก</strong></div>';
 const nav=mk('nav','n20-nav');nav.id='v20Nav';nav.setAttribute('aria-label','เมนูหลัก ECU');
-for(const cat of cats){const b=action('',()=>navigate(cat[0]));b.dataset.cat=cat[0];b.append(lineIcon(cat[0]),document.createTextNode(' '+cat[2]));nav.append(b)}
+for(const cat of cats){if(cat[0]==='recovery')continue;const b=action('',()=>navigate(cat[0]));b.dataset.cat=cat[0];b.append(lineIcon(cat[0]),document.createTextNode(' '+cat[2]));nav.append(b)}
 shell.append(top,hero,stats,nav);sc.prepend(shell);
 const stage=mk('div','n20-stage');stage.id='n20Stage';sc.insertBefore(stage,shell.nextSibling);
 let selected='dashboard',searchText='',activeFilter='all';
@@ -99,6 +99,7 @@ function refreshStatus(){
  $('n20Save').textContent=saved?'บันทึก BIN แล้ว':'ยังไม่บันทึก';
  const liveJob=$('n20JobEcu');
  if(liveJob)liveJob.textContent=t;
+ updateRetailStatus();
  const binJob=$('n20JobBin');
  if(binJob){
   const quick=window.__55QuickFlashBin;
@@ -108,6 +109,68 @@ function refreshStatus(){
  }
 }
 window.__55V20RefreshStatus=refreshStatus;
+function fmtSourceHex(value){
+ return Number.isInteger(value)&&value>=0?'0x'+value.toString(16).toUpperCase():'ยังไม่มีข้อมูล';
+}
+function retailReadout(){
+ const status=window.__55SharedEcu?.snapshot?.()||{};
+ const portReady=!!status.connected,physicalId=portReady?status.ecuId:null;
+ const proof=status.sourceProbe&&status.sourceProbe.expectedEcuId===physicalId&&
+  status.sourceProbe.countState==='CONFIRMED'&&status.sourceProbe.programmingSessionVerified===true?
+  status.sourceProbe:null;
+ const family=proof?proof.family:physicalId&&status.catalogFamily?
+  status.catalogFamily+' (อ้างอิงฐาน)':'รอตรวจประเภทกล่อง';
+ const activePlan=typeof INLINEFLASH!=='undefined'&&INLINEFLASH.plan?.ecuId===physicalId?
+  INLINEFLASH.plan:null;
+ const start=activePlan?.startOffset??status.startOffset;
+ const ck=activePlan?.checksumOffset??status.checksumOffset;
+ const hasFile=!!window.__55QuickFlashBin?.bytes?.length||
+  !!window.__ecu?.S?.saved;
+ const verifiedPlan=!!activePlan&&!!physicalId&&proof?.family===activePlan.profile.replace(/(?:RH850B|RH850|V850|OTHER|M32R|H8C)$/,'');
+ const readyText=!portReady?'รอเชื่อมต่อรถ':!physicalId?'กำลังตรวจ ECU ID':
+  !hasFile?'รอเลือกไฟล์':'ตรวจข้อมูลกล่องและไฟล์ก่อนแฟลช';
+ return {physicalId:physicalId||'รออ่านจากรถ',
+  family,part:physicalId?(status.part||'ไม่พบในฐานอ้างอิง'):'—',
+  start:fmtSourceHex(start),checksum:fmtSourceHex(ck),
+  ready:readyText,verifiedPlan,
+  connection:portReady?'เชื่อมต่อสายแล้ว':'ยังไม่เชื่อมต่อ',
+  sourceLabel:activePlan?'จากแผนไฟล์ที่ตรวจแล้ว':'ข้อมูลเบื้องต้นจากฐานอ้างอิง/ไฟล์'};
+}
+function buildRetailStatusCard(){
+ const section=mk('section','retail-status-card');section.id='retailStatus';
+ const header=mk('div','retail-status-heading');
+ header.append(mk('span','retail-status-mark','◈'),mk('span','','ECU · สถานะรถปัจจุบัน'));
+ section.append(header);
+ const grid=mk('div','retail-status-grid');
+ for(const [key,label,wide] of [
+   ['physicalId','ECU ID · อ่านจากรถ',true],
+   ['family','ประเภทกล่อง',false],
+   ['part','รหัสอะไหล่ ECU',false],
+   ['start','Start Offset',false],
+   ['checksum','Checksum Offset',false],
+   ['connection','การเชื่อมต่อ',false],
+   ['ready','ความพร้อมก่อนแฟลช',false]
+ ]){
+  const item=mk('div','retail-stat'+(wide?' wide':''));
+  const small=mk('small','',label),big=mk('strong','', '—');
+  big.id='retailStat'+key;item.append(small,big);grid.append(item);
+ }
+ section.append(grid);
+ section.append(mk('p','retail-status-foot','แสดงข้อมูลที่อ่านได้จากรถและไฟล์ที่เลือกจริง · ข้อมูลอ้างอิงยังไม่ใช่ผลยืนยันการแฟลช'));
+ const actions=mk('div','retail-status-actions');
+ actions.append(action('เชื่อมต่อรถ',()=>click('btnCable'),'btn ac'),
+  action('เริ่ม Fast Flash',()=>navigate('flash'),'btn'));
+ section.append(actions);updateRetailStatus();
+ return section;
+}
+function updateRetailStatus(){
+ const values=retailReadout();
+ for(const key of ['physicalId','family','part','start','checksum','connection','ready']){
+  const el=$('retailStat'+key);
+  if(el)el.textContent=values[key];
+ }
+}
+
 function heading(t,desc){
  stage.append(mk('h2','n20-stage-title',t));
  if(desc)stage.append(mk('p','n20-stage-sub',desc));
@@ -118,17 +181,20 @@ function steps(){
  stage.append(bar);
 }
 function dashboard(){
- heading('หมวดหมู่หลัก','แต่ละหมวดแยกจากกันชัดเจน ใช้ฟังก์ชัน ECU เดิมทุกปุ่ม');
+ heading('ศูนย์ควบคุม 55 PERFORMANCE','ตรวจสถานะรถและเลือกฟังก์ชันที่ต้องการ');
+ stage.append(buildRetailStatusCard());
  const grid=mk('div','n20-grid');
  for(const cat of cats){
+  if(cat[0]==='recovery')continue; // Auto-detected Recovery stays callable from Flash.
   const b=action('',()=>navigate(cat[0]),'n20-tile');
+  b.dataset.retailCat=cat[0];
   b.style.setProperty('--tile-stroke',cat[4]+'88');b.style.setProperty('--tile-glow',cat[4]+'65');
   const ic=mk('span','n20-tile-icon');ic.append(lineIcon(cat[0]));
   b.append(ic,mk('span','n20-tile-label',cat[2]),mk('span','n20-tile-desc',cat[3]),mk('span','n20-tile-arrow','›'));
   grid.append(b);
  }
  stage.append(grid);
- stage.append(mk('h3','n20-section-title','สถานะงานปัจจุบัน'));
+ stage.append(mk('h3','n20-section-title','งานที่กำลังดำเนินการ'));
  const panel=mk('div','n20-panel');
  const m=typeof S!=='undefined'&&S.mi>=0?MODELS[S.mi]:null;
  for(const [symbol,subject,value] of [
@@ -145,7 +211,7 @@ function dashboard(){
  }
  stage.append(panel);
  const note=mk('div','n20-panel');
- note.append(mk('p','','ลำดับใช้งาน: คลังรุ่น / BIN หลัก → จูน BIN → บันทึก BIN → อัดไฟล์ ECU ผ่าน Preflight'));
+ note.append(mk('p','','เริ่มจากเชื่อมต่อรถ เลือกไฟล์ให้ตรงกล่อง ตรวจความพร้อม แล้วเริ่ม Fast Flash ได้จากเมนูหลัก'));
  stage.append(note);
 }
 function library(){
@@ -475,7 +541,9 @@ function links(items){
  stage.append(box);
 }
 function toolsStage(){
- heading('เครื่องมือ Honda Main C#','เครื่องมือ BIN, DAT และการเชื่อมต่อที่ใช้ข้อมูลจริง');links(toolLinks);
+ heading('ศูนย์เครื่องมือขั้นสูง','เฉพาะบัญชีผู้ดูแลระบบที่ยืนยันสิทธิ์แล้ว · สำหรับการบริการและกรณีฉุกเฉิน');
+ const gateNote=mk('div','n20-panel','🔒 ACCESS GRANTED · ฟังก์ชันนี้ต้องใช้สิทธิ์ผู้ดูแลระบบ Supabase');
+ stage.append(gateNote);links(toolLinks);
  stage.append(mk('div','n20-panel','ด้านล่างเป็นเครื่องมือ Main C# เดิม เช่น ค้น ECM ID, Lock Read, Lock Mode, BIN ID, ECU Count และ DAT'));
  if($('mainSourceDetails'))$('mainSourceDetails').open=true;
 }
@@ -492,6 +560,10 @@ function settingsStage(){
 }
 function navigate(id){
  if(!Object.prototype.hasOwnProperty.call(memberships,id))return;
+ if(id==='tools'&&!window.__55AdvancedGate?.isAuthorized()){
+  window.__55AdvancedGate?.open(()=>navigate('tools'));
+  return; // DO NOT render/activate tools before server-confirmed admin grant.
+ }
  if(selected==='recovery'){
   if(window.__55RecoveryNative?.isBusy?.()){alert('รอการตรวจหรือเขียน Recovery ให้จบก่อนเปลี่ยนเมนู');return}
   // Even re-entering Recovery must dispose its prior USB plan before remount.
@@ -519,7 +591,9 @@ function navigate(id){
  stage.classList.remove('n24-preflight-stage');
  home.dataset.neonPage=id;
  for(const card of cards)card.classList.toggle('n20-hidden',!memberships[id].includes(card.id));
- stage.replaceChildren();stage.hidden=false;stage.classList.toggle('n20-settings',id==='settings');
+ stage.replaceChildren();stage.hidden=false;stage.dataset.category=id;
+ document.body.classList.toggle('retail-advanced-visible',id==='tools');
+ stage.classList.toggle('n20-settings',id==='settings');
  for(const b of nav.querySelectorAll('button')){const active=b.dataset.cat===id;b.classList.toggle('active',active);b.setAttribute('aria-current',active?'page':'false')}
  $('n20HeroTitle').textContent=titleText[id][0];$('n20HeroSubtitle').textContent=titleText[id][1];
  if(id==='dashboard')dashboard();
@@ -545,4 +619,5 @@ const observer=new MutationObserver(()=>refreshStatus());
 for(const id of ['cableMsg','tuneSaveStatus','stepTxt','fname','sEcu'])if($(id))
  observer.observe($(id),{childList:true,characterData:true,subtree:true});
 navigate('dashboard');
+setInterval(()=>{if(selected==='dashboard')refreshStatus()},2200);
 })();
