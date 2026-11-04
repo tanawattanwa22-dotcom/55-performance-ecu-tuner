@@ -62,6 +62,9 @@ assert(p.includes("from '../ftdi-webusb.js'")&&old.includes("from './ftdi-webusb
 assert(p.includes('verifySavedOfflinePermit(localStorage.getItem'), 'permit checked immediately before real erase');
 assert(!p.includes('async function token()'), 'do not clone login secrets into offline page');
 const sw=asText('flash_port/offline/sw.js');
+const cachedEngineRevision=sw.match(/const VERSION='55perf-offline-flash-v(\d+)'/)?.[1]||null;
+assert(cachedEngineRevision===currentOfflineEngine,
+ 'offline service worker cache must be refreshed with the current C# Flash Engine, never serve stale source frames');
 assert(sw.includes("scope /flash_port/offline/ ONLY"));
 assert(sw.includes("'../honda-write-engine.js'"));
 assert(sw.includes("'../offline-license.js'"));
