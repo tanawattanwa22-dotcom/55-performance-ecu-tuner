@@ -1,4 +1,13 @@
 import assert from 'node:assert/strict';
+import {readFile as readLocalFixture} from 'node:fs/promises';
+// Node does not fetch file: ECU catalog URLs; browser does. Test local JSON
+// fixtures without the network, exactly as the existing offline simulator does.
+const nativeFetch=globalThis.fetch;
+globalThis.fetch=async(input,options)=>{
+ const url=input instanceof URL?input:new URL(String(input));
+ if(url.protocol==='file:')return new Response(await readLocalFixture(url),{status:200});
+ return nativeFetch(input,options);
+};
 import {MainLiveSession} from '../flash_port/main-live-session.js';
 import {readSharedDtc,clearSharedDtc} from '../flash_port/shared-dtc.js';
 import {getShindengenRecoveryKey} from '../flash_port/main-recovery-key-source.js';
