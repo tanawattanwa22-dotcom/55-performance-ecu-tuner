@@ -11,9 +11,11 @@ const safe=s=>String(s??'').trim();
 function normalize(row){
  const ecuId=safe(row.ecuId).toUpperCase();
  if(!/^[0-9A-F]{10}$/.test(ecuId))throw Error('Invalid DAT ECU ID');
+ const rawHex=value=>typeof value==='number'&&Number.isInteger(value)&&value>=0?
+  value.toString(16).toUpperCase():safe(value);
  const fields={ecuId,part:safe(row.part),model:safe(row.model),
-  rawStartOffset:safe(row.rawStartOffset??row.startOffset),
-  rawChecksumOffset:safe(row.rawChecksumOffset??row.checksumOffset),
+  rawStartOffset:rawHex(row.rawStartOffset??row.startOffset),
+  rawChecksumOffset:rawHex(row.rawChecksumOffset??row.checksumOffset),
   sizeText:safe(row.sizeText),typeText:safe(row.typeText)};
  if(Object.values(fields).some(v=>v.length>320))throw Error('DAT text too long');
  const parse=s=>/^[0-9A-F]+$/i.test(s)?parseInt(s,16):null;
