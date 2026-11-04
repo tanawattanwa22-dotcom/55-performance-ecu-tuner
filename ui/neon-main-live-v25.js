@@ -10,7 +10,7 @@ import {csharpOffsetInference} from '../flash_port/csharp-offsets.js?v=317';
 import {probeMainProgrammingSession,countDisplay} from '../flash_port/main-programming-probe.js?v=4';
 import {auditMainShindengenDryRun} from '../flash_port/main-source-dry-run.js?v=1';
 import {readEcuDat} from '../flash_port/ecu-dat-editor.js?v=1';
-import {saveMainDatReference,readMainDatReference} from '../flash_port/main-dat-reference.js?v=1';
+import {saveMainDatReference,readMainDatReference} from '../flash_port/main-dat-reference.js?v=2';
 let programmingProbeResult=null,programmingProbeRuns=[],programmingProbeBusy=false;
 const previouslyImportedDat=readMainDatReference();
 let ecuDatRows=previouslyImportedDat.rows,ecuDatName=previouslyImportedDat.filename,dryRunReport=null;
