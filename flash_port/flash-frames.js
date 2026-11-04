@@ -51,6 +51,31 @@ export function createWriteFrame(block,{profile,startOffset=0,blockIndex=0,nextB
  if(hondaChecksum(frame)!==0)throw Error('Frame checksum assembly failed');
  return frame;
 }
+/**
+ * Main.zip FormMain.WriteFlash(): flag=true only for KEIHINOTHER and
+ * SHINDENGENV850. It sends the CURRENT block, then advances the next-address
+ * pointer across later all-FF blocks; it does not skip the current block.
+ * Other source types always advance exactly one block.
+ * Pure calculation: never sends USB or flash commands.
+ */
+export function nextSourceWriteIndex(bin,index,profile){
+ const p=resolveWriteProfile(profile);
+ if(!(bin instanceof Uint8Array)||bin.length%p.blockSize!==0)
+  throw Error('BIN does not match source block size');
+ const total=bin.length/p.blockSize;
+ if(!Number.isInteger(index)||index<0||index>=total)throw RangeError('Invalid source block index');
+ let next=index+1;
+ if(profile!=='KEIHINOTHER'&&profile!=='SHINDENGENV850')return next;
+ while(next<total){
+  let allFF=true;
+  for(let i=next*p.blockSize;i<(next+1)*p.blockSize;i++){
+   if(bin[i]!==255){allFF=false;break;}
+  }
+  if(!allFF)break;
+  next++;
+ }
+ return next;
+}
 export function auditWriteFrames(bin,{profile,startOffset=0,maxSamples=3}={}){
  const p=resolveWriteProfile(profile);
  if(!(bin instanceof Uint8Array)||!BIN_SIZES.includes(bin.length))throw Error('Unexpected BIN byte length; no ECU profile confirmed');
