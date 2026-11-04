@@ -4,6 +4,22 @@
  */
 import {MainLiveSession} from '../flash_port/main-live-session.js?v=350';
 import {resolveMainAutoMetadata} from '../flash_port/main-auto-metadata.js?v=352';
+import {localKtrCandidates} from '../flash_port/ecu-id-lookup.js?v=355';
+// This lookup is display-only. Do not feed reference rows into the physical
+// reader catalog, family/preflight verification, or any ECU write/offset route.
+function localEcmReference(ecuId){
+ if(!/^[0-9A-F]{10}$/.test(String(ecuId||'')))return null;
+ const rows=localKtrCandidates(ecuId);
+ if(!rows.length)return null;
+ const parts=[...new Set(rows.map(r=>r.partCode))];
+ const families=[...new Set(rows.map(r=>r.family))];
+ const models=[...new Set(rows.map(r=>r.model))];
+ const sizes=[...new Set(rows.map(r=>r.sizeKB))];
+ if(parts.length!==1||families.length!==1)
+  return {ambiguous:true,text:'หลายรหัสอ้างอิง / Family ไม่ตรงกัน · ต้องตรวจฉลาก ECU'};
+ return {ambiguous:false,part:parts[0],family:families[0],model:models.join(' / '),
+  sizeKB:sizes.length===1?sizes[0]:null};
+}
 const old=window.__55LiveBridge;
 if(!old)throw Error('Live UI bridge must be installed before Main V25');
 const originalSnapshot=old.snapshot.bind(old);
@@ -301,6 +317,7 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
   if(lastDetectedKey===k)return;
   lastDetectedKey=k;
   const data=resolveMainAutoMetadata(st);
+  const reference=data.ecuId&&!st.catalogMatched?localEcmReference(data.ecuId):null;
   detected.replaceChildren();
   const head=document.createElement('strong');head.textContent='ECU ID → Main.zip · ตรวจพบอัตโนมัติ';
   head.style.cssText='display:block;color:#8cedf7;font-size:15px;margin-bottom:9px';
@@ -312,6 +329,12 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
    ['Start Offset',data.startOffset],
    ['Checksum Offset',data.checksumOffset]
   ];
+  if(reference){
+   items.push(['ฐาน ECM อ้างอิง (ไม่ใช่ Main.zip)',
+    reference.ambiguous?reference.text:
+     reference.part+' · '+reference.model+' · '+reference.family+
+      (reference.sizeKB?' · BIN อ้างอิง '+reference.sizeKB+' KB':'')]);
+  }
   for(const [label,value] of items){
    const cell=document.createElement('div');cell.style.cssText='border:1px solid #36526c;border-radius:8px;padding:8px;min-width:0';
    const key=document.createElement('small');key.textContent=label;key.style.cssText='display:block;color:#b8ccdc;font-size:11px;margin-bottom:4px';
@@ -322,7 +345,9 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
   status.setAttribute('role','status');
   status.style.cssText='margin:10px 0 0;color:'+(data.complete?'#83f1c4':'#ffd39a')+';font-size:12px;line-height:1.55';
   const foot=document.createElement('small');
-  foot.textContent='แสดงค่าฐาน Main.zip เท่านั้น • ไม่ต้องเลือก BIN เพื่อดูข้อมูล • ไม่ใช่การอนุมัติ ERASE/WRITE';
+  foot.textContent=reference?
+   'ช่อง Part Code / Family / Offset ด้านบนใช้ข้อมูล Main.zip เท่านั้น · แถว ECM อ้างอิงใช้ข้อมูล KTR ไม่ใช่การอนุมัติ ERASE/WRITE และไม่ใช้กำหนด Offset':
+   'แสดงค่าฐาน Main.zip เท่านั้น • ไม่ต้องเลือก BIN เพื่อดูข้อมูล • ไม่ใช่การอนุมัติ ERASE/WRITE';
   foot.style.cssText='display:block;margin-top:7px;color:#a9c1d3;line-height:1.5';
   detected.append(head,grid,status,foot);
  }
@@ -338,6 +363,7 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
   const fmt=n=>Number.isInteger(n)?'0x'+n.toString(16).toUpperCase().padStart(4,'0'):'';
   const off=(n,raw)=>Number.isInteger(n)?fmt(n):raw==='auto'?'AUTO จาก BIN':'ยังไม่ระบุ';
   const dtc=st.dtcSnapshot;
+  const ktr=st.ecuId&&!st.catalogMatched?localEcmReference(st.ecuId):null;
   const usbOK=st.connected;
   const ready=st.connected&&!st.connecting;
   const idOK=ready&&/^[0-9A-F]{10}$/.test(st.ecuId);
@@ -353,8 +379,11 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
    [dtcOK,'ตาราง DTC',dtc?(dtc.answered.length+'/6 คำสั่งตอบครบ'+(dtcOK?'':' · ผลยังไม่ครบ')):'ยังไม่ได้รับคำตอบ DTC'],
    [false,'Start Offset / Checksum',st.catalogMatched?
      'ค่าอ้างอิงฐาน: '+off(st.startOffset,st.startOffsetText)+' / '+off(st.checksumOffset,st.checksumOffsetText)+' · ยังไม่เทียบ BIN':
-     'รอ ECU ID และ BIN ที่เลือก · ยังไม่ยืนยันสำหรับเขียน']
+     'ไม่มีค่า Offset จาก Main.zip สำหรับ ECU ID นี้ · ไม่ยืนยันสำหรับเขียน']
   ];
+  if(idOK&&ktr)records.splice(3,0,[false,'ฐาน ECM อ้างอิง (ไม่ใช่ Main 290)',
+   ktr.ambiguous?ktr.text:
+    ktr.part+' · '+ktr.model+' · '+ktr.family+' · อ้างอิงเท่านั้น ไม่อนุญาต Flash']);
   checks.replaceChildren();
   for(const [ok,label,detail] of records){
    const line=document.createElement('div');

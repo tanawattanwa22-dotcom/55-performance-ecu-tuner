@@ -46,6 +46,8 @@ jobs:
         run: which google-chrome || which google-chrome-stable
       - name: Verify XDF-only axis write guard
         run: node tools/verify-xdf-axis-only.mjs
+      - name: Verify Main.zip 290 vs owner KTR ECM reference (NO ECU)
+        run: node tools/verify-ktr-main-reference.mjs
       - name: Run 320–720px responsive UI tests (no ECU connection)
         run: node tools/verify-neon-browser.mjs
       - name: Exercise full CSharp flash software emulator in mobile Chrome

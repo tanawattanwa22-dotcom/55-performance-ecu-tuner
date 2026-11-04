@@ -1,0 +1,33 @@
+// Reference-only C# / KTR comparison for the observed physical Honda ECU ID.
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import {gunzipSync} from 'node:zlib';
+import {localKtrCandidates} from '../flash_port/ecu-id-lookup.js';
+import {resolveMainAutoMetadata} from '../flash_port/main-auto-metadata.js';
+const ID='0105040D01';
+const db=JSON.parse(fs.readFileSync(new URL('../data/ecu-catalog-290.json',import.meta.url),'utf8'));
+const csharp=JSON.parse(gunzipSync(Buffer.from(db.packedRowsGzipBase64,'base64')))
+ .concat(db.additionalRows);
+assert.equal(csharp.length,290);
+assert.equal(csharp.some(row=>row[0]===ID),false,'ID absent from static C# database');
+const ktr=localKtrCandidates(ID);
+assert.equal(ktr.length,1);
+assert.equal(ktr[0].partCode,'K1ZP-T71');
+assert.equal(ktr[0].model,'PCX 160');
+assert.equal(ktr[0].family,'SHINDENGEN');
+assert.equal(ktr[0].sizeKB,384);
+const main=resolveMainAutoMetadata({connected:true,ecuId:ID,catalogMatched:false});
+assert.equal(main.status,'NOT_FOUND');
+assert.equal(main.partCode,null);
+assert.equal(main.family,null);
+assert.equal(main.startKnown,false);
+assert.equal(main.checksumKnown,false);
+const ui=fs.readFileSync(new URL('../ui/neon-main-live-v25.js',import.meta.url),'utf8');
+assert(ui.includes('localKtrCandidates(ecuId)'));
+assert(ui.includes('ฐาน ECM อ้างอิง (ไม่ใช่ Main.zip)'));
+assert(ui.includes('!st.catalogMatched?localEcmReference(st.ecuId)'));
+const index=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
+const shared=fs.readFileSync(new URL('../ui/shared-operations-v30.js',import.meta.url),'utf8');
+assert(index.includes('neon-main-live-v25.js?v=353'));
+assert(shared.includes('neon-main-live-v25.js?v=353'));
+console.log('PASS ID 0105040D01: KTR PCX160 reference display separate from Main 290, no offsets or flash approval');
