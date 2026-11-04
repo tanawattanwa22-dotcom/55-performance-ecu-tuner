@@ -5,7 +5,7 @@
  */
 import {MAIN_CAPTURE_COMMANDS,decodeMainDiagnosticTrace} from './main-source-diagnostic.js';
 import {Ft232rWebUsb} from './ftdi-webusb.js';
-import {HondaFlashEngine} from './honda-write-engine.js?v=381';
+import {HondaFlashEngine} from './honda-write-engine.js?v=392';
 import {loadCSharpCatalog} from './csharp-ecu-catalog.js?v=302';
 import {MAIN_DTC_READ_FRAMES,decodeMainDtcReplies} from './main-source-dtc.js';
 import {probeMainProgrammingSession} from './main-programming-probe.js?v=7';
