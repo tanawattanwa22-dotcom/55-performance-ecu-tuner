@@ -50,17 +50,29 @@ const p=asText('flash_port/offline/index.html'),old=asText('flash_port/flash-wri
 for(const fragment of ['engine.identify()','engine.makePlan(data','engine.flash(plan','engine.postFlashCheck()','physicalBackupConfirmed','externalPowerConfirmed','recoveryReady']){
  assert(p.includes(fragment)&&(old.includes(fragment)||(fragment==='engine.identify()'&&old.includes('engine.identify({programmingPreflight:true})'))),'same original bench flash step: '+fragment);
 }
-assert(p.includes("from '../honda-write-engine.js?v=366'"),'offline imports source recovery engine revision');
-assert(old.includes("from './honda-write-engine.js?v=366'"),'online matches recovery engine revision');
+// Compare both Flash pages to each other instead of a stale hard-coded v366.
+const engineRevision=text=>text.match(/from ['"][^'"]*honda-write-engine\\.js\\?v=(\\d+)['"]/)?.[1]||null;
+const currentOfflineEngine=engineRevision(p),currentOnlineEngine=engineRevision(old);
+assert(currentOfflineEngine&&currentOfflineEngine===currentOnlineEngine,
+  'offline and online must import the same current C# source Flash Engine version');
 assert(p.includes('engine.confirmRecoveryFamily(data)')&&old.includes('engine.confirmRecoveryFamily(data)'),'recovery family check is wired in both flash UIs');
 assert(p.includes('checksumOffsetOverride:')&&old.includes('checksumOffsetOverride:'),'C# recovery checksum offset option is wired in both UIs');
-assert(p.includes("from '../ftdi-webusb.js?v=301'"),'offline imports same WebUSB transport revision');
+assert(p.includes("from '../ftdi-webusb.js'")&&old.includes("from './ftdi-webusb.js'"),
+  'both Flash pages import the same FT232R WebUSB transport module');
 assert(p.includes('verifySavedOfflinePermit(localStorage.getItem'), 'permit checked immediately before real erase');
 assert(!p.includes('async function token()'), 'do not clone login secrets into offline page');
 const sw=asText('flash_port/offline/sw.js');
 assert(sw.includes("scope /flash_port/offline/ ONLY"));
 assert(sw.includes("'../honda-write-engine.js'"));
 assert(sw.includes("'../offline-license.js'"));
+for(const dependency of [
+ 'main-programming-probe.js',
+ 'main-source-family-hints.js',
+ 'main-dat-reference.js',
+ 'main-source-bin-locks.js'
+]){
+ assert(sw.includes("'../"+dependency+"'"),'offline source import graph missing '+dependency);
+}
 assert(sw.includes("'../../data/ecu-catalog-290.json'"),
   'offline cache must include Main.zip 290-ID catalog required by source lookup');
 assert(p.includes("Ft232rWebUsb.choose()")&&p.includes("standalonePort.openSelected(dev)"),
