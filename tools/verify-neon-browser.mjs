@@ -143,9 +143,9 @@ try{
   assert.equal((await page.locator('#n21Value-rpm').innerText()).trim(),'—','no invented ECU RPM');
   assert.equal((await page.locator('#n21Rate').innerText()).trim(),'— Hz','no fake 50 Hz refresh speed');
   assert.equal(await page.locator('#n21RecordBtn').isDisabled(),true,'record disabled without real ECU data');
-  await page.locator('#n21MainGroup').selectOption('7');
+  await page.evaluate(()=>{const input=document.getElementById('n21MainGroup');input.value='7';input.dispatchEvent(new Event('change',{bubbles:true}));});
   assert((await page.locator('#n21AfrNote').innerText()).includes('ไม่มีช่อง A/F'),'Group 7 cannot fabricate A/F');
-  await page.locator('#n21MainGroup').selectOption('1');
+  await page.evaluate(()=>{const input=document.getElementById('n21MainGroup');input.value='1';input.dispatchEvent(new Event('change',{bubbles:true}));});
   assert((await page.locator('#n21AfrNote').innerText()).includes('FM_diag.cs'),'A/F is labelled Main C# calculated data');
   await overflowing('Original Neon Live (Main FM_diag backend) '+width);
   if(width===393)await page.screenshot({path:path.join(root,'test-reports','neon-live-main-v25-393.png'),fullPage:false});
