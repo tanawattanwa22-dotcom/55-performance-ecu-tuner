@@ -286,13 +286,19 @@ export class HondaFlashEngine {
    catalog={part:'RECOVERY-UNKNOWN',startOffset:null,checksumOffset:null,family};
   }else{
   if(sourceUnlisted){
-    // FormMain.SearchInProgram is a METADATA lookup, not a prerequisite
-    // for source BIN analysis. Still require an independently fresh physical
-    // source-programming family/Flash Count ACK before constructing a plan.
+    // FormMain.SetEcmParamsFromDb: embedded table -> ecuData.dat.
+    // User DAT can supply the source part/offset, never family authorization.
     if(this.identity.physicalFamilyEvidence!=='MAIN_SOURCE_READ_ONLY_FLASH_COUNT_ACK'||
        this.identity.programmingSessionVerified!==true)
       fail('UNLISTED_FAMILY_UNVERIFIED','ECU ID นอกฐาน 290: ยังไม่มี Family ACK จากโหมดโปรแกรมมิ่งจริง');
-    catalog={part:null,startOffset:null,checksumOffset:null,family};
+    const dat=this.identity.datReference;
+    if(dat?.family&&dat.family!=='UNVERIFIED'&&dat.family!==family)
+      fail('DAT_FAMILY_CONFLICT','ecuData.dat family '+dat.family+
+       ' differs from ECU source Flash Count ACK '+family);
+    catalog={part:dat?.part||null,
+      startOffset:Number.isInteger(dat?.startOffset)?dat.startOffset:null,
+      checksumOffset:Number.isInteger(dat?.checksumOffset)?dat.checksumOffset:null,
+      family};
    }
   if(!['KEIHIN','SHINDENGEN'].includes(family))
    fail('FAMILY_UNKNOWN','ยังไม่ได้ยืนยันตระกูล ECU จากคำตอบจริง');
@@ -381,6 +387,8 @@ export class HondaFlashEngine {
       recoveryFamilyEvidence:rec?this.identity.recoveryFamilyEvidence:null,
       binFullId:completeBinId,binFullIdMatched:rec?null:!completeBinId||completeBinId===ecuId,
       familyFlashCountResponded:true,partFromCSharp:!rec&&!sourceUnlisted,
+       partFromMainDat:sourceUnlisted&&!!this.identity.datReference?.part,
+       startOffsetFromMainDat:sourceUnlisted&&Number.isInteger(this.identity.datReference?.startOffset),
        sourceUnlistedWithProof:sourceUnlisted,
        sourceKeihinOtherFallback:sourceKeihinFallback,
        sourceBinIdEvidence:completeBinId?'FULL_ID':shortBinId?'3_BYTE_SOURCE_LOCATOR':'NONE',
