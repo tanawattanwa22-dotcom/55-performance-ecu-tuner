@@ -25,7 +25,7 @@ const MAPPING=Object.freeze({
 });
 const FRAME_ALLOWLIST=new Set(Object.values(MAIN_CAPTURE_COMMANDS).flat().map(a=>a.join(',')));
 // FM_diag.cs method_96 probes Group 7 and then 4 before falling back to Group 1.
-// Probes only use the existing read-only 0x72 command allowlist.
+// Group 7/4 read probes; Group 1 is the FM_diag.cs unprobed fallback.
 export const SOURCE_AUTO_PROBE_ORDER=Object.freeze([7,4,1]);
 export function acceptedSourceProbe(reply,echoOK){
  // Source tests captured hex string length > 30 (7 echo bytes + >=9 reply bytes).
@@ -450,7 +450,9 @@ export class MainLiveSession {
   // Source FM_diag.cs can use Group 7, 4, and 1. If a read-only probe
   // times out, FTDI closes the pending WebUSB read. Reopen the SAME
   // user-approved device and do a fresh wake before probing the next group.
-  for(const candidate of preferredLiveScanOrder(this.ecuId,SOURCE_AUTO_PROBE_ORDER)){
+  // FM_diag.method_96 tests Group 7 then 4; Group 1 is FALLBACK,
+  // NOT a third diagnostic probe.
+  for(const candidate of [7,4]){
    if(this.stopRequested||this.disconnectRequested)return null;
    const frame=MAIN_CAPTURE_COMMANDS[candidate]?.[0];
    if(!frame||!FRAME_ALLOWLIST.has(frame.join(',')))throw Error('Group command not in Main C# allowlist');
@@ -475,10 +477,27 @@ export class MainLiveSession {
     if(this.stopRequested||this.disconnectRequested)return null;
    }
   }
-  throw Error('ECU ไม่ตอบกลุ่ม Live 7 / 4 / 1 · ตรวจ K-Line, ไฟ ECU, กุญแจ ON; '+failures.join(' | '));
+  if(this.stopRequested||this.disconnectRequested)return null;
+  this.detectedGroup=1;this.group4Variant=null;
+  this.liveGroupError=failures.join(' | ');
+  this.notify();
+  return 1; // source's unprobed fallback; a later read must prove it works
  }
  async _cycle(group){
   const frames=MAIN_CAPTURE_COMMANDS[group],capture=[];
+  // FM_diag.method_99 sends four frames at 50ms intervals BEFORE
+  // method_11 drains the accumulated UART echo+reply bytes.
+  if(this.port?.exchangeMainDiagnosticBurst){
+   for(const frame of frames){
+    if(!FRAME_ALLOWLIST.has(frame.join(','))||frame[2]!==0x72)
+     throw Error('คำสั่งไม่ได้อยู่ในรายการ FM_diag.cs ที่อนุญาต');
+   }
+   if(this.stopRequested||this.disconnectRequested)return null;
+   const result=await this.port.exchangeMainDiagnosticBurst(frames);
+   if(result.entries.length!==4||result.entries.some(x=>!x.echoOK))
+    throw Error('Main C# Live group UART echo/response incomplete');
+   return Array.from(result.raw);
+  }
   for(let i=0;i<frames.length;i++){
    if(this.stopRequested||this.disconnectRequested)return null;
    const frame=frames[i];
