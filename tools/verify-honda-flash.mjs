@@ -169,6 +169,22 @@ await check('WorkerThread Keihin fallback confirms again before ECU ID',async()=
  const id=await e.identify();
  return id.handshake==='KEIHIN_POLL'&&labels.includes('KEIHIN_FALLBACK_HELLO')&&labels.indexOf('CONFIRM_WORKER_SESSION')>labels.indexOf('KEIHIN_FALLBACK_HELLO');
 });
+await check('WebUSB FormMain SendCommand uses WRITE -> LATENCY -> RX -> PURGE order and tolerates differing echo',async()=>{
+ const calls=[];
+ const port=new Ft232rWebUsb();
+ port.ready=true;
+ port.prepareUart=async()=>{};
+ port.purge=async()=>calls.push('PURGE');
+ port.ctl=async(req)=>calls.push('LATENCY:'+req);
+ port._write=async()=>calls.push('WRITE');
+ port._readOnce=async()=>{
+  calls.push('RX');
+  return {data:Uint8Array.from([9,8,7,6,5,2,4,0,250]),status:[]};
+ };
+ const reply=await port.exchangeRaw(READ_ONLY_COMMANDS.HELLO,{mainSourceMode:true,timeoutMs:1000});
+ return reply.echoOK===false&&reply.reply[3]===250&&
+  calls.join('|')==='WRITE|LATENCY:9|RX|PURGE';
+});
 await check('USB strip FTDI modem status bytes per packet',()=>{
  const d=stripFtdiStatus([0,0,1,2,3,4,5,6,0,0,7,8],8);
  return JSON.stringify(Array.from(d.data))==='[1,2,3,4,5,6,7,8]';
@@ -177,10 +193,9 @@ await check('FTDI 10400 / 921600 divisor within tolerated range',()=>Math.abs(ba
 await check('Corrupted Honda reply is rejected',()=>{
  try{checkedHondaReply([2,5,0,0,0]);return false}catch{return true}
 });
-await check('Nonzero normal WRITE ACK is rejected',async()=>{
- const e=new HondaFlashEngine({ready:true});e.x=async()=>Uint8Array.of(2,5,0,1,0);
- try{await e.writeBlocks({bin:new Uint8Array(128),blockBytes:128,startOffset:0,profile:'KEIHINOTHER'});return false}
- catch(err){return err.code==='WRITE_REJECTED'}
+await check('Source WriteFlash accepts any checksum-valid five-byte ACK regardless status',async()=>{
+ const e=new HondaFlashEngine({ready:true});e.x=async()=>Uint8Array.of(2,5,0,1,248);
+ return await e.writeBlocks({bin:new Uint8Array(128),blockBytes:128,startOffset:0,profile:'KEIHINOTHER'})===1;
 });
 await check('Wrong write profile must not fallback to Keihin',()=>{try{createWriteFrame(new Uint8Array(128),{profile:'INVALID',startOffset:0});return false}catch{return true}});
 await check('Post-flash checker never issues write/erase',async()=>{
