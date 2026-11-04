@@ -8,6 +8,8 @@ import {Ft232rWebUsb} from './ftdi-webusb.js?v=347';
 import {HondaFlashEngine} from './honda-write-engine.js?v=309';
 import {loadCSharpCatalog} from './csharp-ecu-catalog.js?v=302';
 import {MAIN_DTC_READ_FRAMES,decodeMainDtcReplies} from './main-source-dtc.js';
+import {probeMainProgrammingSession} from './main-programming-probe.js?v=7';
+import {sourceFamilyHint} from './main-source-family-hints.js?v=1';
 
 const WAIT=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const KEYS=['rpm','tps','map','ect','iat','bat','inj','ign','afr'];
@@ -48,6 +50,7 @@ export class MainLiveSession {
   this.recording=false;this.recordStart=0;this.records=[];this.error='';this.phase='IDLE';
   this.catalog=null;this.idError='';this.liveGroupError='';this.dtcError='';
   this.dtcSnapshot=null;this.autoStatus='ยังไม่ได้ตรวจ';this.autoComplete=false;this.autoBusy=false;
+  this.sourceProbe=null;this.sourceProbeError='';this.autoSourceProbes=0;
   this.usbAttempts=0;this.usbLastPhase='IDLE';this.usbLastError='';this.usbDevice=null;this.usbTrace=[];
  }
  notify(){this.onUpdate(this);}
@@ -62,6 +65,15 @@ export class MainLiveSession {
    startOffset:this.catalog?.startOffset??null,checksumOffset:this.catalog?.checksumOffset??null,
    startOffsetText:this.catalog?.startOffsetText??null,checksumOffsetText:this.catalog?.checksumOffsetText??null,
    catalogMatched:!!this.catalog,autoStatus:this.autoStatus,autoComplete:this.autoComplete,
+   sourceProbe:this.sourceProbe&&this.ecuId===this.sourceProbe.expectedEcuId?{
+    expectedEcuId:this.sourceProbe.expectedEcuId,ecuId:this.sourceProbe.ecuId,
+    family:this.sourceProbe.family,flashCount:this.sourceProbe.flashCount,
+    countState:this.sourceProbe.countState,handshake:this.sourceProbe.handshake,
+    hello:this.sourceProbe.hello,programmingSessionVerified:this.sourceProbe.programmingSessionVerified,
+    countError:this.sourceProbe.countError,finishedAt:this.sourceProbe.finishedAt,
+    source:this.sourceProbe.source,flashApproved:false
+   }:null,
+   sourceProbeError:this.sourceProbeError,autoSourceProbes:this.autoSourceProbes,
    idError:this.idError,liveGroupError:this.liveGroupError,dtcError:this.dtcError,
    liveGroupVerified:Number.isInteger(this.detectedGroup),dtcSnapshot:this.dtcSnapshot,
    running:this.running,group:this.detectedGroup??this.group,groupMode:this.group,
@@ -107,6 +119,7 @@ export class MainLiveSession {
    // A connected FT232R is a valid cable connection even without a bike.
    // No background ECU probe, wake, DTC bank scan or bulk RX here.
    this.ecuId='';this.catalog=null;this.detectedGroup=null;
+   this.sourceProbe=null;this.sourceProbeError='';this.autoSourceProbes=0;
    this.dtcSnapshot=null;this.values=EMPTY();
    this.phase='USB_CONNECTED';this.error='';this.usbLastPhase='USB_CONNECTED';this.usbTrace=port.trace?.slice(-16)||[];
    this.autoStatus='✓ FT232R เปิดพอร์ตแล้ว • ใช้ Live Data หรือกดสแกน ECU ได้ • ยังไม่ส่งคำสั่งอ่าน ECU';
@@ -255,6 +268,7 @@ export class MainLiveSession {
  async _autoDetect(){
   if(this.autoBusy||this.connecting||this.running||this.owner||!this.port?.ready)return false;
   this.autoBusy=true;this.autoComplete=false;
+  this.sourceProbe=null;this.sourceProbeError='';
   // Never carry a previous motorcycle's ECU ID / DTC / Live profile into a fresh scan.
   this.ecuId='';this.catalog=null;this.detectedGroup=null;this.dtcSnapshot=null;
   this.idError='';this.liveGroupError='';this.dtcError='';
@@ -356,6 +370,57 @@ export class MainLiveSession {
  async rescan(){
   if(!this.port?.ready||this.owner||this.running||this.connecting||this.autoBusy)return false;
   return this._autoDetect();
+ }
+ async rescanWithProgramming(){
+  // One scan of a new bike: actual diagnostic ECU ID -> Main.zip family
+  // count read-only -> shared profile. No user-uploaded per-bike config.
+  const diagnosticOk=await this.rescan();
+  const expectedId=this.ecuId;
+  if(!expectedId||this.disconnectRequested)return diagnosticOk;
+  if(!this.port?.ready)await this.restoreCable();
+  if(!this.port?.ready){
+   this.sourceProbeError='FT232R ไม่พร้อมหลังตรวจ Diagnostic';
+   this.notify();return diagnosticOk;
+  }
+  if(this.owner||this.running||this.connecting||this.autoBusy)return diagnosticOk;
+  this.autoBusy=true;
+  this.phase='SOURCE_PROGRAM_READ_ONLY';
+  this.autoStatus='Main.zip · ยืนยัน Family / Flash Count จาก ECU จริงโดยอัตโนมัติ (ไม่ลบ/เขียน)';
+  this.sourceProbeError='';this.notify();
+  try{
+   const preferredFamily=sourceFamilyHint(expectedId,this.catalog?.family).family;
+   const report=await probeMainProgrammingSession(this.port,{
+    expectedEcuId:expectedId,preferredFamily,round:1
+   });
+   if(this.ecuId===expectedId&&!this.disconnectRequested){
+    this.sourceProbe=report;this.autoSourceProbes++;
+    this.sourceProbeError=report.countState==='CONFIRMED'?'':String(report.countError||'ยังไม่มี Family ACK');
+    this.autoStatus=report.countState==='CONFIRMED'?
+     'สแกนอัตโนมัติ '+expectedId+' · '+report.family+' ACK · Flash Count '+report.flashCount+' ครั้ง (อ่านอย่างเดียว)':
+     'อ่าน ECU ID ได้ แต่ยังไม่ได้ Family ACK: '+this.sourceProbeError;
+   }
+  }catch(e){
+   this.sourceProbe=null;this.sourceProbeError=String(e?.message||e);
+   this.autoStatus='สแกน ECU ID ได้ แต่โหมดโปรแกรมมิ่งยังไม่ยืนยัน: '+this.sourceProbeError;
+  }finally{
+   // A WebUSB timeout may close FT232R. Restore ONLY that granted USB
+   // interface; the next command must initiate a fresh ECU session.
+   if(!this.port?.ready&&!this.disconnectRequested){
+    const device=this.port?.lastDevice;
+    if(device)try{
+     await this.port.openSelected(device);
+     this.phase='USB_READY_NO_ECU';
+    }catch(e){
+     this.error='คืนสาย FT232R หลัง Source Probe ไม่สำเร็จ: '+String(e?.message||e);
+     this.phase='USB_LOST';
+    }
+   }
+   this.autoBusy=false;
+   if(this.port?.ready&&this.phase==='SOURCE_PROGRAM_READ_ONLY')
+    this.phase='SOURCE_PROFILE_READ_ONLY_READY';
+   this.notify();
+  }
+  return diagnosticOk;
  }
  async _restoreAfterProbeLoss(expectedId){
   // exchangeRaw fail-closes the USB device on ambiguous response. Never retry
@@ -498,6 +563,7 @@ export class MainLiveSession {
  async disconnect(){
   if(this.owner){this.error="หยุดงาน "+this.owner+" ก่อนตัดสาย";this.notify();return false;}
   this.disconnectRequested=true;this.stopRequested=true;this.recording=false;
+  this.sourceProbe=null;this.sourceProbeError='';this.autoSourceProbes=0;
   this.ecuId='';this.catalog=null;this.detectedGroup=null;this.dtcSnapshot=null;
   this.idError='';this.liveGroupError='';this.dtcError='';this.autoComplete=false;this.autoStatus='ตัดการเชื่อมต่อแล้ว';
   if(this.autoBusy){
