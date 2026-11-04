@@ -24,6 +24,9 @@ const key=getShindengenRecoveryKey(Uint8Array.of(1,0,2,0,0,0,9,8),Uint8Array.of(
 // Recovery identification must not send a normal Keihin count command.
 const seen=[];const boot={ready:true,initializeIso:async()=>{},sendWake:async()=>{},exchangeRaw:async f=>{
  seen.push([...f]);let reply=f[2]===0x72?Uint8Array.of(0x72,11,0x72,0,0,1,2,3,0,0,0):Uint8Array.of(0x72,5,0,0,0);
+ // FormMain SendCommand validates Honda checksum: the old synthetic ACK had
+ // a zero tail and stopped the test at HELLO before testing any DTC route.
+ reply[reply.length-1]=(-reply.slice(0,-1).reduce((a,b)=>a+b,0))&255;
  return {reply};
 }};
 const engine=new HondaFlashEngine(boot);const identity=await engine.identify();assert.equal(identity.ecuId,'0102030000');assert.equal(boot.ready,true);
