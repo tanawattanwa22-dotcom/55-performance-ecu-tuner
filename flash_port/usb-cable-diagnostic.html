@@ -7,7 +7,13 @@ main{max-width:740px;margin:auto}h1{color:#ffad65;font-size:23px}p{line-height:1
 button{background:#ff9b46;color:#17202b;border:0;border-radius:10px;padding:14px 16px;font:700 15px system-ui;cursor:pointer;margin:3px}
 button.secondary{background:#31465b;color:#f7fbff}pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.5;max-height:350px;overflow:auto}
 .ok{color:#8de4b6}.bad{color:#ffb5ae}.note{color:#b9cde0}a{color:#ffbd82}
-</style></head><body><main>
+</style>
+<link rel="stylesheet" href="../ui/retail-premium-v1.css?v=2">
+<style>html:not(.advanced-direct-granted) body > :not(.admingate-dialog){visibility:hidden!important;pointer-events:none!important}</style>
+<script src="../license-config.js?v=tuner11"></script>
+<script src="../ui/advanced-admin-gate-v1.js?v=1"></script>
+<script src="../ui/advanced-page-lock-v1.js?v=1"></script>
+</head><body><main>
 <h1>55 PERFORMANCE — ตรวจสิทธิ์ USB ของ Android</h1>
 <p><strong>ทดสอบเฉพาะการเปิด/ปิด USB:</strong> อ่าน VID/PID แล้วทดลอง <code>USBDevice.open()</code> และ <code>close()</code> โดยไม่ Claim Interface ไม่ตั้ง Baud ไม่ส่ง Wake/READ/ERASE/WRITE และไม่สื่อสารกับ ECU หรือ K-Line</p>
 <p class="note">ให้ถอดสายที่ต่อเข้า ECU ออกก่อนทดสอบ หน้านี้ใช้ตรวจเฉพาะ FT232R + OTG กับมือถือ</p>
