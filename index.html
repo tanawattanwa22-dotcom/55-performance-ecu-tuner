@@ -347,6 +347,15 @@ table.g th,table.g td{border-right:1px solid rgba(255,255,255,.35);border-bottom
    <div class="snapshot-panel" id="flashSnapshot">ยังไม่ได้บันทึก BIN ที่จูน · เปิดหน้าจูนแล้วบันทึกก่อน</div>
    <div class="flash-actions"><button class="btn" id="btnReturnTune" type="button">กลับไปจูน / บันทึก BIN</button><button class="btn" id="btnAutoOffset" type="button">ตรวจ Auto Offset</button></div>
    <div id="autoOffsetInfo" class="mu sm" style="white-space:pre-wrap;margin:9px 0">Auto Offset: ยังไม่ได้ตรวจ · ต้องเทียบกับ ECU ID จริงก่อนอัด</div>
+   <details id="mainManualOffsetsPanel" style="margin:10px 0;padding:10px;border:1px solid #444;border-radius:10px">
+    <summary>FormMain · Manual Offset (HEX)</summary>
+    <label style="display:flex;align-items:center;gap:8px;margin:10px 0"><input type="checkbox" id="mainManualOffset" style="width:auto"> เปิด Manual Offset ตาม FormMain.cs</label>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+     <label>Start Offset (HEX)<input id="mainManualStart" type="text" placeholder="8000" inputmode="text" disabled style="width:100%;padding:9px;border-radius:7px;background:#1d1d28;border:1px solid #555"></label>
+     <label>Checksum Offset (HEX)<input id="mainManualChecksum" type="text" placeholder="0" inputmode="text" disabled style="width:100%;padding:9px;border-radius:7px;background:#1d1d28;border:1px solid #555"></label>
+    </div>
+    <p class="mu sm" style="margin:8px 0">Auto จาก Main เหมือนเดิม · Shindengen จะถูก GetEcuType/AutoChecksum กำหนดใหม่ตามต้นฉบับ</p>
+   </details>
    <div class="bar"><i id="barFill"></i></div>
    <div class="pct" id="pct">0%</div>
    <div id="stepTxt"></div>
@@ -1449,6 +1458,32 @@ async function inlineFlashClose(){
  window.__55SharedEcu?.release('INLINE_FLASH');
  INLINEFLASH.port=null;INLINEFLASH.engine=null;INLINEFLASH.postCheck=false;
 }
+function mainFormOffsetOptions(family){
+ if($('#mainManualOffset')?.checked!==true)return {};
+ // FormMain.GetEcuType and ShindengenAutoChecksum replace the manual inputs.
+ if(family!=='KEIHIN'){
+  inlineFlashLog('FORMMAIN AUTO: Shindengen source overrides typed offset values');
+  return {};
+ }
+ const parseHex=(id,label)=>{
+  const value=String($(id)?.value||'').trim();
+  if(!/^[0-9A-Fa-f]{1,8}$/.test(value))throw Error('Manual '+label+' ต้องเป็น HEX ตาม FormMain.cs');
+  const number=parseInt(value,16);
+  if(!Number.isSafeInteger(number)||number<0||number>0x7fffffff)
+   throw Error('Manual '+label+' เกินขอบเขต C# Int32');
+  return number;
+ };
+ const startOffsetOverride=parseHex('#mainManualStart','Start Offset');
+ const checksumOffsetOverride=parseHex('#mainManualChecksum','Checksum Offset');
+ inlineFlashLog('MAIN MANUAL HEX '+startOffsetOverride.toString(16).toUpperCase()+
+  ' / '+checksumOffsetOverride.toString(16).toUpperCase());
+ return {startOffsetOverride,checksumOffsetOverride};
+}
+$('#mainManualOffset').addEventListener('change',()=>{
+ const enabled=$('#mainManualOffset').checked;
+ $('#mainManualStart').disabled=!enabled;
+ $('#mainManualChecksum').disabled=!enabled;
+});
 async function inlineFlashStart(){
  if(INLINEFLASH.busy)return;
  if(INLINEFLASH.postCheck){
@@ -1512,8 +1547,9 @@ async function inlineFlashStart(){
   INLINEFLASH.firstSha=await inlineFlashHash(bin);
   INLINEFLASH.filename=quick?.filename||S.saved?.filename||S.fname||('55_TUNED_'+MODELS[S.mi]?.id+'.bin');
   const fast=!!window.__55QuickFlashFast;
+  const offsetOptions=mainFormOffsetOptions(identity.family);
   let plan;
-  try{plan=INLINEFLASH.engine.makePlan(bin,{filename:INLINEFLASH.filename,fast,recovery:false})}
+  try{plan=INLINEFLASH.engine.makePlan(bin,{filename:INLINEFLASH.filename,...offsetOptions,fast,recovery:false})}
   catch(e){
    if(e.code==='UNLISTED_PARTIAL_ID_CONFIRM'){
     const approved=confirm('55 PERFORMANCE • ECU นอกฐาน Main 290\n\nECU ID: '+identity.ecuId+
@@ -1524,7 +1560,7 @@ async function inlineFlashStart(){
       '\nกด ยกเลิก หากยังไม่สามารถยืนยันได้');
     if(!approved)throw Error('หยุดก่อน ERASE: ECU นอกฐานยังไม่ยืนยันว่า BIN ตรงกล่อง');
     inlineFlashLog('SOURCE_UNLISTED_BIN_PARTIAL_CONFIRMED '+identity.ecuId);
-    plan=INLINEFLASH.engine.makePlan(bin,{filename:INLINEFLASH.filename,
+    plan=INLINEFLASH.engine.makePlan(bin,{filename:INLINEFLASH.filename,...offsetOptions,
       confirmedPart:'CONFIRM '+identity.ecuId,fast,recovery:false});
    }else{
    if(e.code!=='PART_NOT_CONFIRMED')throw e;
@@ -1534,7 +1570,7 @@ async function inlineFlashStart(){
    const exactId=embedded.ok&&embedded.id?.toUpperCase()===identity.ecuId;
    if(exactId&&identity.sourcePart){
     inlineFlashLog('AUTO_PART_MATCH ECU_ID '+identity.ecuId+' equals BIN_ID '+embedded.id);
-    plan=INLINEFLASH.engine.makePlan(bin,{filename:INLINEFLASH.filename,confirmedPart:identity.sourcePart,fast,recovery:false});
+    plan=INLINEFLASH.engine.makePlan(bin,{filename:INLINEFLASH.filename,...offsetOptions,confirmedPart:identity.sourcePart,fast,recovery:false});
    }else{
     // Main C# SearchInProgram knows the physical ECU's part, but that fact
     // alone cannot certify an arbitrary downloaded BIN. Ask the technician
@@ -1549,7 +1585,7 @@ async function inlineFlashStart(){
       throw Error('หยุดก่อน ERASE: ยังไม่ยืนยันความเข้ากันของ BIN กับ Part Code '+(identity.sourcePart||''));
     inlineFlashLog('OPERATOR_MATCHED_PART '+identity.sourcePart+' WITH FILE '+INLINEFLASH.filename+
       ' (manual only, no full BIN ID evidence)');
-    plan=INLINEFLASH.engine.makePlan(bin,{filename:INLINEFLASH.filename,
+    plan=INLINEFLASH.engine.makePlan(bin,{filename:INLINEFLASH.filename,...offsetOptions,
       confirmedPart:identity.sourcePart,fast,recovery:false});
    }
    } // end known Part Code branch
