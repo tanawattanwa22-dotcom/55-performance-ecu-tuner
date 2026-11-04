@@ -68,14 +68,31 @@ function openPanel(url){
  dialog.append(close,frame);document.body.append(dialog);panel=dialog;dialog.showModal();
 }
 window.__55OpenRecoveryPanel=()=>window.__55NeonNavigate?.('recovery'); // native app stage, never a second Flash Lab
+const technicalPage=url=>
+ url.origin===location.origin&&
+ (url.pathname.includes('/flash_port/')||/\/ecm\/index\.html$/.test(url.pathname));
+function openAdvancedUrl(url){
+ const resource=url instanceof URL?url:new URL(url,location.href);
+ if(!technicalPage(resource))return false;
+ const open=()=>openPanel(resource);
+ if(window.__55AdvancedGate?.isAuthorized())open();
+ else window.__55AdvancedGate?.open(open);
+ return true;
+}
+window.__55OpenAdvancedTool=openAdvancedUrl;
+document.addEventListener('55:open-advanced-url',event=>{
+ const url=event?.detail?.url;if(url)openAdvancedUrl(url);
+});
 document.addEventListener('click',e=>{
  const link=e.target.closest?.('a[href]');if(!link)return;
  const url=new URL(link.href,location.href);
- if(url.origin!==location.origin||!/(?:\/flash_port\/flash-write-lab\.html|\/flash_port\/offline\/index\.html)$/.test(url.pathname))return;
- e.preventDefault();e.stopImmediatePropagation();openPanel(url);
+ if(!technicalPage(url))return;
+ // Customer never navigates directly to a technical tool without verifying
+ // the SAME Supabase ecu_admins membership used for the shop administrator.
+ e.preventDefault();e.stopImmediatePropagation();openAdvancedUrl(url);
 },true);
 const reset=document.createElement('button');reset.className='btn';reset.textContent='รีเซ็ตจำนวนครั้งแฟลช Shindengen';
-$('sharedEcuPanel')?.append(reset);
+($('mainSourceDetails')||$('sharedEcuPanel'))?.append(reset);
 reset.onclick=async()=>{
  const shared=window.__55SharedEcu;let port;
  try{
