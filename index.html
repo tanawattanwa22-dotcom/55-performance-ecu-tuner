@@ -1520,7 +1520,7 @@ async function inlineFlashStart(){
   const shared=window.__55SharedEcu;
   if(!shared)throw Error('ระบบสายหลักยังไม่พร้อม');
   INLINEFLASH.port=await shared.acquire('INLINE_FLASH');
-  const {HondaFlashEngine}=await import('./flash_port/honda-write-engine.js?v=379');
+  const {HondaFlashEngine}=await import('./flash_port/honda-write-engine.js?v=380');
   // The login screen checked the license when this app session started.
   // No network/license check may block physical ECU diagnostics or flash.
   INLINEFLASH.engine=new HondaFlashEngine(INLINEFLASH.port,ev=>{
@@ -1765,7 +1765,7 @@ mainToolsAction('mtReadEcu',async()=>{
  let owns=false;
  try{
   const port=await shared.acquire('MAIN_TOOLS');owns=true;
-  const {HondaFlashEngine}=await import('./flash_port/honda-write-engine.js?v=379');
+  const {HondaFlashEngine}=await import('./flash_port/honda-write-engine.js?v=380');
   const engine=new HondaFlashEngine(port,ev=>inlineFlashLog('MAIN READ '+JSON.stringify(ev)));
   mainToolsOut('กำลังอ่าน ECU ID และ Flash Count จาก FT232R สายกลาง…');
   const data=await engine.identify({programmingPreflight:true});MAINTOOLS.lastEcu=data;
@@ -3264,8 +3264,8 @@ function v3Draw(){
 })();
 </script>
 
-<script src="ui/neon-preflight-v24.js?v=379"></script>
-<script src="ui/neon-recovery-v35.js?v=379"></script>
+<script src="ui/neon-preflight-v24.js?v=380"></script>
+<script src="ui/neon-recovery-v35.js?v=380"></script>
 <script src="ui/neon-v20.js?v=347"></script>
 <script src="ui/neon-live-v21.js?v=335"></script>
 <script src="ui/neon-dtc-v23.js?v=350"></script>
@@ -3280,6 +3280,6 @@ document.getElementById('licSignup').onclick=async()=>{const el=document.getElem
 document.getElementById('licActivate').onclick=async()=>{try{await api('activate',{key:document.getElementById('licKey').value,device});await check()}catch(e){message(e)}};
 document.getElementById('licCheck').onclick=()=>check().catch(message);check().catch(message);
 window.__ecuLicenseLogout=logout;
-})();</script><script type="module" src="ui/shared-operations-v30.js?v=379"></script>
+})();</script><script type="module" src="ui/shared-operations-v30.js?v=380"></script>
 </body>
 </html>
