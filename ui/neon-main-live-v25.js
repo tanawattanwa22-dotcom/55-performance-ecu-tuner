@@ -2,12 +2,12 @@
  * Main FM_diag.cs reader is the sole source of real-time sensor values.
  * The legacy ADX/DEMO live engine is never called by this bridge.
  */
-import {MainLiveSession} from '../flash_port/main-live-session.js?v=375';
+import {MainLiveSession} from '../flash_port/main-live-session.js?v=381';
 import {resolveMainAutoMetadata} from '../flash_port/main-auto-metadata.js?v=375';
 import {localKtrCandidates} from '../flash_port/ecu-id-lookup.js?v=355';
 import {previewMainShindengenBin} from '../flash_port/main-shindengen-auto-preview.js?v=1';
 import {csharpOffsetInference} from '../flash_port/csharp-offsets.js?v=317';
-import {probeMainProgrammingSession,countDisplay} from '../flash_port/main-programming-probe.js?v=4';
+import {probeMainProgrammingSession,countDisplay} from '../flash_port/main-programming-probe.js?v=7';
 import {auditMainShindengenDryRun} from '../flash_port/main-source-dry-run.js?v=1';
 import {readEcuDat} from '../flash_port/ecu-dat-editor.js?v=1';
 import {saveMainDatReference,readMainDatReference} from '../flash_port/main-dat-reference.js?v=2';
