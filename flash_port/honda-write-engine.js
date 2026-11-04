@@ -663,9 +663,42 @@ export class HondaFlashEngine {
    this.emit('FLASH_START',{ecuId:plan.ecuId,part:plan.part});
    // User may have spent time choosing BIN; renew the ECU session and
    // reconfirm its physical identity before entering destructive mode.
-   await this.x('RECHECK_HELLO',this.identity.handshake==='KEIHIN_POLL'?CMD.khPoll:READ_ONLY_COMMANDS.HELLO,{timeoutMs:1600});
-   const reconfirm=await this.x('RECHECK_ECU_ID',READ_ONLY_COMMANDS.ID,{timeoutMs:1600});
-   if(reconfirm.length<11||toHex(reconfirm.slice(5,10)).replaceAll(' ','')!==plan.ecuId)
+   let recheck;
+   try{
+    await this.x('RECHECK_HELLO',this.identity.handshake==='KEIHIN_POLL'?CMD.khPoll:READ_ONLY_COMMANDS.HELLO,{timeoutMs:1600});
+    recheck=await this.x('RECHECK_ECU_ID',READ_ONLY_COMMANDS.ID,{timeoutMs:1600});
+   }catch(sourceWorkerSessionExpired){
+    // FormMain.WorkerThread repeats its HELLO while waiting for Write.
+    // Chrome may have no background UART polling during BIN selection;
+    // when that read-only HELLO expires, recreate EXACTLY the Main ISO wake
+    // on the SAME approved FT232R. No ERASE has been sent at this point.
+    if(plan.recovery)throw sourceWorkerSessionExpired;
+    const expected={...this.identity};
+    const device=this.usb.lastDevice||this.usb.dev;
+    if(!device||typeof this.usb.openSelected!=='function')
+     throw sourceWorkerSessionExpired;
+    this.emit('MAIN_WORKER_SESSION_RESTART',{
+     reason:sourceWorkerSessionExpired.message,eraseSent:false,ecuId:plan.ecuId});
+    if(this.usb.ready)await this.usb.close();
+    await this.usb.openSelected(device);
+    this.state='identified';
+    const renewed=await this.identify({programmingPreflight:true});
+    if(renewed.ecuId!==expected.ecuId||renewed.family!==expected.family||
+       (sourceUnlistedPlan?
+        !(renewed.programmingSessionVerified===true&&
+          renewed.physicalFamilyEvidence==='MAIN_SOURCE_READ_ONLY_FLASH_COUNT_ACK'&&
+          renewed.count===expected.count):
+        !(renewed.sourceMatched&&renewed.sourcePart===expected.sourcePart)))
+     fail('SOURCE_RESTART_ECU_CHANGED',
+       'อ่าน ECU ID / Family / Part / Flash Count หลังปลุกใหม่ไม่ตรงกับครั้งแรก • หยุดก่อน ERASE');
+    this.emit('MAIN_WORKER_SESSION_RESTORED',{ecuId:renewed.ecuId,
+      family:renewed.family,flashCount:renewed.count});
+    // identify() has already sent the original double HELLO and read ECU ID.
+    // A subsequent family-count check below is still performed for unknown IDs.
+    recheck=Uint8Array.of(0x02,0x0B,0,0,0,
+      ...renewed.ecuId.match(/../g).map(v=>parseInt(v,16)),0);
+   }
+   if(recheck.length<11||toHex(recheck.slice(5,10)).replaceAll(' ','')!==plan.ecuId)
     fail('ECU_ID_CHANGED','ECU ID changed during preflight: refuse ERASE');
    if(sourceUnlistedPlan){
      // Main WorkerThread accepts either Keihin or Shindengen count for
