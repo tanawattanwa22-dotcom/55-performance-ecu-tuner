@@ -235,7 +235,7 @@ async function readECU(){
  try{
   // Reuse the physical FT232R opened from the home dashboard.
   const [{HondaFlashEngine}]=await Promise.all([
-   import(new URL('flash_port/honda-write-engine.js?v=379',document.baseURI).href)]);
+   import(new URL('flash_port/honda-write-engine.js?v=380',document.baseURI).href)]);
   if(typeof api!=='function')throw Error('ไม่พบตัวตรวจ License');
   const license=await api('check',{device:localStorage.getItem('55_device_id')});
   if(!license?.active)throw Error('License ไม่ได้เปิดใช้งาน');
