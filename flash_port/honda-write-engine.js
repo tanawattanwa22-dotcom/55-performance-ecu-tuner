@@ -663,10 +663,11 @@ export class HondaFlashEngine {
    this.emit('FLASH_START',{ecuId:plan.ecuId,part:plan.part});
    // User may have spent time choosing BIN; renew the ECU session and
    // reconfirm its physical identity before entering destructive mode.
-   let recheck;
+   let recheckedEcuId=null;
    try{
     await this.x('RECHECK_HELLO',this.identity.handshake==='KEIHIN_POLL'?CMD.khPoll:READ_ONLY_COMMANDS.HELLO,{timeoutMs:1600});
-    recheck=await this.x('RECHECK_ECU_ID',READ_ONLY_COMMANDS.ID,{timeoutMs:1600});
+    const recheck=await this.x('RECHECK_ECU_ID',READ_ONLY_COMMANDS.ID,{timeoutMs:1600});
+    recheckedEcuId=recheck.length>=11?toHex(recheck.slice(5,10)).replaceAll(' ',''):null;
    }catch(sourceWorkerSessionExpired){
     // FormMain.WorkerThread repeats its HELLO while waiting for Write.
     // Chrome may have no background UART polling during BIN selection;
@@ -695,10 +696,9 @@ export class HondaFlashEngine {
       family:renewed.family,flashCount:renewed.count});
     // identify() has already sent the original double HELLO and read ECU ID.
     // A subsequent family-count check below is still performed for unknown IDs.
-    recheck=Uint8Array.of(0x02,0x0B,0,0,0,
-      ...renewed.ecuId.match(/../g).map(v=>parseInt(v,16)),0);
+    recheckedEcuId=renewed.ecuId; // read from physical source ID in identify()
    }
-   if(recheck.length<11||toHex(recheck.slice(5,10)).replaceAll(' ','')!==plan.ecuId)
+   if(recheckedEcuId!==plan.ecuId)
     fail('ECU_ID_CHANGED','ECU ID changed during preflight: refuse ERASE');
    if(sourceUnlistedPlan){
      // Main WorkerThread accepts either Keihin or Shindengen count for
