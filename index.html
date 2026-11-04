@@ -1684,22 +1684,50 @@ mainToolsAction('mtFindId',async()=>{
  const {findEcmIdInBin}=await import('./flash_port/bin-tools.js?v=378');const r=findEcmIdInBin(S.bin,ecu);
  mainToolsOut('ECU ID: '+ecu+'\n'+(r.ok?'พบ 3 ไบต์แรกใน BIN @ '+mainHex(r.index):'ไม่พบ pattern ใน BIN')+'\nผลค้นหา pattern เป็นข้อมูลประกอบ ไม่ยืนยันว่าไฟล์ตรงกล่อง');
 });
+const MAIN_LOCK_STATE={read:null,mode:null};
+function mainSourceApplyBinDiff(label,edited){
+ const ch=[];
+ for(let i=0;i<S.bin.length;i++)if(S.bin[i]!==edited[i])ch.push([i,S.bin[i],edited[i]]);
+ if(!ch.length)return 0;
+ for(const [p,,v]of ch)S.bin[p]=v;
+ S.undo.push({n:label,ch});if(S.undo.length>300)S.undo.shift();
+ S.redo=[];afterEdit();
+ return ch.length;
+}
 async function mainToolsPatch(mode){
  requireMainBin();if(INLINEFLASH.busy)throw Error('มีงานแฟลชกำลังทำงาน');
- const {lockRead,lockMode}=await import('./flash_port/bin-tools.js?v=378');
+ const {lockRead,lockMode,revertPatch}=await import('./flash_port/bin-tools.js?v=378');
  const label=mode==='read'?'Lock Read':'Lock Mode';
+ const button=$('#'+(mode==='read'?'mtLockRead':'mtLockMode'));
+ const prior=MAIN_LOCK_STATE[mode];
+ if(prior&&prior.bin!==S.bin){
+  MAIN_LOCK_STATE[mode]=null;
+  button.textContent=label+' 48/64KB';
+ }
+ if(MAIN_LOCK_STATE[mode]){
+  const previous=MAIN_LOCK_STATE[mode];
+  const restored=revertPatch(S.bin,previous.undo);
+  const changed=mainSourceApplyBinDiff('FormMain Revert '+label,restored);
+  MAIN_LOCK_STATE[mode]=null;
+  button.textContent=label+' 48/64KB';
+  mainToolsOut(label+': Reverted To Original. ('+changed+' bytes)'+
+    '\nตรงกับ FormMain.cs: ปิดตัวเลือก Lock แล้วคืนค่าตำแหน่งเดิม');
+  if($('#home').classList.contains('on'))home();
+  return;
+ }
  const r=(mode==='read'?lockRead:lockMode)(S.bin);
  if(!r.ok)throw Error(r.error);
- const edits=[];for(let i=0;i<S.bin.length;i++)if(S.bin[i]!==r.bytes[i])edits.push([i,r.bytes[i]]);
- if(!edits.length){mainToolsOut(label+': พบ pattern แต่ไม่มีค่าไบต์เปลี่ยน');return}
- if(!confirm(label+' จะเปลี่ยน '+edits.length+' ไบต์ใน BIN ที่กำลังจูน (48/64KB)\nจะเก็บ Undo ไว้ และยังไม่ส่งข้อมูลไป ECU\nยืนยัน?'))return;
- if(!commit('Honda Main '+label,edits))throw Error('ไม่พบค่าที่ต้องเปลี่ยน');
- mainToolsOut(label+' สำเร็จในหน่วยความจำ: '+edits.length+' ไบต์, พบ '+r.hits+' pattern\nย้อนกลับด้วย Undo ได้\nChecksum สำหรับอัดต้องผ่านขั้นตรวจของ Flash Engine ก่อน');
+ const changed=mainSourceApplyBinDiff('FormMain '+label,r.bytes);
+ MAIN_LOCK_STATE[mode]={undo:r.undo,bin:S.bin};
+ button.textContent='ปิด '+label+' / คืนค่า';
+ mainToolsOut(label+': '+r.hits+' pattern ตาม FormMain.cs'+
+   '\nเปลี่ยนจริง '+changed+' ไบต์ใน BIN ของแอป · ไม่ส่งคำสั่ง ECU'+
+   '\nกดปุ่มเดิมอีกครั้งเพื่อคืนค่า (ตามตัวเลือกต้นฉบับ)');
  if($('#home').classList.contains('on'))home();
 }
 mainToolsAction('mtLockRead',()=>mainToolsPatch('read'));
 mainToolsAction('mtLockMode',()=>mainToolsPatch('mode'));
-mainToolsAction('mtUndo',()=>{requireMainBin();if(!S.undo.length)throw Error('ยังไม่มีรายการ Undo');undo();mainToolsOut('ย้อนกลับการแก้ไขล่าสุดแล้ว')});
+mainToolsAction('mtUndo',()=>{requireMainBin();if(!S.undo.length)throw Error('ยังไม่มีรายการ Undo');undo();for(const mode of ['read','mode']){MAIN_LOCK_STATE[mode]=null;const b=$('#'+(mode==='read'?'mtLockRead':'mtLockMode'));if(b)b.textContent=(mode==='read'?'Lock Read':'Lock Mode')+' 48/64KB';}mainToolsOut('ย้อนกลับการแก้ไขล่าสุดแล้ว')});
 mainToolsAction('mtCatalog',async()=>{
  const id=$('#mtEcuId').value.trim().toUpperCase().replace(/\s+/g,'');
  if(!/^[0-9A-F]{10}$/.test(id))throw Error('กรอก ECU ID เป็น HEX 10 หลัก');
