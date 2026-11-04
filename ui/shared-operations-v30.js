@@ -80,7 +80,7 @@ reset.onclick=async()=>{
  const shared=window.__55SharedEcu;let port;
  try{
   port=await shared.acquire('RESET_SH_COUNT');reset.disabled=true;
-  const {HondaFlashEngine}=await import('../flash_port/honda-write-engine.js?v=379');
+  const {HondaFlashEngine}=await import('../flash_port/honda-write-engine.js?v=380');
   const {resetShindengenCount}=await import('../flash_port/main-reset-count.js?v=375');
   const identity=await new HondaFlashEngine(port).identify({programmingPreflight:true});
   if(identity.family!=='SHINDENGEN'||!(identity.sourceMatched||
