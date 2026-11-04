@@ -338,14 +338,23 @@ export class HondaFlashEngine {
    fail('BIN_FAMILY','BIN เป็น Shindengen แต่ ECU ID อยู่ในฐาน Keihin');
   if(family==='SHINDENGEN'&&!detected.type.startsWith('SHINDENGEN'))
    fail('BIN_SIGNATURE','Shindengen ต้องมีลายเซ็น BIN ที่ C# ระบุได้');
-  if(sourceUnlisted&&detected.type==='UNDETERMINED')
-    fail('UNLISTED_TYPE_UNKNOWN','BIN ของ ECU นอกฐานไม่มี Signature ระบุชนิด CPU ตาม Main C#; ห้ามเดา KEIHINOTHER');
-   const profile=detected.type==='UNDETERMINED'?'KEIHINOTHER':detected.type;
+  // FormMain.GetEcuType() defaults non-Shindengen firmware to KEIHINOTHER.
+  // Apply that default ONLY after fresh physical Keihin family ACK plus a
+  // source BIN ID match and complete C# size/offset inference. No blind type
+  // fallback is allowed for physical Shindengen.
+  const sourceOffsetProof=csharpOffsetInference(originalBin,{ecuId});
+  const sourceKeihinFallback=sourceUnlisted&&family==='KEIHIN'&&
+    detected.type==='UNDETERMINED'&&
+    Number.isInteger(sourceOffsetProof.startOffset)&&
+    Number.isInteger(sourceOffsetProof.checksumOffset);
+  if(sourceUnlisted&&detected.type==='UNDETERMINED'&&!sourceKeihinFallback)
+    fail('UNLISTED_TYPE_UNKNOWN','ECU นอกฐาน: ยังไม่มีหลักฐาน Signature/Memory Map จาก BIN ตาม Main.zip');
+  const profile=detected.type==='UNDETERMINED'?'KEIHINOTHER':detected.type;
   if(rec&&this.identity.recoveryBinType!==detected.type)
    fail('RECOVERY_BIN_CHANGED','BIN เปลี่ยนหลังตรวจ Recovery Flash Count');
   if(!profile.startsWith(family))fail('BIN_TYPE','ECU Type ไม่ตรงกับ ID/ตระกูล ECU');
   const p=resolveWriteProfile(profile);
-  const suggested=csharpOffsetInference(originalBin,{ecuId});
+  const suggested=sourceOffsetProof;
   const offset=(rec&&Number.isInteger(startOffsetOverride))?startOffsetOverride:(catalog.startOffset??suggested.startOffset);
   if(!Number.isInteger(offset)||offset<0||offset%16)
    fail('BAD_SOURCE_MAP','Start Offset จาก C# ไม่ครบ/ผิด Alignment');
@@ -371,6 +380,7 @@ export class HondaFlashEngine {
       binFullId:completeBinId,binFullIdMatched:rec?null:!completeBinId||completeBinId===ecuId,
       familyFlashCountResponded:true,partFromCSharp:!rec&&!sourceUnlisted,
        sourceUnlistedWithProof:sourceUnlisted,
+       sourceKeihinOtherFallback:sourceKeihinFallback,
        sourceBinIdEvidence:completeBinId?'FULL_ID':shortBinId?'3_BYTE_SOURCE_LOCATOR':'NONE',
        operatorConfirmedPartialId:sourceUnlisted&&!!shortBinId,
       offsetsFromCSharp:!(rec&&(Number.isInteger(startOffsetOverride)||Number.isInteger(checksumOffsetOverride))),
