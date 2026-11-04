@@ -110,6 +110,10 @@ function render(){
  const binEstimate=binOffsetHint&&binOffsetHint.saved===c.saved?binOffsetHint.estimated:null;
  const fileReady=!!quick||c.valid;
  const cableReady=!!window.__55SharedEcu?.port?.ready;
+ // Physical ECU absent from the purchased Main C# catalog: show the reason,
+ // never suggest this BIN-only analysis authorizes erase or write.
+ const unlistedPhysical=!!connectedId?.ecuId&&!catalogRecord(connectedId)&&
+  !INLINEFLASH.busy&&!INLINEFLASH.postCheck;
  const progress=!!inlineIdentity||!!connectedId||(c.valid&&last?.saved===c.saved&&recency()&&!staleId);
  setItem('model',quick?'อ่านรุ่นจาก ECU จริงอัตโนมัติ':c.model||'ยังไม่เลือกรุ่น');
  setItem('dbcount',catalog290.rows?'290 รายการ · KEIHIN 232 / SHINDENGEN 58':catalog290.error?'โหลดฐาน ECU ไม่สำเร็จ: '+catalog290.error:'กำลังโหลดฐาน ECU 290 รายการ');
@@ -150,12 +154,21 @@ function render(){
  }
  dom.read.disabled=working||!!INLINEFLASH.busy||!!document.getElementById('licenseGate');
  dom.check.disabled=working||!c.valid||!identity||!recency()||last?.saved!==c.saved;
- dom.flash.disabled=working||!!INLINEFLASH.busy||(recoveryCandidate&&!INLINEFLASH.postCheck)||!(INLINEFLASH.postCheck||(fileReady&&cableReady))||!!$('btnFlash')?.hidden||!!$('btnFlash')?.disabled;
- dom.flash.textContent=INLINEFLASH.busy?'กำลังตรวจ / อัดไฟล์ ECU':INLINEFLASH.postCheck?'✓ ตรวจ ECU หลังเปิดกุญแจใหม่':recoveryCandidate?'⟳ พบ Recovery • หยุด Flash ปกติ':'⇧ อัดไฟล์ ECU';
+ dom.flash.disabled=working||!!INLINEFLASH.busy||(recoveryCandidate&&!INLINEFLASH.postCheck)||
+  unlistedPhysical||!(INLINEFLASH.postCheck||(fileReady&&cableReady))||
+  !!$('btnFlash')?.hidden||!!$('btnFlash')?.disabled;
+ dom.flash.textContent=INLINEFLASH.busy?'กำลังตรวจ / อัดไฟล์ ECU':
+  INLINEFLASH.postCheck?'✓ ตรวจ ECU หลังเปิดกุญแจใหม่':
+  recoveryCandidate?'⟳ พบ Recovery • หยุด Flash ปกติ':
+  unlistedPhysical?'⛔ ยังไม่พร้อมอัด · ไม่มีโปรไฟล์ Main 290':'⇧ อัดไฟล์ ECU';
  if(dom.recovery)dom.recovery.hidden=!(recoveryCandidate||window.__55RecoverySuggested);
- if(dom.miniProgress){const pct=$('pct')?.textContent||'0%';dom.miniProgress.textContent=INLINEFLASH.busy||INLINEFLASH.postCheck?'ความคืบหน้า '+pct+' · '+(INLINEFLASH.status||''):'พร้อมเริ่มตรวจ';}
+ if(dom.miniProgress){const pct=$('pct')?.textContent||'0%';dom.miniProgress.textContent=INLINEFLASH.busy||INLINEFLASH.postCheck?
+  'ความคืบหน้า '+pct+' · '+(INLINEFLASH.status||''):
+  unlistedPhysical?'อ่าน ECU ได้ แต่ไม่พบโปรไฟล์ Main 290 • ยังอัดไม่ได้':'พร้อมเริ่มตรวจ';}
  if(dom.miniBar){dom.miniBar.style.width=(INLINEFLASH.busy||INLINEFLASH.postCheck?$('barFill')?.style.width||'0%':'0%');}
- dom.flash.title=dom.flash.disabled?'ต้องบันทึก BIN อ่าน ECU ID และตรวจ Preflight ให้ผ่านก่อน':'ใช้ Flash Engine เดิมซึ่งอ่าน ECU ID ใหม่ก่อน ERASE';
+ dom.flash.title=unlistedPhysical?'ECU ID ไม่อยู่ในฐาน Main.zip 290 · Offset จาก BIN อย่างเดียวไม่อนุญาต ERASE/WRITE':
+  dom.flash.disabled?'ต้องบันทึก BIN อ่าน ECU ID และตรวจ Preflight ให้ผ่านก่อน':
+  'ใช้ Flash Engine เดิมซึ่งอ่าน ECU ID ใหม่ก่อน ERASE';
  if(dom.gateReason){
   const blockers=[];
   if(!fileReady)blockers.push('ยังไม่ได้เลือกไฟล์ BIN');
@@ -181,7 +194,8 @@ function render(){
   recoveryCandidate?'ตรวจพบ Recovery Boot ID • Flash ปกติถูกล็อก':
   INLINEFLASH.busy?'กำลังตรวจและอัดไฟล์ ECU':
   ready?'ผ่านการตรวจซอฟต์แวร์ (ยังไม่ได้ ERASE)':
-  fileReady&&cableReady?'พร้อมกดตรวจอัตโนมัติและอัดไฟล์':
+  unlistedPhysical?'พบ ECU ID แต่ไม่มีโปรไฟล์เขียนจาก Main.zip · ยังอัดไม่ได้':
+  fileReady&&cableReady?'พร้อมตรวจ ECU / BIN ก่อนอัด':
   working?'กำลังอ่าน ECU / ตรวจ Preflight':identity?.ecuId&&source?.part&&!identity.sourceMatched?'พบ ECU ID ในฐาน · รอยืนยัน Family':'รอเลือก BIN และเชื่อม FT232R';
  dom.title.classList.toggle('ready',ready);
 }

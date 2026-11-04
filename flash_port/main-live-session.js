@@ -168,6 +168,7 @@ export class MainLiveSession {
  async _checkLiveGroup(){
   this.phase='LIVE_GROUP_DETECT';this.autoStatus='กำลังทดสอบตาราง Live 7 / 4 / 1';this.notify();
   this.detectedGroup=null;this.liveGroupError='';
+  const groupFailures=[];
   for(const group of SOURCE_AUTO_PROBE_ORDER){
    if(this.disconnectRequested)break;
    this.phase='LIVE_GROUP_'+group;this.notify();
@@ -181,7 +182,8 @@ export class MainLiveSession {
     this.detectedGroup=group;this.group4Variant=null;
     this.notify();break;
    }catch(e){
-    this.liveGroupError='Group '+group+': '+String(e?.message||e);
+    groupFailures.push('Group '+group+': '+String(e?.message||e));
+    this.liveGroupError=groupFailures.join(' | ');
     if(!this.port?.ready){
      try{await this._reopenDiagnostic()}catch(recovery){
       this.liveGroupError+='; USB restore failed: '+recovery.message;

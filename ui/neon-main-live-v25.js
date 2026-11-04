@@ -2,7 +2,7 @@
  * Main FM_diag.cs reader is the sole source of real-time sensor values.
  * The legacy ADX/DEMO live engine is never called by this bridge.
  */
-import {MainLiveSession} from '../flash_port/main-live-session.js?v=350';
+import {MainLiveSession} from '../flash_port/main-live-session.js?v=351';
 import {resolveMainAutoMetadata} from '../flash_port/main-auto-metadata.js?v=352';
 import {localKtrCandidates} from '../flash_port/ecu-id-lookup.js?v=355';
 import {previewMainShindengenBin} from '../flash_port/main-shindengen-auto-preview.js?v=1';
@@ -438,7 +438,11 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
    ecuId:st.ecuId||null,
    ecuIdError:st.idError||null,
    liveGroup:st.liveGroupVerified?st.group:null,
+   liveGroupError:st.liveGroupError||null,
    dtcAnswered:st.dtcSnapshot?.answered?.length??0,
+   dtcError:st.dtcError||null,
+   catalogMatched:st.catalogMatched,
+   familyFromMain:st.catalogFamily||null,
    lastTransportEvents:st.usbTrace||[]
   },null,2);
   if(st.usbLastError&&!st.connecting)debug.open=true;
