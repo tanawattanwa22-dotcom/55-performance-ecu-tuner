@@ -21,8 +21,8 @@ const server=http.createServer((req,res)=>{
  }catch{res.writeHead(404).end('Not found')}
 });
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
-assert.doesNotMatch(fs.readFileSync(path.join(root,'index.html'),'utf8'),
- /data:image\\/jpeg;base64,/,'Legacy low-resolution base64 JPEG logo must not reappear');
+assert.equal(fs.readFileSync(path.join(root,'index.html'),'utf8').includes('data:image/jpeg;base64,'),
+ false,'Legacy low-resolution base64 JPEG logo must not reappear');
 const url='http://127.0.0.1:'+server.address().port+'/index.html';
 let browser;
 const results=[];
