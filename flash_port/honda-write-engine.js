@@ -255,7 +255,7 @@ export class HondaFlashEngine {
   try{
    const r=await this.x('RECOVERY_'+family+'_FLASH_COUNT',
       family==='SHINDENGEN'?CMD.shPoll:CMD.khCount,{timeoutMs:2000});
-   if(r.length<7||r[3]===15||!Number.isInteger(r[6]))
+   if(r.length<8||r[3]===15||!Number.isInteger(r[6]))
     fail('RECOVERY_COUNT_UNVERIFIED','ไม่มี Flash Count ACK จาก ECU ที่ตรงตระกูล');
    this.identity={...this.identity,family,count:r[6],
      recoveryFamilyVerified:true,recoveryBinType:type,
@@ -421,11 +421,59 @@ export class HondaFlashEngine {
     offsetHex:'0x'+offset.toString(16),blockBytes:plan.blockBytes,checksumChanged:corrected.modified});
   return plan;
  }
+ /**
+  * Recovery-only PRE-ERASE transport renewal. Reopen the already granted USB
+  * device, then re-read the physical boot ID and the family-specific count.
+  * An ID ending 0000 is NOT independently proof of ECU family. The exact BIN
+  * plan, profile and source count must still match the prior approved plan.
+  * There is NO automatic retry once eraseStageEntered becomes true.
+  */
+ async renewRecoveryBeforeErase(plan,expected,reason='source session expired'){
+  if(this.eraseStageEntered)
+   fail('RECOVERY_AFTER_ERASE','Recovery session renewal is forbidden after erase started');
+  if(!plan?.recovery||!expected?.recoveryFamilyVerified||
+     !Number.isInteger(expected.count)||!plan?.ecuId)
+   fail('RECOVERY_SESSION_NOT_VERIFIED','ไม่มีแผน Recovery / Flash Count ที่ตรวจแล้ว');
+  const dev=this.usb.lastDevice||this.usb.dev;
+  if(!dev||typeof this.usb.openSelected!=='function')
+   fail('RECOVERY_USB_LOST','ไม่มี FT232R เดิมที่ได้รับอนุญาตสำหรับตรวจ Boot ซ้ำ');
+  this.emit('RECOVERY_READONLY_SESSION_RENEW_BEGIN',{
+    reason,expectedBootId:expected.ecuId,expectedFamily:expected.family,
+    expectedCount:expected.count,eraseStarted:false});
+  if(this.usb.ready)await this.usb.close();
+  await this.usb.openSelected(dev);
+  this.state='identified';
+  const observed=await this.identify({programmingPreflight:true});
+  if(observed.ecuId!==expected.ecuId||!/0000$/.test(observed.ecuId)||
+     observed.handshake==='DIAGNOSTIC_ONLY')
+   fail('RECOVERY_BOOT_ID_CHANGED',
+     'Boot ECU ID / Programming Session เปลี่ยนหลังเปิด FT232R กลับ • ไม่ส่ง ERASE');
+  const renewed=await this.confirmRecoveryFamily(plan.bin);
+  if(renewed.family!==expected.family||renewed.count!==expected.count||
+     renewed.recoveryBinType!==plan.profile||!renewed.recoveryFamilyVerified)
+   fail('RECOVERY_FAMILY_CHANGED',
+     'Boot Family / Flash Count / BIN Profile เปลี่ยนหลังเชื่อมกลับ • ไม่ส่ง ERASE');
+  const freshPlan=this.makePlan(plan.bin,{
+    filename:plan.filename,recovery:true,fast:false,
+    startOffsetOverride:renewed.family==='KEIHIN'?plan.startOffset:null,
+    checksumOffsetOverride:renewed.family==='KEIHIN'?plan.checksumOffset:null
+  });
+  if(freshPlan.ecuId!==plan.ecuId||freshPlan.profile!==plan.profile||
+     freshPlan.startOffset!==plan.startOffset||
+     freshPlan.checksumOffset!==plan.checksumOffset||
+     freshPlan.blockBytes!==plan.blockBytes||
+     freshPlan.size!==plan.size)
+   fail('RECOVERY_PLAN_CHANGED','Recovery BIN/Memory Map เปลี่ยนหลังต่อกลับ • หยุดก่อน ERASE');
+  this.emit('RECOVERY_READONLY_SESSION_RENEW_CONFIRMED',{
+    bootId:renewed.ecuId,family:renewed.family,count:renewed.count,
+    profile:freshPlan.profile,eraseStarted:false});
+  return renewed;
+ }
  // Main C# KeihinPreWriteFlash retries the FIRST hello once after 500ms.
  // If WebUSB closed the port after a timed-out bulk read, safely reopen
  // the SAME approved FT232R, re-read the physical ECU ID and family, and
  // refuse the retry if that identity has changed. No erase during retry.
- async khPreErase(){
+ async khPreErase(plan=null){
   this.state='preparing';
   this.emit('PREWRITE_BEGIN');
   const expected={...this.identity};
@@ -439,19 +487,23 @@ export class HondaFlashEngine {
     const dev=this.usb.lastDevice;
     if(!dev||typeof this.usb.openSelected!=='function')
      fail('KH_RETRY_USB_LOST','FT232R ปิดหลัง timeout และไม่มีสิทธิ์อุปกรณ์เดิมให้เปิดใหม่');
-    await this.usb.openSelected(dev);
-    this.state='identified';
-    const observed=await this.identify({programmingPreflight:true});
-    if(observed.ecuId!==expected.ecuId||observed.family!=='KEIHIN'||
-        !(expected.sourceMatched?
-          (observed.sourceMatched&&observed.sourcePart===expected.sourcePart):
-          (observed.programmingSessionVerified===true&&
-           observed.physicalFamilyEvidence==='MAIN_SOURCE_READ_ONLY_FLASH_COUNT_ACK')))
-     fail('KH_RETRY_ECU_CHANGED',
-       'ECU ID / Family / Part เปลี่ยนหลังเชื่อมต่อ FT232R ใหม่ • หยุดก่อน ERASE');
+    if(plan?.recovery){
+     await this.renewRecoveryBeforeErase(plan,expected,'KEIHIN_FIRST_HELLO_TIMEOUT');
+    }else{
+     await this.usb.openSelected(dev);
+     this.state='identified';
+     const observed=await this.identify({programmingPreflight:true});
+     if(observed.ecuId!==expected.ecuId||observed.family!=='KEIHIN'||
+         !(expected.sourceMatched?
+           (observed.sourceMatched&&observed.sourcePart===expected.sourcePart):
+           (observed.programmingSessionVerified===true&&
+            observed.physicalFamilyEvidence==='MAIN_SOURCE_READ_ONLY_FLASH_COUNT_ACK')))
+      fail('KH_RETRY_ECU_CHANGED',
+        'ECU ID / Family / Part เปลี่ยนหลังเชื่อมต่อ FT232R ใหม่ • หยุดก่อน ERASE');
+     this.emit('KH_RETRY_SAME_ECU_CONFIRMED',{ecuId:observed.ecuId,
+       sourcePart:observed.sourcePart,destructive:false});
+    }
     this.state='preparing';
-    this.emit('KH_RETRY_SAME_ECU_CONFIRMED',{ecuId:observed.ecuId,
-      sourcePart:observed.sourcePart,destructive:false});
    }
    await this.x('KH_HANDSHAKE_A_RETRY',CMD.kh1,{timeoutMs:2500});
   }
@@ -694,7 +746,15 @@ export class HondaFlashEngine {
     // Chrome may have no background UART polling during BIN selection;
     // when that read-only HELLO expires, recreate EXACTLY the Main ISO wake
     // on the SAME approved FT232R. No ERASE has been sent at this point.
-    if(plan.recovery)throw sourceWorkerSessionExpired;
+    if(plan.recovery){
+     // Chrome may have lost the approved WebUSB interface while the operator
+     // inspected Recovery and confirmed the BIN. Re-establish only the
+     // READ-ONLY boot session; prove the same boot ID, family and flash count.
+     const prior={...this.identity};
+     await this.renewRecoveryBeforeErase(plan,prior,
+       'PRE_ERASE_WORKER_SESSION_EXPIRED');
+     recheckedEcuId=this.identity.ecuId;
+    }else{
     const expected={...this.identity};
     const device=this.usb.lastDevice||this.usb.dev;
     if(!device||typeof this.usb.openSelected!=='function')
@@ -718,6 +778,7 @@ export class HondaFlashEngine {
     // identify() has already sent the original double HELLO and read ECU ID.
     // A subsequent family-count check below is still performed for unknown IDs.
     recheckedEcuId=renewed.ecuId; // read from physical source ID in identify()
+    }
    }
    if(recheckedEcuId!==plan.ecuId)
     fail('ECU_ID_CHANGED','ECU ID changed during preflight: refuse ERASE');
@@ -736,11 +797,15 @@ export class HondaFlashEngine {
     if(plan.recovery){
      const rr=await this.x('RECHECK_RECOVERY_FAMILY_COUNT',
       plan.profile.startsWith('SHINDENGEN')?CMD.shPoll:CMD.khCount,{timeoutMs:2000});
-    if(rr.length<7||rr[3]===15)fail('RECOVERY_FAMILY_CHANGED','Recovery Count ไม่ตอบก่อน ERASE');
-    this.emit('RECOVERY_RECONFIRMED',{ecuId:plan.ecuId,family:this.identity.family});
+    if(rr.length<8||rr[3]===15||
+       !Number.isInteger(this.identity.count)||rr[6]!==this.identity.count)
+      fail('RECOVERY_FAMILY_CHANGED',
+        'Recovery Flash Count/Family ไม่ตรงกับรอบตรวจแรก • หยุดก่อน ERASE');
+    this.emit('RECOVERY_RECONFIRMED',{ecuId:plan.ecuId,
+      family:this.identity.family,count:rr[6],eraseStarted:false});
    }
    if(plan.profile.startsWith('SHINDENGEN'))await this.shPreErase(plan);
-   else await this.khPreErase();
+   else await this.khPreErase(plan);
    const blocks=await this.writeBlocks(plan);
    if(plan.profile.startsWith('SHINDENGEN'))await this.shFinish(plan);
    else await this.khFinish();
