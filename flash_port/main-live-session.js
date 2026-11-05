@@ -562,7 +562,25 @@ export class MainLiveSession {
     await WAIT(25);
    }
    if(this.disconnectRequested)throw Error('สาย FT232R ถูกตัดการเชื่อมต่อ');
-   if(!this.port?.ready){
+   // The Android USB handle can have been closed by a previous failed
+   // transferIn even while the session still reports ready=true. A source
+   // programming preflight must never receive a stale, unclaimed FTDI handle.
+   // This repairs USB ownership only: NO extra K-Line/ECU commands.
+   const invalidClaim=this.port instanceof Ft232rWebUsb&&this.port.ready&&
+    (!this.port.dev?.opened||!Number.isInteger(this.port.itf)||
+     !Number.isInteger(this.port.inEp)||!Number.isInteger(this.port.outEp));
+   if(invalidClaim){
+    const device=this.port.lastDevice;
+    if(!device)throw Error('FT232R USB session ไม่สมบูรณ์และไม่มีสายเดิมสำหรับเปิดใหม่');
+    await this.port.close();
+    const replacement=new Ft232rWebUsb();
+    replacement.lastDevice=device;
+    this.port=replacement;
+    await replacement.openSelected(device);
+    this.phase='USB_READY_NO_ECU';
+    this.autoStatus='เปิด FT232R USB interface เดิมใหม่หลังการรับข้อมูลผิดพลาด';
+    this.notify();
+   }else if(!this.port?.ready){
     // Main read-only probing may close the browser USB handle after timeout.
     // Reopen the SAME already user-approved FT232R, not a second cable/picker.
     const permitted=this.port?.lastDevice;

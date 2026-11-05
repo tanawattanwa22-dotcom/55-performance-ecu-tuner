@@ -200,7 +200,7 @@ function render(){
   else if(!catalogRecord(identity)){/* Main 290 is optional: do not present catalog absence as a blocker. */}
   else if(!catalogRecord(identity)?.part)blockers.push('ต้นฉบับไม่มี Part Code สำหรับ ECU ID '+identity.ecuId);
   else if(!identity.sourceMatched)blockers.push('พบ ECU ID ในฐานแล้ว แต่ Family ยังไม่ได้ยืนยันจากเซสชัน ECU จริง ('+identity.handshake+')');
-  if(identity?.ecuId&&!plan&&!unlistedPhysical)blockers.push('ยังไม่ผ่านการตรวจ Offset/Checksum/Part');
+  if(identity?.ecuId&&fileReady&&!plan)blockers.push('ยังไม่มีแผนเขียนจาก BIN + ECU ที่ตรวจผ่าน (หน้า Flash จะตรวจยืนยันอีกครั้งก่อน ERASE)');
   if(($('btnFlash')?.hidden||$('btnFlash')?.disabled)&&!INLINEFLASH.busy)blockers.push('Flash Engine ยังไม่พร้อม หรือ License ไม่พร้อม');
   if(working||INLINEFLASH.busy)blockers.push('โปรแกรมกำลังทำงาน');
   dom.gateReason.textContent=INLINEFLASH.postCheck?'Final ACK สำเร็จ · ปิดกุญแจ OFF แล้วเปิด ON เพื่อกดตรวจ ECU ID อีกครั้ง':INLINEFLASH.busy?'กำลังตรวจและอัดผ่าน Flash Engine จาก Main C#':blockers.length?'ยังไม่พร้อมอัด: '+[...new Set(blockers)].join(' • '):
