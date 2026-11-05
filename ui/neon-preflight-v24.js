@@ -235,8 +235,16 @@ async function readECU(){
  if(!navigator.usb) return errorOut('Chrome นี้ไม่รองรับ WebUSB / FT232R');
  if(document.getElementById('licenseGate'))return errorOut('กรุณาเข้าสู่ระบบ License ก่อนอ่าน ECU');
  const shared=window.__55SharedEcu;
- if(!shared?.port?.ready)return errorOut('กรุณาเชื่อมต่อ FT232R จากหน้าหลักก่อน • หน้าอัดไฟล์ไม่เปิดสายแยก');
+ if(!shared)return errorOut('ระบบสาย FT232R ที่เชื่อมจากหน้าแรกยังไม่พร้อม');
  if(shared.snapshot().running)return errorOut('กรุณาหยุดอ่าน Live Data ก่อนอ่าน ECU ID เพื่อใช้สายเดียวกัน');
+ // A failed Android WebUSB transferIn closes the old FT232R handle.
+ // Recover ONLY the same previously granted cable before source
+ // programming identification; no new ECU command or USB picker.
+ if(!shared.port?.ready){
+  const restored=await shared.restoreCable?.();
+  if(!restored||!shared.port?.ready)
+   return errorOut('FT232R interface หลุดหลังอ่าน ECU • กรุณาเชื่อมสายจากหน้าแรกใหม่ก่อนตรวจ Flash');
+ }
  if(K.t)return errorOut('ระบบ DTC เก่ากำลังใช้พอร์ต USB แยก กรุณาตัดการเชื่อมต่อเดิม');
  working=true;error='';message='กำลังเลือกอุปกรณ์ FT232R…';last=null;hash=null;render();
  let port=null;
@@ -448,7 +456,13 @@ async function autoPrepare(){
  try{
   // Read ID/Boot session even without a BIN; only make a plan when a valid BIN exists.
   await readECU();
-  if(current().valid&&last?.identity?.sourceMatched)await runCheck();
+  // FormMain.SetEcmParamsFromDb permits ECU IDs absent from its
+  // embedded catalog; the caller still needs physical source-family ACK
+  // and BIN signature/ID proof. Do not skip read-only plan checking just
+  // because the source Part Code table has no row for this ECU.
+  const proof=last?.identity?.programmingSessionVerified===true&&
+   last?.identity?.physicalFamilyEvidence==='MAIN_SOURCE_READ_ONLY_FLASH_COUNT_ACK';
+  if(current().valid&&(last?.identity?.sourceMatched||proof))await runCheck();
   return verified();
  }finally{preparingAuto=false;render()}
 }

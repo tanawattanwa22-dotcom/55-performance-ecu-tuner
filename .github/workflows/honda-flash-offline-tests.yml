@@ -22,6 +22,9 @@ on:
   pull_request:
     paths:
       - "flash_port/**"
+      - "ui/**"
+      - "index.html"
+      - "tools/verify-preflight-afr-v24.mjs"
       - "tools/verify-honda-flash.mjs"
       - "tools/verify-main-programming-probe.mjs"
       - "tools/verify-main-diagnostic.mjs"
