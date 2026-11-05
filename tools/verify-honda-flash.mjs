@@ -163,7 +163,7 @@ await check('C# explicit 7-byte ACK retries once on request',async()=>{
 await check('Source seven-byte retry reads payload bytes [4,5] not status byte [3]',async()=>{
  const e=new HondaFlashEngine({ready:true});let attempts=0;
  e.x=async()=>{attempts++;return attempts===1?
-   Uint8Array.of(2,7,0,250,0,0,0):Uint8Array.of(2,5,0,250,0)};
+   Uint8Array.of(2,7,0,250,0,0,0):Uint8Array.of(2,5,0,0,0)};
  const n=await e.writeBlocks({bin:new Uint8Array(128),blockBytes:128,startOffset:0,profile:'KEIHINOTHER'});
  return attempts===2&&n===1;
 });
