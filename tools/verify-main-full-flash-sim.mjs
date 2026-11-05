@@ -38,7 +38,8 @@ class MockHonda {
  async openSelected(device){
   assert.equal(device,this.lastDevice,'reuse same approved FT232R');
   this.ready=true;this.closed=false;this.reopenCount++;
-  if(this.failure==='KH_REPLACED_ON_RECONNECT')this.id='01046B0F01';
+  if(this.failure==='KH_REPLACED_ON_RECONNECT'||
+     this.failure==='RECOVERY_RECHECK_CHANGED_BOOT')this.id='01046B0F01';
  }
  async setBaud(rate){this.baud.push(rate)}
  async close(){this.ready=false;this.closed=true}
@@ -53,11 +54,21 @@ class MockHonda {
   }
   if(this.failure==='KH_HANDSHAKE_ALWAYS'&&label.startsWith('KH_HANDSHAKE_A'))
    throw Error('SIMULATED_TIMEOUT:'+label);
+  if(label==='RECHECK_HELLO'&&
+    ['RECOVERY_RECHECK_USB_TIMEOUT','RECOVERY_RECHECK_CHANGED_BOOT'].includes(this.failure)){
+     this.ready=false;this.closed=true;
+     throw Error('SIMULATED_RECOVERY_WORKER_SESSION_EXPIRED');
+  }
   if(this.failure===label)throw Error('SIMULATED_TIMEOUT:'+label);
   if(label==='READ_ECU_ID'||label==='RECHECK_ECU_ID')return {reply:identityReply(this.id),echoOK:true};
   if(label==='SH_GET_SEED')return {reply:seedReply(),echoOK:true};
-  if(label==='SHINDENGEN_FLASH_COUNT'||label==='KEIHIN_FLASH_COUNT'||label==='RECOVERY_SHINDENGEN_FLASH_COUNT'||label==='RECOVERY_KEIHIN_FLASH_COUNT')
-   return {reply:packet([2,8,0,0,0,0,3,0]),echoOK:true};
+  if(label==='SHINDENGEN_FLASH_COUNT'||label==='KEIHIN_FLASH_COUNT'||
+     label==='RECOVERY_SHINDENGEN_FLASH_COUNT'||
+     label==='RECOVERY_KEIHIN_FLASH_COUNT'||
+     label==='RECHECK_RECOVERY_FAMILY_COUNT')
+   return {reply:packet([2,8,0,0,0,0,
+     this.failure==='RECOVERY_COUNT_CHANGED_ON_RECHECK'&&
+       label==='RECHECK_RECOVERY_FAMILY_COUNT'?4:3,0]),echoOK:true};
   if(label.startsWith('WRITE_BLOCK_')){
    this.writeCount++;
    assert.equal(bytes[1],bytes.length,'source frame length matches');
@@ -239,6 +250,84 @@ await check('Shindengen Recovery source BIN: offline-only plan and Seed/Key path
  assert(device.labels.includes('SH_GET_SEED'));
  assert(device.labels.includes('SH_SEND_KEY'));
  assert(device.labels.includes('SH_ERASE_FINISH'));
+});
+await check('Keihin Recovery Boot ID -> family count -> erase -> write -> final ACK (simulated only)',async()=>{
+ const {engine,device,events}=setup('0102030000');
+ await engine.identify();
+ const bin=new Uint8Array(65536);bin[123]=4;
+ await engine.confirmRecoveryFamily(bin);
+ const plan=engine.makePlan(bin,{filename:'backup.bin',recovery:true});
+ const out=await engine.flash(plan,{confirmation:'FLASH 0102030000',
+   physicalBackupConfirmed:true,externalPowerConfirmed:true,recoveryReady:true});
+ assert.equal(out.recovery,true);assert.equal(out.readbackVerified,false);
+ assert(device.labels.includes('RECHECK_RECOVERY_FAMILY_COUNT'));
+ assert(device.labels.includes('KH_ERASE_GO'));
+ assert(device.labels.includes('KH_FINAL_5'));
+ assert(device.writeCount>0);
+ assert(events.some(x=>x.phase==='RECOVERY_RECONFIRMED'&&x.count===3));
+});
+await check('Shindengen Recovery Boot ID -> Recovery seed/key -> erase -> write -> final ACK (simulated only)',async()=>{
+ const {engine,device}=setup('0102030000');
+ await engine.identify();
+ const bin=shBin();bin.set([1,2,3,4,5,6,145,145,13,0,158,141],500);
+ const confirmed=await engine.confirmRecoveryFamily(bin);
+ assert.equal(confirmed.family,'SHINDENGEN');
+ const plan=engine.makePlan(bin,{filename:'recovery.bin',recovery:true});
+ const out=await engine.flash(plan,{confirmation:'FLASH 0102030000',
+   physicalBackupConfirmed:true,externalPowerConfirmed:true,recoveryReady:true});
+ assert.equal(out.recovery,true);assert.equal(out.readbackVerified,false);
+ assert(device.labels.indexOf('SH_GET_SEED')<device.labels.indexOf('SH_SEND_KEY'));
+ assert(device.labels.indexOf('SH_SEND_KEY')<device.labels.indexOf('SH_ERASE_START'));
+ assert(device.labels.includes('SH_FINAL5'));
+});
+await check('Recovery reopens only original FT232R and re-proves Boot/Family/Count before erase',async()=>{
+ const {engine,device,events}=setup('0102030000','RECOVERY_RECHECK_USB_TIMEOUT');
+ await engine.identify();
+ const bin=new Uint8Array(65536);bin[123]=7;
+ await engine.confirmRecoveryFamily(bin);
+ const plan=engine.makePlan(bin,{filename:'backup.bin',recovery:true});
+ const out=await engine.flash(plan,{confirmation:'FLASH 0102030000',
+   physicalBackupConfirmed:true,externalPowerConfirmed:true,recoveryReady:true});
+ assert.equal(out.recovery,true);assert.equal(device.reopenCount,1);
+ assert(events.some(e=>e.phase==='RECOVERY_READONLY_SESSION_RENEW_CONFIRMED'&&e.eraseStarted===false));
+ assert(device.labels.indexOf('KH_ERASE_GO')>device.labels.lastIndexOf('RECOVERY_KEIHIN_FLASH_COUNT'));
+});
+await check('Different physical Boot ID after recovery reconnect blocks erase',async()=>{
+ const {engine,device,events}=setup('0102030000','RECOVERY_RECHECK_CHANGED_BOOT');
+ await engine.identify();
+ const bin=new Uint8Array(65536);bin[123]=7;
+ await engine.confirmRecoveryFamily(bin);
+ const plan=engine.makePlan(bin,{filename:'backup.bin',recovery:true});
+ await assert.rejects(engine.flash(plan,{confirmation:'FLASH 0102030000',
+   physicalBackupConfirmed:true,externalPowerConfirmed:true,recoveryReady:true}),
+   /Boot ECU ID \/ Programming Session เปลี่ยน/);
+ assert(!device.labels.includes('KH_ERASE_GO')&&
+    !device.labels.some(l=>l==='SH_ERASE_START'));
+ assert(events.some(e=>e.phase==='FLASH_STOP'&&e.eraseMayHaveStarted===false));
+});
+await check('Changed Recovery Flash Count before erase must stop',async()=>{
+ const {engine,device,events}=setup('0102030000','RECOVERY_COUNT_CHANGED_ON_RECHECK');
+ await engine.identify();
+ const bin=new Uint8Array(65536);bin[123]=7;
+ await engine.confirmRecoveryFamily(bin);
+ const plan=engine.makePlan(bin,{filename:'backup.bin',recovery:true});
+ await assert.rejects(engine.flash(plan,{confirmation:'FLASH 0102030000',
+   physicalBackupConfirmed:true,externalPowerConfirmed:true,recoveryReady:true}),
+   /Flash Count\/Family ไม่ตรง/);
+ assert(!device.labels.includes('KH_ERASE_GO'));
+ assert(events.some(e=>e.phase==='FLASH_STOP'&&e.eraseMayHaveStarted===false));
+});
+await check('Keihin Recovery first handshake timeout reconnects with Boot/Family proof before erase',async()=>{
+ const {engine,device,events}=setup('0102030000','KH_DISCONNECT_ONCE');
+ await engine.identify();
+ const bin=new Uint8Array(65536);bin[123]=7;
+ await engine.confirmRecoveryFamily(bin);
+ const plan=engine.makePlan(bin,{filename:'backup.bin',recovery:true});
+ const out=await engine.flash(plan,{confirmation:'FLASH 0102030000',
+   physicalBackupConfirmed:true,externalPowerConfirmed:true,recoveryReady:true});
+ assert.equal(out.recovery,true);assert.equal(device.reopenCount,1);
+ assert(events.some(e=>e.phase==='RECOVERY_READONLY_SESSION_RENEW_CONFIRMED'));
+ assert(device.labels.includes('KH_HANDSHAKE_A_RETRY'));
 });
 await check('One-tap does not bypass backup/power/recovery confirmations',async()=>{
  const {engine,device}=setup('0101880D01');
