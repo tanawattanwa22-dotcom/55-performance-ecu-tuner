@@ -50,6 +50,7 @@ export class MainLiveSession {
   this.running=false;this.stopRequested=false;this.disconnectRequested=false;
   this.sampleSeq=0;this.sampleAt=0;this.hz=null;this.values=EMPTY();this.sourceReadings=[];
   this.recording=false;this.recordStart=0;this.records=[];this.error='';this.phase='IDLE';
+  this.liveAutoRetries=0;this.liveAutoRecoveries=0;this.liveLastDrop='';
   this.catalog=null;this.idError='';this.liveGroupError='';this.dtcError='';
   this.dtcSnapshot=null;this.autoStatus='ยังไม่ได้ตรวจ';this.autoComplete=false;this.autoBusy=false;
   this.sourceProbe=null;this.sourceProbeError='';this.autoSourceProbes=0;
@@ -86,7 +87,8 @@ export class MainLiveSession {
    group4Variant:this.group4Variant,sampleSeq:this.sampleSeq,sampleAt:this.sampleAt,
    hz:this.hz,values:{...this.values},sourceReadings:this.sourceReadings.map(v=>({...v})),recording:this.recording,phase:this.phase,
    recordSeconds:this.recording?(Date.now()-this.recordStart)/1000:0,
-   hasLog:this.records.length>0,error:this.error
+   hasLog:this.records.length>0,error:this.error,
+   liveAutoRetries:this.liveAutoRetries,liveAutoRecoveries:this.liveAutoRecoveries,liveLastDrop:this.liveLastDrop
   };
  }
  setGroup(group){
@@ -606,36 +608,110 @@ export class MainLiveSession {
   if(this.connecting||this.autoBusy||this.running||!this.port?.ready)return false;
   this.running=true;this.phase='LIVE_CAPTURE';this.stopRequested=false;this.disconnectRequested=false;
   this.error='';this.values=EMPTY();this.sampleSeq=0;this.sampleAt=0;this.hz=null;
+  this.liveAutoRetries=0;this.liveLastDrop='';
   this.notify();
   // Intentionally return immediately: one owner probes/reads serially.
   void this._loop();
   return true;
  }
+ // Read-only Live recovery reuses only the FT232R already granted by Android.
+ // A fresh ECU ID is mandatory after every USB/UART reset: never reuse a
+ // previous vehicle's samples or let this path issue any Flash/Erase command.
+ async _restoreLiveReadOnly(expectedId){
+  if(!/^[0-9A-F]{10}$/.test(expectedId||''))
+   throw Error('ยังไม่มี ECU ID จากกล่องจริงสำหรับต่อ Live Data อัตโนมัติ');
+  const previous=this.port, device=previous?.lastDevice;
+  if(!device)throw Error('ไม่พบ FT232R เดิมที่ได้รับอนุญาตจาก Android');
+  if(previous?.ready)await TIME_LIMIT(previous.close(),2500,'ปิดพอร์ต Live เดิมเกินเวลา');
+  const restored=new Ft232rWebUsb();
+  restored.lastDevice=device;
+  this.port=restored;
+  let expired=false;
+  const opening=restored.openSelected(device);
+  opening.then(()=>{if(expired)void restored.close()},()=>{});
+  try{
+   await TIME_LIMIT(opening,7000,'เปิด FT232R เดิมกลับเกิน 7 วินาที');
+   if(!this.running||this.stopRequested||this.disconnectRequested||this.owner)return false;
+   await restored.sourceDiagnosticWake();
+   if(!this.running||this.stopRequested||this.disconnectRequested||this.owner)return false;
+   const {reply,echoOK}=await restored.command('ID',{timeoutMs:2300,afterWriteMs:50});
+   if(!echoOK||reply.length<11)throw Error('อ่าน ECU ID หลังเชื่อมต่อกลับไม่ครบ');
+   const newId=Array.from(reply.slice(5,10),x=>x.toString(16).padStart(2,'0')).join('').toUpperCase();
+   if(newId!==expectedId){
+    // The motorcycle/ECU may have been swapped while Live was running.
+    // No old group or samples may be associated with a new physical ECU.
+    this.ecuId='';this.catalog=null;this.detectedGroup=null;this.sourceProbe=null;
+    const mismatch=Error('ECU ID เปลี่ยนจาก '+expectedId+' เป็น '+newId+' · หยุด Live และต้องสแกนรถคันใหม่');
+    mismatch.code='LIVE_ECU_CHANGED';
+    throw mismatch;
+   }
+   return true;
+  }catch(error){
+   expired=true;
+   try{await TIME_LIMIT(restored.close(),2500,'USB close timeout')}catch{}
+   throw error;
+  }
+ }
  async _loop(){
+  const expectedId=this.ecuId;
+  let consecutiveFailures=0;
   try{
    await this.port.sourceDiagnosticWake();
    const group=this.group==='auto'?(this.detectedGroup??await this.detectGroup()):this.group;
    if(group===null)return;
-   while(this.running&&!this.stopRequested&&!this.disconnectRequested){
-    const capture=await this._cycle(group);
-    if(!capture||this.stopRequested||this.disconnectRequested)break;
-    const readings=decodeMainDiagnosticTrace(Uint8Array.from(capture),group);
-    const values=diagnosticToNeon(readings,group);
-    this.sourceReadings=readings.map(v=>({...v}));
-    if(!Number.isFinite(values.rpm))throw Error('Main C# ไม่พบข้อมูล RPM ในชุดตอบกลับ');
-    const now=Date.now();
-    if(this.sampleAt){const dt=now-this.sampleAt;this.hz=dt>0?Math.round(1000/dt*10)/10:null}
-    this.sampleAt=now;this.sampleSeq++;this.values=values;
-    if(this.recording){
-     this.records.push({timestamp:new Date(now).toISOString(),ecuId:this.ecuId,group,values:{...values}});
-     if(this.records.length>10000)this.records.shift();
+   while(this.running&&!this.stopRequested&&!this.disconnectRequested&&!this.owner){
+    try{
+     const capture=await this._cycle(group);
+     if(!capture||this.stopRequested||this.disconnectRequested||!this.running||this.owner)break;
+     const readings=decodeMainDiagnosticTrace(Uint8Array.from(capture),group);
+     const values=diagnosticToNeon(readings,group);
+     if(!Number.isFinite(values.rpm))throw Error('Main C# ไม่พบข้อมูล RPM ในชุดตอบกลับ');
+     this.sourceReadings=readings.map(v=>({...v}));
+     const now=Date.now();
+     if(this.sampleAt){const dt=now-this.sampleAt;this.hz=dt>0?Math.round(1000/dt*10)/10:null}
+     this.sampleAt=now;this.sampleSeq++;this.values=values;
+     consecutiveFailures=0;
+     this.liveAutoRetries=0;
+     if(this.recording){
+      this.records.push({timestamp:new Date(now).toISOString(),ecuId:this.ecuId,group,values:{...values}});
+      if(this.records.length>10000)this.records.shift();
+     }
+     this.onSample(values,this.sampleSeq);this.notify();
+     await WAIT(80);
+    }catch(readError){
+     if(!this.running||this.stopRequested||this.disconnectRequested||this.owner)break;
+     // A partial/timeout burst is not sensor data. Blank stale gauges first.
+     this.values=EMPTY();this.sourceReadings=[];this.sampleAt=0;this.hz=null;
+     this.liveLastDrop=String(readError?.message||readError);
+     consecutiveFailures++;
+     this.liveAutoRetries=consecutiveFailures;
+     if(consecutiveFailures>3)
+      throw Error('Live Data หลุดซ้ำเกิน 3 ครั้ง · '+this.liveLastDrop);
+     this.phase='LIVE_AUTO_RECOVER';
+     this.error='';
+     this.autoStatus='อ่านข้อมูลสะดุด · กำลังต่อ Live อัตโนมัติ '+consecutiveFailures+'/3 (Read-only)';
+     this.notify();
+     await WAIT(350*consecutiveFailures);
+     if(!this.running||this.stopRequested||this.disconnectRequested||this.owner)break;
+     try{
+      const recovered=await this._restoreLiveReadOnly(expectedId);
+      if(!recovered)break;
+      this.liveAutoRecoveries++;
+      this.phase='LIVE_CAPTURE';this.error='';
+      this.autoStatus='✓ ต่อกลับอัตโนมัติและตรวจ ECU ID เดิมแล้ว · อ่านข้อมูลต่อ';
+      this.notify();
+     }catch(restoreError){
+      if(restoreError?.code==='LIVE_ECU_CHANGED')throw restoreError;
+      this.liveLastDrop=String(restoreError?.message||restoreError);
+      this.autoStatus='ยังคืนการอ่านไม่ได้ · จะลองใหม่ '+consecutiveFailures+'/3: '+this.liveLastDrop;
+      this.notify();
+      if(consecutiveFailures===3)throw Error('เชื่อมต่อ Live กลับอัตโนมัติไม่สำเร็จ: '+this.liveLastDrop);
+     }
     }
-    this.onSample(values,this.sampleSeq);this.notify();
-    await WAIT(80);
    }
   }catch(e){
-   // Do not leave a checksum-valid but misaligned capture visible as RPM,
-   // TPS, injection or temperature after a failed UART/USB read.
+   // Keep the original failure-stop behavior when read-only recovery runs out
+   // or ECU identity changes; never retry in Flash, Recovery, or DTC.
    this.values=EMPTY();this.sourceReadings=[];this.sampleAt=0;this.hz=null;
    this.error='Live Data ไม่ได้รับคำตอบ ECU: '+String(e?.message||e);
    this.phase='LIVE_RX_FAILED';
@@ -646,15 +722,13 @@ export class MainLiveSession {
     if(port)try{await port.close()}catch{}
     this.values=EMPTY();this.hz=null;this.disconnectRequested=false;
    }else if(this.port&&!this.port.ready){
-    // Recovery is for read-only diagnostics only. Never retry programming
-    // writes or bypass Flash Engine validation on a failed USB transfer.
     const dev=this.port.lastDevice;
     if(dev){
      const restored=new Ft232rWebUsb();this.port=restored;
      try{
       await TIME_LIMIT(restored.openSelected(dev),7000,'FT232R USB reopen timeout');
       this.phase='USB_READY_NO_ECU';
-      this.autoStatus='FT232R เปิดพอร์ตได้อีกครั้ง · ECU ยังไม่ตอบ · ตรวจสายแล้วกดอ่านใหม่';
+      this.autoStatus='FT232R เปิดพอร์ตได้อีกครั้ง · การอ่าน Live หยุดแล้ว';
      }catch(error){
       this.port=null;this.phase='USB_LOST';
       this.error+=' • เปิด USB กลับไม่สำเร็จ: '+String(error?.message||error);
