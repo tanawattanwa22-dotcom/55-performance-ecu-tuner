@@ -14,7 +14,7 @@ assert.match(p,/const restored=await shared\.restoreCable\?\.\(\)/,
  'Preflight recovers only the approved FT232R handle after a WebUSB transferIn loss');
 assert.match(p,/physicalFamilyEvidence==='MAIN_SOURCE_READ_ONLY_FLASH_COUNT_ACK'/,
  'Original FormMain unknown ID path may continue only after fresh physical family ACK');
-assert.match(p,/if\(current\(\)\.valid&&\(last\?\.identity\?\.sourceMatched\|\|proof\)\)await runCheck\(\)/,
+assert.match(p,/if\(current\(\)\.valid&&\(last\?\.identity\?\.sourceMatched\|\|proof\)\)await runCheck\(\{requestConfirmation:false\}\)/,
  'Unlisted ECU with source ACK must reach read-only BIN / Memory Map check');
 assert.doesNotMatch(p,/sourceMatched\)await runCheck\(\)/,
  'Do not skip Main source-backed unknown ECU solely because Part Code catalog has no row');
@@ -27,7 +27,7 @@ assert.match(p,/originalEcmAuto&&binEstimate\?\.startOffsetHex/,
  'ECM.dat AUTO start field should display BIN-only inferred offset without write approval');
 assert.match(p,/originalEcmAuto&&binEstimate\?\.checksumOffsetHex/,
  'ECM.dat AUTO checksum field should display BIN-only inferred checksum without write approval');
-assert.match(p,/BIN ให้รหัส ECU เพียง 3 ไบต์ตาม FormMain/,
+assert.match(p,/BIN มีรหัส ECU เพียง 3 ไบต์|BIN มี ECU ID เพียง 3 ไบต์แรก/,
  'Partial BIN ECU ID must remain explicitly unverified before any erase');
 assert.match(p,/setItem\('block',Number\.isInteger\(plan\?\.blockBytes\)/,
  'Real plan remains the only verified Block Size source');
@@ -43,8 +43,8 @@ assert(p.includes("const actions=make('div','n24-actions n24-main-check-actions'
  'ECU read and Preflight controls are visible in the main Fast Flash page, not trapped inside advanced details');
 assert(p.includes("()=>runCheck({requestConfirmation:true})"),
  'Manual Preflight action must request explicit technician confirmation for source 3-byte BIN IDs');
-assert(p.includes('if(!requestConfirmation)')&&p.includes('confirmedPart:\'CONFIRM \'+id'),
- 'Automatic probe never auto-confirms partial BIN ID; manual Preflight can produce read-only plan');
+assert(p.includes('if(!requestConfirmation&&!previouslyApproved)')&&p.includes('confirmedPart:\'CONFIRM \'+id'),
+ 'Auto Preflight may calculate partial BIN-ID source plan; manual check remains available and real Flash still asks for approval');
 // The purchased Shindengen source has no full-read route. Its absence must
 // never be silently represented as a completed physical ECU backup.
 const writer=get('flash_port/honda-write-engine.js');
@@ -58,10 +58,30 @@ assert(index.includes('const hasThisEcuBackup=confirm(')&&
  index.includes('physicalBackupConfirmed:hasThisEcuBackup,')&&
  index.includes('backupUnavailableAcknowledged:noBackupAck,'),
  'Flash UI must accurately distinguish existing original backup from risk acknowledgement');
-assert(index.includes('ui/neon-preflight-v24.js?v=411')&&
- index.includes('honda-write-engine.js?v=395'),
+assert(index.includes('ui/neon-preflight-v24.js?v=412')&&
+ index.includes('honda-write-engine.js?v=396'),
  'Chrome must reload the current engine and honest no-backup flow');
+assert(p.includes("if(!requestConfirmation&&!previouslyApproved){")&&
+ p.includes("confirmedPart:'CONFIRM '+last.identity.ecuId")&&
+ p.includes("message='Auto Preflight:"),
+ 'Auto Preflight must calculate the C# source partial-ID BIN plan without manual button presses');
+assert(p.includes("if(current().valid&&(last?.identity?.sourceMatched||proof))await runCheck({requestConfirmation:false})"),
+ 'Automatic ECU read must attempt read-only plan for source physical family ACK');
+assert(p.includes("TX / RX LOG • Fast Flash")&&
+ p.includes("window.__55FlashLogRefresh=()=>")&&
+ p.includes("window.__55ExportFlashLog?.()"),
+ 'Actual Fast Flash screen must expose live TX/RX and downloadable logs');
+assert(index.includes('window.__55FlashLogRefresh?.()')&&
+ index.includes('window.__55ExportFlashLog=inlineFlashExportLog')&&
+ index.includes('ui/neon-preflight-v24.js?v=412'),
+ 'Flash engine log must feed the visible Fast Flash screen with a refreshed browser module');
+const engine=get('flash_port/honda-write-engine.js');
+assert(engine.includes("stage:'TX',tx:toHex(frame)")&&
+ engine.includes("stage:'RX',rx:toHex(reply)"),
+ 'Flash engine must emit original transmitted and validated received bytes');
 assert(p.includes('last.engine.makePlan(c.bytes.slice()'),'strict C# plan from saved BIN snapshot');
+assert(p.includes('queueMicrotask(()=>{if(stage===host)void autoPrepare()')&&p.includes('stage.insertBefore(trace,file)'),
+ 'Fast Flash auto-triggers read-only Preflight and places TX/RX adjacent to actual Flash controls');
 assert(p.includes('sourceMatched'),'catalog and family source matching enforced');
 assert(p.includes('S.saved')&&p.includes('TuneBinFlow.matches'),'preflight uses saved immutable BIN only');
 assert(p.includes('Date.now()-last.at<TTL'),'physical ID freshness required');

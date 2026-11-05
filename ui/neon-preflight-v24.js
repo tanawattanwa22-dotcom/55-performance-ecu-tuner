@@ -277,7 +277,7 @@ async function readECU(){
  try{
   // Reuse the physical FT232R opened from the home dashboard.
   const [{HondaFlashEngine}]=await Promise.all([
-   import(new URL('flash_port/honda-write-engine.js?v=394',document.baseURI).href)]);
+   import(new URL('flash_port/honda-write-engine.js?v=396',document.baseURI).href)]);
   if(typeof api!=='function')throw Error('ไม่พบตัวตรวจ License');
   const license=await api('check',{device:localStorage.getItem('55_device_id')});
   if(!license?.active)throw Error('License ไม่ได้เปิดใช้งาน');
@@ -307,6 +307,7 @@ async function readECU(){
   working=false;render();
  }
 }
+const approvedPartialBins=new Set(); // Session-only: exact ECU ID + saved BIN SHA-256
 async function runCheck({requestConfirmation=false}={}){
  if(working||INLINEFLASH.busy)return;
  working=true;error='';message='กำลังตรวจ BIN / Part Code / Memory Map…';render();
@@ -330,18 +331,25 @@ async function runCheck({requestConfirmation=false}={}){
    catch(e){
     if(e.code==='UNLISTED_PARTIAL_ID_CONFIRM'){
      last.plan=null;
-     if(!requestConfirmation){
-      // Background Auto Prepare must never fabricate a technician's
-      // confirmation or interrupt them with an unsolicited modal.
-      message='อ่าน ECU ID / Family ACK แล้ว • BIN ให้รหัส ECU เพียง 3 ไบต์ตาม FormMain • กด ตรวจ Preflight เพื่อยืนยันไฟล์ที่เคยตรวจแล้ว • ยังไม่ได้ ERASE';
-      return;
-     }
+     const approvalKey=last.identity.ecuId+'|'+(hash?.saved===c.saved?hash.hex:'');
+     const previouslyApproved=approvalKey.split('|')[1]&&approvedPartialBins.has(approvalKey);
+     // Automatic PRE-FLIGHT is calculation only: source C# accepts a
+     // three-byte embedded BIN locator when physical Family ACK is known.
+     // Never claim that this proves a full five-byte BIN ID match. The real
+     // Flash button independently re-identifies and requests consent.
+     if(!requestConfirmation&&!previouslyApproved){
+      plan=last.engine.makePlan(c.bytes.slice(),{
+       filename:c.saved.filename,confirmedPart:'CONFIRM '+last.identity.ecuId,
+       fast:false,recovery:false
+      });
+      message='Auto Preflight: แผน BIN/Offset/Checksum ผ่านการคำนวณจาก ECU ID และ Family ACK • BIN มีรหัส ECU เพียง 3 ไบต์ • ยังไม่ได้ ERASE';
+     }else{
      // Same explicit partial-ID confirmation supported by the original
      // inline Flash button. This confirmation creates a READ-ONLY plan;
      // destructive Flash still identifies the ECU anew and asks separately.
      const id=last.identity.ecuId;
      const part=last.identity.datReference?.part||last.identity.sourcePart||'ไม่พบ';
-     const approved=confirm('55 PERFORMANCE • ตรวจ BIN ก่อนสร้างแผนเขียน (ยังไม่อัด)\n\n'+
+     const approved=previouslyApproved||confirm('55 PERFORMANCE • ตรวจ BIN ก่อนสร้างแผนเขียน (ยังไม่อัด)\n\n'+
       'ECU ID จากรถ: '+id+'\n'+
       'Family จาก ECU ACK: '+last.identity.family+'\n'+
       'Part Code ฐานอ้างอิง: '+part+'\n'+
@@ -355,6 +363,7 @@ async function runCheck({requestConfirmation=false}={}){
       message='ยกเลิกการยืนยัน BIN • ไม่มีแผนเขียน และไม่ได้ ERASE/WRITE';
       return;
      }
+     if(!previouslyApproved)approvedPartialBins.add(approvalKey);
      // Do NOT mark full five-byte BIN ID matching. The engine preserves
      // its source locator evidence and independently calculates offsets,
      // checksum, write profile and block count from a copied immutable BIN.
@@ -362,6 +371,7 @@ async function runCheck({requestConfirmation=false}={}){
       filename:c.saved.filename,confirmedPart:'CONFIRM '+id,
       fast:false,recovery:false
      });
+     }
     }else{
     if(e.code!=='PART_NOT_CONFIRMED')throw e;
     const {readBinId}=await import(new URL('flash_port/bin-tools.js?v=379',document.baseURI).href);
@@ -375,7 +385,7 @@ async function runCheck({requestConfirmation=false}={}){
   if(!plan.checks?.physicalIdMatched||!plan.checks?.offsetsFromCSharp)
    throw Error('แผนเขียนไม่ยืนยัน ECU ID/Offset');
   last.plan=plan;
-  message='ตรวจซอฟต์แวร์ผ่าน · ไม่ได้ยืนยันแรงดันไฟ สาย K-Line หรือความเข้ากันได้ของเฟิร์มแวร์กับกล่องลูกค้า · ก่อน ERASE ระบบอ่าน ECU ID ใหม่';
+  if(!message.startsWith('Auto Preflight:'))message='ตรวจซอฟต์แวร์ผ่าน · ไม่ได้ยืนยันแรงดันไฟ สาย K-Line หรือความเข้ากันได้ของเฟิร์มแวร์กับกล่องลูกค้า · ก่อน ERASE ระบบอ่าน ECU ID ใหม่';
  }catch(e){if(last)last.plan=null;error=e?.message||String(e)}
  finally{working=false;render()}
 }
@@ -499,18 +509,51 @@ function mount(host){
  }
  const help=make('p','n24-help','แสดงค่า ECU ID, ประเภทกล่อง, Offset และ Checksum จากข้อมูลที่ตรวจได้ · ข้อมูลอ้างอิงยังไม่ใช่การยืนยันว่าไฟล์ตรงกล่อง • การตรวจสอบไม่ส่งคำสั่งลบหรือเขียน');
  stage.append(help);
+ // Live diagnostic capture on the actual Fast Flash page. Every TX/RX byte
+ // originates from the same HondaFlashEngine used for real ECU writes.
+ const trace=card('n24-flash-trace','↔','TX / RX LOG • Fast Flash');
+ const traceNote=make('p','n24-help','แสดงคำสั่งที่ส่ง (TX), คำตอบ ECU (RX), สถานะและข้อผิดพลาดจริง • ส่งไฟล์ TXT ให้ตรวจได้ • ไม่ใช่การอ่านแฟลชกลับทั้งก้อน');
+ const traceStatus=make('div','n24-help','ยังไม่มีคำสั่ง Flash ในรอบนี้');
+ const traceText=make('pre','n24-txrx-text');
+ traceText.style.cssText='max-height:240px;min-height:96px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font:11px/1.5 ui-monospace,monospace;background:#10151d;color:#cce2fa;border:1px solid #38485b;border-radius:9px;padding:10px;';
+ const traceActions=make('div','n24-actions');
+ const saveTrace=btn('↓ ส่ง TX/RX Log (TXT)','n24-btn',()=>window.__55ExportFlashLog?.());
+ const copyTrace=btn('คัดลอก TX/RX','n24-btn',()=>{
+  const body=(INLINEFLASH.log||[]).join('\\n');
+  if(!body){traceStatus.textContent='ยังไม่มี TX/RX Log';return}
+  if(!navigator.clipboard?.writeText){traceStatus.textContent='เบราว์เซอร์ไม่รองรับคัดลอก • ใช้ปุ่มดาวน์โหลด TXT';return}
+  navigator.clipboard.writeText(body).then(()=>{traceStatus.textContent='คัดลอก Log แล้ว'},e=>{traceStatus.textContent='คัดลอกไม่ได้: '+e.message});
+ });
+ traceActions.append(saveTrace,copyTrace);
+ trace.append(traceNote,traceStatus,traceText,traceActions);
+ stage.insertBefore(trace,file); // visible beside Flash button, not in Advanced Tools
+ let lastTraceRender=0;
+ window.__55FlashLogRefresh=()=>{
+  if(!trace.isConnected)return;
+  const entries=INLINEFLASH.log||[];
+  const last=entries.at(-1)||'';
+  const urgent=/ERROR|FAILED|STOP|FINAL ACK|ECU_REJECTED/.test(last);
+  if(!urgent&&Date.now()-lastTraceRender<250)return;
+  lastTraceRender=Date.now();
+  traceStatus.textContent=entries.length+' รายการ • '+(INLINEFLASH.status||'IDLE');
+  traceText.textContent=entries.slice(-40).join('\\n')||'รอเชื่อมต่อ ECU และเริ่มตรวจ';
+  traceText.scrollTop=traceText.scrollHeight;
+ };
+ window.__55FlashLogRefresh();
  render();
  void previewBinOffset();
+ // Start read-only automatic Preflight when Fast Flash is entered with cable/BIN.
+ queueMicrotask(()=>{if(stage===host)void autoPrepare().catch(e=>{error=e.message;render()})});
 }
 let preparingAuto=false,lastAutoProbe=null;
 async function autoPrepare(){
  if(preparingAuto||working||INLINEFLASH.busy)return false;
  const shared=window.__55SharedEcu;
  const snap=shared?.snapshot?.();
- if(!stage?.isConnected||!snap?.connected||!snap.ecuId)return false;
+ if(!stage?.isConnected||!snap?.connected)return false;
  const c=current();
  if(recency()&&last?.identity?.ecuId===snap.ecuId&&last.saved===c.saved)return verified();
- const key=snap.ecuId+'|'+(c.saved?.sha256||c.saved?.filename||'no-bin');
+ const key=(snap.ecuId||'UNREAD')+'|'+(c.saved?.sha256||c.saved?.filename||'no-bin');
  if(lastAutoProbe?.key===key&&Date.now()-lastAutoProbe.at<15000)return false;
  lastAutoProbe={key,at:Date.now()};
  preparingAuto=true;
@@ -523,7 +566,7 @@ async function autoPrepare(){
   // because the source Part Code table has no row for this ECU.
   const proof=last?.identity?.programmingSessionVerified===true&&
    last?.identity?.physicalFamilyEvidence==='MAIN_SOURCE_READ_ONLY_FLASH_COUNT_ACK';
-  if(current().valid&&(last?.identity?.sourceMatched||proof))await runCheck();
+  if(current().valid&&(last?.identity?.sourceMatched||proof))await runCheck({requestConfirmation:false});
   return verified();
  }finally{preparingAuto=false;render()}
 }
@@ -544,5 +587,8 @@ window.addEventListener('55:bin-changed',render);
  if(stepBox)new MutationObserver(()=>{if(INLINEFLASH.busy||INLINEFLASH.postCheck){message=stepBox.textContent;render()}}).observe(stepBox,{childList:true,subtree:true,characterData:true});
  const pct=$('pct');
  if(pct)new MutationObserver(()=>render()).observe(pct,{childList:true,characterData:true,subtree:true});
-setInterval(()=>{if(stage?.isConnected)render()},1500);
+setInterval(()=>{if(stage?.isConnected){render();window.__55FlashLogRefresh?.();
+ if(current().valid&&!verified()&&!preparingAuto&&!working&&!INLINEFLASH.busy)
+  void autoPrepare().catch(e=>{error=e.message;render()});
+}},1500);
 })();
