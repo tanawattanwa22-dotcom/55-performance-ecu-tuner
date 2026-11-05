@@ -806,7 +806,7 @@ function runOp(op){
 function setLed(id,st){const e=$(id);e.className="led"+(st?" "+st:"")}
 function home(){
   const m=S.mi>=0?MODELS[S.mi]:null;
-  $("#sModel").textContent=m?m.id:"-";
+  $("#sModel").textContent=m?m.id:"ยังไม่ได้เลือกรุ่น";
   $("#goTune").disabled=!m||(!m.xdf&&(!DEFS[m.id]||(!BINS[m.id]&&!S.custom)));
   if(S.bin){
     $("#sId").textContent=S.idStr||"-";
@@ -828,11 +828,16 @@ function home(){
 function fillSel(){
   const s=$("#sel");
   MODELS.forEach((m,i)=>{const o=document.createElement("option");o.value=i;o.textContent=m.id+" · "+m.sub;s.appendChild(o)});
-  const last=LS.get("m");if(last!==null&&MODELS[+last]){s.value=last;S.mi=+last;if(BINS[MODELS[S.mi].id])useEmbedded();checkFam()}
+  // Customer start-up must NEVER display a remembered ECU/model as an
+  // actual selection. Only explicit user selection or live ECU probing
+  // may establish an active model. Do not alter BIN/library/flash data.
+  LS.del("m");
+  s.value="";
+  S.mi=-1;
   s.onchange=()=>{
     const old=S.mi,nw=s.value===""?-1:+s.value;
     if(nw!==old&&S.undo.length&&!confirm("เปลี่ยนรุ่น ค่าที่แก้ไว้จะหาย ใช่ไหม?")){s.value=old<0?"":old;return}
-    S.mi=nw;if(nw>=0){LS.set("m",nw);if(MODELS[nw].xdf){S.bin=null;S.orig=null;S.custom=false;S.fname="";M=null;S.flash=false;}else if(!(S.custom&&S.idStr.slice(0,4)===MODELS[nw].fam)&&BINS[MODELS[nw].id])useEmbedded()}
+    S.mi=nw;if(nw>=0){if(MODELS[nw].xdf){S.bin=null;S.orig=null;S.custom=false;S.fname="";M=null;S.flash=false;}else if(!(S.custom&&S.idStr.slice(0,4)===MODELS[nw].fam)&&BINS[MODELS[nw].id])useEmbedded()}
     else{S.bin=null;S.custom=false}
     checkFam();home();try{guardDraw()}catch(e){}
   };
