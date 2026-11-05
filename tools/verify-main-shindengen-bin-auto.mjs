@@ -13,12 +13,16 @@ const orig=v.slice();
 const a=previewMainShindengenBin(v,{physicalEcuId:'0105040D01'});
 assert.equal(a.ready,true);
 assert.equal(a.startOffset,0x10000);
+assert.equal(a.type,'SHINDENGENV850');
+assert.equal(a.blockBytes,128,'Main C# V850 writes 128-byte blocks');
 assert.equal(a.checksumOffset,0x17c);
 assert.equal(a.flashApproved,false);
 assert.deepEqual(v,orig);
 const b=bin();b.set([83,72,56,53,48],0x1000);
 b.set([165,165,165,165,0],0xa000);
 assert.equal(previewMainShindengenBin(b).startOffset,0xa000);
+assert.equal(previewMainShindengenBin(b).type,'SHINDENGENRH850B');
+assert.equal(previewMainShindengenBin(b).blockBytes,128,'Main C# RH850B writes 128-byte blocks');
 b.set([0,0,0,0,0],0xa000);
 assert.equal(previewMainShindengenBin(b).startOffset,0x10000);
 const missing=bin();missing.set([83,86,56,53,48],0x1000);missing.set([0,0],0x180);
@@ -30,6 +34,10 @@ assert.equal(previewMainShindengenBin(null).status,'NO_BIN');
 import {readFileSync} from 'node:fs';
 const ui=readFileSync(new URL('../ui/neon-v20.js',import.meta.url),'utf8');
 const live=readFileSync(new URL('../ui/neon-main-live-v25.js',import.meta.url),'utf8');
+const dashboard=readFileSync(new URL('../ui/neon-v20.js',import.meta.url),'utf8');
+assert(dashboard.includes('sourceBinPreview()')&&dashboard.includes('showBinStart')&&
+ dashboard.includes('showBinChecksum')&&dashboard.includes(' • BIN เท่านั้น'),
+ 'Dashboard must label derived BIN offsets without calling them physical ECU measurements');
 assert(ui.includes('id="n20Connection"')&&ui.includes('id="n20Save"')&&
  ui.includes("window.__55V20RefreshStatus=refreshStatus")&&
  ui.includes("const physical=window.__55SharedEcu?.snapshot?.()"),
@@ -40,6 +48,10 @@ assert(preflight.includes('unlistedPhysical')&&
  preflight.includes('!catalog290.rows?.has(connectedId.ecuId)')&&
  preflight.includes('!connectedId.catalog'),
  'An original Main 290 miss remains unlisted even when supplementary ECM.dat supplies a Part Code');
+assert(preflight.includes('estimated.binProfile=sourceAuto.type;')&&
+ preflight.includes('estimated.binBlockBytes=sourceAuto.blockBytes;')&&
+ preflight.includes('bytes • BIN เท่านั้น')&&preflight.includes('binProfile+\' • BIN เท่านั้น\''),
+ 'Preflight should display source C# Profile and Block Size even when plan is pending, labeled BIN-only');
 assert(preflight.includes('sourceFamilyAck')&&preflight.includes("MAIN_SOURCE_READ_ONLY_FLASH_COUNT_ACK")&&
  preflight.includes('sourceBinSizeSupported'),
  'Unlisted ECU is checked using physical Main C# Flash Count ACK and supported BIN size');
