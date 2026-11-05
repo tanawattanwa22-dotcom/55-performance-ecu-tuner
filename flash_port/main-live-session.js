@@ -7,7 +7,7 @@ import {MAIN_CAPTURE_COMMANDS,decodeMainDiagnosticTrace,validateMainSourceLiveBu
 import {Ft232rWebUsb} from './ftdi-webusb.js?v=409';
 import {HondaFlashEngine} from './honda-write-engine.js?v=410';
 import {loadCSharpCatalog} from './csharp-ecu-catalog.js?v=302';
-import {findOriginalEcmDat} from './main-original-ecm-catalog.js';
+import {findOriginalEcmDat,describeOriginalEcm} from './main-original-ecm-catalog.js';
 import {MAIN_DTC_READ_FRAMES,decodeMainDtcReplies} from './main-source-dtc.js';
 import {probeMainProgrammingSession} from './main-programming-probe.js?v=7';
 import {sourceFamilyHint} from './main-source-family-hints.js?v=2';
@@ -58,7 +58,8 @@ export class MainLiveSession {
  }
  notify(){this.onUpdate(this);}
  status(){
-  const originalEcm=this.catalog?null:findOriginalEcmDat(this.ecuId);
+  const originalEcm=findOriginalEcmDat(this.ecuId);
+  const ecmDisplay=describeOriginalEcm(this.ecuId);
   return {
    connected:!!this.port?.ready,
    usbAttempts:this.usbAttempts,usbLastPhase:this.usbLastPhase,
@@ -68,6 +69,10 @@ export class MainLiveSession {
    part:this.catalog?.part||originalEcm?.part||null,catalogFamily:this.catalog?.family||originalEcm?.family||null,
    originalEcmMatched:!!originalEcm,originalEcmModel:originalEcm?.model||null,
    originalEcmSizeKb:originalEcm?.expectedSizeKb??null,
+   ecmDisplayName:ecmDisplay?.model||null,
+   ecmDisplayPartCode:ecmDisplay?.partCode||null,
+   ecmDisplayFamily:ecmDisplay?.family||null,
+   ecmDisplaySource:ecmDisplay?.source||null,
    startOffset:this.catalog?.startOffset??null,checksumOffset:this.catalog?.checksumOffset??null,
    startOffsetText:this.catalog?.startOffsetText??null,checksumOffsetText:this.catalog?.checksumOffsetText??null,
    catalogMatched:!!this.catalog,autoStatus:this.autoStatus,autoComplete:this.autoComplete,
