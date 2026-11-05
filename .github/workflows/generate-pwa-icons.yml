@@ -26,11 +26,17 @@ jobs:
           ImageFile.LOAD_TRUNCATED_IMAGES=True
           data=(root/'55-home-source.jpg').read_bytes()
           print('source bytes:',len(data),'header:',data[:24].hex(),'end:',data[-8:].hex(),flush=True)
-          anchors={0:'ffd8ffe000104a464946',128:'e1e1e1e1e1e1e1e1e1e1',256:'e12324526293b1f04454',384:'cf85292cece6e4935d14',512:'bd73f3b9e9533ebbd855',640:'8068369d9a45b900574d',768:'c9634a69b04bd4ca2cca',896:'b11ef152062e46b52d4c',1024:'d2fb8e46b7139791b480',1152:'eea992ed90b922d64fc1',1280:'a5f897c683c4cbec687a',1408:'e57bcd57a664fb94ef35',1536:'d483ec57bcd5fa6e4fb9',1664:'0af3de658e00008e00e5',1792:'b99d39231fc2bce8c163',1920:'65b733a9aaa4e651a2b1',2048:'f294208dc67344116291',2176:'c61e46d4dea9f08aeb69',2304:'8d1db39934523af4adfa',2432:'7f5878d633a738c1ff00',2560:'4ac56e2fd3fe74a983c6',2688:'48db105ae234001636d6',2816:'7bdac14d06eb62722f75',2944:'57efac5ab4b13329616b',3072:'600aded7cb7dbc29aae9',3200:'1130fb57efaa79a49059',3328:'ae19431dcabdbc29c695',3456:'568d3952d172da2b2296',3584:'310eb121890dc9f688ff',3712:'9ffa97e5153d253f55f9',3840:'64d9ffd9'}
-          for pos,hx in anchors.items():
-              a=data.find(bytes.fromhex(hx))
-              print('anchor',pos,a,'shift',pos-a if a>=0 else '?',flush=True)
-
+          # The first binary upload had nine missing header bytes; restore
+          # them from the exact approved JPG prefix before creating icons.
+          import base64, hashlib
+          prefix=base64.b64decode('/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDACQZGyAbFyQgHiApJyQrNls7NjIyNm9PVEJbhHSKiIF0f32Ro9GxkZrFnX1/tve4xdje6uzqja////7j/9Hl6uH/2wBDAScpKTYwNms7O2vhln+W4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eH/wAARCACgAKADASIAAhEBAxEB/8QAGgAAAgMBAQAAAAAAAAAAAAAAAwQAAQIFBv/EAD4QAAIBAgQDAwgIBgEFAAAAAAECAwARBBIhMRNBUWGRwQUUFSIycXKSNEJDU4Gh0Q==')
+          if len(data)==3835:
+              data=prefix+data[247:]
+              (root/'55-home-source.jpg').write_bytes(data)
+          expected_sha='31103b7b90722e2883f75b64aab47e6189127d3e'
+          git_sha=hashlib.sha1(b'blob '+str(len(data)).encode()+b'\x00'+data).hexdigest()
+          assert git_sha==expected_sha,('Artwork failed integrity check',len(data),git_sha)
+          print('Source JPG passed exact Git object hash and image validation',len(data),flush=True)
           source=Image.open(root/'55-home-source.jpg').convert('RGB')
           def export(name,size,maskable=False):
               if maskable:
@@ -55,7 +61,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add icons/icon-192.png icons/icon-512.png icons/icon-maskable-512.png icons/apple-touch-icon.png icons/favicon-64.png
+          git add icons/55-home-source.jpg icons/icon-192.png icons/icon-512.png icons/icon-maskable-512.png icons/apple-touch-icon.png icons/favicon-64.png
           if ! git diff --cached --quiet; then
             git commit -m "Generate branded PWA icons from approved 55 PERFORMANCE artwork"
             git push
