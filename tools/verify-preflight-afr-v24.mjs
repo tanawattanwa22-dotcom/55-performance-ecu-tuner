@@ -27,7 +27,7 @@ assert.match(p,/originalEcmAuto&&binEstimate\?\.startOffsetHex/,
  'ECM.dat AUTO start field should display BIN-only inferred offset without write approval');
 assert.match(p,/originalEcmAuto&&binEstimate\?\.checksumOffsetHex/,
  'ECM.dat AUTO checksum field should display BIN-only inferred checksum without write approval');
-assert.match(p,/BIN ให้รหัส ECU เพียง 3 ไบต์ตาม FormMain/,
+assert.match(p,/BIN มีรหัส ECU เพียง 3 ไบต์|BIN มี ECU ID เพียง 3 ไบต์แรก/,
  'Partial BIN ECU ID must remain explicitly unverified before any erase');
 assert.match(p,/setItem\('block',Number\.isInteger\(plan\?\.blockBytes\)/,
  'Real plan remains the only verified Block Size source');
