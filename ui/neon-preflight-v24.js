@@ -111,6 +111,11 @@ function render(){
  const plan=(inlineIdentity?.sourceMatched||INLINEFLASH.plan?.checks?.sourceUnlistedWithProof)?INLINEFLASH.plan:verified()?last?.plan:null;
  const source=catalogRecord(identity);
  const sourceCount=window.__55MainProgrammingProbe?.snapshot?.();
+ const physicalFamilyAck=identity?.programmingSessionVerified===true&&
+  identity?.physicalFamilyEvidence==='MAIN_SOURCE_READ_ONLY_FLASH_COUNT_ACK';
+ const originalEcmAuto=source?.origin==='ORIGINAL_PUBLIC_ECM_DAT'&&
+  String(source.startOffsetText||'').toLowerCase()==='auto'&&
+  String(source.checksumOffsetText||'').toLowerCase()==='auto';
  // The initial session may have neither BIN nor offset hint: never dereference null.
  const binEstimate=binOffsetHint&&binOffsetHint.saved===c.saved?binOffsetHint.estimated:null;
  const fileReady=!!quick||c.valid;
@@ -120,7 +125,10 @@ function render(){
  const cableReady=!!window.__55SharedEcu?.port?.ready;
  // Physical ECU absent from the purchased Main C# catalog: show the reason,
  // never suggest this BIN-only analysis authorizes erase or write.
- const unlistedPhysical=!!connectedId?.ecuId&&!catalogRecord(connectedId)&&
+ // ECM.dat is a supplementary reference; its presence does not make the
+ // physical ECU a member of the original embedded Main 290 table.
+ const unlistedPhysical=!!connectedId?.ecuId&&
+  !catalog290.rows?.has(connectedId.ecuId)&&!connectedId.catalog&&
   !INLINEFLASH.busy&&!INLINEFLASH.postCheck;
  const progress=!!inlineIdentity||!!connectedId||(c.valid&&last?.saved===c.saved&&recency()&&!staleId);
  setItem('model',quick?'อ่านรุ่นจาก ECU จริงอัตโนมัติ':c.model||'ยังไม่เลือกรุ่น');
@@ -148,14 +156,24 @@ function render(){
   (source?.origin==='ORIGINAL_PUBLIC_ECM_DAT'?'ECM.dat ต้นฉบับพบ Part Code • Family / Flash Count ยืนยันจาก ECU จริง':'ECU นอกฐาน 290 · Family / Flash Count ยืนยันจาก ECU จริง'):
   source?(source.part?'พบรหัสในฐาน Main แต่ Family ยังไม่ยืนยันจริง':'พบรหัสแต่ไม่มี Part Code'):
   'อ่าน ECU ID ได้ • ไม่อยู่ในฐาน Main 290 (ไม่บังคับ)'):'รออ่าน ECU ID จริง');
- setItem('start',plan?X(plan.startOffset):source?sourceOffset(source.startOffset,source.startOffsetText):
+ // For original ECM.dat's AUTO fields, show the firmware-derived preview
+ // when it exists, always explicitly labeled BIN-only, NOT a write plan.
+ setItem('start',plan?X(plan.startOffset):
+  originalEcmAuto&&binEstimate?.startOffsetHex?binEstimate.startOffsetHex+' • BIN เท่านั้น':
+  source?sourceOffset(source.startOffset,source.startOffsetText):
   binEstimate?.startOffsetHex?binEstimate.startOffsetHex+' • BIN เท่านั้น':'—');
- setItem('checksum',plan?X(plan.checksumOffset):source?sourceOffset(source.checksumOffset,source.checksumOffsetText):
+ setItem('checksum',plan?X(plan.checksumOffset):
+  originalEcmAuto&&binEstimate?.checksumOffsetHex?binEstimate.checksumOffsetHex+' • BIN เท่านั้น':
+  source?sourceOffset(source.checksumOffset,source.checksumOffsetText):
   binEstimate?.checksumOffsetHex?binEstimate.checksumOffsetHex+' • BIN เท่านั้น':'—');
  setItem('block',Number.isInteger(plan?.blockBytes)?plan.blockBytes.toLocaleString()+' bytes':'—');
  setItem('profile',plan?.profile||'ยังไม่มีแผนที่ยืนยัน');
  setItem('offsetState',plan?'ตรวจด้วย HondaFlashEngine / C# แล้ว':
-  source?(source.origin==='ORIGINAL_PUBLIC_ECM_DAT'?'ECM.dat ระบุ AUTO • ต้องตรวจ Offset/Checksum จาก BIN':'พบข้อมูลจากฐาน C# · ต้องตรวจเทียบ BIN ก่อนเขียน'):
+  source?(source.origin==='ORIGINAL_PUBLIC_ECM_DAT'?
+   (binEstimate?.startOffsetHex&&binEstimate?.checksumOffsetHex?
+    'ECM.dat ระบุ AUTO • พบ Offset/Checksum จาก BIN เท่านั้น • ยังไม่มีแผนเขียนที่ตรวจผ่าน':
+    'ECM.dat ระบุ AUTO • ต้องตรวจ Offset/Checksum จาก BIN'):
+   'พบข้อมูลจากฐาน C# · ต้องตรวจเทียบ BIN ก่อนเขียน'):
   binEstimate?'ประมาณจากขนาด/ลายเซ็น BIN เท่านั้น • ต้องเสียบ ECU ยืนยันก่อนอัด':
   fileReady?'กำลังวิเคราะห์ BIN / ต้องอ่าน ECU ID จริง':'ยังไม่มีค่า Offset ที่ยืนยัน');
  dom.note.textContent=staleId?'ECU ID จากสายล่าสุดเปลี่ยนจาก '+last.identity.ecuId+' เป็น '+connectedId.ecuId+' • แผนเดิมใช้ไม่ได้ ต้องอ่าน ECU ID และตรวจ BIN ใหม่':error?'หยุดตรวจ: '+error:message||
@@ -164,7 +182,7 @@ function render(){
   bin:fileReady,
   id:!!identity?.ecuId&&progress,
   catalog:!!source&&progress,
-  family:!!(identity?.sourceMatched||identity?.programmingSessionVerified&&identity?.physicalFamilyEvidence==='MAIN_SOURCE_READ_ONLY_FLASH_COUNT_ACK')&&progress,
+  family:!!(identity?.sourceMatched||physicalFamilyAck)&&progress,
   offset:!!plan,
   hardware:false
  };
@@ -199,7 +217,8 @@ function render(){
   if(!identity?.ecuId){if(fileReady&&cableReady&&!INLINEFLASH.busy)blockers.push('กดปุ่มอัดเพื่อให้อ่าน ECU ID/Part/Family อัตโนมัติ');}
   else if(!catalogRecord(identity)){/* Main 290 is optional: do not present catalog absence as a blocker. */}
   else if(!catalogRecord(identity)?.part)blockers.push('ต้นฉบับไม่มี Part Code สำหรับ ECU ID '+identity.ecuId);
-  else if(!identity.sourceMatched)blockers.push('พบ ECU ID ในฐานแล้ว แต่ Family ยังไม่ได้ยืนยันจากเซสชัน ECU จริง ('+identity.handshake+')');
+  else if(!identity.sourceMatched&&!physicalFamilyAck)
+   blockers.push('พบข้อมูล ECU ในฐานอ้างอิงแล้ว แต่ Flash Preflight ยังไม่มี Family ACK ในเซสชันของตน ('+identity.handshake+')');
   if(identity?.ecuId&&fileReady&&!plan)blockers.push('ยังไม่มีแผนเขียนจาก BIN + ECU ที่ตรวจผ่าน (หน้า Flash จะตรวจยืนยันอีกครั้งก่อน ERASE)');
   if(($('btnFlash')?.hidden||$('btnFlash')?.disabled)&&!INLINEFLASH.busy)blockers.push('Flash Engine ยังไม่พร้อม หรือ License ไม่พร้อม');
   if(working||INLINEFLASH.busy)blockers.push('โปรแกรมกำลังทำงาน');
@@ -304,7 +323,7 @@ async function runCheck(){
    catch(e){
     if(e.code==='UNLISTED_PARTIAL_ID_CONFIRM'){
      last.plan=null;
-     message='ECU นอกฐาน: ตรวจ BIN/Family เบื้องต้นได้ แต่ BIN ให้รหัส ECU เพียง 3 ไบต์ตาม FormMain • กดอัดเพื่อตรวจยืนยันไฟล์ที่ตรงกับกล่องก่อน ERASE';
+     message='อ่าน ECU ID / Family ACK แล้ว • BIN ให้รหัส ECU เพียง 3 ไบต์ตาม FormMain • ต้องยืนยันว่า BIN ตรงกล่องจริงก่อนสร้างแผนเขียน • ยังไม่ได้ ERASE';
      return;
     }
     if(e.code!=='PART_NOT_CONFIRMED')throw e;
