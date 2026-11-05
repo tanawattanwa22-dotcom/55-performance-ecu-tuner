@@ -1423,6 +1423,7 @@ $("#btnSave").onclick=saveBin;
 $("#btnToFlash").onclick=()=>{S.flash=true;history.back();setTimeout(()=>{home();$("#flashCard").scrollIntoView({behavior:"smooth",block:"center"})},60)};
 /* Integrated Flash V18 — original UI, Engine runs only on physical ECU */
 const INLINEFLASH={busy:false,engine:null,port:null,plan:null,postCheck:false,log:[],status:'IDLE',firstSha:null,writeSha:null,filename:null,ecuId:null,flashAttempted:false};
+window.__55RetailFlashState=()=>({busy:INLINEFLASH.busy,flashAttempted:INLINEFLASH.flashAttempted,status:INLINEFLASH.status});
 function inlineFlashNote(txt){const box=$("#stepTxt");if(box)box.textContent=txt}
 function inlineFlashLog(txt){
  const rec=new Date().toISOString()+" "+txt;
@@ -3069,7 +3070,7 @@ const ready=()=>{
  const warning=document.createElement('div');warning.id='retailFlashWarning';warning.setAttribute('role','status');warning.textContent='⚠ กำลังเขียน ECU — ห้ามปิดจอ สลับแอป ถอดสาย หรือปิดไฟเลี้ยง';document.body.append(warning);
  let lock=null,wasWriting=false;
  async function requestLock(){if(!navigator.wakeLock?.request)return;try{if(!lock||lock.released)lock=await navigator.wakeLock.request('screen')}catch(_){}}
- async function sync(){const x=window.INLINEFLASH;const writing=!!(x&&x.busy&&(x.flashAttempted||x.status==='PREPARING_SOURCE_PROTOCOL'));warning.classList.toggle('show',writing);if(writing&&!wasWriting){void requestLock()}if(!writing&&wasWriting&&lock){try{await lock.release()}catch(_){}lock=null}wasWriting=writing}
+ async function sync(){const x=window.__55RetailFlashState?.();const writing=!!(x&&x.busy&&(x.flashAttempted||x.status==='PREPARING_SOURCE_PROTOCOL'));warning.classList.toggle('show',writing);if(writing&&!wasWriting){void requestLock()}if(!writing&&wasWriting&&lock){try{await lock.release()}catch(_){}lock=null}wasWriting=writing}
  setInterval(sync,450);document.addEventListener('visibilitychange',()=>{if(!document.hidden&&wasWriting)void requestLock()});
  document.addEventListener('pointerdown',e=>{const b=e.target.closest('button,.btn,.chip,.ib,[role="button"]');if(b&&!b.disabled){b.classList.add('retail-pressed');setTimeout(()=>b.classList.remove('retail-pressed'),160)}},{passive:true});
 };if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',ready,{once:true});else ready();
