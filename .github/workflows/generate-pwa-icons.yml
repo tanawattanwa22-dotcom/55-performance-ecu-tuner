@@ -29,7 +29,9 @@ jobs:
           # The first binary upload had nine missing header bytes; restore
           # them from the exact approved JPG prefix before creating icons.
           import base64, hashlib
-          prefix=base64.b64decode('/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDACQZGyAbFyQgHiApJyQrNls7NjIyNm9PVEJbhHSKiIF0f32Ro9GxkZrFnX1/tve4xdje6uzqja////7j/9Hl6uH/2wBDAScpKTYwNms7O2vhln+W4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eH/wAARCACgAKADASIAAhEBAxEB/8QAGgAAAgMBAQAAAAAAAAAAAAAAAwQAAQIFBv/EAD4QAAIBAgQDAwgIBgEFAAAAAAECAwARBBIhMRNBUWGRwQUUFSIycXKSNEJDU4Gh0Q==')
+          import zlib
+          prefix=zlib.decompress(base64.b64decode('eNr7f+P/AwYBLzdPNwZGRgYGRiBk+H+bwZlBRVJaQVpcRUFOQVNdRdss2trMyMgs3z/EKbqlpKujsaS+duLiixsnzjo6t7Z+2/cdR2/ce/XmVe/6////Pf5/8emrhyBDGNU1Nc0MzLKtrbMfTquf9pBk8P8AgyAHwwKGBcyMSgxMgozMgoz/jzBIMTAwMYNcCwfMLAyMTKxsQDk7AQYmRiYWZmYODjZGVpAcIxMzgyCLkKKhsGNg4sSDrCKiSkaFRZNMnJyDGxdeBAD76Wn4'))
+          assert len(prefix)==256,('Unexpected source prefix length',len(prefix))
           if len(data)==3835:
               data=prefix+data[247:]
               (root/'55-home-source.jpg').write_bytes(data)
