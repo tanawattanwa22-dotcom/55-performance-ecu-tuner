@@ -307,7 +307,7 @@ async function readECU(){
   working=false;render();
  }
 }
-async function runCheck(){
+async function runCheck({requestConfirmation=false}={}){
  if(working||INLINEFLASH.busy)return;
  working=true;error='';message='กำลังตรวจ BIN / Part Code / Memory Map…';render();
  try{
@@ -330,14 +330,45 @@ async function runCheck(){
    catch(e){
     if(e.code==='UNLISTED_PARTIAL_ID_CONFIRM'){
      last.plan=null;
-     message='อ่าน ECU ID / Family ACK แล้ว • BIN ให้รหัส ECU เพียง 3 ไบต์ตาม FormMain • ต้องยืนยันว่า BIN ตรงกล่องจริงก่อนสร้างแผนเขียน • ยังไม่ได้ ERASE';
-     return;
-    }
+     if(!requestConfirmation){
+      // Background Auto Prepare must never fabricate a technician's
+      // confirmation or interrupt them with an unsolicited modal.
+      message='อ่าน ECU ID / Family ACK แล้ว • BIN ให้รหัส ECU เพียง 3 ไบต์ตาม FormMain • กด ตรวจ Preflight เพื่อยืนยันไฟล์ที่เคยตรวจแล้ว • ยังไม่ได้ ERASE';
+      return;
+     }
+     // Same explicit partial-ID confirmation supported by the original
+     // inline Flash button. This confirmation creates a READ-ONLY plan;
+     // destructive Flash still identifies the ECU anew and asks separately.
+     const id=last.identity.ecuId;
+     const part=last.identity.datReference?.part||last.identity.sourcePart||'ไม่พบ';
+     const approved=confirm('55 PERFORMANCE • ตรวจ BIN ก่อนสร้างแผนเขียน (ยังไม่อัด)\n\n'+
+      'ECU ID จากรถ: '+id+'\n'+
+      'Family จาก ECU ACK: '+last.identity.family+'\n'+
+      'Part Code ฐานอ้างอิง: '+part+'\n'+
+      'ไฟล์: '+c.saved.filename+'\n'+
+      'SHA-256: '+(hash?.saved===c.saved?hash.hex:'ยังไม่ทราบ')+'\n\n'+
+      'BIN มี ECU ID เพียง 3 ไบต์แรก ไม่ยืนยันรหัสเต็มทั้ง 5 ไบต์\n'+
+      'คุณตรวจแล้วว่าไฟล์นี้เป็นไฟล์จูน/ไฟล์สำรองที่ใช้กับกล่องรุ่นนี้จริงหรือไม่?\n\n'+
+      'ตกลง = บันทึกคำยืนยันของช่างเพื่อคำนวณแผน (ไม่ ERASE/WRITE)\n'+
+      'ยกเลิก = หยุด โดยไม่สร้างแผน');
+     if(!approved){
+      message='ยกเลิกการยืนยัน BIN • ไม่มีแผนเขียน และไม่ได้ ERASE/WRITE';
+      return;
+     }
+     // Do NOT mark full five-byte BIN ID matching. The engine preserves
+     // its source locator evidence and independently calculates offsets,
+     // checksum, write profile and block count from a copied immutable BIN.
+     plan=last.engine.makePlan(c.bytes.slice(),{
+      filename:c.saved.filename,confirmedPart:'CONFIRM '+id,
+      fast:false,recovery:false
+     });
+    }else{
     if(e.code!=='PART_NOT_CONFIRMED')throw e;
     const {readBinId}=await import(new URL('flash_port/bin-tools.js?v=379',document.baseURI).href);
     const embedded=readBinId(c.bytes);
     if(!embedded.ok||String(embedded.id).toUpperCase()!==last.identity.ecuId)throw e;
     plan=last.engine.makePlan(c.bytes.slice(),{filename:c.saved.filename,confirmedPart:last.identity.sourcePart,fast:false,recovery:false});
+    }
    }
   if(!Number.isInteger(plan.startOffset)||!Number.isInteger(plan.checksumOffset)||!Number.isInteger(plan.blockBytes))
    throw Error('Memory Map ไม่ครบ จึงไม่ผ่าน Preflight');
@@ -438,7 +469,7 @@ function mount(host){
  const note=make('p','','');dom.note=note;state.append(title,note);stage.append(state);
  const actions=make('div','n24-actions');
  const read=btn('▣ อ่าน ECU ID','n24-btn n24-read',readECU);dom.read=read;
- const check=btn('▱ ตรวจ Preflight','n24-btn n24-verify',runCheck);dom.check=check;
+ const check=btn('▱ ตรวจ Preflight','n24-btn n24-verify',()=>runCheck({requestConfirmation:true}));dom.check=check;
  actions.append(read,check);
  const advanced=make('details','n24-advanced');
  advanced.append(make('summary','','ตัวเลือกขั้นสูง / Fast Write / ตรวจละเอียด (ไม่จำเป็นต้องกดก่อนอัด)'),fastLabel,actions);
