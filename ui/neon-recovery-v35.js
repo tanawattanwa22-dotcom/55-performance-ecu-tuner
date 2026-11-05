@@ -16,9 +16,31 @@
  };
  const log=(txt)=>{
    events.push(new Date().toLocaleTimeString('th-TH',{hour12:false})+' '+txt);
-   if(events.length>350)events.splice(0,80);
+   // Recovery can send thousands of write blocks. Retain enough per-command
+   // TX/RX context for a post-failure export without flooding the mobile UI.
+   if(events.length>20000)events.splice(0,4000);
    if(ui.log){ui.log.textContent=events.slice(-80).join('\n');ui.log.scrollTop=ui.log.scrollHeight;}
  };
+ function exportRecoveryLog(){
+   if(!events.length){note('ยังไม่มี TX/RX Recovery ให้บันทึก',true);return}
+   const header=[
+     '55 PERFORMANCE RECOVERY TX/RX',
+     'capturedAt='+new Date().toISOString(),
+     'ecuId='+(identity?.ecuId||'UNKNOWN'),
+     'family='+(identity?.family||'UNVERIFIED'),
+     'phase='+phase,
+     'profile='+(plan?.profile||'NONE'),
+     'file='+(bin?.name||'NONE'),
+     'flashReadbackVerified=false',
+     'NOTE: source ACK does not prove full firmware readback',
+     ''
+   ].join('\n');
+   const blob=new Blob([header,events.join('\n')],{type:'text/plain;charset=utf-8'});
+   const url=URL.createObjectURL(blob),a=document.createElement('a');
+   a.href=url;a.download='55_RECOVERY_'+new Date().toISOString().replace(/[:.]/g,'-')+'.txt';
+   document.body.append(a);a.click();a.remove();
+   setTimeout(()=>URL.revokeObjectURL(url),2000);
+ }
  const field=(box,label)=>{
    const row=el('div','n24-info-line');
    row.append(el('span','',label));const value=el('strong','','—');row.append(value);box.append(row);return value;
@@ -247,7 +269,10 @@
    ui.error=el('div','n24-warning');ui.error.hidden=true;host.append(ui.error);
    const logs=el('details','n24-advanced');logs.append(el('summary','','TX/RX และสถานะ Recovery'));
    ui.log=el('pre');ui.log.style.cssText='max-height:220px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;background:#071728;color:#9ef4e5;padding:12px;border-radius:10px;font-size:11px';
-   logs.append(ui.log);host.append(logs);
+   logs.append(ui.log);
+   const save=button('↓ บันทึก TX/RX Recovery เป็น TXT',exportRecoveryLog,'n24-btn n24-read');
+   save.style.cssText='width:100%;margin:8px 0 0';
+   logs.append(save);host.append(logs);
    host.append(el('p','n24-help','การตรวจจับ Recovery อัตโนมัติเป็นแบบอ่านอย่างเดียว • กล่องต้องตอบ Boot/Session และ Flash Count ตามตระกูลจึงจะสร้างแผน • ACK หลังเขียนไม่ใช่ Full Readback Verify'));
    const prior=window.__55RecoverySuggested;
    if(prior)note('ตรวจพบเหตุจาก Flash: '+(prior.detail||prior.kind)+'\nกำลังอ่าน ECU ID จากกล่องจริงอีกครั้ง');
