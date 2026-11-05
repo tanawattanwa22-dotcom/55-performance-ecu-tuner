@@ -511,16 +511,21 @@ body.retail-help-open .n20-header-back{
 }
 
 
-/* 55 PERFORMANCE RGB EDGE / SOFT FLOW v1 — decorative only */
-/*
- * Narrow scope: interactive dashboard tiles + actual Fast Flash preflight cards.
- * These animations never affect USB, ECU communication, clicks, forms or logs.
- * The 1.4px mask keeps existing per-card backgrounds and text untouched.
- * A soft color current moves along the rim instead of bright flashing pulses.
+/* 55 PERFORMANCE RGB EDGE / CLOCKWISE FLOW v2 — presentation only.
+ * Fix: v1 shifted a low-opacity, 1.4px linear gradient so the motion was
+ * nearly invisible. V2 rotates a multicolor conic ring around the card.
+ * Chrome on Android supports registered <angle> custom-property animation.
+ * Mask confines the effect to a narrow rounded border; controls are never
+ * covered and text/background/ECU operation remain unchanged.
  */
-.n20-tile,
-.n24-panel{
+@property --retail55-rgb-angle{
+ syntax:"<angle>";
+ inherits:false;
+ initial-value:0deg;
+}
+.n20-tile,.n24-panel{
  position:relative!important;
+ isolation:isolate;
 }
 @supports ((-webkit-mask-composite:xor) or (mask-composite:exclude)){
  .n20-tile::after,
@@ -528,47 +533,55 @@ body.retail-help-open .n20-header-back{
   content:"";
   position:absolute;
   inset:0;
+  padding:2.4px;
   border-radius:inherit;
-  padding:1.4px;
-  background:linear-gradient(110deg,
-   #34dce690 0%,
-   #5d9ef766 13%,
-   #a876e6a0 27%,
-   #ee6cbd7d 41%,
-   #c2ac7680 52%,
-   #4bd7c67d 66%,
-   #509de4a0 83%,
-   #34dce690 100%);
-  background-size:260% 100%;
-  opacity:.58;
-  -webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
-  -webkit-mask-composite:xor;
-  mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
-  mask-composite:exclude;
   pointer-events:none;
   z-index:2;
-  animation:retail55RgbBorderDrift 18s linear infinite;
+  background:conic-gradient(from var(--retail55-rgb-angle),
+   #2bcde6b0 0deg,
+   #56a2f9b3 43deg,
+   #af8cf6bd 91deg,
+   #ed81c7b0 135deg,
+   #edbb8f9a 185deg,
+   #4fdbc0b6 240deg,
+   #4da7e9b2 292deg,
+   #d8f9ffee 318deg,
+   #70eafaf0 331deg,
+   #2bcde6b0 360deg);
+  -webkit-mask:linear-gradient(#fff 0 0) content-box,
+               linear-gradient(#fff 0 0);
+  -webkit-mask-composite:xor;
+  mask:linear-gradient(#fff 0 0) content-box,
+       linear-gradient(#fff 0 0);
+  mask-composite:exclude;
+  opacity:.84!important;
+  filter:drop-shadow(0 0 2px #69e8f833);
+  animation:retail55RgbOrbit 13s linear infinite!important;
  }
- .n20-tile[data-retail-cat="flash"]::after,
- .n24-ecu::after{animation-delay:-3s;opacity:.67}
  .n20-tile[data-retail-cat="library"]::after,
  .n20-tile[data-retail-cat="tune"]::after,
- .n24-bin::after{animation-delay:-6s;opacity:.63}
+ .n24-bin::after{animation-delay:-4s!important}
  .n20-tile[data-retail-cat="live"]::after,
- .n24-map::after{animation-delay:-10s;opacity:.62}
- .n20-tile[data-retail-cat="dtc"]::after{animation-delay:-13s;opacity:.56}
- .n20-tile[data-retail-cat="tools"]::after{animation-delay:-7s;opacity:.54}
+ .n24-map::after{animation-delay:-7s!important}
+ .n20-tile[data-retail-cat="dtc"]::after,
+ .n20-tile[data-retail-cat="tools"]::after{animation-delay:-9s!important}
+ .n20-tile[data-retail-cat="settings"]::after,
+ .n24-ecu::after{animation-delay:-2s!important}
 }
-@keyframes retail55RgbBorderDrift{
- from{background-position:0% 50%}
- to{background-position:100% 50%}
+@keyframes retail55RgbOrbit{
+ from{--retail55-rgb-angle:0deg}
+ to{--retail55-rgb-angle:360deg}
 }
-/* No animations for accessibility; no unnecessary visual work while writing ECU. */
+/* Respect accessibility preferences and pause ornamental effects when
+ * the ECU flashing warning is visible. This does not interrupt functionality. */
 @media(prefers-reduced-motion:reduce){
- .n20-tile::after,.n24-panel::after{animation:none!important;opacity:.4!important}
+ .n20-tile::after,.n24-panel::after{
+  animation:none!important;
+  opacity:.55!important;
+ }
 }
 body:has(#retailFlashWarning.show) .n20-tile::after,
 body:has(#retailFlashWarning.show) .n24-panel::after{
  animation-play-state:paused!important;
- opacity:.35!important;
+ opacity:.42!important;
 }
