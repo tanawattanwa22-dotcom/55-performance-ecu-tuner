@@ -379,3 +379,82 @@ body.retail-mode{
  outline:2px solid #72eaff;outline-offset:3px
 }
 @media(max-width:380px){.n20-header-back{width:37px;min-width:37px;height:39px}}
+
+
+/* 55 PERFORMANCE retail typography + single-guide cleanup v5 */
+/* Visual only. All ECU protocol, Flash and Recovery JS paths remain untouched. */
+:root{--retail-brand-font:"Chakra Petch","Noto Sans Thai",Tahoma,sans-serif}
+html,body,body :is(button,input,select,textarea,option,label,div,span,small,b,strong,h1,h2,h3,h4,h5,h6,p,li,summary,article,section,nav,header,footer,dt,dd,th,td),
+#licenseGate,#licenseGate *{
+ font-family:var(--retail-brand-font)!important
+}
+body pre,body code,body kbd,body samp{font-family:ui-monospace,SFMono-Regular,monospace!important}
+.n20-logo,.n20-logo small{font-family:var(--retail-brand-font)!important;font-style:italic;font-weight:900!important}
+.n20-hero h2,.n20-panel-title,.n24-panel-title,.n21-screen-head h2{
+ font-family:var(--retail-brand-font)!important;font-weight:700!important;letter-spacing:.2px
+}
+/* A single customer guide is attached to document.body; make it visually
+   distinct from the brand header and prevent other fixed controls bleeding through. */
+#retailHelp{
+ z-index:10050!important;display:flex!important;align-items:center;justify-content:center;
+ min-height:43px!important;padding:8px 12px!important;white-space:nowrap;
+ border:1px solid #70c1de!important;border-radius:14px!important;
+ color:#edfbff!important;background:linear-gradient(145deg,#183e56,#1a2945)!important;
+ box-shadow:0 4px 0 #040c21,0 8px 20px #0008,inset 0 1px #ffffff35!important;
+ font-size:13px!important;line-height:1.25!important
+}
+#retailHelpDialog{
+ z-index:10060!important;inset:0!important;
+ background:rgba(2,9,22,.95)!important;backdrop-filter:blur(9px);
+ padding:14px!important;overscroll-behavior:contain
+}
+#retailHelpPanel{
+ width:min(96vw,620px)!important;max-width:620px!important;
+ max-height:calc(100dvh - 28px)!important;overflow:auto!important;
+ padding:0 18px 24px!important;border:1px solid #658aa7!important;
+ border-radius:21px!important;
+ background:linear-gradient(150deg,#152c44,#101c32 72%,#1a2038)!important;
+ color:#edf8ff!important;box-shadow:0 24px 75px #000d!important;
+ overscroll-behavior:contain;-webkit-overflow-scrolling:touch
+}
+#retailHelpPanel .retail-guide-header{
+ position:sticky;top:0;z-index:3;display:flex;align-items:center;gap:12px;
+ min-height:76px;margin:0 -18px 18px;padding:14px 18px;
+ background:#14283eeF;border-bottom:1px solid #496d87;
+ backdrop-filter:blur(10px)
+}
+#retailHelpPanel .retail-guide-header h2{
+ flex:1;min-width:0;margin:0!important;color:#f5fbff!important;
+ font-size:clamp(18px,4.4vw,25px)!important;line-height:1.2!important;
+ font-style:italic;font-weight:800!important;overflow-wrap:anywhere
+}
+#retailHelpPanel #retailHelpClose{
+ float:none!important;position:static!important;flex:none;
+ width:47px!important;height:47px!important;min-width:47px!important;
+ display:grid!important;place-items:center!important;
+ padding:0!important;border-radius:14px!important;
+ border:1px solid #6ce0f1!important;
+ background:linear-gradient(140deg,#185069,#15293f)!important;
+ color:#ffffff!important;font-size:30px!important;font-weight:700!important;
+ line-height:1!important;opacity:1!important;text-shadow:none!important;
+ box-shadow:0 4px 0 #040b1b,0 7px 14px #0007!important
+}
+#retailHelpPanel #retailHelpClose:active{
+ transform:translateY(3px) scale(.97)!important;
+ box-shadow:0 1px 0 #040b1b,0 2px 5px #0008!important
+}
+#retailHelpPanel h3{font-size:20px!important;color:#7adaf4!important;line-height:1.3!important;margin:19px 0 7px!important}
+#retailHelpPanel p{font-size:16px!important;color:#e3f1fd!important;line-height:1.7!important;margin:0 0 11px!important}
+body.retail-help-open #retailHelp,
+body.retail-help-open #retailGlobalBack,
+body.retail-help-open .n20-header-back{
+ visibility:hidden!important;pointer-events:none!important
+}
+#retailHelpDialog.open{display:flex!important}
+@media(max-width:410px){
+ #retailHelpPanel{padding:0 15px 20px!important}
+ #retailHelpPanel .retail-guide-header{margin:0 -15px 16px;padding:12px 15px;gap:8px;min-height:68px}
+ #retailHelpPanel #retailHelpClose{width:43px!important;height:43px!important;min-width:43px!important}
+ #retailHelpPanel h3{font-size:19px!important}
+ #retailHelpPanel p{font-size:15px!important}
+}
