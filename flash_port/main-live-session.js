@@ -491,7 +491,11 @@ export class MainLiveSession {
    }
    try{
     this.phase='LIVE_PROBE_GROUP_'+candidate;this.notify();
-    const {reply,echoOK}=await this.port.exchangeRaw(frame,{timeoutMs:1700,afterWriteMs:50});
+    // FM_diag.cs method_96 waits 30ms after probing Group 7 (0x13),
+     // but 50ms after its Group 4 (0x17) fallback. Do not use one
+     // invented constant for both source branches.
+     const probeWaitMs=candidate===7?30:50;
+     const {reply,echoOK}=await this.port.exchangeRaw(frame,{timeoutMs:1700,afterWriteMs:probeWaitMs});
     if(!acceptedSourceProbe(reply,echoOK))throw Error('ECU reply does not match source diagnostic framing');
     this.detectedGroup=candidate;
     rememberReadOnlyObservation({ecuId:this.ecuId,liveGroup:candidate});
