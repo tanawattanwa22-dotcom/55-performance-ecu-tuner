@@ -29,7 +29,7 @@ async function previewBinOffset(){
  try{
   const [{csharpOffsetInference},{previewMainShindengenBin}]=await Promise.all([
    import(new URL('flash_port/csharp-offsets.js?v=317',document.baseURI).href),
-   import(new URL('flash_port/main-shindengen-auto-preview.js?v=1',document.baseURI).href)]);
+   import(new URL('flash_port/main-shindengen-auto-preview.js?v=2',document.baseURI).href)]);
   const estimated=csharpOffsetInference(item.bytes.slice());
   const sourceAuto=previewMainShindengenBin(item.bytes);
   if(sourceAuto.ready){
