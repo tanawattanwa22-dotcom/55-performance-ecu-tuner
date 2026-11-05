@@ -37,6 +37,14 @@ assert.match(p,/binEstimate\?\.binProfile\?binEstimate\.binProfile\+' โ€ข BIN เน
  'Read-only C# profile preview is labelled as BIN-only');
 assert(p.includes('sourceBinPreview')&&p.includes("verified:false,origin:'BIN_ONLY'"),
  'Dashboard BIN offset preview never carries physical verification');
+assert(p.includes("const actions=make('div','n24-actions n24-main-check-actions')")&&
+ p.includes('stage.append(actions);')&&
+ !p.includes('fastLabel,actions);'),
+ 'ECU read and Preflight controls are visible in the main Fast Flash page, not trapped inside advanced details');
+assert(p.includes("()=>runCheck({requestConfirmation:true})"),
+ 'Manual Preflight action must request explicit technician confirmation for source 3-byte BIN IDs');
+assert(p.includes('if(!requestConfirmation)')&&p.includes('confirmedPart:\'CONFIRM \'+id'),
+ 'Automatic probe never auto-confirms partial BIN ID; manual Preflight can produce read-only plan');
 assert(p.includes('last.engine.makePlan(c.bytes.slice()'),'strict C# plan from saved BIN snapshot');
 assert(p.includes('sourceMatched'),'catalog and family source matching enforced');
 assert(p.includes('S.saved')&&p.includes('TuneBinFlow.matches'),'preflight uses saved immutable BIN only');
