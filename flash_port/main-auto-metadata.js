@@ -3,6 +3,7 @@
  * Never infer a part or memory offset from selected BIN, selected model, or old session.
  */
 import {lookupMainDatReference} from './main-dat-reference.js?v=2';
+import {findOriginalEcmDat} from './main-original-ecm-catalog.js';
 const ID=/^[0-9A-F]{10}$/;
 const fmt=n=>'0x'+n.toString(16).toUpperCase().padStart(8,'0');
 function offset(number,sourceText){
@@ -26,20 +27,22 @@ export function resolveMainAutoMetadata(snapshot={}){
   ...base,status:'RECOVERY',message:'ECU ID ลงท้าย 0000 • อาจอยู่ใน Recovery Boot; ไม่ใช้ Offset สำหรับ Flash ปกติ'
  };
  if(!snapshot.catalogMatched){
-  const dat=lookupMainDatReference(id);
+  const dat=lookupMainDatReference(id)||findOriginalEcmDat(id);
   if(dat){
-   const start=offset(dat.startOffset,dat.rawStartOffset);
-   const checksum=offset(dat.checksumOffset,dat.rawChecksumOffset);
+   const start=offset(dat.startOffset,dat.rawStartOffset??dat.startOffsetText);
+   const checksum=offset(dat.checksumOffset,dat.rawChecksumOffset??dat.checksumOffsetText);
    return {...base,partCode:dat.part||null,
     family:dat.family==='UNVERIFIED'?null:dat.family,
     startOffset:start.value,checksumOffset:checksum.value,
     startKnown:start.known,checksumKnown:checksum.known,
-    complete:false,status:'USER_DAT_REFERENCE',
-    message:'ไม่พบใน Main 290 แต่พบใน ecuData.dat ที่นำเข้า · Part/Offset เป็นข้อมูลอ้างอิง ต้องตรวจ ECU จริง',
-    source:'Main.zip FormMain.cs / user-imported ecuData.dat'};
+    complete:false,status:dat.origin==='ORIGINAL_PUBLIC_ECM_DAT'?'ORIGINAL_ECM_REFERENCE':'USER_DAT_REFERENCE',
+    message:dat.origin==='ORIGINAL_PUBLIC_ECM_DAT'?
+     'พบ ECU ใน ECM.dat ต้นฉบับ 122 รายการ · Part/ขนาดเป็นข้อมูลอ้างอิง Offset AUTO ต้องคำนวณจาก BIN และยืนยัน Family จาก ECU จริง':
+     'ไม่พบใน Main 290 แต่พบใน ecuData.dat ที่นำเข้า · Part/Offset เป็นข้อมูลอ้างอิง ต้องตรวจ ECU จริง',
+    source:dat.origin==='ORIGINAL_PUBLIC_ECM_DAT'?'Original developer ECM.dat / 122 rows':'Main.zip FormMain.cs / user-imported ecuData.dat'};
   }
   return {...base,status:'NOT_FOUND',
-   message:'อ่าน ECU ID ได้ แต่ไม่มีใน Main 290 หรือ ecuData.dat · สามารถตรวจ BIN ตามต้นฉบับได้'};
+   message:'อ่าน ECU ID ได้ แต่ไม่มีใน Main 290 / ECM.dat 122 หรือ ecuData.dat · ตรวจ BIN ตามต้นฉบับได้'};
  }
  const start=offset(snapshot.startOffset,snapshot.startOffsetText);
  const checksum=offset(snapshot.checksumOffset,snapshot.checksumOffsetText);

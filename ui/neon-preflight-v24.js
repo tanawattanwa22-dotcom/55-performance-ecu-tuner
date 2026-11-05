@@ -19,7 +19,7 @@ const mainFileSize=bytes=>bytes>=1048576?(bytes/1048576).toFixed(2)+' MB':
  bytes>=1024?(bytes/1024).toFixed(2)+' KB':bytes+' B'; // FormMain.FormatFileSize
 const hasMainLocator=bytes=>bytes instanceof Uint8Array&&MAIN_BIN_ID_SIZES.has(bytes.length);
 const quickBin=()=>window.__55QuickFlashBin?.bytes instanceof Uint8Array?window.__55QuickFlashBin:null;
-const catalogRecord=identity=>identity?.ecuId?(catalog290.rows?.get(String(identity.ecuId).toUpperCase())||identity.catalog||null):null;
+const catalogRecord=identity=>identity?.ecuId?(catalog290.rows?.get(String(identity.ecuId).toUpperCase())||identity.catalog||identity.datReference||null):null;
 const sourceOffset=(n,raw)=>Number.isInteger(n)?X(n):raw==='auto'?'AUTO (Main C#)':raw===''?'ไม่ระบุใน Main C#':'—';
 // A BIN-only estimate is shown before connecting, but NEVER permits writing.
 async function previewBinOffset(){
@@ -124,7 +124,7 @@ function render(){
   !INLINEFLASH.busy&&!INLINEFLASH.postCheck;
  const progress=!!inlineIdentity||!!connectedId||(c.valid&&last?.saved===c.saved&&recency()&&!staleId);
  setItem('model',quick?'อ่านรุ่นจาก ECU จริงอัตโนมัติ':c.model||'ยังไม่เลือกรุ่น');
- setItem('dbcount',catalog290.rows?'ฐานข้อมูลรุ่นพร้อมใช้งาน':catalog290.error?'ข้อมูลรุ่นเสริมไม่พร้อม':'กำลังโหลดข้อมูลรุ่น');
+ setItem('dbcount',catalog290.rows?'ฐาน Main 290 + ECM.dat ต้นฉบับ 122':catalog290.error?'ฐาน Main 290 โหลดผิดพลาด (ECM.dat อ้างอิงยังใช้ได้)':'กำลังโหลดฐาน Main 290');
  setItem('filename',quick?quick.filename:c.valid?c.saved.filename:'ยังไม่ได้เลือก BIN');
  setItem('source',quick?'BIN ที่เลือกจากโทรศัพท์':c.valid?(c.saved.customerBin?'BIN ที่นำเข้าจากเครื่อง':'Master BIN (จากแอป)'):'—');
  setItem('size',quick?mainFileSize(quick.bytes.length):c.valid?mainFileSize(c.bytes.length):'—');
@@ -135,7 +135,7 @@ function render(){
   identity.family+' · Family จาก ECU ACK จริง':
   sourceCount?.countState==='CONFIRMED'&&sourceCount.ecuId===identity.ecuId?
     sourceCount.family+' · Flash Count ACK (อ่านจริง)':
-  source?.family?source.family+' · อ้างอิงฐาน C# (ยังไม่ยืนยัน)':identity.family||'ไม่ระบุ'):'—');
+  source?.family?source.family+(source.origin==='ORIGINAL_PUBLIC_ECM_DAT'?' · จาก ECM.dat ต้นฉบับ (รอ ECU ACK)':' · อ้างอิงฐาน C# (ยังไม่ยืนยัน)'):identity.family||'ไม่ระบุ'):'—');
  setItem('flashcount',Number.isInteger(identity?.count)?identity.count+' ครั้ง':
   sourceCount?.countState==='CONFIRMED'?sourceCount.flashCount+' ครั้ง · ACK โหมดโปรแกรมมิ่ง (ยังไม่อนุญาต Flash)':
   sourceCount?.countState==='NO_REPLY'||sourceCount?.countState==='ERROR'?
@@ -145,7 +145,7 @@ function render(){
   'ยังไม่ได้ตรวจ Flash Count ในโหมดโปรแกรมมิ่ง');
  setItem('sourceMatch',identity?(identity.sourceMatched?'ยืนยัน ECU ID / Family จาก ECU จริง':
   identity.programmingSessionVerified&&identity.physicalFamilyEvidence==='MAIN_SOURCE_READ_ONLY_FLASH_COUNT_ACK'?
-  'ECU นอกฐาน 290 · Family / Flash Count ยืนยันจาก ECU จริง':
+  (source?.origin==='ORIGINAL_PUBLIC_ECM_DAT'?'ECM.dat ต้นฉบับพบ Part Code • Family / Flash Count ยืนยันจาก ECU จริง':'ECU นอกฐาน 290 · Family / Flash Count ยืนยันจาก ECU จริง'):
   source?(source.part?'พบรหัสในฐาน Main แต่ Family ยังไม่ยืนยันจริง':'พบรหัสแต่ไม่มี Part Code'):
   'อ่าน ECU ID ได้ • ไม่อยู่ในฐาน Main 290 (ไม่บังคับ)'):'รออ่าน ECU ID จริง');
  setItem('start',plan?X(plan.startOffset):source?sourceOffset(source.startOffset,source.startOffsetText):
@@ -155,7 +155,7 @@ function render(){
  setItem('block',Number.isInteger(plan?.blockBytes)?plan.blockBytes.toLocaleString()+' bytes':'—');
  setItem('profile',plan?.profile||'ยังไม่มีแผนที่ยืนยัน');
  setItem('offsetState',plan?'ตรวจด้วย HondaFlashEngine / C# แล้ว':
-  source?'✓ พบค่าฐาน Main C# · ต้องตรวจเทียบ BIN ก่อนเขียน':
+  source?(source.origin==='ORIGINAL_PUBLIC_ECM_DAT'?'ECM.dat ระบุ AUTO • ต้องตรวจ Offset/Checksum จาก BIN':'พบข้อมูลจากฐาน C# · ต้องตรวจเทียบ BIN ก่อนเขียน'):
   binEstimate?'ประมาณจากขนาด/ลายเซ็น BIN เท่านั้น • ต้องเสียบ ECU ยืนยันก่อนอัด':
   fileReady?'กำลังวิเคราะห์ BIN / ต้องอ่าน ECU ID จริง':'ยังไม่มีค่า Offset ที่ยืนยัน');
  dom.note.textContent=staleId?'ECU ID จากสายล่าสุดเปลี่ยนจาก '+last.identity.ecuId+' เป็น '+connectedId.ecuId+' • แผนเดิมใช้ไม่ได้ ต้องอ่าน ECU ID และตรวจ BIN ใหม่':error?'หยุดตรวจ: '+error:message||
@@ -251,7 +251,7 @@ async function readECU(){
  try{
   // Reuse the physical FT232R opened from the home dashboard.
   const [{HondaFlashEngine}]=await Promise.all([
-   import(new URL('flash_port/honda-write-engine.js?v=392',document.baseURI).href)]);
+   import(new URL('flash_port/honda-write-engine.js?v=394',document.baseURI).href)]);
   if(typeof api!=='function')throw Error('ไม่พบตัวตรวจ License');
   const license=await api('check',{device:localStorage.getItem('55_device_id')});
   if(!license?.active)throw Error('License ไม่ได้เปิดใช้งาน');
@@ -266,7 +266,10 @@ async function readECU(){
   message=identity.ecuId?.endsWith('0000')?
    'พบ ECU Boot ID '+identity.ecuId+' • Flash ปกติหยุดก่อน ERASE ให้เปิด Recovery เพื่อยืนยันโหมด/Family จาก ECU จริง':identity.sourceMatched?
    'อ่าน ECU ID '+identity.ecuId+' และยืนยัน Family แล้ว · กดตรวจ Preflight':
-   found?'อ่าน ECU ID '+identity.ecuId+' ได้จริง · พบในฐาน 290 ('+found.family+') แต่เซสชัน '+identity.handshake+' ยังไม่ยืนยัน Family สำหรับแฟลช':
+   found?(found.origin==='ORIGINAL_PUBLIC_ECM_DAT'?
+    'อ่าน ECU ID '+identity.ecuId+' • พบ Part '+found.part+' ใน ECM.dat ต้นฉบับ • '+
+     (identity.programmingSessionVerified?'Family / Flash Count ยืนยันจากรถแล้ว • ตรวจ BIN / Offset ต่อ':'ต้องรอ Family ACK ก่อนสร้างแผนเขียน'):
+    'อ่าน ECU ID '+identity.ecuId+' ได้จริง · พบในฐาน 290 ('+found.family+') แต่เซสชัน '+identity.handshake+' ยังไม่ยืนยัน Family สำหรับแฟลช'):
    'อ่าน ECU ID '+identity.ecuId+' ได้จริง แต่ไม่พบในฐาน 290 รายการ · ตรวจรุ่นกล่อง/คำตอบดิบก่อน';
  }catch(e){
   last=null;

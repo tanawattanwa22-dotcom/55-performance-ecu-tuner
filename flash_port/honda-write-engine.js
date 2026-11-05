@@ -16,6 +16,7 @@ import {readBinId} from './bin-tools.js?v=379';
 import {probeMainProgrammingSession} from './main-programming-probe.js?v=7';
 import {sourceFamilyHint} from './main-source-family-hints.js?v=2';
 import {lookupMainDatReference} from './main-dat-reference.js?v=2';
+import {findOriginalEcmDat} from './main-original-ecm-catalog.js';
 const sleep=ms=>new Promise(ok=>setTimeout(ok,ms));
 function bytes(list){
  const b=Uint8Array.from(list);
@@ -112,7 +113,7 @@ export class HondaFlashEngine {
     const ecuId=toHex(r.slice(5,10)).replaceAll(' ','');
     if(!/^[0-9A-F]{10}$/.test(ecuId))fail('BAD_ECU_ID','Diagnostic ID malformed');
     const source=(await findCSharpEcuId(ecuId))||catalogLookup(ecuId);
-   const datReference=source?null:lookupMainDatReference(ecuId);
+   const datReference=source?null:(lookupMainDatReference(ecuId)||findOriginalEcmDat(ecuId));
     this.identity={ecuId,family:'UNVERIFIED',count:null,handshake:'DIAGNOSTIC_ONLY',
       sourcePart:source?.part||datReference?.part||null,sourceMatched:false,
       catalog:source||null,datReference};
@@ -159,7 +160,7 @@ export class HondaFlashEngine {
    const ecuId=toHex(idReply.slice(5,10)).replaceAll(' ','');
    if(!/^[0-9A-F]{10}$/.test(ecuId))fail('BAD_ECU_ID','ECU ID ผิดรูปแบบ');
    const source=(await findCSharpEcuId(ecuId))||catalogLookup(ecuId);
-   const datReference=source?null:lookupMainDatReference(ecuId);
+   const datReference=source?null:(lookupMainDatReference(ecuId)||findOriginalEcmDat(ecuId));
    let family='UNVERIFIED',count=null,physicalFamilyEvidence=null;
    try{
     const isSh=source?.family==='SHINDENGEN';
@@ -316,6 +317,12 @@ export class HondaFlashEngine {
    if(!rec&&!sourceUnlisted&&!filename.toUpperCase().includes(shortPart)&&
       confirmedPart.trim().toUpperCase()!==sourcePart)
    fail('PART_NOT_CONFIRMED','ชื่อ BIN ไม่ระบุ '+shortPart+' ให้กรอกรหัสอะไหล่ ECU ตามต้นฉบับ '+sourcePart+' ในช่องยืนยัน Part');
+  const originalEcm=this.identity.datReference?.origin==='ORIGINAL_PUBLIC_ECM_DAT'?this.identity.datReference:null;
+  // Original ECM.dat records the firmware size in KB (384 for K1ZP-T71).
+  // A reference name never overrides the physical ECU ID/BIN ID check.
+  if(!rec&&originalEcm?.expectedSizeKb&&originalEcm.expectedSizeKb*1024!==bin.length)
+   fail('ECM_BIN_SIZE_MISMATCH','ECM.dat ระบุ '+originalEcm.expectedSizeKb+' KB สำหรับ '+ecuId+
+     ' แต่ BIN มี '+(bin.length/1024)+' KB');
   const validSizes=new Set([32768,49152,57344,65536,98304,131072,262144,393216,524288,786432,1048576]);
   if(!validSizes.has(bin.length))fail('BIN_SIZE','ขนาด BIN ไม่อยู่ในขนาดที่ C# รองรับ');
   const originalBin=bin.slice();

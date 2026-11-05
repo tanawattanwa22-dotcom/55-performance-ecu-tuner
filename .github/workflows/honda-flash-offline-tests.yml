@@ -16,6 +16,7 @@ on:
       - "tools/verify-main-diagnostic.mjs"
       - "tools/verify-main-auto-group.mjs"
       - "tools/verify-main-bin-sizes.mjs"
+      - "tools/verify-original-ecm-reference.mjs"
       - "tests/**"
       - "package.json"
       - ".github/workflows/honda-flash-offline-tests.yml"
@@ -28,6 +29,7 @@ on:
       - "tools/verify-honda-flash.mjs"
       - "tools/verify-main-programming-probe.mjs"
       - "tools/verify-main-diagnostic.mjs"
+      - "tools/verify-original-ecm-reference.mjs"
       - "tests/**"
       - "package.json"
   workflow_dispatch:
@@ -49,6 +51,8 @@ jobs:
           node-version: "22"
       - name: "Regression: Main FormMain source parity for unlisted ECU, HELLO and DAT (NO USB)"
         run: node tests/main-source-parity.test.mjs
+      - name: Verify original developer ECM.dat 122-row snapshot / PCX160 ABS read-only metadata
+        run: node tools/verify-original-ecm-reference.mjs
       - name: Verify read-only Main programming probe, timeout recovery and DAT trust (NO ECU)
         run: node tools/verify-main-programming-probe.mjs
       - name: Verify V28 signed Offline Flash and shared original source engine
