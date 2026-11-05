@@ -58,9 +58,11 @@ assert(index.includes('const hasThisEcuBackup=confirm(')&&
  index.includes('physicalBackupConfirmed:hasThisEcuBackup,')&&
  index.includes('backupUnavailableAcknowledged:noBackupAck,'),
  'Flash UI must accurately distinguish existing original backup from risk acknowledgement');
-assert(index.includes('ui/neon-preflight-v24.js?v=412')&&
- index.includes('honda-write-engine.js?v=396'),
- 'Chrome must reload the current engine and honest no-backup flow');
+const preflightVersion=Number(index.match(/ui\/neon-preflight-v24\.js\?v=(\d+)/)?.[1]||0);
+const indexFlashVersion=Number(index.match(/honda-write-engine\.js\?v=(\d+)/)?.[1]||0);
+const preflightFlashVersion=Number(p.match(/honda-write-engine\.js\?v=(\d+)/)?.[1]||0);
+assert(preflightVersion>=412&&indexFlashVersion>=396&&indexFlashVersion===preflightFlashVersion,
+ 'Chrome must load consistent current Flash Engine and Preflight modules');
 assert(p.includes("if(!requestConfirmation&&!previouslyApproved){")&&
  p.includes("confirmedPart:'CONFIRM '+last.identity.ecuId")&&
  p.includes("message='Auto Preflight:"),
@@ -73,7 +75,7 @@ assert(p.includes("TX / RX LOG • Fast Flash")&&
  'Actual Fast Flash screen must expose live TX/RX and downloadable logs');
 assert(index.includes('window.__55FlashLogRefresh?.()')&&
  index.includes('window.__55ExportFlashLog=inlineFlashExportLog')&&
- index.includes('ui/neon-preflight-v24.js?v=412'),
+ preflightVersion>=412,
  'Flash engine log must feed the visible Fast Flash screen with a refreshed browser module');
 const engine=get('flash_port/honda-write-engine.js');
 assert(engine.includes("stage:'TX',tx:toHex(frame)")&&
