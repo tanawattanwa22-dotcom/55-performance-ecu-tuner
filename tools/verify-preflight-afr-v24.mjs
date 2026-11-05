@@ -29,6 +29,14 @@ assert.match(p,/originalEcmAuto&&binEstimate\?\.checksumOffsetHex/,
  'ECM.dat AUTO checksum field should display BIN-only inferred checksum without write approval');
 assert.match(p,/BIN ให้รหัส ECU เพียง 3 ไบต์ตาม FormMain/,
  'Partial BIN ECU ID must remain explicitly unverified before any erase');
+assert.match(p,/setItem\('block',Number\.isInteger\(plan\?\.blockBytes\)/,
+ 'Real plan remains the only verified Block Size source');
+assert.match(p,/Number\.isInteger\(binEstimate\?\.binBlockBytes\)/,
+ 'Read-only Block Size preview comes from BIN and cannot manufacture a verified plan');
+assert.match(p,/binEstimate\?\.binProfile\?binEstimate\.binProfile\+' • BIN เท่านั้น'/,
+ 'Read-only C# profile preview is labelled as BIN-only');
+assert(p.includes('sourceBinPreview')&&p.includes("verified:false,origin:'BIN_ONLY'"),
+ 'Dashboard BIN offset preview never carries physical verification');
 assert(p.includes('last.engine.makePlan(c.bytes.slice()'),'strict C# plan from saved BIN snapshot');
 assert(p.includes('sourceMatched'),'catalog and family source matching enforced');
 assert(p.includes('S.saved')&&p.includes('TuneBinFlow.matches'),'preflight uses saved immutable BIN only');
