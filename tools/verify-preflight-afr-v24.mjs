@@ -43,8 +43,8 @@ assert(p.includes("const actions=make('div','n24-actions n24-main-check-actions'
  'ECU read and Preflight controls are visible in the main Fast Flash page, not trapped inside advanced details');
 assert(p.includes("()=>runCheck({requestConfirmation:true})"),
  'Manual Preflight action must request explicit technician confirmation for source 3-byte BIN IDs');
-assert(p.includes('if(!requestConfirmation)')&&p.includes('confirmedPart:\'CONFIRM \'+id'),
- 'Automatic probe never auto-confirms partial BIN ID; manual Preflight can produce read-only plan');
+assert(p.includes('if(!requestConfirmation&&!previouslyApproved)')&&p.includes('confirmedPart:\'CONFIRM \'+id'),
+ 'Auto Preflight may calculate partial BIN-ID source plan; manual check remains available and real Flash still asks for approval');
 // The purchased Shindengen source has no full-read route. Its absence must
 // never be silently represented as a completed physical ECU backup.
 const writer=get('flash_port/honda-write-engine.js');
