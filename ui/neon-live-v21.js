@@ -69,7 +69,7 @@
 `;
  $("lvBody").insertBefore(pane,$("lvBody").firstElementChild);
  const meterEls=Object.fromEntries(keys.map(k=>[k,$("n21Value-"+k)]));
- let selected="rpm",windowMs=30000,expanded=false,lastSource="idle",lastSample=0,lastProcessed=0,lastRender=0;
+ let selected="rpm",windowMs=30000,expanded=false,lastSource="idle",lastEcuId="",lastSample=0,lastProcessed=0,lastRender=0;
  const samples=[],stats=new Map(),frames=[];
  const fmt=(v,k)=>v==null||!Number.isFinite(v)?"—":v.toLocaleString("en-US",{maximumFractionDigits:({bat:1,inj:2,ign:1,tps:1,map:1,ect:0,iat:0,rpm:0,afr:2})[k]??1});
  const hhmmss=sec=>{const n=Math.max(0,Math.floor(sec));return[Math.floor(n/3600),Math.floor(n/60)%60,n%60].map(x=>String(x).padStart(2,"0")).join(":")};
@@ -102,6 +102,13 @@
   const s=api.snapshot(),now=Date.now(),values={...(s.values||{})},mode=s.mode||"gauge";
   if(s.demo||!s.afrSupported)values.afr=null;
   live.classList.toggle("n21-gauge",mode==="gauge");
+  // The graph and min/max belong to one PHYSICAL ECU connection, never
+  // to the previously selected vehicle or the last known USB session.
+  const liveEcuId=s.connected&&/^[0-9A-F]{10}$/.test(s.ecuId||"")?s.ecuId:"";
+  if(liveEcuId!==lastEcuId){
+   samples.length=0;stats.clear();frames.length=0;lastSample=0;lastProcessed=0;
+   lastEcuId=liveEcuId;lastSource="idle";
+  }
   if(s.source==="ecu"&&lastSource!=="ecu"){samples.length=0;stats.clear();frames.length=0;lastSample=0;lastProcessed=0}lastSource=s.source;
   if(s.run&&s.source==="ecu"&&s.sampleSeq>lastProcessed&&keys.some(k=>values[k]!=null)){
    lastProcessed=s.sampleSeq;
