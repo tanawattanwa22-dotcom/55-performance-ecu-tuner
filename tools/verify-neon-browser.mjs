@@ -21,6 +21,8 @@ const server=http.createServer((req,res)=>{
  }catch{res.writeHead(404).end('Not found')}
 });
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+assert.doesNotMatch(fs.readFileSync(path.join(root,'index.html'),'utf8'),
+ /data:image\\/jpeg;base64,/,'Legacy low-resolution base64 JPEG logo must not reappear');
 const url='http://127.0.0.1:'+server.address().port+'/index.html';
 let browser;
 const results=[];
@@ -36,6 +38,32 @@ try{
   });
   await page.goto(url,{waitUntil:'domcontentloaded',timeout:30000});
   await page.waitForSelector('#neonShell',{state:'attached',timeout:20000});
+  // Brand regression: app header and first-run splash must show the approved
+  // smartphone icon, never a legacy inline low-resolution JPEG.
+  await page.waitForFunction(()=>{
+   const logos=[
+    document.querySelector('#spl .brand-splash-art'),
+    document.querySelector('#home .top img.lg'),
+    document.querySelector('#neonShell .n20-icon')
+   ];
+   return logos.every(img=>img&&img.complete&&img.naturalWidth>=512);
+  },null,{timeout:10000});
+  const brand=await page.evaluate(()=>({
+   logos:[
+    document.querySelector('#spl .brand-splash-art'),
+    document.querySelector('#home .top img.lg'),
+    document.querySelector('#neonShell .n20-icon')
+   ].map(img=>({src:img.getAttribute('src'),width:img.naturalWidth,
+     rendered:img.getBoundingClientRect().width})),
+   title:document.querySelector('#spl .brand-splash-wordmark')?.textContent||''
+  }));
+  assert(brand.logos.every(img=>img.src==='icons/icon-512.png?v=brand-20261105b'),
+   'Every opening/header logo loads the same new 55 PERFORMANCE icon: '+JSON.stringify(brand));
+  assert(brand.logos[0].rendered<=brand.logos[0].width,
+   'Splash must not upscale its raster source: '+JSON.stringify(brand.logos[0]));
+  assert(brand.title.includes('55 PERFORMANCE')&&brand.title.includes('ECU TUNER'),
+   'Splash brand text renders at browser-native sharpness');
+
   // Screenshot only: expose the underlying app while preserving the actual License gate in production.
   await page.evaluate(()=>{document.getElementById('home').classList.add('on');
    const gate=document.getElementById('licenseGate');if(gate)gate.style.visibility='hidden';
