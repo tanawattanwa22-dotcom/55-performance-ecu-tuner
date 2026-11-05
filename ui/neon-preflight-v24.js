@@ -509,6 +509,36 @@ function mount(host){
  }
  const help=make('p','n24-help','แสดงค่า ECU ID, ประเภทกล่อง, Offset และ Checksum จากข้อมูลที่ตรวจได้ · ข้อมูลอ้างอิงยังไม่ใช่การยืนยันว่าไฟล์ตรงกล่อง • การตรวจสอบไม่ส่งคำสั่งลบหรือเขียน');
  stage.append(help);
+ // Live diagnostic capture on the actual Fast Flash page. Every TX/RX byte
+ // originates from the same HondaFlashEngine used for real ECU writes.
+ const trace=card('n24-flash-trace','↔','TX / RX LOG • Fast Flash');
+ const traceNote=make('p','n24-help','แสดงคำสั่งที่ส่ง (TX), คำตอบ ECU (RX), สถานะและข้อผิดพลาดจริง • ส่งไฟล์ TXT ให้ตรวจได้ • ไม่ใช่การอ่านแฟลชกลับทั้งก้อน');
+ const traceStatus=make('div','n24-help','ยังไม่มีคำสั่ง Flash ในรอบนี้');
+ const traceText=make('pre','n24-txrx-text');
+ traceText.style.cssText='max-height:240px;min-height:96px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font:11px/1.5 ui-monospace,monospace;background:#10151d;color:#cce2fa;border:1px solid #38485b;border-radius:9px;padding:10px;';
+ const traceActions=make('div','n24-actions');
+ const saveTrace=btn('↓ ส่ง TX/RX Log (TXT)','n24-btn',()=>window.__55ExportFlashLog?.());
+ const copyTrace=btn('คัดลอก TX/RX','n24-btn',()=>{
+  const body=(INLINEFLASH.log||[]).join('\\n');
+  if(!body){traceStatus.textContent='ยังไม่มี TX/RX Log';return}
+  navigator.clipboard?.writeText(body).then(()=>{traceStatus.textContent='คัดลอก Log แล้ว'},e=>{traceStatus.textContent='คัดลอกไม่ได้: '+e.message});
+ });
+ traceActions.append(saveTrace,copyTrace);
+ trace.append(traceNote,traceStatus,traceText,traceActions);
+ stage.append(trace);
+ let lastTraceRender=0;
+ window.__55FlashLogRefresh=()=>{
+  if(!trace.isConnected)return;
+  const entries=INLINEFLASH.log||[];
+  const last=entries.at(-1)||'';
+  const urgent=/ERROR|FAILED|STOP|FINAL ACK|ECU_REJECTED/.test(last);
+  if(!urgent&&Date.now()-lastTraceRender<250)return;
+  lastTraceRender=Date.now();
+  traceStatus.textContent=entries.length+' รายการ • '+(INLINEFLASH.status||'IDLE');
+  traceText.textContent=entries.slice(-40).join('\\n')||'รอเชื่อมต่อ ECU และเริ่มตรวจ';
+  traceText.scrollTop=traceText.scrollHeight;
+ };
+ window.__55FlashLogRefresh();
  render();
  void previewBinOffset();
 }
