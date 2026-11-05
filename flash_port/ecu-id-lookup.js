@@ -1,11 +1,13 @@
 /**
- * 55 PERFORMANCE — automatic ECM ID -> part-code/model lookup after REAL ECU reply.
- * Pure lookup is display-only. NEVER use KTR image metadata to authorize ERASE/WRITE.
- * Sources: owner-provided KTR table (local + optional read-only Supabase) and
- * independently the purchased C# FormMain.cs 288-entry ECU catalog.
+ * 55 PERFORMANCE — display-only lookup AFTER receiving a real ECU ID.
+ * Primary name/part/size: original DataFlashTool ECM.dat (122 rows).
+ * Fallback if absent: purchased Main.zip FormMain.cs ECU ID catalog.
+ * KTR image reference helpers are retained for historical diagnostics but
+ * are never used to choose an Auto Detect vehicle/model or authorize flash.
  */
 import {KTR_ECM_ROWS} from '../ktr/ecm-catalog.js';
 import {findCSharpEcuId} from './csharp-ecu-catalog.js';
+import {describeOriginalEcm} from './main-original-ecm-catalog.js';
 
 const ID_RE=/^[0-9A-F]{10}$/;
 const PART_RE=/^[A-Z0-9]+-[A-Z0-9]+$/;
@@ -85,31 +87,48 @@ export function combineEcmSources(ecuId,{ktrRows=[],csharp=null,remoteUsed=false
     status:conflict?'CONFLICT':ambiguous?'AMBIGUOUS':showPart?'MATCHED':'UNKNOWN'
   });
 }
-async function fetchSupabaseRows(id,timeoutMs=2200){
-  const cfg=globalThis.LICENSE_CONFIG;
-  if(!cfg?.url||!cfg?.anonKey||typeof fetch!=='function')return null;
-  const ctrl=new AbortController();
-  const timer=setTimeout(()=>ctrl.abort(),timeoutMs);
-  try{
-    const url=cfg.url.replace(/\/$/,'')+
-      '/rest/v1/ecu_ktr_reference?select=reference_id,model,ecu_id,part_code,family,bin_size_kb,needs_review'+
-      '&ecu_id=eq.'+id+'&limit=100';
-    const res=await fetch(url,{headers:{apikey:cfg.anonKey},signal:ctrl.signal,cache:'no-store'});
-    if(!res.ok)throw Error('KTR Supabase HTTP '+res.status);
-    const data=await res.json();
-    if(!Array.isArray(data))throw Error('Invalid KTR server response');
-    return data;
-  }catch{return null}
-  finally{clearTimeout(timer)}
-}
-export async function lookupEcmId(ecuId,{useSupabase=true}={}){
-  const id=normalizeEcmId(ecuId);
-  const local=localKtrCandidates(id);
-  const [server,csharp]=await Promise.all([
-    useSupabase?fetchSupabaseRows(id):Promise.resolve(null),
-    findCSharpEcuId(id).catch(()=>null)
-  ]);
-  // Never drop bundled KTR rows if the server only returns partial data.
-  const all=Array.isArray(server)?[...local,...server]:local;
-  return combineEcmSources(id,{ktrRows:all,csharp,remoteUsed:Array.isArray(server)});
+/** Do not fetch uncertain KTR/Supabase photo labels during Auto Detect. */
+export async function lookupEcmId(ecuId,{useSupabase=false}={}){
+ const id=normalizeEcmId(ecuId);
+ const original=describeOriginalEcm(id);
+ const csharp=await findCSharpEcuId(id).catch(()=>null);
+ const csharpPart=csharp?.part?suffix(csharp.part).split(/[\\s_/]/)[0]:null;
+ if(original){
+  const secondaryConflict=!!original.partCode&&!!csharpPart&&original.partCode!==csharpPart;
+  const candidate={ecuId:id,partCode:original.partCode,model:original.model,
+   family:original.family,sizeKB:original.sizeKB,source:original.source,
+   rawPart:original.rawPart,flashApproved:false};
+  return Object.freeze({
+   ecuId:id,partCode:original.partCode,model:original.model,
+   models:original.model?[original.model]:[],family:original.family,
+   sizeKB:original.sizeKB,candidates:[candidate],
+   ecmMatched:true,ktrMatched:false,csharpMatched:!!csharp?.part,
+   csharpPart:csharp?.part||null,source:original.source,
+   ambiguous:false,conflict:false,secondaryConflict,
+   needsReview:!original.partCode||!original.model,
+   remoteUsed:false,flashApproved:false,
+   status:original.partCode?'MATCHED':'PART_MISSING'
+  });
+ }
+ // No ECM.dat match: source's main C# catalog is an identity fallback only.
+ // It has ECU ID/Part/Family/Offset but does not contain trustworthy car names.
+ if(csharp){
+  const part=csharpPart||null;
+  return Object.freeze({
+   ecuId:id,partCode:part,model:null,models:[],family:csharp.family,
+   sizeKB:null,candidates:[],ecmMatched:false,ktrMatched:false,
+   csharpMatched:!!part,csharpPart:csharp.part||null,
+   source:'Main.zip FormMain.cs · fallback (not ECM.dat)',
+   ambiguous:false,conflict:false,secondaryConflict:false,
+   needsReview:!part,remoteUsed:false,flashApproved:false,
+   status:part?'MATCHED':'PART_MISSING'
+  });
+ }
+ return Object.freeze({
+  ecuId:id,partCode:null,model:null,models:[],family:null,sizeKB:null,
+  candidates:[],ecmMatched:false,ktrMatched:false,csharpMatched:false,
+  csharpPart:null,source:'NOT_FOUND',ambiguous:false,conflict:false,
+  secondaryConflict:false,needsReview:true,remoteUsed:false,
+  flashApproved:false,status:'UNKNOWN'
+ });
 }
