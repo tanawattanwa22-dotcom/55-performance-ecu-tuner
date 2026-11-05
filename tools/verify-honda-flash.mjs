@@ -10,7 +10,7 @@ globalThis.fetch=async(input,options)=>{
 };
 // Run: node tools/verify-honda-flash.mjs
 // This script never opens USB, never connects to a real ECU or writes firmware.
-import {hondaChecksum,baudDivisor,stripFtdiStatus,checkedHondaReply,READ_ONLY_COMMANDS,Ft232rWebUsb,parseFormMainSendCommandReply} from '../flash_port/ftdi-webusb.js';
+import {hondaChecksum,baudDivisor,stripFtdiStatus,checkedHondaReply,READ_ONLY_COMMANDS,Ft232rWebUsb,parseFormMainSendCommandReply,formMainSendCommandTimeoutMs,webUsbSourceTimeoutMs} from '../flash_port/ftdi-webusb.js';
 import {checksum8BitCSharp,createWriteFrame,auditWriteFrames,nextSourceWriteIndex} from '../flash_port/flash-frames.js';
 import {loadCSharpCatalog,findCSharpEcuId} from '../flash_port/csharp-ecu-catalog.js';
 import {csharpOffsetInference} from '../flash_port/csharp-offsets.js';
@@ -215,8 +215,28 @@ await check('FTDI 10400 / 921600 divisor within tolerated range',()=>Math.abs(ba
 await check('Corrupted Honda reply is rejected',()=>{
  try{checkedHondaReply([2,5,0,0,0]);return false}catch{return true}
 });
-await check('Source WriteFlash accepts any checksum-valid five-byte ACK regardless status',async()=>{
+await check('Source C# D2XX timing remains exact but Android WebUSB honors bounded per-command deadline',()=>{
+ return formMainSendCommandTimeoutMs(5)===60&&
+  formMainSendCommandTimeoutMs(139)===328&&
+  webUsbSourceTimeoutMs(5,2500)===2500&&
+  webUsbSourceTimeoutMs(139,7000)===7000&&
+  webUsbSourceTimeoutMs(139,100)===328&&
+  webUsbSourceTimeoutMs(5)===60;
+});
+await check('Ambiguous five-byte nonzero WRITE ACK cannot be counted as written',async()=>{
  const e=new HondaFlashEngine({ready:true});e.x=async()=>Uint8Array.of(2,5,0,1,248);
+ const events=[];e.onEvent=v=>events.push(v);
+ try{
+  await e.writeBlocks({bin:new Uint8Array(128),blockBytes:128,startOffset:0,profile:'KEIHINOTHER'});
+  return false;
+ }catch(err){
+  return err.code==='WRITE_ACK_STATUS_UNVERIFIED'&&
+   events.some(v=>v.phase==='WRITE_BLOCK_ACK_AMBIGUOUS')&&
+   !events.some(v=>v.phase==='WRITE_BLOCK_ACK');
+ }
+});
+await check('Five-byte WRITE ACK status zero remains accepted',async()=>{
+ const e=new HondaFlashEngine({ready:true});e.x=async()=>Uint8Array.of(2,5,0,0,249);
  return await e.writeBlocks({bin:new Uint8Array(128),blockBytes:128,startOffset:0,profile:'KEIHINOTHER'})===1;
 });
 await check('Wrong write profile must not fallback to Keihin',()=>{try{createWriteFrame(new Uint8Array(128),{profile:'INVALID',startOffset:0});return false}catch{return true}});
