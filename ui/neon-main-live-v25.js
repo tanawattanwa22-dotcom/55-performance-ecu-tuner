@@ -2,7 +2,7 @@
  * Main FM_diag.cs reader is the sole source of real-time sensor values.
  * The legacy ADX/DEMO live engine is never called by this bridge.
  */
-import {MainLiveSession} from '../flash_port/main-live-session.js?v=406';
+import {MainLiveSession} from '../flash_port/main-live-session.js?v=407';
 import {resolveMainAutoMetadata} from '../flash_port/main-auto-metadata.js?v=376';
 import {localKtrCandidates} from '../flash_port/ecu-id-lookup.js?v=355';
 import {previewMainShindengenBin} from '../flash_port/main-shindengen-auto-preview.js?v=1';
@@ -77,6 +77,7 @@ const phases=Object.freeze({
  DTC_BANK_DETECT:'กำลังตรวจสอบรหัสปัญหาจาก ECU',
  AUTO_DETECT_PARTIAL:'พบข้อมูลบางส่วน • รายการที่ยังไม่ยืนยันจะไม่ขึ้นสีเขียว',
  LIVE_CAPTURE:'กำลังอ่านข้อมูลจาก ECU',
+ LIVE_AUTO_RECOVER:'Live Data สะดุด · กำลังต่อกลับอัตโนมัติ (อ่านอย่างเดียว)',
  USB_ACCESS_DENIED:'โทรศัพท์ยังไม่อนุญาตให้เปิดสายเชื่อมต่อ'
 });
 const notify=()=>{
@@ -160,7 +161,8 @@ old.snapshot=()=>{
   recording:s.recording,recordSeconds:s.recordSeconds,hasLog:s.hasLog,
   message:s.error||lastConnectError||(
    s.connecting?(phases[s.phase]||'กำลังเปิด FT232R…'):
-   s.running?'กำลังอ่านเซนเซอร์จากรถ':
+   s.phase==='LIVE_AUTO_RECOVER'?s.autoStatus:
+   s.running?(s.liveAutoRecoveries?'กำลังอ่านเซนเซอร์จากรถ · ต่อกลับอัตโนมัติ '+s.liveAutoRecoveries+' ครั้ง':'กำลังอ่านเซนเซอร์จากรถ'):
    s.connected?'USB FT232R เปิดพอร์ตแล้ว • '+(s.ecuId?'ECU ID '+s.ecuId:'ยังไม่ได้เชื่อม ECU')+' • '+s.autoStatus:'กดเชื่อม FT232R เพื่อเปิดสาย (ไม่อ่าน ECU)'
   )
  };
