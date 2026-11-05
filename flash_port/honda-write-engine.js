@@ -7,7 +7,7 @@
  * Destructive commands are gated by real ECU ID, matching catalog and C# BIN
  * signatures. This is NOT hardware validated on every ECU; bench testing is required.
  */
-import {READ_ONLY_COMMANDS,toHex,hondaChecksum,FAST_SWITCH_COMMAND} from './ftdi-webusb.js';
+import {READ_ONLY_COMMANDS,toHex,hondaChecksum,FAST_SWITCH_COMMAND} from './ftdi-webusb.js?v=408';
 import {createWriteFrame,resolveWriteProfile,nextSourceWriteIndex} from './flash-frames.js?v=380';
 import {inspectCSharpEcuType,correctKeihinChecksum,correctShindengenChecksum,deriveShindengenWriteKey} from './csharp-logic.js';
 import {csharpOffsetInference,catalogLookup} from './csharp-offsets.js?v=317';
