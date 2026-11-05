@@ -132,8 +132,17 @@ function retailReadout(){
   status.catalogFamily+' (อ้างอิงฐาน)':'รอตรวจประเภทกล่อง';
  const activePlan=typeof INLINEFLASH!=='undefined'&&INLINEFLASH.plan?.ecuId===physicalId?
   INLINEFLASH.plan:null;
- const start=activePlan?.startOffset??status.startOffset;
- const ck=activePlan?.checksumOffset??status.checksumOffset;
+ // The ECU catalog's Shindengen offsets are "auto". Once a BIN is
+ // selected, the source-only C# analyzer can display them, but the figures
+ // must never be described as confirmed ECU memory addresses.
+ const binPreview=typeof window.__55FlashPreflight?.sourceBinPreview==='function'?
+  window.__55FlashPreflight.sourceBinPreview():null;
+ const showBinStart=!!physicalId&&!Number.isInteger(activePlan?.startOffset)&&
+  !Number.isInteger(status.startOffset)&&Number.isInteger(binPreview?.startOffset);
+ const showBinChecksum=!!physicalId&&!Number.isInteger(activePlan?.checksumOffset)&&
+  !Number.isInteger(status.checksumOffset)&&Number.isInteger(binPreview?.checksumOffset);
+ const start=activePlan?.startOffset??status.startOffset??(showBinStart?binPreview.startOffset:null);
+ const ck=activePlan?.checksumOffset??status.checksumOffset??(showBinChecksum?binPreview.checksumOffset:null);
  const hasFile=!!window.__55QuickFlashBin?.bytes?.length||
   !!window.__ecu?.S?.saved;
  const verifiedPlan=!!activePlan&&!!physicalId&&proof?.family===activePlan.profile.replace(/(?:RH850B|RH850|V850|OTHER|M32R|H8C)$/,'');
@@ -146,11 +155,13 @@ function retailReadout(){
  const liveText=status.liveGroupVerified?'ตรวจพบข้อมูลจาก ECU':'รอเปิด Live Data';
  return {physicalId:physicalId||'รออ่านจากรถ',
   family,part:physicalId?(status.part||'ไม่พบในฐานอ้างอิง'):'—',
-  start:fmtSourceHex(start),checksum:fmtSourceHex(ck),
+  start:fmtSourceHex(start)+(showBinStart?' • BIN เท่านั้น':''),
+  checksum:fmtSourceHex(ck)+(showBinChecksum?' • BIN เท่านั้น':''),
   dtc:dtcText,live:liveText,
   ready:readyText,verifiedPlan,
   connection:portReady?'เชื่อมต่อสายแล้ว':'ยังไม่เชื่อมต่อ',
-  sourceLabel:activePlan?'จากแผนไฟล์ที่ตรวจแล้ว':'ข้อมูลเบื้องต้นจากฐานอ้างอิง/ไฟล์'};
+  sourceLabel:activePlan?'จากแผนไฟล์ที่ตรวจแล้ว':
+   showBinStart||showBinChecksum?'คำนวณจาก BIN เท่านั้น • ยังไม่ยืนยัน ECU':'ข้อมูลเบื้องต้นจากฐานอ้างอิง/ไฟล์'};
 }
 function buildRetailStatusCard(){
  const section=mk('section','retail-status-card');section.id='retailStatus';
