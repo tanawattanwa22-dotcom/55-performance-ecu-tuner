@@ -1560,7 +1560,8 @@ async function inlineFlashStart(){
     const approved=confirm('55 PERFORMANCE • ECU นอกฐาน Main 290\n\nECU ID: '+identity.ecuId+
       '\nBIN: '+INLINEFLASH.filename+
       '\nFamily จาก ECU ACK: '+identity.family+
-      '\n\nต้นฉบับเทียบรหัสใน BIN ได้เพียง 3 ไบต์แรก ไม่ได้ระบุ Part Code เต็ม'+
+      '\nPart Code จากฐานอ้างอิง: '+(identity.datReference?.part||identity.sourcePart||'ไม่พบ')+
+      '\n\nBIN ขนาดนี้ระบุ ECU ID ได้เพียง 3 ไบต์แรก • Part Code จากฐานอย่างเดียวยืนยันว่าไฟล์ตรงกล่องไม่ได้'+
       '\n\nคุณตรวจจากไฟล์ Backup/ฉลาก ECU แล้วว่า BIN นี้ตรงกล่องจริงหรือไม่?'+
       '\nกด ยกเลิก หากยังไม่สามารถยืนยันได้');
     if(!approved)throw Error('หยุดก่อน ERASE: ECU นอกฐานยังไม่ยืนยันว่า BIN ตรงกล่อง');
