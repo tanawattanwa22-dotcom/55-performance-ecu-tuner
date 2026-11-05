@@ -33,6 +33,8 @@ async function previewBinOffset(){
   const estimated=csharpOffsetInference(item.bytes.slice());
   const sourceAuto=previewMainShindengenBin(item.bytes);
   if(sourceAuto.ready){
+   estimated.binProfile=sourceAuto.type;
+   estimated.binBlockBytes=sourceAuto.blockBytes;
    estimated.startOffset=sourceAuto.startOffset;
    estimated.startOffsetHex=sourceAuto.startOffsetHex;
    estimated.checksumOffset=sourceAuto.checksumOffset;
@@ -166,8 +168,13 @@ function render(){
   originalEcmAuto&&binEstimate?.checksumOffsetHex?binEstimate.checksumOffsetHex+' • BIN เท่านั้น':
   source?sourceOffset(source.checksumOffset,source.checksumOffsetText):
   binEstimate?.checksumOffsetHex?binEstimate.checksumOffsetHex+' • BIN เท่านั้น':'—');
- setItem('block',Number.isInteger(plan?.blockBytes)?plan.blockBytes.toLocaleString()+' bytes':'—');
- setItem('profile',plan?.profile||'ยังไม่มีแผนที่ยืนยัน');
+ // A valid Shindengen firmware signature identifies the C# profile and
+ // block size before the actual ECU+BIN write plan is authorized. The two
+ // statuses must remain visibly distinct until full BIN identity approval.
+ setItem('block',Number.isInteger(plan?.blockBytes)?plan.blockBytes.toLocaleString()+' bytes':
+  Number.isInteger(binEstimate?.binBlockBytes)?binEstimate.binBlockBytes.toLocaleString()+' bytes • BIN เท่านั้น':'—');
+ setItem('profile',plan?.profile||
+  (binEstimate?.binProfile?binEstimate.binProfile+' • BIN เท่านั้น':'ยังไม่มีแผนที่ยืนยัน'));
  setItem('offsetState',plan?'ตรวจด้วย HondaFlashEngine / C# แล้ว':
   source?(source.origin==='ORIGINAL_PUBLIC_ECM_DAT'?
    (binEstimate?.startOffsetHex&&binEstimate?.checksumOffsetHex?
@@ -488,7 +495,17 @@ async function autoPrepare(){
   return verified();
  }finally{preparingAuto=false;render()}
 }
-window.__55FlashPreflight={mount,render,readECU,runCheck,autoPrepare,hasBin:()=>current().valid,ready:verified};
+// Dashboard may read already calculated BIN-only metadata. Do not expose
+// an unverified snapshot as a flash plan or physical ECU memory map.
+const sourceBinPreview=()=>{
+ const c=current();
+ const p=c.valid&&binOffsetHint?.saved===c.saved?binOffsetHint.estimated:null;
+ return p?{filename:c.saved?.filename||null,startOffset:p.startOffset,
+  checksumOffset:p.checksumOffset,profile:p.binProfile||null,
+  blockBytes:p.binBlockBytes||null,verified:false,origin:'BIN_ONLY'}:null;
+};
+window.__55FlashPreflight={mount,render,readECU,runCheck,autoPrepare,
+ hasBin:()=>current().valid,ready:verified,sourceBinPreview};
 ['btnSave','sel','btnAutoOffset','btnRead','goTune'].forEach(id=>$(id)?.addEventListener('click',()=>queueMicrotask(render)));
 window.addEventListener('55:bin-changed',render);
  const stepBox=$('stepTxt');
