@@ -2,9 +2,9 @@
  * Main FM_diag.cs reader is the sole source of real-time sensor values.
  * The legacy ADX/DEMO live engine is never called by this bridge.
  */
-import {MainLiveSession} from '../flash_port/main-live-session.js?v=410';
+import {MainLiveSession} from '../flash_port/main-live-session.js?v=411';
 import {resolveMainAutoMetadata} from '../flash_port/main-auto-metadata.js?v=376';
-import {localKtrCandidates} from '../flash_port/ecu-id-lookup.js?v=355';
+import {describeOriginalEcm} from '../flash_port/main-original-ecm-catalog.js';
 import {previewMainShindengenBin} from '../flash_port/main-shindengen-auto-preview.js?v=1';
 import {csharpOffsetInference} from '../flash_port/csharp-offsets.js?v=317';
 import {probeMainProgrammingSession,countDisplay} from '../flash_port/main-programming-probe.js?v=7';
@@ -50,16 +50,11 @@ function autoBinEvidence(id){
 // reader catalog, family/preflight verification, or any ECU write/offset route.
 function localEcmReference(ecuId){
  if(!/^[0-9A-F]{10}$/.test(String(ecuId||'')))return null;
- const rows=localKtrCandidates(ecuId);
- if(!rows.length)return null;
- const parts=[...new Set(rows.map(r=>r.partCode))];
- const families=[...new Set(rows.map(r=>r.family))];
- const models=[...new Set(rows.map(r=>r.model))];
- const sizes=[...new Set(rows.map(r=>r.sizeKB))];
- if(parts.length!==1||families.length!==1)
-  return {ambiguous:true,text:'หลายรหัสอ้างอิง / Family ไม่ตรงกัน · ต้องตรวจฉลาก ECU'};
- return {ambiguous:false,part:parts[0],family:families[0],model:models.join(' / '),
-  sizeKB:sizes.length===1?sizes[0]:null};
+ const ecm=describeOriginalEcm(ecuId);
+ if(!ecm)return null;
+ return {ambiguous:false,part:ecm.partCode||ecm.rawPart,
+  family:ecm.family,model:ecm.model||'ไม่ได้ระบุชื่อรถ',
+  sizeKB:ecm.sizeKB,source:ecm.source};
 }
 const old=window.__55LiveBridge;
 if(!old)throw Error('Live UI bridge must be installed before Main V25');
@@ -136,7 +131,7 @@ old.snapshot=()=>{
   {
    const st=reader.status();
    return {...originalSnapshot(),connected:st.connected,cable:st.cable,connecting:st.connecting,
-    ecuId:st.ecuId,model:st.part?'ECU '+st.part:'',protocol:st.connected?'เชื่อมต่อ ECU แล้ว':'—',
+    ecuId:st.ecuId,model:st.ecmDisplayName||(st.part?'ECU '+st.part:''),protocol:st.connected?'เชื่อมต่อ ECU แล้ว':'—',
     group:st.group,catalogFamily:st.catalogFamily,part:st.part};
   }
  // The stored model selection is NOT a vehicle identification.
@@ -152,7 +147,7 @@ old.snapshot=()=>{
  return {
   mode:'gauge',source:s.running?'ecu':'idle',demo:false,run:s.running,
   connected:s.connected,cable:s.cable,connecting:s.connecting,
-  model:s.part?('ECU '+s.part):verifiedModel?.id||'',ecuId:s.ecuId,group:s.group,phase:s.phase,
+  model:s.ecmDisplayName||(s.part?'ECU '+s.part:verifiedModel?.id||''),ecuId:s.ecuId,group:s.group,phase:s.phase,
   protocol:s.connected?'เชื่อมต่อ ECU แล้ว':'—',
   profAvailable:true,afrSupported:s.group!==7,
   afrSource:s.group===7?'C# Group 7 ไม่มีช่อง A/F':
@@ -567,10 +562,11 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
  disconnect.onclick=()=>{void reader.disconnect().then(updateSharedState)};
  let lastDetectedKey='';
  function updateDetected(st){
-  // This reads metadata from the already-decoded physical Main C# catalog only.
+  // Display ECM.dat first after a physical ID; Main.zip remains the fallback.
   // It never looks at the selected BIN and does not send a USB command.
   const selected=autoBinEvidence(st.ecuId);
   const k=[st.connected,st.ecuId,st.catalogMatched,st.part,st.catalogFamily,
+   st.ecmDisplayName,st.ecmDisplayPartCode,
    st.readOnlyObservation?.liveGroup,st.readOnlyObservation?.family,
    st.startOffset,st.checksumOffset,st.startOffsetText,st.checksumOffsetText,selected.key,
    st.sourceProbe?.finishedAt||programmingProbeResult?.finishedAt||''].join('|');
@@ -579,15 +575,17 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
   const data=resolveMainAutoMetadata(st);
   const source=st.sourceProbe?.countState==='CONFIRMED'&&
    st.sourceProbe?.ecuId===st.ecuId?st.sourceProbe:null;
-  const reference=data.ecuId&&!st.catalogMatched?localEcmReference(data.ecuId):null;
+  const reference=data.ecuId?localEcmReference(data.ecuId):null;
   detected.replaceChildren();
-  const head=document.createElement('strong');head.textContent='ECU ID → Main.zip · ตรวจพบอัตโนมัติ';
+  const head=document.createElement('strong');head.textContent='ECU ID → ECM.dat (หลัก) / Main.zip (สำรอง) · Auto Detect';
   head.style.cssText='display:block;color:#8cedf7;font-size:15px;margin-bottom:9px';
   const grid=document.createElement('div');grid.style.cssText='display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px';
   const items=[
    ['ECU ID จากกล่อง',data.ecuId||'ยังไม่ได้อ่านจาก ECU'],
-   ['Part Code',data.partCode||'—'],
-   ['ECU Family',source?.family?(source.family+' · ECU ACK'):data.family?(data.family+' · Main 290'):'ยังไม่ยืนยัน'],
+   ['ชื่อรถ · Auto Detect',reference?.model||(data.ecuId?'ยังไม่มีชื่อรุ่นใน ECM.dat / แสดงรหัส ECU':'รอเชื่อมต่อ')],
+   ['Part Code',reference?.part||data.partCode||'—'],
+   ['ฐานชื่อรุ่น',reference?'Original ECM.dat · หลัก':st.catalogMatched?'Main.zip · สำรอง':'ไม่พบข้อมูล'],
+   ['ECU Family',source?.family?(source.family+' · ECU ACK'):reference?.family?(reference.family+' · ECM.dat อ้างอิง'):data.family?(data.family+' · Main.zip อ้างอิง'):'ยังไม่ยืนยัน'],
    ['Start Offset',data.startOffset],
    ['Checksum Offset',data.checksumOffset]
   ];
@@ -611,7 +609,7 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
   }
   if(selected.result?.type)items.push(['Family จาก BIN (ไม่ใช่ ECU ACK)',selected.result.type]);
   if(reference){
-   items.push(['ฐาน ECM อ้างอิง (ไม่ใช่ Main.zip)',
+   items.push(['ฐาน ECM.dat หลัก · ข้อมูลอ้างอิง',
     reference.ambiguous?reference.text:
      reference.part+' · '+reference.model+' · '+reference.family+
       (reference.sizeKB?' · BIN อ้างอิง '+reference.sizeKB+' KB':'')]);
@@ -651,7 +649,7 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
   const fmt=n=>Number.isInteger(n)?'0x'+n.toString(16).toUpperCase().padStart(4,'0'):'';
   const off=(n,raw)=>Number.isInteger(n)?fmt(n):raw==='auto'?'AUTO จาก BIN':'ยังไม่ระบุ';
   const dtc=st.dtcSnapshot;
-  const ktr=st.ecuId&&!st.catalogMatched?localEcmReference(st.ecuId):null;
+  const ecm=st.ecuId?localEcmReference(st.ecuId):null;
   const binSource=autoBinEvidence(st.ecuId);
   const usbOK=st.connected;
   const sourceProbe=st.sourceProbe?.expectedEcuId===st.ecuId&&st.connected?st.sourceProbe:null;
@@ -685,9 +683,8 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
    records.splice(4,0,[sourceProbe?.countState==='CONFIRMED','Family จาก ACK',
     sourceProbe?.countState==='CONFIRMED'?sourceProbe.family:'ไม่ทราบ · การอนุมานจาก BIN ไม่ใช่ ACK ของกล่อง']);
   }
-  if(idOK&&ktr)records.splice(3,0,[false,'ฐาน ECM อ้างอิง (ไม่ใช่ Main 290)',
-   ktr.ambiguous?ktr.text:
-    ktr.part+' · '+ktr.model+' · '+ktr.family+' · อ้างอิงเท่านั้น ไม่อนุญาต Flash']);
+  if(idOK&&ecm)records.splice(3,0,[true,'Auto Detect · ECM.dat (หลัก)',
+   ecm.part+' · '+ecm.model+' · '+ecm.family+' · อ้างอิงชื่อ/รุ่น ไม่อนุญาต Flash']);
   checks.replaceChildren();
   for(const [ok,label,detail,optional] of records){
     const neutral=optional&&!ok;
