@@ -103,7 +103,11 @@ function status(){
 function refreshStatus(){
  const [t,ok]=status();$('n20Connection').textContent=t;$('n20Connection').classList.toggle('ok',ok);
  const m=typeof S!=='undefined'&&S.mi>=0?MODELS[S.mi]:null;
- $('n20Model').textContent=m?.id||'ยังไม่เลือกรุ่น';
+ const ecu=window.__55SharedEcu?.snapshot?.();
+ // Use the physical ECU ID + ECM.dat; never treat a chosen BIN as detected.
+ $('n20Model').textContent=ecu?.connected&&ecu.ecuId?
+  (ecu.ecmDisplayName||('ECU '+(ecu.ecmDisplayPartCode||ecu.part||ecu.ecuId))):
+  (m?.id||'ยังไม่เลือกรุ่น');
  let saved=false;
  try{saved=!!S.saved&&TuneBinFlow.matches(S.saved,S.bin,{model:m?.id,sourceName:S.fname,customerBin:S.custom})}catch{}
  $('n20Save').textContent=saved?'บันทึก BIN แล้ว':'ยังไม่บันทึก';
