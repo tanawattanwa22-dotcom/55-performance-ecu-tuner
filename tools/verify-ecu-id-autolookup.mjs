@@ -1,8 +1,10 @@
-// 55 PERFORMANCE — regression tests for actual ECU-ID response -> Honda KTR reference.
+// 55 PERFORMANCE — regression tests for physical ECU ID -> ECM.dat first, Main.zip fallback.
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import {parseEcmIdReply,normalizeEcmId,localKtrCandidates,combineEcmSources,lookupEcmId} from '../flash_port/ecu-id-lookup.js';
 import {KTR_ECM_ROWS} from '../ktr/ecm-catalog.js';
+import {findOriginalEcmDat} from '../flash_port/main-original-ecm-catalog.js';
+import {loadCSharpCatalog} from '../flash_port/csharp-ecu-catalog.js';
 // Node does not support fetch(file://). Mirror browser file loading for the local fixture.
 const nativeFetch=globalThis.fetch;
 globalThis.fetch=async (input,options)=>{
@@ -21,12 +23,40 @@ assert.equal(parseEcmIdReply(bad),null,'Status fail must not resolve');
 assert.equal(parseEcmIdReply(Uint8Array.of(2,5,0,0,249)),null,'Handshake is not ECU ID');
 assert.throws(()=>normalizeEcmId('K2J-T01'),/10/);
 assert.equal(localKtrCandidates('0101C60D01').some(x=>x.partCode==='K20-T01'),true);
-const ktr=await lookupEcmId('0101C60D01',{useSupabase:false});
-assert.equal(ktr.partCode,'K20-T01');
-assert.match(ktr.model,/ZOOMER/);
-assert.equal(ktr.family,'KEIHIN');
-assert.equal(ktr.sizeKB,64);
-assert.equal(ktr.flashApproved,false,'KTR photo must NEVER authorize flashing');
+const ecm=await lookupEcmId('0101C60D01',{useSupabase:false});
+assert.equal(ecm.partCode,'K20-T01');
+assert.equal(ecm.ecmMatched,true);
+assert.equal(ecm.source.startsWith('Original ECM.dat'),true);
+assert.equal(ecm.family,'KEIHIN');
+assert.equal(ecm.sizeKB,64);
+assert.equal(ecm.flashApproved,false,'ECM display data must NEVER authorize flashing');
+// These two PCX160 entries must never collapse into one variant.
+const pcx=await lookupEcmId('0105050D01',{useSupabase:false});
+const pcxAbs=await lookupEcmId('0105040D01',{useSupabase:false});
+assert.equal(pcx.partCode,'K1ZP-T51');
+assert.equal(pcxAbs.partCode,'K1ZP-T71');
+assert.equal(pcxAbs.model,'PCX160 ABS');
+const giorno=await lookupEcmId('0106A70D01',{useSupabase:false});
+assert.equal(giorno.partCode,'K3MH-T71');
+assert.equal(giorno.model,'Giorno+ 125 (2026)');
+const leadAbs=await lookupEcmId('0106900D11',{useSupabase:false});
+assert.equal(leadAbs.partCode,'K2TK-T51');
+assert.equal(leadAbs.model,'Lead 125 ABS');
+assert.equal(leadAbs.source.startsWith('Original ECM.dat'),true);
+// An upstream model field of '-' must not be filled from KTR photo labels.
+assert.equal(ecm.model,null);
+// Verify this is genuinely a 122-row original catalog, not a KTR substitute.
+assert.equal(findOriginalEcmDat('0106A70D01')?.origin,'ORIGINAL_PUBLIC_ECM_DAT');
+// Main.zip fallback still labels ECU IDs that do not appear in ECM.dat.
+const allMain=await loadCSharpCatalog();
+const fallback=[...allMain.values()].find(r=>r.part&&!findOriginalEcmDat(r.ecuId));
+assert.ok(fallback,'Main.zip must contain an ECU ID absent from ECM.dat');
+const fallbackResult=await lookupEcmId(fallback.ecuId,{useSupabase:false});
+assert.equal(fallbackResult.ecmMatched,false);
+assert.equal(fallbackResult.csharpMatched,true);
+assert.equal(fallbackResult.model,null);
+assert.match(fallbackResult.source,/Main.zip/);
+assert.equal(fallbackResult.flashApproved,false);
 
 const fromCsharp=await lookupEcmId('0101880D01',{useSupabase:false});
 assert.equal(fromCsharp.csharpMatched,true,'C# catalog must be used independently');
@@ -67,5 +97,5 @@ assert.match(readonly,/parseEcmIdReply\(response\)/);
 assert.match(readonly,/showEcmPopup\(found\)/);
 const engine=await fs.readFile(new URL('../flash_port/honda-write-engine.js',import.meta.url),'utf8');
 assert.ok(!engine.includes('import {lookupEcmId}'),'Image catalog must not be a flash authorization dependency');
-console.log('PASS — ECU auto-ID: valid, invalid checksum/status, prefix, KTR, C# fallback, conflict, ambiguity, unknown, all 3 UIs and no auto-flash.');
-console.log('Reference match is not equivalent to memory map or permission to flash.');
+console.log('PASS — physical ECU Auto Detect: ECM.dat primary (Giorno, Lead ABS, PCX ABS), Main.zip fallback, invalid response, legacy KTR isolation, 3 UIs, no auto-flash.');
+console.log('ECM.dat is display/reference metadata, never an erase/write authorization.');
