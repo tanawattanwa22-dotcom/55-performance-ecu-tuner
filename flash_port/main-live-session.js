@@ -169,7 +169,9 @@ export class MainLiveSession {
   this.error='';this.phase='IDLE';this.notify();
  }
  async connect({forcePicker=false}={}){
-  if(this.connecting||this.running||this.port?.ready)return false;
+  // Never reopen on top of an unfinished scan or a flash/DTC port lease.
+  // The old asynchronous scan must finish after a physical detach first.
+  if(this.connecting||this.autoBusy||this.running||this.owner||this.port?.ready)return false;
   this.usbAttempts++;this.usbLastPhase='USB_CHOOSER';this.usbLastError='';this.usbTrace=[];
   this.connecting=true;this.error='';this.phase='USB_CHOOSER';
   this.disconnectRequested=false;this.stopRequested=false;
