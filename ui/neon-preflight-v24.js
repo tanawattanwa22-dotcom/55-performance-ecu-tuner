@@ -307,6 +307,7 @@ async function readECU(){
   working=false;render();
  }
 }
+const approvedPartialBins=new Set(); // Session-only: exact ECU ID + saved BIN SHA-256
 async function runCheck({requestConfirmation=false}={}){
  if(working||INLINEFLASH.busy)return;
  working=true;error='';message='กำลังตรวจ BIN / Part Code / Memory Map…';render();
@@ -330,7 +331,9 @@ async function runCheck({requestConfirmation=false}={}){
    catch(e){
     if(e.code==='UNLISTED_PARTIAL_ID_CONFIRM'){
      last.plan=null;
-     if(!requestConfirmation){
+     const approvalKey=last.identity.ecuId+'|'+(hash?.saved===c.saved?hash.hex:'');
+     const previouslyApproved=approvalKey.split('|')[1]&&approvedPartialBins.has(approvalKey);
+     if(!requestConfirmation&&!previouslyApproved){
       // Background Auto Prepare must never fabricate a technician's
       // confirmation or interrupt them with an unsolicited modal.
       message='อ่าน ECU ID / Family ACK แล้ว • BIN ให้รหัส ECU เพียง 3 ไบต์ตาม FormMain • กด ตรวจ Preflight เพื่อยืนยันไฟล์ที่เคยตรวจแล้ว • ยังไม่ได้ ERASE';
@@ -341,7 +344,7 @@ async function runCheck({requestConfirmation=false}={}){
      // destructive Flash still identifies the ECU anew and asks separately.
      const id=last.identity.ecuId;
      const part=last.identity.datReference?.part||last.identity.sourcePart||'ไม่พบ';
-     const approved=confirm('55 PERFORMANCE • ตรวจ BIN ก่อนสร้างแผนเขียน (ยังไม่อัด)\n\n'+
+     const approved=previouslyApproved||confirm('55 PERFORMANCE • ตรวจ BIN ก่อนสร้างแผนเขียน (ยังไม่อัด)\n\n'+
       'ECU ID จากรถ: '+id+'\n'+
       'Family จาก ECU ACK: '+last.identity.family+'\n'+
       'Part Code ฐานอ้างอิง: '+part+'\n'+
@@ -355,6 +358,7 @@ async function runCheck({requestConfirmation=false}={}){
       message='ยกเลิกการยืนยัน BIN • ไม่มีแผนเขียน และไม่ได้ ERASE/WRITE';
       return;
      }
+     if(!previouslyApproved)approvedPartialBins.add(approvalKey);
      // Do NOT mark full five-byte BIN ID matching. The engine preserves
      // its source locator evidence and independently calculates offsets,
      // checksum, write profile and block count from a copied immutable BIN.
@@ -523,7 +527,7 @@ async function autoPrepare(){
   // because the source Part Code table has no row for this ECU.
   const proof=last?.identity?.programmingSessionVerified===true&&
    last?.identity?.physicalFamilyEvidence==='MAIN_SOURCE_READ_ONLY_FLASH_COUNT_ACK';
-  if(current().valid&&(last?.identity?.sourceMatched||proof))await runCheck();
+  if(current().valid&&(last?.identity?.sourceMatched||proof))await runCheck({requestConfirmation:false});
   return verified();
  }finally{preparingAuto=false;render()}
 }
