@@ -29,9 +29,10 @@ SHA-256 FormMain.cs: `50e13192164e25493fffb1babd5baa580902d0a14a09452a3279cf7515
 
 ### WRITE ACK
 - C# ต้นฉบับยอมรับ reply 5 ไบต์ checksum-valid แม้ status byte [3] ไม่เป็นศูนย์
-- **ความต่างโดยตั้งใจจากต้นฉบับ:** Web writer ปัจจุบันนับ WRITE_BLOCK_ACK สำเร็จเฉพาะ reply 5 ไบต์ checksum-valid ที่ `reply[3] === 0`; nonzero จะออก `WRITE_BLOCK_ACK_AMBIGUOUS`, หยุดทันทีโดยไม่ส่งซ้ำ/ไม่เริ่ม Finish
-- เหตุผล: ยังไม่มีตารางสถานะ byte [3] ที่ยืนยันกับ ECU รุ่นเป้าหมาย; การนับสถานะกำกวมว่าบล็อกสำเร็จอาจรายงานผลเกินจริง
-- ความต่างนี้ **อาจหยุดงานกับ ECU ที่ใช้ status ไม่เป็นศูนย์แต่ยอมรับได้** จึงเป็น policy แบบ fail-closed ไม่ใช่ข้อพิสูจน์ว่า nonzero เป็น error ตามสเปก Honda
+- **ปรับคืนให้ตรงต้นฉบับใน Revision 409:** ยอมรับ reply 5 ไบต์ที่ผ่าน Honda checksum ตาม `FormMain.WriteFlash()` โดยไม่บังคับ `reply[3] === 0`
+- หากไบต์ `reply[3]` ไม่เป็นศูนย์ จะบันทึก `SOURCE_WRITE_ACK_NONZERO_UNINTERPRETED` และ raw byte ใน TX/RX Log ไม่ตีความว่าเป็น error หรือ hardware verify
+- เหตุผล: ไม่มีตารางสถานะ Honda ที่ยืนยัน byte นี้; กฎศูนย์อย่างเดียวที่เพิ่มใน revision ก่อนหน้าอาจทำให้หยุด **หลัง ERASE** ทั้งที่ต้นฉบับจะเขียนต่อ การคืน source parity ไม่ได้พิสูจน์ว่ากล่องทุกโปรไฟล์เขียนสำเร็จ
+- ACK 7 ไบต์ยังคง retry ตามต้นฉบับสูงสุด 2 ครั้งรวมทั้งงาน; timeout/invalid checksum/line error หยุดโดยไม่มี auto resend
 
 ## 4) สิ่งที่ไม่เปลี่ยน
 - ลำดับ Init/HELLO/ECU ID/Family/Pre-erase/Erase/Write/Finish/Final ACK จาก FormMain
@@ -43,10 +44,22 @@ SHA-256 FormMain.cs: `50e13192164e25493fffb1babd5baa580902d0a14a09452a3279cf7515
 ## 5) เกณฑ์ผ่านและข้อจำกัด
 ชุดทดสอบออฟไลน์ยืนยันได้เพียง:
 - C# baseline 60ms / 328ms และ WebUSB caller deadlines 240/2500/7000ms
-- valid status=0 ACK ผ่าน, nonzero status ACK หยุดโดยไม่เริ่ม Finish
+- valid 5-byte ACK checksum ผ่านตามต้นฉบับทั้ง byte[3]=0 และ nonzero; nonzero ต้องมีบันทึก warning แต่ไม่เดาความหมาย
 - 7-byte C# retry ได้สูงสุด 2 ครั้งรวมทั้งงาน
 - simulated Keihin / Shindengen flow และ failure-stop
 
 **ไม่ใช่การทดสอบ ECU จริง** และไม่รับรอง 100%: ยังต้องตรวจ TX/RX จริงตั้งแต่ seed/key ถึง erase/write/final ACK, ประสิทธิภาพไฟเลี้ยงและ K-Line, firmware compatibility, recovery สำหรับกล่องที่เสีย และ readback จากเครื่องมือที่ทำได้
 
 เมื่อได้รับ log กล่องจริงที่มี 5-byte ACK แบบ nonzero ต้องวิเคราะห์ความหมายตามโปรไฟล์และฮาร์ดแวร์นั้นโดยเฉพาะก่อนพิจารณาแก้กฎนี้
+
+
+## 6) ตรวจเพิ่ม Revision 409 — USB line-status และ TX/RX timing
+- FTDI USB Bulk IN ของ FT232R มีส่วนหัวสองไบต์ต่อแพ็กเก็ต: Modem Status และ UART Line Status ตาม Linux `ftdi_sio.h` ของ Android/Kernel: https://android.googlesource.com/kernel/common/+/75c1d995db57229e5c7b1c830e4a2a14bbf94adb/drivers/usb/serial/ftdi_sio.h
+- Bit flags ที่ตรวจ: `0x02` Overrun, `0x04` Parity, `0x08` Framing, `0x10` Break, `0x80` FIFO Error; `0x60` เป็น Transmitter Holding/Empty สถานะปกติ ไม่ใช่ข้อผิดพลาด
+- ใน `exchangeRaw(mainSourceMode=true)` ระหว่างโปรแกรมมิ่ง จะตรวจสถานะก่อนยอมรับ Honda ACK; หากพบ line error จะปิดพอร์ตและหยุดคำสั่ง ไม่เขียนซ้ำแบบเดาเอง
+- การอ่าน Live Data ที่ใช้งานได้แล้วไม่ถูกเปลี่ยนกฎ UART status รอบนี้
+- `HondaFlashEngine.x()` เพิ่ม `elapsedMs` / `requestedTimeoutMs` ลง TX/RX และ command-failure logs เพื่อให้วัดความเร็วตอบของ ECU ที่ต่อจริงก่อนเลือกเวลาที่เหมาะสม
+- WebUSB spec อธิบายการยกเลิก pending transfers เมื่อ release interface: https://usb.spec.whatwg.org/ ; MDN `USBDevice.releaseInterface()`: https://developer.mozilla.org/en-US/docs/Web/API/USBDevice/releaseInterface
+- FTDI บันทึกการทำงานของ 2 status bytes และ latency: https://ftdichip.com/Support/Knowledgebase/an232b_04smalldataend.htm
+
+**ยังไม่ผ่านฮาร์ดแวร์:** โปรแกรมจำลองไม่สามารถแทน USB transfer จริง, waveform K-Line, voltage, ECU erase response, flash memory readback หรือการกู้กล่องจากสภาพผิดพลาดได้ โปรไฟล์ทุกตระกูลต้องตรวจบนกล่องที่ระบุตรงก่อนการใช้งานกับลูกค้า
