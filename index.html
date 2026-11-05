@@ -243,6 +243,18 @@ table.g th,table.g td{border-right:1px solid rgba(255,255,255,.35);border-bottom
   box-shadow:inset 0 0 0 1px rgba(232,245,255,.2);
 }
 #tune.msx-original #gw.drag{touch-action:none}
+
+/* Retail tactile feedback: visual only; no click handlers or flash protocol changes. */
+button:not(:disabled), .btn:not(:disabled), .chip, .ib, [role="button"]{transition:transform .11s ease,box-shadow .11s ease,filter .11s ease;transform:translateZ(0);box-shadow:0 4px 0 #0009,0 7px 12px #0005;touch-action:manipulation}
+button:not(:disabled):active,.btn:not(:disabled):active,.chip:active,.ib:active,[role="button"]:active,.retail-pressed{transform:translateY(3px) scale(.985)!important;box-shadow:0 1px 0 #0009,0 2px 4px #0005!important;filter:brightness(1.14)}
+@media(prefers-reduced-motion:reduce){button,.btn,.chip,.ib,[role="button"]{transition:none!important}}
+#retailHelp{position:fixed;z-index:10050;right:12px;top:calc(9px + env(safe-area-inset-top));padding:7px 11px;border-radius:12px;background:#24394c;color:#fff;border:1px solid #5c8aa3;font-size:12px;font-weight:700}
+#retailHelpDialog{position:fixed;inset:0;z-index:10060;background:#030b16df;display:none;align-items:center;justify-content:center;padding:14px}
+#retailHelpDialog.open{display:flex}
+#retailHelpPanel{background:#15202e;color:#f1f5ff;border:1px solid #55718b;border-radius:17px;max-width:550px;width:100%;max-height:85dvh;overflow:auto;padding:20px;box-shadow:0 18px 70px #000a}
+#retailHelpPanel h3{margin:14px 0 5px;color:#7dd7ff}#retailHelpPanel p{margin:0 0 8px;line-height:1.65}#retailHelpPanel button{float:right}
+#retailFlashWarning{position:fixed;z-index:10045;left:8px;right:8px;top:calc(56px + env(safe-area-inset-top));padding:10px;border:1px solid #f6b64a;background:#3b2718;color:#fff1cd;border-radius:12px;text-align:center;font-size:13px;font-weight:700;display:none;pointer-events:none}
+#retailFlashWarning.show{display:block}
 </style>
 <link rel="stylesheet" href="ui/v19-modern.css?v=185">
 <link rel="stylesheet" href="ui/neon-v20.css?v=201">
@@ -3033,6 +3045,36 @@ function tuneReport(){
 <small style="max-width:220px;color:#ddd">เครื่องมือทดสอบเท่านั้น ยังไม่เปิด READ / WRITE ECU จริง</small>
 </div></details></div>
 
+
+<script>
+/* Customer-facing UI enhancements. Does not touch ECU transport, command bytes, or flash state. */
+(()=>{
+const ready=()=>{
+ const help=document.createElement('button');help.id='retailHelp';help.type='button';help.textContent='☰ คู่มือ';help.setAttribute('aria-label','เปิดคู่มือการใช้งาน');
+ const dialog=document.createElement('div');dialog.id='retailHelpDialog';dialog.setAttribute('role','dialog');dialog.setAttribute('aria-modal','true');dialog.setAttribute('aria-label','คู่มือการใช้งาน');
+ const panel=document.createElement('div');panel.id='retailHelpPanel';
+ panel.innerHTML='<button type="button" id="retailHelpClose">✕ ปิด</button><h2>คู่มือ 55 PERFORMANCE</h2>'+[
+ ['หน้าแรก','เข้าสู่ระบบและเปิด License → เสียบสาย FT232R กับมือถือ → กดเชื่อมต่อสาย → อนุญาต USB → รออ่าน ECU ID'],
+ ['คลังไฟล์','เลือกรุ่นและไฟล์ BIN ที่ต้องการใช้งาน ตรวจชื่อไฟล์และรุ่นให้ตรงกับรถ'],
+ ['ปรับแต่ง ECU','เปิดไฟล์ BIN → เลือกตาราง → ปรับค่าตามต้องการ → บันทึก BIN ที่แก้ไข ก่อนนำไปอัด'],
+ ['Fast Flash','เชื่อมสายจากหน้าแรก → เลือก BIN → รออ่าน ECU ID และตรวจข้อมูล → กดตรวจ Preflight หากจำเป็น → กดอัดไฟล์ → อ่านและยืนยันข้อความก่อนเขียน → รอจนจบ → ปิด/เปิดกุญแจตามที่หน้าจอสั่ง → กดตรวจ ECU หลังรีสตาร์ต'],
+ ['Recovery','ใช้เมื่อการอัดมีปัญหาและกล่องเข้าสู่โหมดกู้คืน → เปิด Recovery → ตรวจ ECU → เลือก BIN สำรองที่ตรงกล่อง → ตรวจแผนกู้ → ยืนยันเงื่อนไขบนหน้าจอ → กู้คืน → ตรวจ ECU หลังรีสตาร์ต ไม่ควรใช้ Recovery แทน Flash ปกติ'],
+ ['Live Data','เชื่อมต่อรถจากหน้าแรก → เข้า Live Data → เริ่มอ่านค่าเซนเซอร์ → หยุดอ่านก่อนเข้า Flash'],
+ ['DTC','เชื่อมต่อรถ → เปิดวินิจฉัย DTC → อ่านรหัสปัญหา → บันทึกรหัสไว้ → ลบรหัสเมื่อแก้สาเหตุแล้วและต้องการลบ'],
+ ['เครื่องมือขั้นสูง','ใช้เฉพาะผู้ดูแลหรือช่างที่มีสิทธิ์ ตรวจสอบไฟล์และข้อมูล ECU ตามเมนูที่มี'],
+ ['ตั้งค่า / License','ดูบัญชี ตรวจสิทธิ์ใช้งาน หรือเปิดใช้งาน License Key ตามหน้าจอ']
+ ].map(([h,p])=>'<h3>'+h+'</h3><p>'+p+'</p>').join('')+'<h3>ข้อควรระวังระหว่างอัด</h3><p>ห้ามปิดจอ สลับแอป ถอดสาย USB ปิดไฟเลี้ยง หรือสตาร์ตเครื่องขณะกำลังเขียน ECU หากมีข้อผิดพลาดให้เก็บ Log และตรวจสถานะ ECU ก่อนลองใหม่</p>';
+ dialog.append(panel);document.body.append(help,dialog);
+ const close=()=>{dialog.classList.remove('open');help.focus()};help.onclick=()=>dialog.classList.add('open');panel.querySelector('#retailHelpClose').onclick=close;dialog.addEventListener('click',e=>{if(e.target===dialog)close()});
+ const warning=document.createElement('div');warning.id='retailFlashWarning';warning.setAttribute('role','status');warning.textContent='⚠ กำลังเขียน ECU — ห้ามปิดจอ สลับแอป ถอดสาย หรือปิดไฟเลี้ยง';document.body.append(warning);
+ let lock=null,wasWriting=false;
+ async function requestLock(){if(!navigator.wakeLock?.request)return;try{if(!lock||lock.released)lock=await navigator.wakeLock.request('screen')}catch(_){}}
+ async function sync(){const x=window.INLINEFLASH;const writing=!!(x&&x.busy&&(x.flashAttempted||x.status==='PREPARING_SOURCE_PROTOCOL'));warning.classList.toggle('show',writing);if(writing&&!wasWriting){void requestLock()}if(!writing&&wasWriting&&lock){try{await lock.release()}catch(_){}lock=null}wasWriting=writing}
+ setInterval(sync,450);document.addEventListener('visibilitychange',()=>{if(!document.hidden&&wasWriting)void requestLock()});
+ document.addEventListener('pointerdown',e=>{const b=e.target.closest('button,.btn,.chip,.ib,[role="button"]');if(b&&!b.disabled){b.classList.add('retail-pressed');setTimeout(()=>b.classList.remove('retail-pressed'),160)}},{passive:true});
+};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',ready,{once:true});else ready();
+})();
+</script>
 </body></html>`;
   dl(new Blob([html],{type:"text/html"}),"report_"+m.id+"_"+tsName()+".html");
   if(rows.length){const csv="rpm,tps,n,"+(r.useAfr?"afr_mean":"o2_mean_v")+",confidence\n"+rows.map(x=>x.join(",")).join("\n");dl(new Blob([csv],{type:"text/csv"}),"cells_"+m.id+"_"+tsName()+".csv")}
