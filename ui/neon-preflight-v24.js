@@ -277,7 +277,7 @@ async function readECU(){
  try{
   // Reuse the physical FT232R opened from the home dashboard.
   const [{HondaFlashEngine}]=await Promise.all([
-   import(new URL('flash_port/honda-write-engine.js?v=394',document.baseURI).href)]);
+   import(new URL('flash_port/honda-write-engine.js?v=396',document.baseURI).href)]);
   if(typeof api!=='function')throw Error('ไม่พบตัวตรวจ License');
   const license=await api('check',{device:localStorage.getItem('55_device_id')});
   if(!license?.active)throw Error('License ไม่ได้เปิดใช้งาน');
@@ -521,11 +521,12 @@ function mount(host){
  const copyTrace=btn('คัดลอก TX/RX','n24-btn',()=>{
   const body=(INLINEFLASH.log||[]).join('\\n');
   if(!body){traceStatus.textContent='ยังไม่มี TX/RX Log';return}
-  navigator.clipboard?.writeText(body).then(()=>{traceStatus.textContent='คัดลอก Log แล้ว'},e=>{traceStatus.textContent='คัดลอกไม่ได้: '+e.message});
+  if(!navigator.clipboard?.writeText){traceStatus.textContent='เบราว์เซอร์ไม่รองรับคัดลอก • ใช้ปุ่มดาวน์โหลด TXT';return}
+  navigator.clipboard.writeText(body).then(()=>{traceStatus.textContent='คัดลอก Log แล้ว'},e=>{traceStatus.textContent='คัดลอกไม่ได้: '+e.message});
  });
  traceActions.append(saveTrace,copyTrace);
  trace.append(traceNote,traceStatus,traceText,traceActions);
- stage.append(trace);
+ stage.insertBefore(trace,file); // visible beside Flash button, not in Advanced Tools
  let lastTraceRender=0;
  window.__55FlashLogRefresh=()=>{
   if(!trace.isConnected)return;
@@ -541,16 +542,18 @@ function mount(host){
  window.__55FlashLogRefresh();
  render();
  void previewBinOffset();
+ // Start read-only automatic Preflight when Fast Flash is entered with cable/BIN.
+ queueMicrotask(()=>{if(stage===host)void autoPrepare().catch(e=>{error=e.message;render()})});
 }
 let preparingAuto=false,lastAutoProbe=null;
 async function autoPrepare(){
  if(preparingAuto||working||INLINEFLASH.busy)return false;
  const shared=window.__55SharedEcu;
  const snap=shared?.snapshot?.();
- if(!stage?.isConnected||!snap?.connected||!snap.ecuId)return false;
+ if(!stage?.isConnected||!snap?.connected)return false;
  const c=current();
  if(recency()&&last?.identity?.ecuId===snap.ecuId&&last.saved===c.saved)return verified();
- const key=snap.ecuId+'|'+(c.saved?.sha256||c.saved?.filename||'no-bin');
+ const key=(snap.ecuId||'UNREAD')+'|'+(c.saved?.sha256||c.saved?.filename||'no-bin');
  if(lastAutoProbe?.key===key&&Date.now()-lastAutoProbe.at<15000)return false;
  lastAutoProbe={key,at:Date.now()};
  preparingAuto=true;
@@ -584,5 +587,8 @@ window.addEventListener('55:bin-changed',render);
  if(stepBox)new MutationObserver(()=>{if(INLINEFLASH.busy||INLINEFLASH.postCheck){message=stepBox.textContent;render()}}).observe(stepBox,{childList:true,subtree:true,characterData:true});
  const pct=$('pct');
  if(pct)new MutationObserver(()=>render()).observe(pct,{childList:true,characterData:true,subtree:true});
-setInterval(()=>{if(stage?.isConnected)render()},1500);
+setInterval(()=>{if(stage?.isConnected){render();window.__55FlashLogRefresh?.();
+ if(current().valid&&!verified()&&!preparingAuto&&!working&&!INLINEFLASH.busy)
+  void autoPrepare().catch(e=>{error=e.message;render()});
+}},1500);
 })();
