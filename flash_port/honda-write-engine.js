@@ -651,7 +651,10 @@ export class HondaFlashEngine {
   // The source write-only Shindengen path can use a known matching BIN
   // without a per-ECU full read. Make that absence an explicit operator
   // disclosure, never falsify it as a verified ECU backup.
-  if(!(physicalBackupConfirmed||backupUnavailableAcknowledged)||!externalPowerConfirmed||!recoveryReady)
+  // A backup waiver is for ordinary write-only firmware updates only.
+  // Recovery writes must retain their prior stricter backup requirement.
+  const backupWaiverAllowed=!!backupUnavailableAcknowledged&&!plan.recovery;
+  if(!(physicalBackupConfirmed||backupWaiverAllowed)||!externalPowerConfirmed||!recoveryReady)
     fail('PRECONDITION','ต้องยืนยันไฟล์ Backup หรือรับทราบว่าไม่มี Full Read พร้อมตรวจไฟเลี้ยง/สาย K-Line และวิธีกู้ ECU ก่อน ERASE');
   if(!operatorClickConfirmed||plan.recovery||sourceUnlistedPlan){
     if(confirmation!=='FLASH '+plan.ecuId)fail('CONFIRMATION','ต้องพิมพ์ FLASH และ ECU ID ที่อ่านได้');
@@ -659,7 +662,7 @@ export class HondaFlashEngine {
   if(operatorClickConfirmed&&!plan.recovery)
     this.emit('OPERATOR_ONE_TAP',{ecuId:plan.ecuId,acknowledgement:'FLASH_BUTTON_CLICK',
       backupConfirmedByOperator:!!physicalBackupConfirmed,
-      backupUnavailableAcknowledgedByOperator:!!backupUnavailableAcknowledged,
+      backupUnavailableAcknowledgedByOperator:backupWaiverAllowed,
       powerConfirmedByOperator:true,recoveryConfirmedByOperator:true,
       powerAndBackupElectronicallyVerified:false});
   if(!this.usb.ready)fail('USB_LOST','FTDI USB ไม่ได้เชื่อมต่อแล้ว');
