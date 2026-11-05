@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {MAIN_CAPTURE_COMMANDS,decodeMainDiagnosticTrace} from '../flash_port/main-source-diagnostic.js';
+import {MAIN_CAPTURE_COMMANDS,decodeMainDiagnosticTrace,roundMainCSharp} from '../flash_port/main-source-diagnostic.js';
 import {Ft232rWebUsb,parseMainDiagnosticBurst,hondaChecksum} from '../flash_port/ftdi-webusb.js';
 for(const group of [1,4,7]){
  const cmds=MAIN_CAPTURE_COMMANDS[group];
@@ -19,9 +19,27 @@ for(const group of [1,4,7]){
  assert.equal(decoded.find(x=>x.name==='RPM').value,1234);
  assert.equal(decoded.find(x=>x.name==='Throttle TPS').value,40);
  assert.equal(decoded.find(x=>x.name==='TPS voltage').value,1950);
+ // C# Math.Round defaults to ToEven: byte 3 * 19.5mV = 58.5mV
+ // is displayed as 58mV. JS toFixed would incorrectly display 59mV.
+ trace[14]=3;
+ const half=decodeMainDiagnosticTrace(trace,group);
+ assert.equal(half.find(x=>x.name==='TPS voltage').value,58,
+  'FM_diag C# voltage midpoint rounds to even for group '+group);
+ if(group===1){trace[45]=3;assert.equal(
+  decodeMainDiagnosticTrace(trace,group).find(x=>x.name==='O2 voltage').value,58);}
+ if(group===4){trace[59]=3;assert.equal(
+  decodeMainDiagnosticTrace(trace,group).find(x=>x.name==='O2 voltage').value,58);}
  assert.throws(()=>decodeMainDiagnosticTrace(trace.slice(0,24),group),/too short/);
  console.log('Group '+group+': '+decoded.length+' C# decoded fields, 4 read-only checksum-valid frames PASS');
 }
+assert.equal(roundMainCSharp(58.5),58);
+assert.equal(roundMainCSharp(19.5),20);
+assert.equal(roundMainCSharp(-2.5),-2);
+assert.equal(roundMainCSharp(-3.5),-4);
+assert.equal(roundMainCSharp(1.25,1),1.2);
+assert.equal(roundMainCSharp(1.35,1),1.4);
+assert.equal(roundMainCSharp(1.26,1),1.3);
+// FM_diag source-to-JS midpoint behavior tests must run without a car.
 // FM_diag.method_99 writes FOUR commands separated by 50ms, then one
 // method_11 serial drain. Do not interleave separate read exchanges.
 const sourceFrames=MAIN_CAPTURE_COMMANDS[1];

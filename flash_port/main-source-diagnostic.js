@@ -9,6 +9,20 @@ export const MAIN_CAPTURE_COMMANDS=Object.freeze({
   // 0x3E is its correct Honda complement. A corrupt frame MUST NOT be sent.
   7:[[0x72,7,0x72,0x13,0,0x0e,0xf4],[0x72,7,0x72,0xd0,0,0x0e,0x37],[0x72,7,0x72,0xd1,0,6,0x3e],[0x72,7,0x72,0x20,0,2,0xf3]]
 });
+// System.Math.Round(double, digits) in the purchased C# defaults to
+// MidpointRounding.ToEven (banker's rounding), unlike JavaScript toFixed().
+// Example: 58.5mV -> 58mV in C#, not 59mV.
+export function roundMainCSharp(value,digits=0){
+ if(!Number.isFinite(value)||!Number.isInteger(digits)||digits<0||digits>6)
+  throw RangeError('Invalid FM_diag Math.Round input');
+ const scale=10**digits,absolute=Math.abs(value*scale);
+ const floor=Math.floor(absolute),fraction=absolute-floor;
+ const tolerance=Number.EPSILON*Math.max(1,absolute)*4;
+ const tie=Math.abs(fraction-0.5)<=tolerance;
+ const rounded=tie?(floor%2===0?floor:floor+1):
+  (fraction>0.5?floor+1:floor);
+ return Math.sign(value)*rounded/scale;
+}
 export function decodeMainDiagnosticTrace(raw,group=1){
  const g=Number(group);
  if(!MAIN_CAPTURE_COMMANDS[g])throw Error('Unknown source diagnostic group');
@@ -19,7 +33,7 @@ export function decodeMainDiagnosticTrace(raw,group=1){
  if(bytes.length<min)throw Error('Diagnostic capture too short for C# group '+g+': '+bytes.length+' / '+min);
  const b=i=>{if(i<0||i>=bytes.length)throw Error('Missing byte '+i);return bytes[i]};
  const n=(name,value,unit='')=>({name,value,unit});
- const r=(x,k=0)=>Number(x.toFixed(k));
+ const r=(x,k=0)=>roundMainCSharp(x,k);
  const af=x=>r((x<128?147-(128-x)*100/87:147+(x-128)*100/87)/10,1);
  const base=[
   n('RPM',b(12)*256+b(13),'rpm'),

@@ -13,11 +13,12 @@ const sourceReply=(size=12,variant=false)=>{
 };
 function bench(answers){
  const session=new MainLiveSession();
- const calls=[];
+ const calls=[],timings=[];
  let restores=0;
  session.ecuId='0101880D01';
- session.port={ready:true,lastDevice:{},async exchangeRaw(frame){
+ session.port={ready:true,lastDevice:{},async exchangeRaw(frame,opts={}){
    calls.push(Array.from(frame));
+   timings.push({opcode:frame[3],delay:opts.afterWriteMs});
    if(frame[0]!==0x72||frame[2]!==0x72||frame.length!==7)
     throw Error('Non-read-only frame in diagnostic probe');
    const chosen=answers[frame[3]];
@@ -29,7 +30,7 @@ function bench(answers){
   // Mock reopening the previously authorized FTDI after a timeout.
   restores++;session.port.ready=true;
  };
- return {session,calls,get restores(){return restores}};
+ return {session,calls,timings,get restores(){return restores}};
 }
 
 await test('Purchased C# probe order is Group 7 then Group 4, with Group 1 fallback',()=>{
@@ -46,6 +47,8 @@ await test('Auto picks Group 7 on first valid Honda diagnostic response',async()
  const b=bench({0x13:sourceReply()});
  assert.equal(await b.session.detectGroup(),7);
  assert.deepEqual(b.calls.map(x=>x[3]),[0x13]);
+ assert.deepEqual(b.timings,[{opcode:0x13,delay:30}],
+  'FM_diag.method_96 Group 7 must sleep exactly 30ms after TX');
  assert.equal(b.session.status().group,7);
 });
 await test('Auto recovers closed FTDI after a timed-out Group 7 and picks Group 4',async()=>{
@@ -54,6 +57,8 @@ await test('Auto recovers closed FTDI after a timed-out Group 7 and picks Group 
  assert.equal(b.session.group4Variant,4);
  assert.equal(b.restores,1);
  assert.deepEqual(b.calls.map(x=>x[3]),[0x13,0x17]);
+ assert.deepEqual(b.timings,[{opcode:0x13,delay:30},{opcode:0x17,delay:50}],
+  'FM_diag.method_96 Group 4 fallback must sleep 50ms, unlike Group 7');
 });
 await test('Auto chooses Group 1 after both Group 7 and Group 4 do not respond',async()=>{
  const b=bench({0x13:'TIMEOUT',0x17:'TIMEOUT',0x11:sourceReply(12)});

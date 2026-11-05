@@ -3,7 +3,7 @@
  * groups 1/4/7 are the only read commands allowed by this module.
  * This cannot prove hardware accuracy without verified bench ECU traces.
  */
-import {MAIN_CAPTURE_COMMANDS,decodeMainDiagnosticTrace} from './main-source-diagnostic.js';
+import {MAIN_CAPTURE_COMMANDS,decodeMainDiagnosticTrace} from './main-source-diagnostic.js?v=2';
 import {Ft232rWebUsb} from './ftdi-webusb.js';
 import {HondaFlashEngine} from './honda-write-engine.js?v=392';
 import {loadCSharpCatalog} from './csharp-ecu-catalog.js?v=302';
@@ -491,7 +491,11 @@ export class MainLiveSession {
    }
    try{
     this.phase='LIVE_PROBE_GROUP_'+candidate;this.notify();
-    const {reply,echoOK}=await this.port.exchangeRaw(frame,{timeoutMs:1700,afterWriteMs:50});
+    // FM_diag.cs method_96 waits 30ms after probing Group 7 (0x13),
+     // but 50ms after its Group 4 (0x17) fallback. Do not use one
+     // invented constant for both source branches.
+     const probeWaitMs=candidate===7?30:50;
+     const {reply,echoOK}=await this.port.exchangeRaw(frame,{timeoutMs:1700,afterWriteMs:probeWaitMs});
     if(!acceptedSourceProbe(reply,echoOK))throw Error('ECU reply does not match source diagnostic framing');
     this.detectedGroup=candidate;
     rememberReadOnlyObservation({ecuId:this.ecuId,liveGroup:candidate});
