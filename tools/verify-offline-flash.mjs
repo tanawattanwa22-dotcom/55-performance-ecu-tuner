@@ -57,8 +57,9 @@ assert(currentOfflineEngine&&currentOfflineEngine===currentOnlineEngine,
   'offline and online must import the same current C# source Flash Engine version');
 assert(p.includes('engine.confirmRecoveryFamily(data)')&&old.includes('engine.confirmRecoveryFamily(data)'),'recovery family check is wired in both flash UIs');
 assert(p.includes('checksumOffsetOverride:')&&old.includes('checksumOffsetOverride:'),'C# recovery checksum offset option is wired in both UIs');
-assert(p.includes("from '../ftdi-webusb.js'")&&old.includes("from './ftdi-webusb.js'"),
-  'both Flash pages import the same FT232R WebUSB transport module');
+const transportRevision=text=>text.match(/from ['"][^'"]*ftdi-webusb\.js\?v=(\d+)['"]/)?.[1]||null;
+assert(transportRevision(p)&&transportRevision(p)===transportRevision(old),
+  'both Flash pages must import the same versioned FT232R WebUSB transport module');
 assert(p.includes('verifySavedOfflinePermit(localStorage.getItem'), 'permit checked immediately before real erase');
 assert(!p.includes('async function token()'), 'do not clone login secrets into offline page');
 const sw=asText('flash_port/offline/sw.js');
