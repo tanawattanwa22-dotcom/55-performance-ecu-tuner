@@ -62,8 +62,8 @@ class MockHonda {
    this.writeCount++;
    assert.equal(bytes[1],bytes.length,'source frame length matches');
    assert.equal(hondaChecksum(bytes),0,'write frame Honda checksum');
-   // Original C# accepts any checksum-valid five-byte reply; Android
-   // flash writer intentionally stops on ambiguous nonzero byte[3].
+   // FormMain C# counts checksum-valid five-byte replies as ACK regardless
+   // of byte[3]; the actual byte remains logged without invented semantics.
    if(this.failure==='REJECT_WRITE_'+this.writeCount)
     return {reply:packet([2,7,0,0,1,0,0]),echoOK:true};
    if(this.failure==='SOURCE_5BYTE_STATUS_250'&&this.writeCount===2)
@@ -172,19 +172,18 @@ await check('Keihin corrupted write ACK aborts after erase; no finish phase',asy
  assert(!device.labels.includes('KH_FINAL_5'));
  assert(events.some(e=>e.phase==='FLASH_STOP'&&e.eraseMayHaveStarted===true));
 });
-await check('Nonzero five-byte block status is ambiguous: stop after erase, no finish or retry',async()=>{
+await check('FormMain nonzero five-byte ACK retains source parity and explicitly logs uninterpreted byte',async()=>{
  const {engine,device,events}=setup('0101880D01','SOURCE_5BYTE_STATUS_250');
  await engine.identify();
  const bin=new Uint8Array(65536);bin[0]=7;
  const plan=engine.makePlan(bin,{filename:'K03-H01.bin'});
- await assert.rejects(engine.flash(plan,{confirmation:'FLASH 0101880D01',
-   physicalBackupConfirmed:true,externalPowerConfirmed:true,recoveryReady:true}),
-   /nonzero status 250/);
- assert.equal(engine.state,'stopped');
+ const result=await engine.flash(plan,{confirmation:'FLASH 0101880D01',
+   physicalBackupConfirmed:true,externalPowerConfirmed:true,recoveryReady:true});
+ assert.equal(result.ok,true);
  assert(device.writeCount>=2);
- assert(!device.labels.includes('KH_FINAL_5'),'must not send Final ACK sequence');
- assert(events.some(x=>x.phase==='FLASH_STOP'&&x.eraseMayHaveStarted===true));
- assert(events.some(x=>x.phase==='WRITE_BLOCK_ACK_AMBIGUOUS'&&x.sentAgain===false));
+ assert(device.labels.includes('KH_FINAL_5'),'C# continues on checksum-valid 5-byte reply');
+ assert(events.some(x=>x.phase==='SOURCE_WRITE_ACK_NONZERO_UNINTERPRETED'&&x.rawByte3===250));
+ assert(result.readbackVerified===false,'Final ACK never represents firmware readback');
 });
 await check('Source WriteFlash retries 7-byte zero-zero ACK at most twice TOTAL',async()=>{
  const {engine,device,events}=setup('0101880D01','SOURCE_WRITE_RETRY_TWICE');
