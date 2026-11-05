@@ -3,7 +3,7 @@
  * groups 1/4/7 are the only read commands allowed by this module.
  * This cannot prove hardware accuracy without verified bench ECU traces.
  */
-import {MAIN_CAPTURE_COMMANDS,decodeMainDiagnosticTrace} from './main-source-diagnostic.js';
+import {MAIN_CAPTURE_COMMANDS,decodeMainDiagnosticTrace} from './main-source-diagnostic.js?v=2';
 import {Ft232rWebUsb} from './ftdi-webusb.js';
 import {HondaFlashEngine} from './honda-write-engine.js?v=392';
 import {loadCSharpCatalog} from './csharp-ecu-catalog.js?v=302';
