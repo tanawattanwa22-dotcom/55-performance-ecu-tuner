@@ -29,8 +29,8 @@ export function resolveMainAutoMetadata(snapshot={}){
  if(!snapshot.catalogMatched){
   const dat=lookupMainDatReference(id)||findOriginalEcmDat(id);
   if(dat){
-   const start=offset(dat.startOffset,dat.rawStartOffset);
-   const checksum=offset(dat.checksumOffset,dat.rawChecksumOffset);
+   const start=offset(dat.startOffset,dat.rawStartOffset??dat.startOffsetText);
+   const checksum=offset(dat.checksumOffset,dat.rawChecksumOffset??dat.checksumOffsetText);
    return {...base,partCode:dat.part||null,
     family:dat.family==='UNVERIFIED'?null:dat.family,
     startOffset:start.value,checksumOffset:checksum.value,
