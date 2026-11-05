@@ -506,10 +506,22 @@ export class HondaFlashEngine {
    let accepted=false;
    while(!accepted){
      const reply=await this.x('WRITE_BLOCK_'+current,frame,{timeoutMs:7000,afterWriteMs:writeDelay});
-     // Source FormMain.WriteFlash accepts ANY checksum-valid five-byte ACK.
-     // There is no C# reply[3] status check in its five-byte branch.
+     // Original FormMain.WriteFlash treats any checksum-valid five-byte
+     // response as success. This port deliberately adds a fail-closed
+     // extension: a nonzero byte[3] cannot be verified as successful without
+     // physical ACK semantics for this ECU. Do NOT silently count it as a
+     // written block. Never retransmit an ambiguous 5-byte ACK.
      if(reply.length===5){
-       this.emit('WRITE_BLOCK_ACK',{block:current,sourceReplyStatus:reply[3]});
+       if(reply[3]!==0){
+         this.emit('WRITE_BLOCK_ACK_AMBIGUOUS',{block:current,
+           replyStatus:reply[3],sourceCSharpWouldAccept:true,
+           sentAgain:false});
+         fail('WRITE_ACK_STATUS_UNVERIFIED','ECU WRITE block '+current+
+           ' answered five-byte ACK with nonzero status '+reply[3]+
+           '; source C# accepts its length, but write success is unverified. Stop without resending.');
+       }
+       this.emit('WRITE_BLOCK_ACK',{block:current,sourceReplyStatus:reply[3],
+         statusZeroValidated:true});
        accepted=true;
      }else if(reply.length===7&&reply[4]===0&&reply[5]===0&&sourceRetryBudget>0){
        sourceRetryBudget--;
