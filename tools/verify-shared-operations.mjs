@@ -57,6 +57,47 @@ try{
 }finally{Ft232rWebUsb.prototype.openSelected=originalOpenSelected;}
 console.log('PASS: stale WebUSB ready flag cannot hand an unclaimed FT232R to Flash Preflight');
 
+// Physical Android FT232R unplug regression: the disconnect event must be
+// authoritative even if the USBDevice/opened and transport ready flag are
+// stale; never return old ECU/DTC/gauge data to any screen after unplug.
+const detached=new MainLiveSession();
+const cable={vendorId:0x0403,productId:0x6001,serialNumber:'FT232R-A'};
+let closed=0;
+detached.port={ready:true,lastDevice:cable,dev:{opened:true},close:async()=>{closed++}};
+detached._selectedUsbDevice=cable;
+detached.ecuId='0105040D01';detached.catalog={part:'K1ZP-T71',family:'SHINDENGEN'};
+detached.detectedGroup=7;detached.dtcSnapshot={ecuId:detached.ecuId,success:true};
+detached.sourceProbe={expectedEcuId:detached.ecuId,sourceMatched:true};
+detached.values.rpm=9876;detached.sourceReadings=[{name:'RPM',value:9876}];
+detached.sampleAt=Date.now();detached.hz=14;detached.autoComplete=true;
+assert.equal(detached.status().connected,true);
+assert.equal(detached.status().ecmDisplayName,'PCX160 ABS');
+assert.equal(detached.handleUsbDetached({vendorId:0x0403,productId:0x6001,serialNumber:'OTHER'}),false,
+ 'another USB device must not reset our FT232R');
+assert.equal(detached.status().ecuId,'0105040D01');
+assert.equal(detached.handleUsbDetached(cable),true);
+const unplugged=detached.status();
+assert.equal(unplugged.connected,false);
+assert.equal(unplugged.cable,false);
+assert.equal(unplugged.ecuId,'');
+assert.equal(unplugged.part,null);
+assert.equal(unplugged.catalogFamily,null);
+assert.equal(unplugged.ecmDisplayName,null);
+assert.equal(unplugged.catalogMatched,false);
+assert.equal(unplugged.dtcSnapshot,null);
+assert.equal(unplugged.sourceProbe,null);
+assert.equal(unplugged.liveGroupVerified,false);
+assert.equal(unplugged.values.rpm,null);
+assert.deepEqual(unplugged.sourceReadings,[]);
+assert.equal(unplugged.hz,null);
+assert.equal(unplugged.autoComplete,false);
+assert.equal(detached.port,null);
+assert.equal(detached.handleUsbDetached(cable),false,'duplicate detach must be idempotent');
+await new Promise(resolve=>setImmediate(resolve));
+assert.equal(closed,1,'USB close once; no ECU write commands or reopening');
+console.log('PASS WebUSB physical detach: old ECU ID/model/Part/Live/DTC clear instantly, other FT232R ignored');
+
+
 const key=getShindengenRecoveryKey(Uint8Array.of(1,0,2,0,0,0,9,8),Uint8Array.of(0,3),Uint8Array.of(9,8));assert.deepEqual([...key],[0,11]);
 // Recovery identification must not send a normal Keihin count command.
 const seen=[];const boot={ready:true,initializeIso:async()=>{},sendWake:async()=>{},exchangeRaw:async f=>{
