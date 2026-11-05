@@ -24,6 +24,14 @@ ShindengenAutoChecksum, KeihinAutoChecksum, GetShindengenWriteKey.
 ไม่มีฟังก์ชันที่ยืนยันว่า READ Flash ทั้งก้อนได้ หรือ Verify โดยอ่านหน่วยความจำกลับ:
 FT_Read ใน SendCommand เป็นการอ่านคำตอบจาก ECU เท่านั้น.
 
+## หมายเหตุ 2026-11-05: Full Backup ไม่ใช่ข้อบังคับของ Normal Write ทุกกล่อง
+
+- สำหรับ Shindengen V850/RH850 โหมดที่รองรับการเขียนผ่าน K-Line อาจมีเพียง Virtual Read และ Write ไม่รองรับการอ่าน Full Flash จริงจากรถ (ตัวอย่างเอกสาร BitBox FID:337)
+- Normal Flash หน้า Fast Flash อนุญาตให้ช่างเลือก **ไม่มี Full Backup ของคันนี้** อย่างชัดเจน โดยต้องยอมรับความเสี่ยง; ไม่ถือว่าไฟล์ BIN ของรถคันอื่นเป็น Backup ของคันปัจจุบัน
+- ยังคงต้องยืนยันไฟเลี้ยงและวงจร K-Line ถูกต้อง, มีวิธีกู้คืนที่ทดสอบได้, ECU ID และ Family ACK จากรถจริง, BIN Profile, Offset, Checksum และเงื่อนไขของ Flash Engine
+- โหมด Recovery ยังต้องมีหลักฐาน Backup ตามข้อกำหนดเดิม และการผ่าน Preflight/Final ACK ไม่ใช่ Full Readback Verification
+- การยืนยันของช่างไม่ใช่การวัดไฟเลี้ยงทางอิเล็กทรอนิกส์ ไม่มีการรับประกันแฟลชสำเร็จกับรถทุกคัน
+
 ## ข้อจำกัดการรับรอง
 - โค้ดนี้มีคำสั่ง USB ERASE/WRITE จริง และผ่านการทดสอบซอฟต์แวร์ด้วยตัวตอบ ECU จำลอง
 - ยังไม่ได้ผ่านการทดสอบสาย FTDI, ECU และการกู้คืนบนฮาร์ดแวร์จริงของผู้ใช้

@@ -18,7 +18,8 @@ must(index,"sessionStorage.setItem('55_flash_recovery_hint'",'Failure hint survi
 // Normal Flash uses one button with a final human bench approval dialog (no typed HEX).
 must(index,'operatorClickConfirmed:true','Normal Flash passes a single explicit operator click to the engine');
 must(index,'const benchConfirmed=confirm(','Normal Flash presents manual bench approval before ERASE');
-must(engine,"if(!physicalBackupConfirmed||!externalPowerConfirmed||!recoveryReady)",'Engine requires operator bench approvals even on one-tap');
+must(engine,"const backupWaiverAllowed=!!backupUnavailableAcknowledged&&!plan.recovery;",'Full Backup waiver applies only to normal flash, not Recovery');
+must(engine,"if(!(physicalBackupConfirmed||backupWaiverAllowed)||!externalPowerConfirmed||!recoveryReady)",'Engine retains real power and recovery requirements even when Full Read is unsupported');
 assert(!index.includes('inlineFlashConfirm('),'Normal Flash no longer opens manual approval dialog');
 assert(!index.includes("prompt('BIN ไม่มี Part Code"),'Normal Flash stops ambiguous BIN instead of asking the operator to type a guessed Part Code');
 must(index,'AUTO_PART_MATCH ECU_ID','Exact embedded BIN ECU ID can supply automatic part match');
@@ -74,6 +75,20 @@ await assert.rejects(
   noUsb.flash({ecuId:'0101880D01',profile:'KEIHINOTHER',recovery:false},{
    operatorClickConfirmed:true,physicalBackupConfirmed:true,externalPowerConfirmed:true,recoveryReady:true}),
   e=>e.code==='USB_LOST'
+);
+// A write-only ECU without Full Read can reach the USB gate only after
+// an EXPLICIT backup waiver and the same power and recovery confirmations.
+await assert.rejects(
+ noUsb.flash({ecuId:'0101880D01',profile:'KEIHINOTHER',recovery:false},{
+  operatorClickConfirmed:true,backupUnavailableAcknowledged:true,
+  externalPowerConfirmed:false,recoveryReady:true
+ }),e=>e.code==='PRECONDITION'
+);
+await assert.rejects(
+ noUsb.flash({ecuId:'0101880D01',profile:'KEIHINOTHER',recovery:true},{
+  operatorClickConfirmed:true,backupUnavailableAcknowledged:true,
+  externalPowerConfirmed:true,recoveryReady:true,confirmation:'FLASH 0101880D01'
+ }),e=>e.code==='PLAN_INVALID'||e.code==='PRECONDITION'
 );
 // Explicitly prove a naked one-tap cannot proceed without physical approval.
 await assert.rejects(

@@ -628,7 +628,7 @@ export class HondaFlashEngine {
     throw error;
   }
  }
- async flash(plan,{confirmation,physicalBackupConfirmed=false,externalPowerConfirmed=false,recoveryReady=false,operatorClickConfirmed=false}={}){
+ async flash(plan,{confirmation,physicalBackupConfirmed=false,backupUnavailableAcknowledged=false,externalPowerConfirmed=false,recoveryReady=false,operatorClickConfirmed=false}={}){
   if(this.state!=='identified')fail('NOT_READY','อ่านรหัส ECU ให้เสร็จก่อน');
   if(!plan?.recovery&&/0000$/.test(this.identity.ecuId))
    fail('BOOT_ID_REQUIRES_RECOVERY','Normal Flash ไม่อนุญาตให้ ERASE/WRITE เมื่อ ECU ตอบ Recovery Boot ID');
@@ -648,14 +648,22 @@ export class HondaFlashEngine {
   // Even one-tap flash must not bypass operator confirmation of bench prerequisites.
   // These are HUMAN declarations; neither FT232R nor Main.zip measures voltage
   // or creates a full ECU backup. No backup/voltage/repair claim is inferred.
-  if(!physicalBackupConfirmed||!externalPowerConfirmed||!recoveryReady)
-    fail('PRECONDITION','ต้องยืนยันไฟล์ Backup ที่มีอยู่จริง ไฟเลี้ยง/สาย K-Line และวิธีกู้ ECU ก่อน ERASE');
+  // The source write-only Shindengen path can use a known matching BIN
+  // without a per-ECU full read. Make that absence an explicit operator
+  // disclosure, never falsify it as a verified ECU backup.
+  // A backup waiver is for ordinary write-only firmware updates only.
+  // Recovery writes must retain their prior stricter backup requirement.
+  const backupWaiverAllowed=!!backupUnavailableAcknowledged&&!plan.recovery;
+  if(!(physicalBackupConfirmed||backupWaiverAllowed)||!externalPowerConfirmed||!recoveryReady)
+    fail('PRECONDITION','ต้องยืนยันไฟล์ Backup หรือรับทราบว่าไม่มี Full Read พร้อมตรวจไฟเลี้ยง/สาย K-Line และวิธีกู้ ECU ก่อน ERASE');
   if(!operatorClickConfirmed||plan.recovery||sourceUnlistedPlan){
     if(confirmation!=='FLASH '+plan.ecuId)fail('CONFIRMATION','ต้องพิมพ์ FLASH และ ECU ID ที่อ่านได้');
   }
   if(operatorClickConfirmed&&!plan.recovery)
     this.emit('OPERATOR_ONE_TAP',{ecuId:plan.ecuId,acknowledgement:'FLASH_BUTTON_CLICK',
-      backupConfirmedByOperator:true,powerConfirmedByOperator:true,recoveryConfirmedByOperator:true,
+      backupConfirmedByOperator:!!physicalBackupConfirmed,
+      backupUnavailableAcknowledgedByOperator:backupWaiverAllowed,
+      powerConfirmedByOperator:true,recoveryConfirmedByOperator:true,
       powerAndBackupElectronicallyVerified:false});
   if(!this.usb.ready)fail('USB_LOST','FTDI USB ไม่ได้เชื่อมต่อแล้ว');
   // Do not report destructive activity during handshake, seed/key or wait.

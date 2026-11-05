@@ -462,7 +462,7 @@ function mount(host){
  const checking=card('n24-check','✓','รายการตรวจสอบก่อนอัดไฟล์');
  addChecklist(checking);stage.append(checking);
  const warning=make('div','n24-warning');
- warning.textContent='คำเตือน: BIN หลักจากแอปอาจไม่ตรงเฟิร์มแวร์ของ ECU ทุกคัน • ต้องมีสำเนากล่องลูกค้า, ตรวจ Part Code และไฟเลี้ยงกับเครื่องมือกู้คืน • ไม่มีการอ่าน BIN กลับทั้งก้อนเพื่อยืนยันหลังเขียน';
+ warning.textContent='คำเตือน: BIN หลักจากแอปอาจไม่ตรงเฟิร์มแวร์ของ ECU ทุกคัน • ควรมี Full Backup ของกล่องลูกค้า (บางรุ่นอ่านเต็มก้อนไม่ได้), ต้องตรวจ Part Code และไฟเลี้ยงกับวิธีกู้คืน • ไม่มีการอ่าน BIN กลับทั้งก้อนเพื่อยืนยันหลังเขียน';
  stage.append(warning);
  const state=make('div','n24-state');
  const title=make('strong','','รอการตรวจ Preflight');dom.title=title;

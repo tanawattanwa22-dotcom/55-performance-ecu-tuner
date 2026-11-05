@@ -45,6 +45,22 @@ assert(p.includes("()=>runCheck({requestConfirmation:true})"),
  'Manual Preflight action must request explicit technician confirmation for source 3-byte BIN IDs');
 assert(p.includes('if(!requestConfirmation)')&&p.includes('confirmedPart:\'CONFIRM \'+id'),
  'Automatic probe never auto-confirms partial BIN ID; manual Preflight can produce read-only plan');
+// The purchased Shindengen source has no full-read route. Its absence must
+// never be silently represented as a completed physical ECU backup.
+const writer=get('flash_port/honda-write-engine.js');
+assert(writer.includes('backupUnavailableAcknowledged=false')&&
+ writer.includes('const backupWaiverAllowed=!!backupUnavailableAcknowledged&&!plan.recovery;'),
+ 'Normal flash accepts an explicit backup-unavailable acknowledgement; Recovery remains stricter');
+assert(writer.includes('!externalPowerConfirmed||!recoveryReady'),
+ 'Lack of full backup must NOT waive power and recovery checks');
+assert(index.includes('const hasThisEcuBackup=confirm(')&&
+ index.includes('const noBackupAck=!hasThisEcuBackup&&confirm(')&&
+ index.includes('physicalBackupConfirmed:hasThisEcuBackup,')&&
+ index.includes('backupUnavailableAcknowledged:noBackupAck,'),
+ 'Flash UI must accurately distinguish existing original backup from risk acknowledgement');
+assert(index.includes('ui/neon-preflight-v24.js?v=411')&&
+ index.includes('honda-write-engine.js?v=395'),
+ 'Chrome must reload the current engine and honest no-backup flow');
 assert(p.includes('last.engine.makePlan(c.bytes.slice()'),'strict C# plan from saved BIN snapshot');
 assert(p.includes('sourceMatched'),'catalog and family source matching enforced');
 assert(p.includes('S.saved')&&p.includes('TuneBinFlow.matches'),'preflight uses saved immutable BIN only');

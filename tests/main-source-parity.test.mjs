@@ -262,6 +262,28 @@ const resumedOutcome=await resumed.e.flash(resumed.plan,{
 assert.equal(resumedOutcome.ok,true);
 assert.equal(resumed.getErased(),true);
 assert(resumed.events.some(e=>e.phase==='MAIN_WORKER_SESSION_RESTORED'));
+const noBackup=makeExpiredSourceSession();
+// This is a fake in-memory transport, not a physical ECU or erase operation.
+await assert.rejects(()=>noBackup.e.flash(noBackup.plan,{
+ operatorClickConfirmed:true,backupUnavailableAcknowledged:true,
+ externalPowerConfirmed:false,recoveryReady:true
+}),e=>e?.code==='PRECONDITION');
+assert.equal(noBackup.getErased(),false,'Stable power is never waived along with Full Backup');
+const noRecovery=makeExpiredSourceSession();
+await assert.rejects(()=>noRecovery.e.flash(noRecovery.plan,{
+ operatorClickConfirmed:true,backupUnavailableAcknowledged:true,
+ externalPowerConfirmed:true,recoveryReady:false
+}),e=>e?.code==='PRECONDITION');
+assert.equal(noRecovery.getErased(),false,'Recovery readiness is never waived along with Full Backup');
+const knownBinNoBackup=makeExpiredSourceSession();
+const noBackupOutcome=await knownBinNoBackup.e.flash(knownBinNoBackup.plan,{
+ operatorClickConfirmed:true,physicalBackupConfirmed:false,
+ backupUnavailableAcknowledged:true,externalPowerConfirmed:true,recoveryReady:true
+});
+assert.equal(noBackupOutcome.ok,true,'Explicit no-backup waiver may proceed on fake write-only transport');
+assert(knownBinNoBackup.events.some(e=>e.phase==='OPERATOR_ONE_TAP'&&
+ e.backupConfirmedByOperator===false&&e.backupUnavailableAcknowledgedByOperator===true));
+
 const switched=makeExpiredSourceSession({changeId:true});
 await assert.rejects(()=>switched.e.flash(switched.plan,{
  operatorClickConfirmed:true,
