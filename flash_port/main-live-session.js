@@ -55,18 +55,79 @@ export class MainLiveSession {
   this.dtcSnapshot=null;this.autoStatus='ยังไม่ได้ตรวจ';this.autoComplete=false;this.autoBusy=false;
   this.sourceProbe=null;this.sourceProbeError='';this.autoSourceProbes=0;
   this.usbAttempts=0;this.usbLastPhase='IDLE';this.usbLastError='';this.usbDevice=null;this.usbTrace=[];
+  this._selectedUsbDevice=null;this._usbPhysicallyDetached=false;
+  this._usbMonitorMisses=0;this._usbMonitorBusy=false;
+  // Chrome Android's WebUSB disconnect event represents the *actual OTG cable*.
+  // It previously updated the chooser cache but not the live ECU snapshot.
+  if(typeof navigator!=='undefined'&&navigator.usb?.addEventListener){
+   navigator.usb.addEventListener('disconnect',event=>this.handleUsbDetached(event.device));
+   if(typeof window!=='undefined'&&navigator.usb.getDevices)
+    window.setInterval(()=>{void this.checkUsbPresence()},1200);
+  }
  }
  notify(){this.onUpdate(this);}
+ _sameUsbDevice(a,b){
+  if(!a||!b)return false;
+  if(a===b)return true;
+  // Serial is optional. Never match on VID/PID alone: multiple FT232Rs may exist.
+  return !!a.serialNumber&&!!b.serialNumber&&a.serialNumber===b.serialNumber&&
+   a.vendorId===b.vendorId&&a.productId===b.productId;
+ }
+ _clearDetectedEcu(){
+  this.ecuId='';this.catalog=null;this.detectedGroup=null;this.group4Variant=null;
+  this.sourceProbe=null;this.sourceProbeError='';this.autoSourceProbes=0;
+  this.dtcSnapshot=null;this.dtcError='';this.idError='';this.liveGroupError='';
+  this.values=EMPTY();this.sourceReadings=[];this.sampleAt=0;this.sampleSeq=0;this.hz=null;
+  this.autoComplete=false;this.liveAutoRetries=0;this.recording=false;
+ }
+ handleUsbDetached(device){
+  const selected=this._selectedUsbDevice||this.port?.lastDevice||this.port?.dev;
+  if(!this._sameUsbDevice(device,selected)||this._usbPhysicallyDetached)return false;
+  const dead=this.port;
+  // Remove the public port reference FIRST, before any asynchronous close.
+  // No stale ID, part, model, gauge, DTC or flash readiness survives unplug.
+  this._usbPhysicallyDetached=true;
+  this.disconnectRequested=true;this.stopRequested=true;
+  this.port=null;this._selectedUsbDevice=null;this.usbDevice=null;this.owner=null;
+  this._usbMonitorMisses=0;this._clearDetectedEcu();
+  this.phase='USB_DETACHED';this.usbLastPhase='USB_DETACHED';
+  this.autoStatus='ถอดสาย FT232R ออกจากโทรศัพท์แล้ว';
+  this.error='';this.usbLastError='';this.connecting=false;
+  this.notify();
+  // Closing only the now-detached WebUSB handle sends no ECU commands.
+  if(dead)void dead.close().catch(()=>{});
+  return true;
+ }
+ async checkUsbPresence(){
+  const port=this.port,selected=this._selectedUsbDevice||port?.lastDevice;
+  if(this._usbMonitorBusy||this._usbPhysicallyDetached||!port?.ready||!selected||
+     typeof navigator==='undefined'||!navigator.usb?.getDevices)return;
+  this._usbMonitorBusy=true;
+  try{
+   const devices=await navigator.usb.getDevices();
+   if(port!==this.port||this._usbPhysicallyDetached)return;
+   if(devices.some(device=>this._sameUsbDevice(device,selected))){
+    this._usbMonitorMisses=0;
+   }else if(++this._usbMonitorMisses>=2){
+    this.handleUsbDetached(selected);
+   }
+  }catch{
+   // A transient WebUSB permission/API failure is NOT evidence of unplug.
+   this._usbMonitorMisses=0;
+  }finally{this._usbMonitorBusy=false}
+ }
  status(){
-  const originalEcm=findOriginalEcmDat(this.ecuId);
-  const ecmDisplay=describeOriginalEcm(this.ecuId);
+  const currentId=this.port?.ready&&!this._usbPhysicallyDetached?this.ecuId:'';
+  const originalEcm=findOriginalEcmDat(currentId);
+  const ecmDisplay=describeOriginalEcm(currentId);
   return {
-   connected:!!this.port?.ready,
+   connected:!!this.port?.ready&&!this._usbPhysicallyDetached,
    usbAttempts:this.usbAttempts,usbLastPhase:this.usbLastPhase,
    usbLastError:this.usbLastError,usbDevice:this.usbDevice,
    usbTrace:(this.port?.trace?.length?this.port.trace:this.usbTrace).slice(-16),
-   cable:!!this.port?.ready,connecting:this.connecting||this.autoBusy,autoBusy:this.autoBusy,ecuId:this.ecuId,
-   part:this.catalog?.part||originalEcm?.part||null,catalogFamily:this.catalog?.family||originalEcm?.family||null,
+   cable:!!this.port?.ready&&!this._usbPhysicallyDetached,connecting:this.connecting||this.autoBusy,autoBusy:this.autoBusy,ecuId:currentId,
+   part:currentId?(this.catalog?.part||originalEcm?.part||null):null,
+   catalogFamily:currentId?(this.catalog?.family||originalEcm?.family||null):null,
    originalEcmMatched:!!originalEcm,originalEcmModel:originalEcm?.model||null,
    originalEcmSizeKb:originalEcm?.expectedSizeKb??null,
    ecmDisplayName:ecmDisplay?.model||null,
@@ -75,9 +136,9 @@ export class MainLiveSession {
    ecmDisplaySource:ecmDisplay?.source||null,
    startOffset:this.catalog?.startOffset??null,checksumOffset:this.catalog?.checksumOffset??null,
    startOffsetText:this.catalog?.startOffsetText??null,checksumOffsetText:this.catalog?.checksumOffsetText??null,
-   catalogMatched:!!this.catalog,autoStatus:this.autoStatus,autoComplete:this.autoComplete,
-   readOnlyObservation:getReadOnlyObservation(this.ecuId),
-   sourceProbe:this.sourceProbe&&this.ecuId===this.sourceProbe.expectedEcuId?{
+   catalogMatched:!!currentId&&!!this.catalog,autoStatus:this.autoStatus,autoComplete:this.autoComplete,
+   readOnlyObservation:currentId?getReadOnlyObservation(currentId):null,
+   sourceProbe:currentId&&this.sourceProbe&&currentId===this.sourceProbe.expectedEcuId?{
     expectedEcuId:this.sourceProbe.expectedEcuId,ecuId:this.sourceProbe.ecuId,
     family:this.sourceProbe.family,flashCount:this.sourceProbe.flashCount,
     countState:this.sourceProbe.countState,handshake:this.sourceProbe.handshake,
@@ -87,10 +148,12 @@ export class MainLiveSession {
    }:null,
    sourceProbeError:this.sourceProbeError,autoSourceProbes:this.autoSourceProbes,
    idError:this.idError,liveGroupError:this.liveGroupError,dtcError:this.dtcError,
-   liveGroupVerified:Number.isInteger(this.detectedGroup),dtcSnapshot:this.dtcSnapshot,
+   liveGroupVerified:!!currentId&&Number.isInteger(this.detectedGroup),dtcSnapshot:currentId?this.dtcSnapshot:null,
    running:this.running,group:this.detectedGroup??this.group,groupMode:this.group,
    group4Variant:this.group4Variant,sampleSeq:this.sampleSeq,sampleAt:this.sampleAt,
-   hz:this.hz,values:{...this.values},sourceReadings:this.sourceReadings.map(v=>({...v})),recording:this.recording,phase:this.phase,
+   hz:currentId?this.hz:null,values:currentId?{...this.values}:EMPTY(),
+   sourceReadings:currentId?this.sourceReadings.map(v=>({...v})):[],
+   recording:!!currentId&&this.recording,phase:this.phase,
    recordSeconds:this.recording?(Date.now()-this.recordStart)/1000:0,
    hasLog:this.records.length>0,error:this.error,
    liveAutoRetries:this.liveAutoRetries,liveAutoRecoveries:this.liveAutoRecoveries,liveLastDrop:this.liveLastDrop
@@ -110,6 +173,7 @@ export class MainLiveSession {
   this.usbAttempts++;this.usbLastPhase='USB_CHOOSER';this.usbLastError='';this.usbTrace=[];
   this.connecting=true;this.error='';this.phase='USB_CHOOSER';
   this.disconnectRequested=false;this.stopRequested=false;
+  this._usbPhysicallyDetached=false;this._usbMonitorMisses=0;
   this.autoComplete=false;this.autoBusy=false;this.notify();
   let port=null;
   try{
@@ -118,6 +182,7 @@ export class MainLiveSession {
    // Never perform a network/License check in a WebUSB user gesture.
    // Must run directly inside the user click: no awaited work before picker.
    const device=await Ft232rWebUsb.choose({forcePicker});
+   this._selectedUsbDevice=device;
    this.usbDevice=Number(device?.vendorId||0).toString(16).padStart(4,'0')+':'+Number(device?.productId||0).toString(16).padStart(4,'0');
    if(this.disconnectRequested)return false;
    this.phase='USB_OPEN';this.notify();
@@ -128,7 +193,7 @@ export class MainLiveSession {
    try{
     await TIME_LIMIT(opening,12000,'FT232R เปิดพอร์ตเกิน 12 วินาที · ตรวจ OTG / การอนุญาต USB');
    }catch(e){expired=true;throw e}
-   if(this.disconnectRequested){await port.close();this.port=null;return false}
+   if(this.disconnectRequested||this._usbPhysicallyDetached){await port.close();this.port=null;return false}
    // A connected FT232R is a valid cable connection even without a bike.
    // No background ECU probe, wake, DTC bank scan or bulk RX here.
    this.ecuId='';this.catalog=null;this.detectedGroup=null;
@@ -146,7 +211,7 @@ export class MainLiveSession {
     'เชื่อมต่อ FT232R ไม่สำเร็จ ['+this.phase+']: '+String(e?.message||e);
    this.phase=denied?'USB_ACCESS_DENIED':'USB_OPEN_FAILED';
    if(port)try{await TIME_LIMIT(Promise.resolve(port.close()),2500,'USB close timeout')}catch{}
-   this.port=null;this.ecuId='';this.values=EMPTY();
+   this.port=null;this._selectedUsbDevice=null;this._clearDetectedEcu();
    this.notify();return false;
   }finally{this.connecting=false;this.notify()}
  }
@@ -754,8 +819,7 @@ export class MainLiveSession {
   if(this.owner){this.error="หยุดงาน "+this.owner+" ก่อนตัดสาย";this.notify();return false;}
   this.disconnectRequested=true;this.stopRequested=true;this.recording=false;
   this.sourceProbe=null;this.sourceProbeError='';this.autoSourceProbes=0;
-  this.ecuId='';this.catalog=null;this.detectedGroup=null;this.dtcSnapshot=null;
-  this.idError='';this.liveGroupError='';this.dtcError='';this.autoComplete=false;this.autoStatus='ตัดการเชื่อมต่อแล้ว';
+  this._clearDetectedEcu();this.autoStatus='ตัดการเชื่อมต่อแล้ว';
   if(this.autoBusy){
    this.autoStatus='กำลังยกเลิกการอ่าน ECU • ปุ่มอื่นยังใช้งานได้';this.notify();
    return true;
@@ -764,6 +828,7 @@ export class MainLiveSession {
    const port=this.port;this.port=null;this.ecuId='';
    if(port)try{await port.close()}catch{}
    this.values=EMPTY();this.hz=null;this.disconnectRequested=false;
+   this._selectedUsbDevice=null;this.usbDevice=null;
   }
   this.notify();
  }
