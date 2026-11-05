@@ -33,7 +33,7 @@ export function originalEcmDatRows(){return ROWS.map(row=>row.slice())}
 function normalizeDisplayPart(rawPart){
  const cleaned=String(rawPart||'').toUpperCase().trim().replace(/^38770-/,'');
  // ECM.dat uses both K2TK T51 and K2TK-T51; keep the stored raw part too.
- const m=cleaned.match(/^([A-Z0-9]+)[- ]([A-Z0-9]{2,4})(?=$|[\\s_\\/])/);
+ const m=cleaned.match(/^([A-Z0-9]+)[- ]([A-Z0-9]{2,4})(?=$|[\s_\/])/);
  return m?m[1]+'-'+m[2]:null;
 }
 function readableEcmModel(record){
@@ -42,18 +42,18 @@ function readableEcmModel(record){
   return raw.replace(/Gionro/ig,'Giorno+')
    .replace(/^LEAD125_4V$/i,'Lead 125 · 4V')
    .replace(/^LEAD125_2V$/i,'Lead 125 · 2V')
-   .replace(/^PCX\\s*160\\s*abs$/i,'PCX160 ABS')
-   .replace(/^PCX\\s*160$/i,'PCX160')
-   .replace(/^adv\\s*160$/i,'ADV160')
-   .replace(/^Click\\s*160$/i,'Click160');
+   .replace(/^PCX\s*160\s*abs$/i,'PCX160 ABS')
+   .replace(/^PCX\s*160$/i,'PCX160')
+   .replace(/^adv\s*160$/i,'ADV160')
+   .replace(/^Click\s*160$/i,'Click160');
  }
  const source=String(record?.part||'');
- if(/Giorno\\s*2026/i.test(source))return 'Giorno+ 125 (2026)';
- if(/Gionro\\s*125/i.test(source))return 'Giorno+ 125';
- if(/LEAD\\s*ABS/i.test(source))return 'Lead 125 ABS';
- if(/LEAD125[_\\s-]*4V/i.test(source))return 'Lead 125 · 4V';
- if(/LEAD125[_\\s-]*2V/i.test(source))return 'Lead 125 · 2V';
- if(/PCX\\s*160\\s*2026/i.test(source))return 'PCX160 (2026)';
+ if(/Giorno\s*2026/i.test(source))return 'Giorno+ 125 (2026)';
+ if(/Gionro\s*125/i.test(source))return 'Giorno+ 125';
+ if(/LEAD\s*ABS/i.test(source))return 'Lead 125 ABS';
+ if(/LEAD125[_\s-]*4V/i.test(source))return 'Lead 125 · 4V';
+ if(/LEAD125[_\s-]*2V/i.test(source))return 'Lead 125 · 2V';
+ if(/PCX\s*160\s*2026/i.test(source))return 'PCX160 (2026)';
  return null; // no vehicle/year inference from an ECU ID alone
 }
 export function describeOriginalEcm(ecuId){
