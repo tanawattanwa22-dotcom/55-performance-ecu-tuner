@@ -23,6 +23,41 @@ export function roundMainCSharp(value,digits=0){
   (fraction>0.5?floor+1:floor);
  return Math.sign(value)*rounded/scale;
 }
+/** Verify FM_diag.cs method_99 byte layout BEFORE method_100/101/102
+ * decodes absolute byte offsets. Original requests carry the DATA byte count
+ * in TX[5]. The source's fixed positions require a six-byte Honda reply
+ * envelope (header, length, command, bank/status, header, checksum) around
+ * exactly that many payload bytes. A checksum-valid SHORT reply is a control
+ * response, not sensor data: otherwise the next TX echo is misread as
+ * RPM/TPS/INJ. No ECU commands or map formulas are changed here.
+ */
+export function validateMainSourceLiveBurst(result,group){
+ const frames=MAIN_CAPTURE_COMMANDS[Number(group)];
+ if(!frames||!Array.isArray(result?.entries)||result.entries.length!==frames.length)
+  throw Error('FM_diag C# live burst is incomplete');
+ const actualLengths=[],expectedLengths=[];
+ for(let i=0;i<frames.length;i++){
+  const requestedDataBytes=frames[i][5];
+  const expectedReplyBytes=requestedDataBytes+6;
+  const actualReplyBytes=result.entries[i]?.reply?.length??0;
+  expectedLengths.push(expectedReplyBytes);
+  actualLengths.push(actualReplyBytes);
+  if(actualReplyBytes!==expectedReplyBytes)
+   throw Error('FM_diag Group '+group+' TX '+(i+1)+' (0x'+frames[i][3].toString(16).toUpperCase()+
+    ') expects '+requestedDataBytes+' data bytes / '+expectedReplyBytes+
+    '-byte response, got '+Math.max(0,actualReplyBytes)+
+    ' bytes; C# sensor positions would point into UART command/ACK. RX lengths '+
+    actualLengths.join('/')+'; expected '+expectedLengths.join('/'));
+  if(result.entries[i].echoOK!==true)
+   throw Error('FM_diag Group '+group+' TX '+(i+1)+' command echo mismatch');
+ }
+ const expectedCaptureBytes=frames.reduce((n,f)=>n+f.length+f[5]+6,0);
+ if((result.raw?.length??0)!==expectedCaptureBytes)
+  throw Error('FM_diag Group '+group+' C# capture length mismatch: expected '+
+   expectedCaptureBytes+', got '+(result.raw?.length??0));
+ return true;
+}
+
 export function decodeMainDiagnosticTrace(raw,group=1){
  const g=Number(group);
  if(!MAIN_CAPTURE_COMMANDS[g])throw Error('Unknown source diagnostic group');

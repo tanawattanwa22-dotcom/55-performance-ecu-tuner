@@ -3,7 +3,7 @@
  * groups 1/4/7 are the only read commands allowed by this module.
  * This cannot prove hardware accuracy without verified bench ECU traces.
  */
-import {MAIN_CAPTURE_COMMANDS,decodeMainDiagnosticTrace} from './main-source-diagnostic.js?v=2';
+import {MAIN_CAPTURE_COMMANDS,decodeMainDiagnosticTrace,validateMainSourceLiveBurst} from './main-source-diagnostic.js?v=3';
 import {Ft232rWebUsb} from './ftdi-webusb.js';
 import {HondaFlashEngine} from './honda-write-engine.js?v=392';
 import {loadCSharpCatalog} from './csharp-ecu-catalog.js?v=302';
@@ -530,8 +530,9 @@ export class MainLiveSession {
    }
    if(this.stopRequested||this.disconnectRequested)return null;
    const result=await this.port.exchangeMainDiagnosticBurst(frames);
-   if(result.entries.length!==4||result.entries.some(x=>!x.echoOK))
-    throw Error('Main C# Live group UART echo/response incomplete');
+   // FM_diag uses absolute byte offsets. Every response must contain the
+   // requested data count or the next frame's TX echo becomes sensor data.
+   validateMainSourceLiveBurst(result,group);
    return Array.from(result.raw);
   }
   for(let i=0;i<frames.length;i++){
@@ -607,6 +608,9 @@ export class MainLiveSession {
     await WAIT(80);
    }
   }catch(e){
+   // Do not leave a checksum-valid but misaligned capture visible as RPM,
+   // TPS, injection or temperature after a failed UART/USB read.
+   this.values=EMPTY();this.sourceReadings=[];this.sampleAt=0;this.hz=null;
    this.error='Live Data ไม่ได้รับคำตอบ ECU: '+String(e?.message||e);
    this.phase='LIVE_RX_FAILED';
   }finally{
