@@ -14,7 +14,7 @@ assert.match(p,/const restored=await shared\.restoreCable\?\.\(\)/,
  'Preflight recovers only the approved FT232R handle after a WebUSB transferIn loss');
 assert.match(p,/physicalFamilyEvidence==='MAIN_SOURCE_READ_ONLY_FLASH_COUNT_ACK'/,
  'Original FormMain unknown ID path may continue only after fresh physical family ACK');
-assert.match(p,/if\(current\(\)\.valid&&\(last\?\.identity\?\.sourceMatched\|\|proof\)\)await runCheck\(\)/,
+assert.match(p,/if\(current\(\)\.valid&&\(last\?\.identity\?\.sourceMatched\|\|proof\)\)await runCheck\(\{requestConfirmation:false\}\)/,
  'Unlisted ECU with source ACK must reach read-only BIN / Memory Map check');
 assert.doesNotMatch(p,/sourceMatched\)await runCheck\(\)/,
  'Do not skip Main source-backed unknown ECU solely because Part Code catalog has no row');
@@ -58,8 +58,8 @@ assert(index.includes('const hasThisEcuBackup=confirm(')&&
  index.includes('physicalBackupConfirmed:hasThisEcuBackup,')&&
  index.includes('backupUnavailableAcknowledged:noBackupAck,'),
  'Flash UI must accurately distinguish existing original backup from risk acknowledgement');
-assert(index.includes('ui/neon-preflight-v24.js?v=411')&&
- index.includes('honda-write-engine.js?v=395'),
+assert(index.includes('ui/neon-preflight-v24.js?v=412')&&
+ index.includes('honda-write-engine.js?v=396'),
  'Chrome must reload the current engine and honest no-backup flow');
 assert(p.includes("if(!requestConfirmation&&!previouslyApproved){")&&
  p.includes("confirmedPart:'CONFIRM '+last.identity.ecuId")&&
@@ -80,6 +80,8 @@ assert(engine.includes("stage:'TX',tx:toHex(frame)")&&
  engine.includes("stage:'RX',rx:toHex(reply)"),
  'Flash engine must emit original transmitted and validated received bytes');
 assert(p.includes('last.engine.makePlan(c.bytes.slice()'),'strict C# plan from saved BIN snapshot');
+assert(p.includes('queueMicrotask(()=>{if(stage===host)void autoPrepare()')&&p.includes('stage.insertBefore(trace,file)'),
+ 'Fast Flash auto-triggers read-only Preflight and places TX/RX adjacent to actual Flash controls');
 assert(p.includes('sourceMatched'),'catalog and family source matching enforced');
 assert(p.includes('S.saved')&&p.includes('TuneBinFlow.matches'),'preflight uses saved immutable BIN only');
 assert(p.includes('Date.now()-last.at<TTL'),'physical ID freshness required');
