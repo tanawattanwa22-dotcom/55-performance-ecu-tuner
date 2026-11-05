@@ -22,6 +22,10 @@ jobs:
           from pathlib import Path
           from PIL import Image
           root=Path('icons')
+          from PIL import ImageFile
+          ImageFile.LOAD_TRUNCATED_IMAGES=True
+          data=(root/'55-home-source.jpg').read_bytes()
+          print('source bytes:',len(data),'header:',data[:24].hex(),'end:',data[-8:].hex(),flush=True)
           source=Image.open(root/'55-home-source.jpg').convert('RGB')
           def export(name,size,maskable=False):
               if maskable:
