@@ -81,4 +81,46 @@ await test('Stop request prevents further source probing',async()=>{
  assert.equal(await b.session.detectGroup(),null);
  assert.equal(b.calls.length,0);
 });
+// Regression: after an intermittent RX timeout Live must resume without a button click.
+await test('Live automatically resumes after one transient read timeout on the same ECU',async()=>{
+ let s;
+ s=new MainLiveSession(()=>{},()=>s.stop());
+ s.port={ready:true,lastDevice:{},async sourceDiagnosticWake(){}};
+ s.ecuId='0101880D01';s.group=4;s.running=true;
+ let cycles=0,recovered=0;
+ const trace=new Uint8Array(100);
+ trace[12]=4;trace[13]=210;trace[15]=80;trace[17]=125;trace[24]=138;trace[22]=138;trace[46]=128;trace[60]=128;
+ s._cycle=async()=>{if(++cycles===1)throw Error('simulated FTDI timeout');return trace;};
+ s._restoreLiveReadOnly=async id=>{assert.equal(id,'0101880D01');recovered++;return true;};
+ await s._loop();
+ assert.equal(recovered,1,'read-only session should reopen once');
+ assert.equal(s.sampleSeq,1,'Live must read and decode a fresh sample after recovery');
+ assert.equal(s.liveAutoRecoveries,1);
+ assert.equal(s.error,'');
+});
+await test('User Stop cancels automatic read-only recovery without continuing capture',async()=>{
+ const s=new MainLiveSession();
+ s.port={ready:true,lastDevice:{},async sourceDiagnosticWake(){}};
+ s.ecuId='0101880D01';s.group=4;s.running=true;
+ let restored=0;
+ s._cycle=async()=>{throw Error('timeout')};
+ s._restoreLiveReadOnly=async()=>{restored++;s.stop();return false;};
+ await s._loop();
+ assert.equal(restored,1);
+ assert.equal(s.running,false);
+ assert.equal(s.liveAutoRecoveries,0);
+});
+await test('Changing ECU ID during auto-reconnect must stop Live instead of displaying stale samples',async()=>{
+ const s=new MainLiveSession();
+ s.port={ready:true,lastDevice:{},async sourceDiagnosticWake(){}};
+ s.ecuId='0101880D01';s.group=4;s.running=true;
+ s._cycle=async()=>{throw Error('timeout')};
+ let recoveries=0;
+ s._restoreLiveReadOnly=async()=>{recoveries++;const err=Error('ECU ID changed');err.code='LIVE_ECU_CHANGED';throw err;};
+ await s._loop();
+ assert.equal(recoveries,1);
+ assert.equal(s.running,false);
+ assert.equal(s.sampleSeq,0);
+ assert.match(s.error,/ECU ID changed/);
+});
 console.log(checks+'/'+checks+' Main C# group selection offline checks passed — no USB, erase or write.');
