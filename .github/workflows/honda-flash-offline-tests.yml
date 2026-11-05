@@ -10,6 +10,7 @@ on:
       - "tools/verify-ui-v19.mjs"
       - "tools/verify-main-neon-v25.mjs"
       - "tools/verify-honda-flash.mjs"
+      - "tools/verify-preflight-afr-v24.mjs"
       - "tools/verify-main-programming-probe.mjs"
       - "tools/verify-main-full-flash-sim.mjs"
       - "tools/verify-offline-flash.mjs"
