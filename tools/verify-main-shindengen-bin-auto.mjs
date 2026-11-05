@@ -36,7 +36,10 @@ assert(ui.includes('id="n20Connection"')&&ui.includes('id="n20Save"')&&
  "Home shows current shared FT232R connection and current BIN save status");
 assert(live.includes('window.__55V20RefreshStatus?.()'),'Live ECU scan updates dashboard status as well');
 const preflight=readFileSync(new URL('../ui/neon-preflight-v24.js',import.meta.url),'utf8');
-assert(preflight.includes('unlistedPhysical')&&preflight.includes('!catalogRecord(connectedId)'), 'No Main source ECU catalog entry blocks the physical Flash button');
+assert(preflight.includes('unlistedPhysical')&&
+ preflight.includes('!catalog290.rows?.has(connectedId.ecuId)')&&
+ preflight.includes('!connectedId.catalog'),
+ 'An original Main 290 miss remains unlisted even when supplementary ECM.dat supplies a Part Code');
 assert(preflight.includes('sourceFamilyAck')&&preflight.includes("MAIN_SOURCE_READ_ONLY_FLASH_COUNT_ACK")&&
  preflight.includes('sourceBinSizeSupported'),
  'Unlisted ECU is checked using physical Main C# Flash Count ACK and supported BIN size');
