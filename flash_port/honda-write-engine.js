@@ -449,8 +449,10 @@ export class HondaFlashEngine {
    fail('RECOVERY_BOOT_ID_CHANGED',
      'Boot ECU ID / Programming Session เปลี่ยนหลังเปิด FT232R กลับ • ไม่ส่ง ERASE');
   const renewed=await this.confirmRecoveryFamily(plan.bin);
+  const normalizedRecoveredProfile=renewed.recoveryBinType==='UNDETERMINED'&&
+    renewed.family==='KEIHIN'?'KEIHINOTHER':renewed.recoveryBinType;
   if(renewed.family!==expected.family||renewed.count!==expected.count||
-     renewed.recoveryBinType!==plan.profile||!renewed.recoveryFamilyVerified)
+     normalizedRecoveredProfile!==plan.profile||!renewed.recoveryFamilyVerified)
    fail('RECOVERY_FAMILY_CHANGED',
      'Boot Family / Flash Count / BIN Profile เปลี่ยนหลังเชื่อมกลับ • ไม่ส่ง ERASE');
   const freshPlan=this.makePlan(plan.bin,{
