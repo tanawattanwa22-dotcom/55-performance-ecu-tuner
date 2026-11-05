@@ -1604,19 +1604,42 @@ async function inlineFlashStart(){
   // Single confirmation instead of typed HEX: this is an explicit MANUAL
   // declaration, not electronic voltage measurement or a full ECU backup.
   // The real engine still rechecks ECU ID and will refuse mismatched plans.
+  // Full readback is not offered by the purchased Main.zip Shindengen
+  // write route. Backup is recommended, not implied by loading a tune BIN.
+  const hasThisEcuBackup=confirm(
+    '55 PERFORMANCE • Full Backup จาก ECU คันนี้\n\n'+
+    'ECU ID: '+plan.ecuId+'\nBIN: '+plan.filename+'\n\n'+
+    'มีไฟล์เดิมที่อ่านออกจาก ECU คันนี้โดยตรงและตรวจสอบแล้วหรือไม่?\n'+
+    'ตกลง = มี Backup ของ ECU คันนี้จริง\n'+
+    'ยกเลิก = ยังไม่มี (จะมีคำเตือนก่อนเลือกไปต่อ)'
+  );
+  const noBackupAck=!hasThisEcuBackup&&confirm(
+    '55 PERFORMANCE • ไม่มี Full Backup ของ ECU คันนี้\n\n'+
+    'คุณอาจไม่สามารถคืนสภาพเดิมได้ แม้ BIN จากคันอื่นเคยใช้งานสำเร็จ\n'+
+    'ไฟเลี้ยงนิ่งไม่ได้ป้องกันปัญหาโปรโตคอล/เฟิร์มแวร์/การกู้คืนทั้งหมด\n\n'+
+    'ยืนยันว่าไม่มี Backup แต่มีไฟล์ที่ตรวจว่าตรง ECU และเตรียมวิธีกู้คืนไว้จริง?\n'+
+    'ตกลง = ยอมรับว่าไม่มี Full Backup แล้วไปตรวจไฟเลี้ยงและ Recovery\n'+
+    'ยกเลิก = หยุดก่อน ERASE'
+  );
+  if(!hasThisEcuBackup&&!noBackupAck){
+    INLINEFLASH.status='CANCELLED_NO_BACKUP';
+    inlineFlashLog('OPERATOR_STOPPED_NO_BACKUP');
+    inlineFlashNote('ยกเลิกก่อน ERASE • ไม่มี Backup และยังไม่ได้ส่งคำสั่งเขียน');
+    return;
+  }
   const benchConfirmed=confirm(
-    '55 PERFORMANCE • ยืนยันก่อน ERASE (ECU สำรอง)\n\n'+
+    '55 PERFORMANCE • ตรวจอุปกรณ์ก่อนเขียนจริง\n\n'+
     'ECU ID: '+plan.ecuId+'\nPart Code: '+plan.part+
-    '\nไฟล์: '+plan.filename+'\nขนาด: '+plan.size+' ไบต์'+
-    '\nStart Offset: 0x'+plan.startOffset.toString(16).toUpperCase()+
-    '\nChecksum Offset: 0x'+plan.checksumOffset.toString(16).toUpperCase()+
-    '\nโหมด: '+plan.profile+(plan.fast?' / FAST':' / NORMAL')+
-    '\n\nโปรดยืนยันว่าคุณตรวจครบ 3 ข้อนี้ด้วยตัวเอง:\n'+
-    '1. มีไฟล์ Backup ที่ถูกต้องของ ECU กล่องนี้จริง\n'+
-    '2. มีไฟเลี้ยง ECU คงที่และวงจร K-Line 12V ที่ถูกต้อง (ไม่ต่อ FT232R TTL ตรง)\n'+
-    '3. มีอุปกรณ์และวิธี Recovery ที่ตรวจสอบแล้ว\n\n'+
-    'กด ตกลง = เริ่ม ERASE/WRITE จริง และห้ามตัดไฟ/ถอดสายระหว่างเขียน'+
-    '\nกด ยกเลิก = หยุดก่อน ERASE'
+    '\nBIN: '+plan.filename+'\nขนาด: '+plan.size+' ไบต์'+
+    '\nStart: 0x'+plan.startOffset.toString(16).toUpperCase()+
+    '\nChecksum: 0x'+plan.checksumOffset.toString(16).toUpperCase()+
+    '\nProfile: '+plan.profile+
+    '\nFull Backup คันนี้: '+(hasThisEcuBackup?'มี':'ไม่มี · รับความเสี่ยงแล้ว')+
+    '\n\nยืนยันด้วยตัวเองว่าทั้ง 2 ข้อนี้พร้อม:\n'+
+    '1. ไฟเลี้ยง ECU คงที่ และใช้ K-Line transceiver ที่ถูกต้อง\n'+
+    '2. มีวิธี Recovery และอุปกรณ์ที่ใช้กู้กล่องนี้ได้จริง\n\n'+
+    'ตกลง = เริ่ม ERASE/WRITE จริง\n'+
+    'ยกเลิก = หยุดก่อน ERASE'
   );
   if(!benchConfirmed){
     INLINEFLASH.status='CANCELLED_BEFORE_ERASE';
@@ -1624,15 +1647,20 @@ async function inlineFlashStart(){
     inlineFlashNote('ยกเลิกก่อน ERASE • ยังไม่ได้ส่งคำสั่งลบ/เขียน ECU');
     return;
   }
-  inlineFlashLog('MANUAL_BENCH_APPROVAL backup/power/recovery = confirmed by operator, not electronically measured');
-  inlineFlashNote('ยืนยัน Preflight แล้ว • กำลังเข้าโหมดโปรแกรมตาม Main.zip • ห้ามปิดแอปหรือถอดสาย');
+  inlineFlashLog('MANUAL_PREWRITE_APPROVAL '+JSON.stringify({
+    backupExists:hasThisEcuBackup,backupAbsentAcknowledged:noBackupAck,
+    powerAndKLineConfirmed:true,recoveryEquipmentConfirmed:true,
+    electricallyMeasured:false,readbackAvailable:false
+  }));
+  inlineFlashNote('ยืนยันการตรวจด้วยช่างแล้ว • กำลังเข้าโหมดโปรแกรมตาม Main.zip • ห้ามถอดสาย');
   INLINEFLASH.flashAttempted=false;INLINEFLASH.status='PREPARING_SOURCE_PROTOCOL';
   let wake=null;
   try{
    if(navigator.wakeLock?.request)wake=await navigator.wakeLock.request('screen').catch(()=>null);
    const result=await INLINEFLASH.engine.flash(plan,{
      operatorClickConfirmed:true,
-     physicalBackupConfirmed:benchConfirmed,
+     physicalBackupConfirmed:hasThisEcuBackup,
+     backupUnavailableAcknowledged:noBackupAck,
      externalPowerConfirmed:benchConfirmed,
      recoveryReady:benchConfirmed,
      confirmation:plan.checks?.sourceUnlistedWithProof?'FLASH '+plan.ecuId:undefined
