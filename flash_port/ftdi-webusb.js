@@ -42,6 +42,20 @@ export function formMainSendCommandTimeoutMs(commandSize){
   throw RangeError('Invalid source command size');
  return 50+2*commandSize;
 }
+/** Browser transport timeout, not the source ECU protocol timing.
+ * Windows D2XX polls a native RX queue. Android WebUSB transferIn() is an
+ * asynchronous USB request and needs a separate response deadline.
+ * Preserve the source's 50+2*N minimum, honor the existing per-command
+ * timeout requested by HondaFlashEngine, and never repeat an ambiguous
+ * ERASE/WRITE command on expiry. The caller fails closed on timeout.
+ */
+export function webUsbSourceTimeoutMs(commandSize,requestedMs){
+ const sourceMs=formMainSendCommandTimeoutMs(commandSize);
+ if(requestedMs==null)return sourceMs;
+ if(!Number.isInteger(requestedMs)||requestedMs<80||requestedMs>15000)
+  throw RangeError('Invalid WebUSB source response timeout');
+ return Math.max(sourceMs,requestedMs);
+}
 export function checkedHondaReply(data){
   if(!data||data.length<3||data.length>255)throw Error('Honda reply length is invalid');
   if(data[1]!==data.length)throw Error('Honda reply declared length differs');
@@ -443,10 +457,12 @@ export class Ft232rWebUsb {
     }
     if(!Number.isFinite(afterWriteMs)||afterWriteMs<0||afterWriteMs>5000)
       throw Error('Invalid response delay');
-    // FormMain SendCommand waits exactly 50+2*commandSize after TX/latency/sleep.
-    // Do not replace this with per-stage guessed 1700–7000ms in source mode.
-    // Diagnostic and non-source WebUSB clients keep their independent windows.
-    const timeout=mainSourceMode?formMainSendCommandTimeoutMs(bytes.length):
+    // Keep FormMain's original D2XX wait formula for parity, but give
+    // Android WebUSB's asynchronous transfer its OWN deadline. Every caller
+    // already supplies a per-command response budget (HELLO, ERASE, WRITE,
+    // FINISH). A timeout still closes FT232R and aborts the write: no replay.
+    // Diagnostic non-source clients retain their independent time windows.
+    const timeout=mainSourceMode?webUsbSourceTimeoutMs(bytes.length,timeoutMs):
       (timeoutMs??Math.min(6000,Math.max(700,200+bytes.length*10)));
     if(!Number.isFinite(timeout)||timeout<(mainSourceMode?52:80)||timeout>15000)
       throw Error('Invalid response timeout');
@@ -463,7 +479,10 @@ export class Ft232rWebUsb {
     try {
       if(mainSourceMode)trace('SOURCE_TIMEOUT_WINDOW',{
         formula:'50+2*commandSize',commandSize:bytes.length,
-        sourceTimeoutMs:timeout,previousWebUsbOverrideMs:timeoutMs??null});
+        originalD2xxSourceMs:formMainSendCommandTimeoutMs(bytes.length),
+        webUsbResponseDeadlineMs:timeout,
+        commandRequestedMs:timeoutMs??null,
+        sourceReplyRulesUnchanged:true});
       // Original FormMain.SendCommand() does FT_Write, then sets 8ms
       // latency and reads the command echo+reply. It purges AFTER the
       // exchange, never before each command. Preserve that source order
