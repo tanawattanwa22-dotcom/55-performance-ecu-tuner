@@ -78,6 +78,7 @@
 .n24-upload-status{font-size:12px;line-height:1.5;color:#d8eeff;overflow-wrap:anywhere;min-height:28px;margin:6px 0 13px;}
 .n24-easy-flash{display:block;width:100%;height:63px;font-size:17px!important;letter-spacing:.2px;}
 .n24-easy-flash:not(:disabled){box-shadow:0 0 20px #ff4ec189!important;}
+.n24-main-check-actions{grid-template-columns:repeat(2,minmax(0,1fr));}
 .n24-advanced{margin:4px 0 12px;padding:11px 12px;border:1px solid #3b6382;border-radius:13px;background:#10243a;}
 .n24-advanced>summary{font-weight:700;color:#b4dfec;cursor:pointer;}
 .n24-advanced .n24-actions{margin-top:12px;grid-template-columns:repeat(2,minmax(0,1fr));}
