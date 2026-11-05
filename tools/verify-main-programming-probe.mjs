@@ -179,8 +179,9 @@ const exactTimedAnswer=await exactTimed.exchangeRaw(hello,{
 });
 assert.deepEqual(exactTimedAnswer.reply,pcx160Hello);
 assert(sourceTimingEvents.some(e=>e.phase==='SOURCE_TIMEOUT_WINDOW'&&
- e.commandSize===5&&e.sourceTimeoutMs===60&&e.previousWebUsbOverrideMs===240),
- 'FormMain mode must use source 60ms, not old 240ms override');
+ e.commandSize===5&&e.originalD2xxSourceMs===60&&
+ e.webUsbResponseDeadlineMs===240&&e.commandRequestedMs===240),
+ 'Preserve original FormMain 60ms for reference while WebUSB honors the separate 240ms caller deadline');
 const mismatchedEcho=ftdiMock([[0x00,...hello.slice(1)],[...pcx160Hello]]);
 const echoSourceResult=await mismatchedEcho.exchangeRaw(hello,{
  timeoutMs:240,mainSourceMode:true
