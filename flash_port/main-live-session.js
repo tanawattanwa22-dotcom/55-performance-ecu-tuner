@@ -7,6 +7,7 @@ import {MAIN_CAPTURE_COMMANDS,decodeMainDiagnosticTrace,validateMainSourceLiveBu
 import {Ft232rWebUsb} from './ftdi-webusb.js';
 import {HondaFlashEngine} from './honda-write-engine.js?v=392';
 import {loadCSharpCatalog} from './csharp-ecu-catalog.js?v=302';
+import {findOriginalEcmDat} from './main-original-ecm-catalog.js';
 import {MAIN_DTC_READ_FRAMES,decodeMainDtcReplies} from './main-source-dtc.js';
 import {probeMainProgrammingSession} from './main-programming-probe.js?v=7';
 import {sourceFamilyHint} from './main-source-family-hints.js?v=2';
@@ -56,13 +57,16 @@ export class MainLiveSession {
  }
  notify(){this.onUpdate(this);}
  status(){
+  const originalEcm=this.catalog?null:findOriginalEcmDat(this.ecuId);
   return {
    connected:!!this.port?.ready,
    usbAttempts:this.usbAttempts,usbLastPhase:this.usbLastPhase,
    usbLastError:this.usbLastError,usbDevice:this.usbDevice,
    usbTrace:(this.port?.trace?.length?this.port.trace:this.usbTrace).slice(-16),
    cable:!!this.port?.ready,connecting:this.connecting||this.autoBusy,autoBusy:this.autoBusy,ecuId:this.ecuId,
-   part:this.catalog?.part||null,catalogFamily:this.catalog?.family||null,
+   part:this.catalog?.part||originalEcm?.part||null,catalogFamily:this.catalog?.family||originalEcm?.family||null,
+   originalEcmMatched:!!originalEcm,originalEcmModel:originalEcm?.model||null,
+   originalEcmSizeKb:originalEcm?.expectedSizeKb??null,
    startOffset:this.catalog?.startOffset??null,checksumOffset:this.catalog?.checksumOffset??null,
    startOffsetText:this.catalog?.startOffsetText??null,checksumOffsetText:this.catalog?.checksumOffsetText??null,
    catalogMatched:!!this.catalog,autoStatus:this.autoStatus,autoComplete:this.autoComplete,
@@ -168,7 +172,9 @@ export class MainLiveSession {
    try{
     const db=await loadCSharpCatalog();
     this.catalog=db.get(id)||null;
-    this.idError=this.catalog?'':('อ่าน ECU ID '+id+' ได้ แต่ไม่พบรหัสในฐาน Main 290');
+    this.idError=this.catalog?'':(findOriginalEcmDat(id)?
+     'อ่าน ECU ID '+id+' ได้ • พบ ECM.dat ต้นฉบับ 122 รายการ (อ้างอิงเสริม)':
+     'อ่าน ECU ID '+id+' ได้ แต่ไม่พบรหัสในฐาน Main 290 / ECM.dat 122');
    }catch(dbError){
     this.catalog=null;
     this.idError='อ่าน ECU ID '+id+' สำเร็จ แต่โหลดฐาน Main 290 ไม่ได้: '+String(dbError?.message||dbError);
@@ -320,7 +326,9 @@ export class MainLiveSession {
      if(physical?.ecuId){
       this.ecuId=physical.ecuId;
       this.catalog=physical.catalog||null;
-      this.idError=this.catalog?'':'อ่าน ECU ID ได้ แต่ไม่พบในฐาน Main 290';
+      this.idError=this.catalog?'':(findOriginalEcmDat(physical.ecuId)?
+       'อ่าน ECU ID ได้ • พบ ECM.dat ต้นฉบับ 122 รายการ (อ้างอิง)':
+       'อ่าน ECU ID ได้ แต่ไม่พบในฐาน Main 290 / ECM.dat 122');
       this.notify();
      }
     }catch(e){
