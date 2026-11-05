@@ -4,8 +4,8 @@
  * This cannot prove hardware accuracy without verified bench ECU traces.
  */
 import {MAIN_CAPTURE_COMMANDS,decodeMainDiagnosticTrace,validateMainSourceLiveBurst} from './main-source-diagnostic.js?v=3';
-import {Ft232rWebUsb} from './ftdi-webusb.js';
-import {HondaFlashEngine} from './honda-write-engine.js?v=394';
+import {Ft232rWebUsb} from './ftdi-webusb.js?v=408';
+import {HondaFlashEngine} from './honda-write-engine.js?v=408';
 import {loadCSharpCatalog} from './csharp-ecu-catalog.js?v=302';
 import {findOriginalEcmDat} from './main-original-ecm-catalog.js';
 import {MAIN_DTC_READ_FRAMES,decodeMainDtcReplies} from './main-source-dtc.js';
