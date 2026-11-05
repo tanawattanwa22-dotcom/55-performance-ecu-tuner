@@ -262,12 +262,14 @@ button:not(:disabled):active,.btn:not(:disabled):active,.chip:active,.ib:active,
 <link rel="stylesheet" href="ui/neon-live-v21.css?v=250">
 <link rel="stylesheet" href="ui/neon-dtc-v23.css?v=231">
 <link rel="stylesheet" href="ui/neon-preflight-v24.css?v=311">
-<link rel="stylesheet" href="ui/retail-premium-v1.css?v=4">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,400;0,500;0,600;0,700;1,600;1,700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="ui/retail-premium-v1.css?v=5">
 
 
 <!-- Customer-facing UI enhancements: no changes to ECU transport -->
 <link rel="stylesheet" href="./ui/customer-experience.css?v=1">
-<script defer src="./ui/customer-experience.js?v=1"></script>
 </head>
 <body class="retail-mode">
 
@@ -3308,7 +3310,7 @@ const ready=()=>{
  const help=document.createElement('button');help.id='retailHelp';help.type='button';help.textContent='☰ คู่มือ';help.setAttribute('aria-label','เปิดคู่มือการใช้งาน');
  const dialog=document.createElement('div');dialog.id='retailHelpDialog';dialog.setAttribute('role','dialog');dialog.setAttribute('aria-modal','true');dialog.setAttribute('aria-label','คู่มือการใช้งาน');
  const panel=document.createElement('div');panel.id='retailHelpPanel';
- panel.innerHTML='<button type="button" id="retailHelpClose">✕ ปิด</button><h2>คู่มือ 55 PERFORMANCE</h2>'+[
+ panel.innerHTML='<div class="retail-guide-header"><h2>คู่มือ 55 PERFORMANCE</h2><button type="button" id="retailHelpClose" aria-label="ปิดคู่มือ" title="ปิดคู่มือ">×</button></div>'+[
  ['หน้าแรก','เข้าสู่ระบบและเปิด License → เสียบสาย FT232R กับมือถือ → กดเชื่อมต่อสาย → อนุญาต USB → รออ่าน ECU ID'],
  ['คลังไฟล์','เลือกรุ่นและไฟล์ BIN ที่ต้องการใช้งาน ตรวจชื่อไฟล์และรุ่นให้ตรงกับรถ'],
  ['ปรับแต่ง ECU','เปิดไฟล์ BIN → เลือกตาราง → ปรับค่าตามต้องการ → บันทึก BIN ที่แก้ไข ก่อนนำไปอัด'],
@@ -3320,7 +3322,11 @@ const ready=()=>{
  ['ตั้งค่า / License','ดูบัญชี ตรวจสิทธิ์ใช้งาน หรือเปิดใช้งาน License Key ตามหน้าจอ']
  ].map(([h,p])=>'<h3>'+h+'</h3><p>'+p+'</p>').join('')+'<h3>ข้อควรระวังระหว่างอัด</h3><p>ห้ามปิดจอ สลับแอป ถอดสาย USB ปิดไฟเลี้ยง หรือสตาร์ตเครื่องขณะกำลังเขียน ECU หากมีข้อผิดพลาดให้เก็บ Log และตรวจสถานะ ECU ก่อนลองใหม่</p>';
  dialog.append(panel);document.body.append(help,dialog);
- const close=()=>{dialog.classList.remove('open');help.focus()};help.onclick=()=>dialog.classList.add('open');panel.querySelector('#retailHelpClose').onclick=close;dialog.addEventListener('click',e=>{if(e.target===dialog)close()});
+ const close=()=>{dialog.classList.remove('open');document.body.classList.remove('retail-help-open');help.focus()};
+ help.onclick=()=>{dialog.classList.add('open');document.body.classList.add('retail-help-open');panel.querySelector('#retailHelpClose').focus()};
+ panel.querySelector('#retailHelpClose').onclick=close;
+ dialog.addEventListener('click',e=>{if(e.target===dialog)close()});
+ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&dialog.classList.contains('open'))close()});
  const warning=document.createElement('div');warning.id='retailFlashWarning';warning.setAttribute('role','status');warning.textContent='⚠ กำลังเขียน ECU — ห้ามปิดจอ สลับแอป ถอดสาย หรือปิดไฟเลี้ยง';document.body.append(warning);
  let lock=null,wasWriting=false;
  async function requestLock(){if(!navigator.wakeLock?.request)return;try{if(!lock||lock.released)lock=await navigator.wakeLock.request('screen')}catch(_){}}
