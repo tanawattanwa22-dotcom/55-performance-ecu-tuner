@@ -19,6 +19,16 @@ assert.match(p,/if\(current\(\)\.valid&&\(last\?\.identity\?\.sourceMatched\|\|p
 assert.doesNotMatch(p,/sourceMatched\)await runCheck\(\)/,
  'Do not skip Main source-backed unknown ECU solely because Part Code catalog has no row');
 
+assert.match(p,/const physicalFamilyAck=identity\?\.programmingSessionVerified===true&&/,
+ 'Supplementary ECM.dat must not erase the real physical Family ACK state');
+assert.match(p,/else if\(!identity\.sourceMatched&&!physicalFamilyAck\)/,
+ 'Preflight must not say Family is unverified when original source count ACK is confirmed');
+assert.match(p,/originalEcmAuto&&binEstimate\?\.startOffsetHex/,
+ 'ECM.dat AUTO start field should display BIN-only inferred offset without write approval');
+assert.match(p,/originalEcmAuto&&binEstimate\?\.checksumOffsetHex/,
+ 'ECM.dat AUTO checksum field should display BIN-only inferred checksum without write approval');
+assert.match(p,/BIN ให้รหัส ECU เพียง 3 ไบต์ตาม FormMain/,
+ 'Partial BIN ECU ID must remain explicitly unverified before any erase');
 assert(p.includes('last.engine.makePlan(c.bytes.slice()'),'strict C# plan from saved BIN snapshot');
 assert(p.includes('sourceMatched'),'catalog and family source matching enforced');
 assert(p.includes('S.saved')&&p.includes('TuneBinFlow.matches'),'preflight uses saved immutable BIN only');
