@@ -746,6 +746,20 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
   const st=reader.status();
   if(!st.connected||!st.ecuId){
    programmingProbeResult=null;programmingProbeRuns=[];dryRunReport=null;
+   // A physically removed FT232R must immediately blank any independent
+   // DOM result panels left from the previous motorcycle. Never clear the
+   // operator-selected BIN; it is a file, not a live ECU observation.
+   const oldEcu=document.getElementById('autoEcuName');
+   if(oldEcu){oldEcu.textContent='';oldEcu.hidden=true}
+   document.getElementById('ecm-detection-dialog')?.remove();
+   if(typeof probeInfo!=='undefined'&&probeInfo)
+    probeInfo.textContent=st.connected?'FT232R เปิดอยู่ · ECU ยังไม่ตอบ / รอสแกนใหม่':
+     'FT232R ไม่ได้เชื่อมต่อ · ผลตรวจรถคันก่อนถูกล้างแล้ว';
+   const dtcRows=document.getElementById('dtcOut');
+   if(dtcRows)dtcRows.replaceChildren();
+   const dtcMessage=document.getElementById('dtcMsg');
+   if(dtcMessage)dtcMessage.textContent=st.connected?'ยังไม่ได้ตรวจ DTC ของ ECU ปัจจุบัน':
+    'ถอดสายแล้ว · DTC ของรถคันก่อนถูกล้างจากหน้าจอ';
   }else if(reader.sourceProbe?.expectedEcuId===st.ecuId&&
    reader.sourceProbe.finishedAt!==programmingProbeResult?.finishedAt){
    programmingProbeResult=reader.sourceProbe;
