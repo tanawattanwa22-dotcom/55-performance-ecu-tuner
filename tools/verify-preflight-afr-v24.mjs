@@ -61,6 +61,24 @@ assert(index.includes('const hasThisEcuBackup=confirm(')&&
 assert(index.includes('ui/neon-preflight-v24.js?v=411')&&
  index.includes('honda-write-engine.js?v=395'),
  'Chrome must reload the current engine and honest no-backup flow');
+assert(p.includes("if(!requestConfirmation&&!previouslyApproved){")&&
+ p.includes("confirmedPart:'CONFIRM '+last.identity.ecuId")&&
+ p.includes("message='Auto Preflight:"),
+ 'Auto Preflight must calculate the C# source partial-ID BIN plan without manual button presses');
+assert(p.includes("if(current().valid&&(last?.identity?.sourceMatched||proof))await runCheck({requestConfirmation:false})"),
+ 'Automatic ECU read must attempt read-only plan for source physical family ACK');
+assert(p.includes("TX / RX LOG • Fast Flash")&&
+ p.includes("window.__55FlashLogRefresh=()=>")&&
+ p.includes("window.__55ExportFlashLog?.()"),
+ 'Actual Fast Flash screen must expose live TX/RX and downloadable logs');
+assert(index.includes('window.__55FlashLogRefresh?.()')&&
+ index.includes('window.__55ExportFlashLog=inlineFlashExportLog')&&
+ index.includes('ui/neon-preflight-v24.js?v=412'),
+ 'Flash engine log must feed the visible Fast Flash screen with a refreshed browser module');
+const engine=get('flash_port/honda-write-engine.js');
+assert(engine.includes("stage:'TX',tx:toHex(frame)")&&
+ engine.includes("stage:'RX',rx:toHex(reply)"),
+ 'Flash engine must emit original transmitted and validated received bytes');
 assert(p.includes('last.engine.makePlan(c.bytes.slice()'),'strict C# plan from saved BIN snapshot');
 assert(p.includes('sourceMatched'),'catalog and family source matching enforced');
 assert(p.includes('S.saved')&&p.includes('TuneBinFlow.matches'),'preflight uses saved immutable BIN only');
