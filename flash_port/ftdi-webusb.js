@@ -29,6 +29,23 @@ export function stripFtdiStatus(raw,packetSize=64){
   }
   return {data:Uint8Array.from(output),status};
 }
+/** FT232R bulk-IN packet header byte #2 is UART Line Status.
+ * FTDI D2XX Programmer's Guide and Linux ftdi_sio.h:
+ * 0x02 overrun, 0x04 parity, 0x08 framing, 0x10 break, 0x80 FIFO error.
+ * A command reply may still pass Honda's 8-bit checksum despite damaged
+ * UART bytes; do not treat that response as a clean flash ACK.
+ */
+export function ftdiUartLineErrors(statusPackets){
+ const errors=[];
+ for(const pair of statusPackets||[]){
+  const value=Number(pair?.[1]??0)&0xff;
+  const flags=[['OVERRUN',0x02],['PARITY',0x04],['FRAMING',0x08],
+    ['BREAK',0x10],['FIFO',0x80]];
+  const found=flags.filter(([,mask])=>value&mask).map(([name])=>name);
+  if(found.length)errors.push({rawLineStatus:value,flags:found});
+ }
+ return errors;
+}
 export function hondaChecksum(data){
   return (-Array.from(data).reduce((a,b)=>a+b,0))&255;
 }
@@ -501,6 +518,17 @@ export class Ft232rWebUsb {
       const end=Date.now()+timeout,stream=[];
       while(Date.now()<end){
         const rx=await this._readOnce(end);
+        // Only enforce UART line-status bits in the source programming
+        // exchange; do not change the already working Live Data reader.
+        // Never retry a programming command when the UART was corrupted.
+        if(mainSourceMode){
+          const uartErrors=ftdiUartLineErrors(rx.status);
+          if(uartErrors.length){
+            trace('FTDI_UART_LINE_ERROR',{details:uartErrors,uartBytes:rx.data.length});
+            throw Error('FT232R UART line error during ECU exchange: '+
+              uartErrors.map(e=>e.flags.join('+')+' 0x'+e.rawLineStatus.toString(16)).join(', '));
+          }
+        }
         usbChunks++;
         ftdiPackets+=rx.status?.length||0;
         uartBytes+=rx.data.length;
