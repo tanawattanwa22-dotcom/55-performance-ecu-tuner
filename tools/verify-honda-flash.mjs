@@ -10,7 +10,7 @@ globalThis.fetch=async(input,options)=>{
 };
 // Run: node tools/verify-honda-flash.mjs
 // This script never opens USB, never connects to a real ECU or writes firmware.
-import {hondaChecksum,baudDivisor,stripFtdiStatus,checkedHondaReply,READ_ONLY_COMMANDS,Ft232rWebUsb,parseFormMainSendCommandReply,formMainSendCommandTimeoutMs,webUsbSourceTimeoutMs} from '../flash_port/ftdi-webusb.js';
+import {hondaChecksum,baudDivisor,stripFtdiStatus,ftdiUartLineErrors,checkedHondaReply,READ_ONLY_COMMANDS,Ft232rWebUsb,parseFormMainSendCommandReply,formMainSendCommandTimeoutMs,webUsbSourceTimeoutMs} from '../flash_port/ftdi-webusb.js';
 import {checksum8BitCSharp,createWriteFrame,auditWriteFrames,nextSourceWriteIndex} from '../flash_port/flash-frames.js';
 import {loadCSharpCatalog,findCSharpEcuId} from '../flash_port/csharp-ecu-catalog.js';
 import {csharpOffsetInference} from '../flash_port/csharp-offsets.js';
@@ -211,6 +211,28 @@ await check('USB strip FTDI modem status bytes per packet',()=>{
  const d=stripFtdiStatus([0,0,1,2,3,4,5,6,0,0,7,8],8);
  return JSON.stringify(Array.from(d.data))==='[1,2,3,4,5,6,7,8]';
 });
+await check('FT232R line error bits are decoded from bulk-IN headers and normal status 0x60 is accepted',()=>{
+ const ok=ftdiUartLineErrors([[0x01,0x60]]);
+ const bad=ftdiUartLineErrors([[0x01,0x60],[0x01,0x6e]]);
+ return ok.length===0&&bad.length===1&&
+  bad[0].flags.join(',')==='OVERRUN,PARITY,FRAMING';
+});
+await check('Programming RX rejects real FTDI UART framing error even if Honda checksum could pass',async()=>{
+ const port=new Ft232rWebUsb(),events=[];
+ port.ready=true;port.prepareUart=async()=>{};port.ctl=async()=>{};
+ port._write=async()=>{};port.purge=async()=>{};
+ port._readOnce=async()=>({data:Uint8Array.from([0x72,0x05,0x00,0xf0,0x99,0x02,0x04,0x00,0xfa]),status:[[0x01,0x68]]});
+ port.close=async()=>{port.ready=false;};
+ try{
+  await port.exchangeRaw(READ_ONLY_COMMANDS.HELLO,{
+   timeoutMs:250,mainSourceMode:true,observe:e=>events.push(e)});
+  return false;
+ }catch(err){
+  return !port.ready&&/UART line error/.test(err.message)&&
+   events.some(e=>e.phase==='FTDI_UART_LINE_ERROR')&&
+   !events.some(e=>e.phase==='SOURCE_REPLY_OK');
+ }
+});
 await check('FTDI 10400 / 921600 divisor within tolerated range',()=>Math.abs(baudDivisor(10400).actual-10400)<25&&Math.abs(baudDivisor(921600).actual-921600)<5000);
 await check('Corrupted Honda reply is rejected',()=>{
  try{checkedHondaReply([2,5,0,0,0]);return false}catch{return true}
@@ -223,17 +245,13 @@ await check('Source C# D2XX timing remains exact but Android WebUSB honors bound
   webUsbSourceTimeoutMs(139,100)===328&&
   webUsbSourceTimeoutMs(5)===60;
 });
-await check('Ambiguous five-byte nonzero WRITE ACK cannot be counted as written',async()=>{
- const e=new HondaFlashEngine({ready:true});e.x=async()=>Uint8Array.of(2,5,0,1,248);
+await check('Exact FormMain five-byte WRITE ACK parity: nonzero byte[3] logged but not treated as error',async()=>{
+ const e=new HondaFlashEngine({ready:true});
+ e.x=async()=>Uint8Array.of(2,5,0,1,248);
  const events=[];e.onEvent=v=>events.push(v);
- try{
-  await e.writeBlocks({bin:new Uint8Array(128),blockBytes:128,startOffset:0,profile:'KEIHINOTHER'});
-  return false;
- }catch(err){
-  return err.code==='WRITE_ACK_STATUS_UNVERIFIED'&&
-   events.some(v=>v.phase==='WRITE_BLOCK_ACK_AMBIGUOUS')&&
-   !events.some(v=>v.phase==='WRITE_BLOCK_ACK');
- }
+ const count=await e.writeBlocks({bin:new Uint8Array(128),blockBytes:128,startOffset:0,profile:'KEIHINOTHER'});
+ return count===1&&events.some(v=>v.phase==='SOURCE_WRITE_ACK_NONZERO_UNINTERPRETED'&&v.rawByte3===1)&&
+  events.some(v=>v.phase==='WRITE_BLOCK_ACK'&&v.sourceRule==='FORMMAIN_FIVE_BYTE_CHECKSUM_VALID');
 });
 await check('Five-byte WRITE ACK status zero remains accepted',async()=>{
  const e=new HondaFlashEngine({ready:true});e.x=async()=>Uint8Array.of(2,5,0,0,249);
