@@ -85,15 +85,20 @@ export class HondaFlashEngine {
   this.onEvent({at:new Date().toISOString(),...detail,phase});
  }
  async x(name,frame,opts={}){
-  this.emit(name,{stage:'TX',tx:toHex(frame),txBytes:frame.length});
+  const startedAt=Date.now();
+  this.emit(name,{stage:'TX',tx:toHex(frame),txBytes:frame.length,
+    requestedTimeoutMs:opts.timeoutMs??null});
   let reply;
   try{reply=ack(await this.usb.exchangeRaw(frame,{...opts,mainSourceMode:true}),name);}
   catch(error){
    const detail=name+' | TX '+toHex(frame)+' | '+error.message;
-   this.emit('COMMAND_FAILED',{command:name,tx:toHex(frame),error:error.message});
+   this.emit('COMMAND_FAILED',{command:name,tx:toHex(frame),
+     elapsedMs:Date.now()-startedAt,error:error.message});
    throw new HondaFlashError(error.code||'COMMAND_FAILED',detail);
   }
-  this.emit(name,{stage:'RX',rx:toHex(reply),status:reply.length>=5?reply[3]:null,rawByte3:reply[3],replyLength:reply.length});
+  this.emit(name,{stage:'RX',rx:toHex(reply),status:reply.length>=5?reply[3]:null,
+    rawByte3:reply[3],replyLength:reply.length,elapsedMs:Date.now()-startedAt,
+    requestedTimeoutMs:opts.timeoutMs??null});
   return reply;
  }
  async identify({programmingPreflight=false}={}){
@@ -506,22 +511,17 @@ export class HondaFlashEngine {
    let accepted=false;
    while(!accepted){
      const reply=await this.x('WRITE_BLOCK_'+current,frame,{timeoutMs:7000,afterWriteMs:writeDelay});
-     // Original FormMain.WriteFlash treats any checksum-valid five-byte
-     // response as success. This port deliberately adds a fail-closed
-     // extension: a nonzero byte[3] cannot be verified as successful without
-     // physical ACK semantics for this ECU. Do NOT silently count it as a
-     // written block. Never retransmit an ambiguous 5-byte ACK.
+     // Source parity: FormMain.WriteFlash explicitly accepts ANY
+     // checksum-valid five-byte ACK. byte[3] is NOT documented by FTDI or
+     // WebUSB as a Honda block-write result, so inventing a zero-only rule
+     // can stop a source-valid write after ERASE. Keep the observed byte in
+     // the log without interpreting it as firmware readback verification.
      if(reply.length===5){
-       if(reply[3]!==0){
-         this.emit('WRITE_BLOCK_ACK_AMBIGUOUS',{block:current,
-           replyStatus:reply[3],sourceCSharpWouldAccept:true,
-           sentAgain:false});
-         fail('WRITE_ACK_STATUS_UNVERIFIED','ECU WRITE block '+current+
-           ' answered five-byte ACK with nonzero status '+reply[3]+
-           '; source C# accepts its length, but write success is unverified. Stop without resending.');
-       }
+       if(reply[3]!==0)this.emit('SOURCE_WRITE_ACK_NONZERO_UNINTERPRETED',{
+         block:current,rawByte3:reply[3],
+         sourceAcceptsByLengthAndChecksum:true,writeReadbackVerified:false});
        this.emit('WRITE_BLOCK_ACK',{block:current,sourceReplyStatus:reply[3],
-         statusZeroValidated:true});
+         sourceRule:'FORMMAIN_FIVE_BYTE_CHECKSUM_VALID',readbackVerified:false});
        accepted=true;
      }else if(reply.length===7&&reply[4]===0&&reply[5]===0&&sourceRetryBudget>0){
        sourceRetryBudget--;
