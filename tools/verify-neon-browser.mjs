@@ -116,7 +116,9 @@ try{
   assert.equal(jsErrors.length,0,'No JS crash when mounting Flash UI: '+JSON.stringify(jsErrors));
   assert.equal(await page.locator('#flashCard').evaluate(el=>el.classList.contains('n20-hidden')),true,'old Flash form hidden behind V24');
   assert.equal(await page.locator('#n20Stage .n24-hero').isVisible(),true,'real-state V24 Flash dashboard visible');
-  assert.equal(await page.locator('#n20Stage .n24-panel').count(),5,'BIN upload, ECU, Offset and checklist panels');
+  assert.equal(await page.locator('#n20Stage .n24-panel').count(),6,'BIN upload, ECU, Offset, checklist and live TX/RX Flash panel');
+  assert.equal(await page.locator('#n20Stage .n24-flash-trace').isVisible(),true,'Live TX/RX log is visible in Fast Flash without entering Advanced Tools');
+  assert.equal(await page.locator('#n20Stage .n24-flash-trace button').count(),2,'TX/RX Flash panel offers download and copy actions');
   assert.equal(await page.locator('#n20Stage .n24-info-line').count(),15,'read-only BIN/ECU/Offset fields');
   assert.equal(await page.locator('#n20Stage .n24-check-row').count(),6,'six preflight checks');
   const unsetEcu=await page.locator('#n20Stage [data-n24="ecu"]').innerText();
