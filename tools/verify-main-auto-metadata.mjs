@@ -22,7 +22,11 @@ assert.equal(resolveMainAutoMetadata({...known,part:null}).status,'PART_MISSING'
 assert.equal(resolveMainAutoMetadata({...known,ecuId:'0101880000'}).status,'RECOVERY');
 const fromOriginalEcm=resolveMainAutoMetadata({...known,catalogMatched:false});
 assert.equal(fromOriginalEcm.status,'ORIGINAL_ECM_REFERENCE');
-assert.equal(fromOriginalEcm.startKnown,false);
+assert.equal(fromOriginalEcm.complete,false,'even a numeric upstream ECM offset is reference-only');
+const abs=resolveMainAutoMetadata({connected:true,ecuId:'0105040D01',catalogMatched:false});
+assert.equal(abs.status,'ORIGINAL_ECM_REFERENCE');
+assert.equal(abs.startKnown,false,'PCX160 ABS ECM.dat start must remain AUTO');
+assert.equal(abs.checksumKnown,false,'PCX160 ABS ECM.dat checksum must remain AUTO');
 assert.equal(resolveMainAutoMetadata({...known,ecuId:'0100DEAD01',catalogMatched:false}).status,'NOT_FOUND');
 assert.equal(resolveMainAutoMetadata({connected:false,...known,ecuId:'0101880D01'}).status,'COMPLETE');
 assert.equal(resolveMainAutoMetadata({...known,connected:false}).ecuId,null);
