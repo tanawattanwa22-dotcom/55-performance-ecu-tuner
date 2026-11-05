@@ -85,7 +85,7 @@ export class HondaFlashEngine {
   this.onEvent({at:new Date().toISOString(),...detail,phase});
  }
  async x(name,frame,opts={}){
-  this.emit(name,{stage:'TX'});
+  this.emit(name,{stage:'TX',tx:toHex(frame),txBytes:frame.length});
   let reply;
   try{reply=ack(await this.usb.exchangeRaw(frame,{...opts,mainSourceMode:true}),name);}
   catch(error){
@@ -93,7 +93,7 @@ export class HondaFlashEngine {
    this.emit('COMMAND_FAILED',{command:name,tx:toHex(frame),error:error.message});
    throw new HondaFlashError(error.code||'COMMAND_FAILED',detail);
   }
-  this.emit(name,{stage:'RX',status:reply.length>=5?reply[3]:null,rawByte3:reply[3],replyLength:reply.length});
+  this.emit(name,{stage:'RX',rx:toHex(reply),status:reply.length>=5?reply[3]:null,rawByte3:reply[3],replyLength:reply.length});
   return reply;
  }
  async identify({programmingPreflight=false}={}){
