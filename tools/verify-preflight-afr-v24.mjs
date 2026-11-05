@@ -10,6 +10,15 @@ assert(/ui\/neon-live-v21\.js\?v=\d+/.test(index)&&index.includes('ui/neon-main-
 assert(ui.includes('window.__55FlashPreflight.mount(stage)'),'Flash route mounts new V24 page');
 assert(ui.includes("flash:[],recovery:[],live:"),'old Flash page UI hidden instead of duplicating');
 assert(p.includes('engine.identify({programmingPreflight:true})'),'real physical ECU ID from C# programming preflight');
+assert.match(p,/const restored=await shared\.restoreCable\?\.\(\)/,
+ 'Preflight recovers only the approved FT232R handle after a WebUSB transferIn loss');
+assert.match(p,/physicalFamilyEvidence==='MAIN_SOURCE_READ_ONLY_FLASH_COUNT_ACK'/,
+ 'Original FormMain unknown ID path may continue only after fresh physical family ACK');
+assert.match(p,/if\(current\(\)\.valid&&\(last\?\.identity\?\.sourceMatched\|\|proof\)\)await runCheck\(\)/,
+ 'Unlisted ECU with source ACK must reach read-only BIN / Memory Map check');
+assert.doesNotMatch(p,/sourceMatched\)await runCheck\(\)/,
+ 'Do not skip Main source-backed unknown ECU solely because Part Code catalog has no row');
+
 assert(p.includes('last.engine.makePlan(c.bytes.slice()'),'strict C# plan from saved BIN snapshot');
 assert(p.includes('sourceMatched'),'catalog and family source matching enforced');
 assert(p.includes('S.saved')&&p.includes('TuneBinFlow.matches'),'preflight uses saved immutable BIN only');
