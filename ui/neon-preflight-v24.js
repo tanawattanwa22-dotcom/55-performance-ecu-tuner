@@ -467,7 +467,7 @@ function mount(host){
  const state=make('div','n24-state');
  const title=make('strong','','รอการตรวจ Preflight');dom.title=title;
  const note=make('p','','');dom.note=note;state.append(title,note);stage.append(state);
- const actions=make('div','n24-actions');
+ const actions=make('div','n24-actions n24-main-check-actions');
  const read=btn('▣ อ่าน ECU ID','n24-btn n24-read',readECU);dom.read=read;
  const check=btn('▱ ตรวจ Preflight','n24-btn n24-verify',()=>runCheck({requestConfirmation:true}));dom.check=check;
  actions.append(read,check);
