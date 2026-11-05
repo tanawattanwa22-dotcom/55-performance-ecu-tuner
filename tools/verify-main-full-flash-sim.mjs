@@ -62,8 +62,8 @@ class MockHonda {
    this.writeCount++;
    assert.equal(bytes[1],bytes.length,'source frame length matches');
    assert.equal(hondaChecksum(bytes),0,'write frame Honda checksum');
-   // The original C# rejects a length-7 block result with nonzero bytes
-   // 4/5, but accepts any checksum-valid five-byte reply without status check.
+   // Original C# accepts any checksum-valid five-byte reply; Android
+   // flash writer intentionally stops on ambiguous nonzero byte[3].
    if(this.failure==='REJECT_WRITE_'+this.writeCount)
     return {reply:packet([2,7,0,0,1,0,0]),echoOK:true};
    if(this.failure==='SOURCE_5BYTE_STATUS_250'&&this.writeCount===2)
@@ -172,15 +172,19 @@ await check('Keihin corrupted write ACK aborts after erase; no finish phase',asy
  assert(!device.labels.includes('KH_FINAL_5'));
  assert(events.some(e=>e.phase==='FLASH_STOP'&&e.eraseMayHaveStarted===true));
 });
-await check('Source WriteFlash: five-byte checksum-valid reply is accepted regardless status',async()=>{
- const {engine,device}=setup('0101880D01','SOURCE_5BYTE_STATUS_250');
+await check('Nonzero five-byte block status is ambiguous: stop after erase, no finish or retry',async()=>{
+ const {engine,device,events}=setup('0101880D01','SOURCE_5BYTE_STATUS_250');
  await engine.identify();
  const bin=new Uint8Array(65536);bin[0]=7;
  const plan=engine.makePlan(bin,{filename:'K03-H01.bin'});
- const result=await engine.flash(plan,{confirmation:'FLASH 0101880D01',
-   physicalBackupConfirmed:true,externalPowerConfirmed:true,recoveryReady:true});
- assert.equal(result.ok,true);
+ await assert.rejects(engine.flash(plan,{confirmation:'FLASH 0101880D01',
+   physicalBackupConfirmed:true,externalPowerConfirmed:true,recoveryReady:true}),
+   /nonzero status 250/);
+ assert.equal(engine.state,'stopped');
  assert(device.writeCount>=2);
+ assert(!device.labels.includes('KH_FINAL_5'),'must not send Final ACK sequence');
+ assert(events.some(x=>x.phase==='FLASH_STOP'&&x.eraseMayHaveStarted===true));
+ assert(events.some(x=>x.phase==='WRITE_BLOCK_ACK_AMBIGUOUS'&&x.sentAgain===false));
 });
 await check('Source WriteFlash retries 7-byte zero-zero ACK at most twice TOTAL',async()=>{
  const {engine,device,events}=setup('0101880D01','SOURCE_WRITE_RETRY_TWICE');
