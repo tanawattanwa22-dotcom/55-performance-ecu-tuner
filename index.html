@@ -7,9 +7,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <title>55 PERFORMANCE · ECU TUNER</title>
-<link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="icons/favicon-64.png">
-<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest?v=55mobile-20261105">
+<link rel="icon" href="icons/favicon-64.png?v=55mobile-20261105">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=55mobile-20261105">
 <style>
 :root{--bg:#0b0b0d;--p1:#141418;--p2:#1c1c22;--ln:#2b2b34;--tx:#f3f3f5;--mu:#9d9da9;--ac:#ff5a1f;--ac2:#ff2d2d;--ok:#2ecc71;--wn:#ffb020;--bd:#ff4545;--cw:50px}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -2460,7 +2460,7 @@ function startApp(){
 }
 history.replaceState({p:"login"},"");
 setTimeout(()=>{$("#spl").classList.add("out")},1100);
-if("serviceWorker"in navigator&&/^https:|localhost/.test(location.protocol+location.hostname))navigator.serviceWorker.register("sw.js?v=16", {updateViaCache:"none"}).catch(()=>{});
+if("serviceWorker"in navigator&&/^https:|localhost/.test(location.protocol+location.hostname))navigator.serviceWorker.register("sw.js?v=17", {updateViaCache:"none"}).catch(()=>{});
 window.__ecu={S,K,ftdiDivisor,hondaOk,editAxis,sharers,get M(){return M},openTune,selectTable,runOp,buildOut,loadFile,pick,snap,valCell,rawCell,curT,compile,MODELS};
 /* Read-only status bridge for Neon Live V21, with explicit old-action delegates.
    No protocol, logging, calibration, ECU erase or write commands are changed. */
