@@ -107,7 +107,7 @@ function refreshStatus(){
  // Use the physical ECU ID + ECM.dat; never treat a chosen BIN as detected.
  $('n20Model').textContent=ecu?.connected&&ecu.ecuId?
   (ecu.ecmDisplayName||('ECU '+(ecu.ecmDisplayPartCode||ecu.part||ecu.ecuId))):
-  (m?.id||'ยังไม่เลือกรุ่น');
+  'ยังไม่พบ ECU ที่เชื่อมต่อ';
  let saved=false;
  try{saved=!!S.saved&&TuneBinFlow.matches(S.saved,S.bin,{model:m?.id,sourceName:S.fname,customerBin:S.custom})}catch{}
  $('n20Save').textContent=saved?'บันทึก BIN แล้ว':'ยังไม่บันทึก';
