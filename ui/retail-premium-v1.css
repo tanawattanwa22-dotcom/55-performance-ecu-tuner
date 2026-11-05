@@ -509,3 +509,66 @@ body.retail-help-open .n20-header-back{
  #spl .brand-splash-wordmark b{font-size:18px!important}
  #spl .brand-splash-wordmark small{font-size:11px!important}
 }
+
+
+/* 55 PERFORMANCE RGB EDGE / SOFT FLOW v1 — decorative only */
+/*
+ * Narrow scope: interactive dashboard tiles + actual Fast Flash preflight cards.
+ * These animations never affect USB, ECU communication, clicks, forms or logs.
+ * The 1.4px mask keeps existing per-card backgrounds and text untouched.
+ * A soft color current moves along the rim instead of bright flashing pulses.
+ */
+.n20-tile,
+.n24-panel{
+ position:relative!important;
+}
+@supports ((-webkit-mask-composite:xor) or (mask-composite:exclude)){
+ .n20-tile::after,
+ .n24-panel::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  border-radius:inherit;
+  padding:1.4px;
+  background:linear-gradient(110deg,
+   #34dce690 0%,
+   #5d9ef766 13%,
+   #a876e6a0 27%,
+   #ee6cbd7d 41%,
+   #c2ac7680 52%,
+   #4bd7c67d 66%,
+   #509de4a0 83%,
+   #34dce690 100%);
+  background-size:260% 100%;
+  opacity:.58;
+  -webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
+  -webkit-mask-composite:xor;
+  mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
+  mask-composite:exclude;
+  pointer-events:none;
+  z-index:2;
+  animation:retail55RgbBorderDrift 18s linear infinite;
+ }
+ .n20-tile[data-retail-cat="flash"]::after,
+ .n24-ecu::after{animation-delay:-3s;opacity:.67}
+ .n20-tile[data-retail-cat="library"]::after,
+ .n20-tile[data-retail-cat="tune"]::after,
+ .n24-bin::after{animation-delay:-6s;opacity:.63}
+ .n20-tile[data-retail-cat="live"]::after,
+ .n24-map::after{animation-delay:-10s;opacity:.62}
+ .n20-tile[data-retail-cat="dtc"]::after{animation-delay:-13s;opacity:.56}
+ .n20-tile[data-retail-cat="tools"]::after{animation-delay:-7s;opacity:.54}
+}
+@keyframes retail55RgbBorderDrift{
+ from{background-position:0% 50%}
+ to{background-position:100% 50%}
+}
+/* No animations for accessibility; no unnecessary visual work while writing ECU. */
+@media(prefers-reduced-motion:reduce){
+ .n20-tile::after,.n24-panel::after{animation:none!important;opacity:.4!important}
+}
+body:has(#retailFlashWarning.show) .n20-tile::after,
+body:has(#retailFlashWarning.show) .n24-panel::after{
+ animation-play-state:paused!important;
+ opacity:.35!important;
+}
