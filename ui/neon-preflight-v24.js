@@ -333,12 +333,17 @@ async function runCheck({requestConfirmation=false}={}){
      last.plan=null;
      const approvalKey=last.identity.ecuId+'|'+(hash?.saved===c.saved?hash.hex:'');
      const previouslyApproved=approvalKey.split('|')[1]&&approvedPartialBins.has(approvalKey);
+     // Automatic PRE-FLIGHT is calculation only: source C# accepts a
+     // three-byte embedded BIN locator when physical Family ACK is known.
+     // Never claim that this proves a full five-byte BIN ID match. The real
+     // Flash button independently re-identifies and requests consent.
      if(!requestConfirmation&&!previouslyApproved){
-      // Background Auto Prepare must never fabricate a technician's
-      // confirmation or interrupt them with an unsolicited modal.
-      message='อ่าน ECU ID / Family ACK แล้ว • BIN ให้รหัส ECU เพียง 3 ไบต์ตาม FormMain • กด ตรวจ Preflight เพื่อยืนยันไฟล์ที่เคยตรวจแล้ว • ยังไม่ได้ ERASE';
-      return;
-     }
+      plan=last.engine.makePlan(c.bytes.slice(),{
+       filename:c.saved.filename,confirmedPart:'CONFIRM '+last.identity.ecuId,
+       fast:false,recovery:false
+      });
+      message='Auto Preflight: แผน BIN/Offset/Checksum ผ่านการคำนวณจาก ECU ID และ Family ACK • BIN มีรหัส ECU เพียง 3 ไบต์ • ยังไม่ได้ ERASE';
+     }else{
      // Same explicit partial-ID confirmation supported by the original
      // inline Flash button. This confirmation creates a READ-ONLY plan;
      // destructive Flash still identifies the ECU anew and asks separately.
@@ -366,6 +371,7 @@ async function runCheck({requestConfirmation=false}={}){
       filename:c.saved.filename,confirmedPart:'CONFIRM '+id,
       fast:false,recovery:false
      });
+     }
     }else{
     if(e.code!=='PART_NOT_CONFIRMED')throw e;
     const {readBinId}=await import(new URL('flash_port/bin-tools.js?v=379',document.baseURI).href);
@@ -379,7 +385,7 @@ async function runCheck({requestConfirmation=false}={}){
   if(!plan.checks?.physicalIdMatched||!plan.checks?.offsetsFromCSharp)
    throw Error('แผนเขียนไม่ยืนยัน ECU ID/Offset');
   last.plan=plan;
-  message='ตรวจซอฟต์แวร์ผ่าน · ไม่ได้ยืนยันแรงดันไฟ สาย K-Line หรือความเข้ากันได้ของเฟิร์มแวร์กับกล่องลูกค้า · ก่อน ERASE ระบบอ่าน ECU ID ใหม่';
+  if(!message.startsWith('Auto Preflight:'))message='ตรวจซอฟต์แวร์ผ่าน · ไม่ได้ยืนยันแรงดันไฟ สาย K-Line หรือความเข้ากันได้ของเฟิร์มแวร์กับกล่องลูกค้า · ก่อน ERASE ระบบอ่าน ECU ID ใหม่';
  }catch(e){if(last)last.plan=null;error=e?.message||String(e)}
  finally{working=false;render()}
 }
