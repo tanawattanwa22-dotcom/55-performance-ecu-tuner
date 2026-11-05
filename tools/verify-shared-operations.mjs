@@ -29,6 +29,34 @@ await assert.rejects(()=>session.acquire('DTC'),/FLASH/);
 assert.equal(await session.start(),false);await session.disconnect();assert.equal(port.ready,true);
 session.release('WRONG');assert.equal(session.owner,'FLASH');session.release('FLASH');assert.equal(session.owner,null);
 session.running=true;setTimeout(()=>{session.running=false},30);await session.acquire('DTC');assert.equal(session.stopRequested,true);session.release('DTC');
+// Reproduce today's real Android failure: the previous transferIn closed
+// the USB interface, but the shared reader still exposes ready=true.
+// Preflight must restore its one authorized FT232R before any ECU commands.
+const {Ft232rWebUsb}=await import('../flash_port/ftdi-webusb.js');
+const stale=new Ft232rWebUsb(),device={vendorId:0x0403,productId:0x6001};
+stale.ready=true;stale.dev={opened:false};stale.itf=0;stale.inEp=1;stale.outEp=2;stale.lastDevice=device;
+const originalOpenSelected=Ft232rWebUsb.prototype.openSelected;
+const usbOpens=[];
+Ft232rWebUsb.prototype.openSelected=async function(selected){
+ usbOpens.push(selected);
+ this.dev={opened:true};this.lastDevice=selected;
+ this.itf=0;this.inEp=1;this.outEp=2;this.ready=true;
+};
+try{
+ const flashSession=new MainLiveSession();
+ flashSession.port=stale;
+ const repaired=await flashSession.acquire('FLASH');
+ assert.notEqual(repaired,stale,'never reuse half-closed WebUSB interface');
+ assert.equal(repaired.ready,true);
+ assert.equal(repaired.dev.opened,true);
+ assert.equal(repaired.itf,0);
+ assert.deepEqual(usbOpens,[device],'reopen the same FT232R once, no second picker');
+ assert.equal(stale.ready,false);
+ assert.equal(flashSession.owner,'FLASH');
+ flashSession.release('FLASH');
+}finally{Ft232rWebUsb.prototype.openSelected=originalOpenSelected;}
+console.log('PASS: stale WebUSB ready flag cannot hand an unclaimed FT232R to Flash Preflight');
+
 const key=getShindengenRecoveryKey(Uint8Array.of(1,0,2,0,0,0,9,8),Uint8Array.of(0,3),Uint8Array.of(9,8));assert.deepEqual([...key],[0,11]);
 // Recovery identification must not send a normal Keihin count command.
 const seen=[];const boot={ready:true,initializeIso:async()=>{},sendWake:async()=>{},exchangeRaw:async f=>{
