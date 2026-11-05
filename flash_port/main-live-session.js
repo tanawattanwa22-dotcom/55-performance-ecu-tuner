@@ -780,10 +780,13 @@ export class MainLiveSession {
     }
    }
   }catch(e){
-   // Keep the original failure-stop behavior when read-only recovery runs out
-   // or ECU identity changes; never retry in Flash, Recovery, or DTC.
-   this.values=EMPTY();this.sourceReadings=[];this.sampleAt=0;this.hz=null;
+   // After exhausting the already-existing source Live recovery sequence,
+   // a previously displayed ID/model is no longer a live ECU observation.
+   // Keep FT232R connected if the USB device is still present; clear the
+   // motorcycle and its telemetry until a fresh ECU ID is read.
+   this._clearDetectedEcu();
    this.error='Live Data ไม่ได้รับคำตอบ ECU: '+String(e?.message||e);
+   this.autoStatus='FT232R อาจยังเชื่อมต่อ แต่ ECU ไม่ตอบแล้ว · กรุณาสแกนใหม่';
    this.phase='LIVE_RX_FAILED';
   }finally{
    this.running=false;this.recording=false;
