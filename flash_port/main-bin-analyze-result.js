@@ -11,7 +11,10 @@ import {findOriginalEcmDat,originalEcmDatRows} from './main-original-ecm-catalog
 
 const hex=(n,d=1)=>Number.isInteger(n)?'0x'+n.toString(16).toUpperCase().padStart(d,'0'):'—';
 const size=bytes=>(bytes/1024).toLocaleString('en-US')+' KB';
-const partKey=part=>String(part||'').toUpperCase().match(/(?:^|[^A-Z0-9])(?:38770-|30400-)?([A-Z0-9]{2,5}-[A-Z0-9]{2,4})/)?.[1]||'';
+const partKey=part=>{
+ const hits=[...String(part||'').toUpperCase().matchAll(/(?:^|[^A-Z0-9])(?:38770-|30400-)?([A-Z0-9]{2,5}-[A-Z0-9]{2,4})(?=$|[^A-Z0-9])/g)].map(m=>m[1]);
+ return hits.find(x=>/^K[0-9]/.test(x))||hits.find(x=>/^M[A-Z0-9]{2,4}-/.test(x)&&!x.startsWith('MSX-'))||hits[0]||'';
+};
 
 export async function analyzeMainBinResult(bytes,{filename=''}={}){
  if(!(bytes instanceof Uint8Array)||!bytes.length)throw Error('กรุณาเลือกไฟล์ BIN ก่อนวิเคราะห์');
