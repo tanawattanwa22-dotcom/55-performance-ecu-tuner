@@ -47,7 +47,7 @@ await assert.rejects(verifySavedOfflinePermit(device),/ย้อนหลัง/
 store.delete(K.CLOCK);
 console.log('PASS clock-backwards protection');
 const p=asText('flash_port/offline/index.html'),old=asText('flash_port/flash-write-lab.html');
-for(const fragment of ['engine.identify()','engine.makePlan(data','engine.flash(plan','engine.postFlashCheck()','physicalBackupConfirmed','externalPowerConfirmed','recoveryReady']){
+for(const fragment of ['engine.identify()','engine.makePlan(data','engine.flash(plan','engine.postFlashCheck()','recoveryFileConfirmed','externalPowerConfirmed','recoveryReady']){
  assert(p.includes(fragment)&&(old.includes(fragment)||(fragment==='engine.identify()'&&old.includes('engine.identify({programmingPreflight:true})'))),'same original bench flash step: '+fragment);
 }
 // Compare both Flash pages to each other instead of a stale hard-coded v366.
