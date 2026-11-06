@@ -1582,7 +1582,7 @@ async function inlineFlashStart(){
  }));
  let erasedOrSent=false,stageTicker=null;
  try{
-  sourceFlashProgressModule=await import('./ui/source-flash-progress-v1.js?v=1');
+  sourceFlashProgressModule=await import('./ui/source-flash-progress-v1.js?v=2');
   INLINEFLASH.stage=sourceFlashProgressModule.beginSourceFlashProgress(Date.now());
   inlineFlashStagePaint();
   stageTicker=setInterval(inlineFlashStagePaint,1000);
