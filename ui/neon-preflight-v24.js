@@ -415,6 +415,27 @@ function mount(host){
  uploadLabel.htmlFor='n24QuickBin';
  const upload=make('input','n24-file-input');upload.type='file';upload.id='n24QuickBin';upload.accept='.bin'; // FormMain.OpenFileDialog.Filter: Bin file (*.bin)|*.bin
  const uploadNote=make('p','n24-help','เลือกไฟล์จากโทรศัพท์ได้เลย ไม่ต้องเลือกรุ่นรถเอง · ระบบจะอ่านรหัสกล่องจริงก่อนอัด');
+ const ackLabel=make('label','n24-help','นโยบาย WRITE ACK สำหรับทดสอบกับ ECU สำรอง');
+ ackLabel.htmlFor='n24WriteAckMode';
+ const ackSelect=make('select','n24-file-input');ackSelect.id='n24WriteAckMode';
+ for(const [value,label] of [
+  ['source','Main.zip · 5-byte ACK ผ่าน Checksum = เขียนต่อ'],
+  ['strict','Strict ทดลอง · byte[3] ≠ 0 = หยุดบล็อกถัดไป']
+ ]){
+  const option=make('option','',label);option.value=value;ackSelect.append(option);
+ }
+ ackSelect.value=window.__55WriteAckMode==='strict'?'strict':'source';
+ ackSelect.onchange=()=>{
+  if(window.__55RetailFlashState?.().busy){
+   ackSelect.value=window.__55WriteAckMode==='strict'?'strict':'source';return;
+  }
+  window.__55WriteAckMode=ackSelect.value;
+  window.dispatchEvent(new Event('55:write-ack-mode-changed'));
+ };
+ window.addEventListener('55:write-ack-mode-changed',()=>{
+  if(ackSelect.isConnected)ackSelect.value=window.__55WriteAckMode==='strict'?'strict':'source';
+ },{once:false});
+ const ackNote=make('p','n24-help','Strict ยังไม่พิสูจน์ความหมาย ACK ของแต่ละ ECU และอาจหยุดหลัง ERASE · TX/RX Log บันทึก RX HEX ของทุกบล็อก');
  const fastLabel=make('label','n24-fast-label');const fast=make('input','');fast.type='checkbox';fast.id='n24FastWrite';fast.checked=!!window.__55QuickFlashFast;
  fastLabel.append(fast,document.createTextNode(' เขียนเร็ว (Fast Write · ใช้เฉพาะโปรไฟล์ที่รองรับ)'));
  fast.onchange=()=>{window.__55QuickFlashFast=fast.checked;message=fast.checked?'เปิด Fast Write แล้ว · Flash Engine จะเลือกวิธีตาม ECU ที่ตรวจได้':'ใช้โหมดเขียนปกติ';render()};
@@ -454,7 +475,7 @@ function mount(host){
  });dom.recovery=recovery;recovery.hidden=true;
  const miniProgress=make('p','n24-mini-progress','พร้อมเริ่มตรวจ');dom.miniProgress=miniProgress;
  const miniBar=make('div','n24-mini-bar');const miniFill=make('i','');dom.miniBar=miniFill;miniBar.append(miniFill);
- easy.append(uploadLabel,upload,uploadNote,uploadStatus,flash,recovery,miniBar,miniProgress);
+ easy.append(uploadLabel,upload,uploadNote,uploadStatus,ackLabel,ackSelect,ackNote,flash,recovery,miniBar,miniProgress);
  stage.append(easy);
  const file=card('n24-bin','▧','ไฟล์ที่จะอัด (BIN)');
  file.append(line('filename','ชื่อไฟล์'),line('source','ประเภทไฟล์'),line('size','ขนาดไฟล์'),line('sha','Checksum (SHA-256)'));stage.append(file);
