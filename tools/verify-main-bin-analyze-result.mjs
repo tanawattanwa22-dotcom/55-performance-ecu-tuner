@@ -45,6 +45,7 @@ try{
   'filename/ECM part conflict must be visible');
  // Simulate source Shindengen RH850B signature, 384KB 3-byte BIN ECU ID.
  const pcx=new Uint8Array(393216).fill(0xff);
+ pcx.set([0,0,0,0],1924); // Skip Main 384KB first FF-marker candidate.
  pcx.set([0,0,0,0],2044);
  pcx.set([1,5,4],2048);
  pcx.set([83,72,56,53,48],0x4d90);
