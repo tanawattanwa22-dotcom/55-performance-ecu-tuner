@@ -51,3 +51,12 @@ Remaining unavoidable or unverified differences:
 - Browser USB timeouts, pre-erase physical ECU ID/BIN confirmation, user approvals, logs, and UI are web additions; there is no claim of byte-for-byte WinForms/FTDI parity.
 - The source itself lacks a full firmware readback verify. Final ACK and post-restart ID only prove a protocol response, not exact bytes in flash memory.
 - CI simulation tests compare source rules in memory only. No real ECU ERASE/WRITE was tested in this revision.
+
+## 6 November 2026 — ECM.dat supplementary preflight restored (Flash Engine v417)
+
+- Restored original 122-row ECM.dat as an ECU-ID/Part Code/expected BIN-size reference for physical ECU IDs not in the Main.zip 290-ID embedded catalog. The original file and rows were never deleted.
+- Lookup precedence is unchanged: embedded FormMain.cs source first, user-imported original-format ecuData.dat second, then ECM.dat reference. ECM.dat cannot independently confirm ECU family or establish a programming session.
+- When an unlisted physical ECU ID resolves in ECM.dat, a mismatch between the selected BIN's byte count and ECM.dat's expected KB is reported as ECM_BIN_SIZE_MISMATCH before any ERASE. A matched size is only one check: Main.zip BIN locator, family ACK, signature, checksum and address calculations still apply.
+- ECM.dat Part helps label and cross-reference unknown Main entries; operator confirmation is still needed when the BIN embeds only a 3-byte ECU ID.
+- ECM.dat start/checksum offset values are explicitly excluded from the write plan. Original source-format ecuData.dat and Main.zip firmware-specific inference are the address/checksum authority. No new ECU command, erase/write order, retry count, ACK policy or source timing is introduced.
+- Additional in-memory CI checks for PCX160 ID 0105040D01, ECM 384 KB reference, wrong-size rejection and matching synthetic 384 KB source BIN all passed; this is NOT a real ECU hardware test.
