@@ -18,8 +18,9 @@ must(index,"sessionStorage.setItem('55_flash_recovery_hint'",'Failure hint survi
 // Normal Flash uses one button with a final human bench approval dialog (no typed HEX).
 must(index,'operatorClickConfirmed:true','Normal Flash passes a single explicit operator click to the engine');
 must(index,'const benchConfirmed=confirm(','Normal Flash presents manual bench approval before ERASE');
-must(engine,"const backupWaiverAllowed=!!backupUnavailableAcknowledged&&!plan.recovery;",'Full Backup waiver applies only to normal flash, not Recovery');
-must(engine,"if(!(physicalBackupConfirmed||backupWaiverAllowed)||!externalPowerConfirmed||!recoveryReady)",'Engine retains real power and recovery requirements even when Full Read is unsupported');
+must(engine,"const firmwareDeclared=!!recoveryFileConfirmed||!!physicalBackupConfirmed||legacyNormalWaiver;",'Recovery accepts confirmed matching firmware without requiring Full ECU Backup');
+must(engine,"if(!firmwareDeclared||!externalPowerConfirmed||!recoveryReady)",'Engine retains compatible BIN, physical power/K-Line and recovery equipment confirmations');
+must(index,"recoveryFileConfirmed:benchConfirmed,", 'Normal Flash passes confirmation for matching firmware instead of Full Backup');
 assert(!index.includes('inlineFlashConfirm('),'Normal Flash no longer opens manual approval dialog');
 assert(!index.includes("prompt('BIN ไม่มี Part Code"),'Normal Flash stops ambiguous BIN instead of asking the operator to type a guessed Part Code');
 must(index,'AUTO_PART_MATCH ECU_ID','Exact embedded BIN ECU ID can supply automatic part match');
