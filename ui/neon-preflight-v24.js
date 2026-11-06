@@ -9,6 +9,7 @@ const X=n=>Number.isInteger(n)?'0x'+n.toString(16).toUpperCase().padStart(8,'0')
 const make=(tag,cls,txt)=>{const el=document.createElement(tag);if(cls)el.className=cls;if(txt!==undefined)el.textContent=txt;return el};
 const btn=(txt,cls,fn)=>{const e=make('button',cls,txt);e.type='button';e.onclick=fn;return e};
 let stage=null,dom={},working=false,last=null,confirmAt=null,hash=null,error='',message='',binOffsetHint=null;
+let fileAnalysis={saved:null,report:null,error:null,working:false};
 let catalog290={rows:null,error:null};
 import(new URL('flash_port/csharp-ecu-catalog.js?v=302',document.baseURI).href)
  .then(mod=>mod.loadCSharpCatalog())
@@ -45,6 +46,61 @@ async function previewBinOffset(){
   if(latest.saved===item.saved)binOffsetHint={saved:item.saved,estimated};
  }catch(e){binOffsetHint={saved:item.saved,error:e.message}}
  render();
+}
+// Read-only BIN analysis: this never acquires USB or constructs a Flash plan.
+async function analyzeSelectedBin(){
+ if(!stage?.isConnected)return;
+ const selected=current();
+ const source=selected.saved;
+ if(!selected.valid||!(selected.bytes instanceof Uint8Array)){
+  fileAnalysis={saved:null,report:null,error:null,working:false};render();return;
+ }
+ if(fileAnalysis.saved===source&&(fileAnalysis.working||fileAnalysis.report||fileAnalysis.error))return;
+ fileAnalysis={saved:source,report:null,error:null,working:true};render();
+ try{
+  const {analyzeMainBinResult}=await import(new URL('flash_port/main-bin-analyze-result.js?v=1',document.baseURI).href);
+  const report=await analyzeMainBinResult(selected.bytes,{filename:source.filename||source.filenameFromUser||S.fname||''});
+  if(fileAnalysis.saved!==source)return;
+  fileAnalysis={saved:source,report,error:null,working:false};
+ }catch(e){
+  if(fileAnalysis.saved!==source)return;
+  fileAnalysis={saved:source,report:null,error:e?.message||String(e),working:false};
+ }
+ render();
+}
+function renderAnalyzeResult(){
+ if(!dom.analysisBody)return;
+ const c=current(),state=fileAnalysis;
+ const valid=c.valid&&c.saved===state.saved;
+ if(!c.valid){dom.analysisStatus.textContent='รอเลือกไฟล์ BIN';dom.analysisBar.style.width='0%';dom.analysisBody.textContent='เลือก BIN เพื่อวิเคราะห์ไฟล์โดยไม่เชื่อมต่อ ECU';return}
+ if(!valid||state.working){dom.analysisStatus.textContent='กำลังวิเคราะห์ BIN จาก Main.zip และ ECM.dat';dom.analysisBar.style.width='0%';dom.analysisBody.textContent='กำลังอ่าน ECU ID, Signature และตรวจ Checksum จากไฟล์';return}
+ if(state.error){dom.analysisStatus.textContent='ANALYZE FAILED';dom.analysisBar.style.width='0%';dom.analysisBody.textContent='วิเคราะห์ไม่สำเร็จ: '+state.error;return}
+ const a=state.report;
+ if(!a){dom.analysisStatus.textContent='รอผลวิเคราะห์';dom.analysisBar.style.width='0%';dom.analysisBody.textContent='ยังไม่มีผล';return}
+ dom.analysisStatus.textContent='ANALYZE COMPLETE · 100% (อ่าน BIN เสร็จ ไม่ใช่พร้อม Flash)';
+ dom.analysisBar.style.width='100%';
+ const lines=[
+  ['File ID',a.fileId||'ไม่พบ'],
+  ['สถานะ ID',a.idEvidence],
+  ['Part Code',a.partCode||'ไม่พบในฐาน'],
+  ['ข้อมูลจาก',a.partSource],
+  ['ชนิดไฟล์',a.signature],
+  ['Start Offset',a.startHex],
+  ['Checksum Offset',a.checksumHex],
+  ['Checksum Type',a.checksumType],
+  ['Checksum result',a.checksumStatus==='MATCH'?'MATCH · คำนวณแล้วตรงกับ BIN':
+    a.checksumStatus==='WOULD_CHANGE'?'ต้องคำนวณใหม่ (ยังไม่ได้แก้ไฟล์)':'ยังตรวจไม่ได้'],
+  ['Checksum เดิม → ค่าที่คำนวณ',a.checksumOld&&a.checksumCalculated?a.checksumOld+' → '+a.checksumCalculated:'—'],
+  ['ข้อมูลอ้างอิง',a.explanation]
+ ];
+ const host=dom.analysisBody;host.replaceChildren();
+ for(const [title,value] of lines){const line=make('div','n24-info-line');
+  line.append(make('span','',title),make('strong','',String(value||'—')));host.append(line)}
+ const note=make('p','n24-analysis-note',
+  'ANALYZE 100% หมายถึงตรวจข้อมูล BIN เสร็จ ไม่ใช่ยืนยันว่า BIN ตรง ECU ที่เสียบ หรือเขียนแฟลชสำเร็จ');
+ host.append(note);
+ if(a.warnings?.length){const warn=make('div','n24-analysis-warning');
+  warn.textContent='ข้อสังเกต: '+a.warnings.join(' • ');host.append(warn)}
 }
 const current=()=>{
  const quick=quickBin();
@@ -97,6 +153,7 @@ function addChecklist(box){
 }
 function render(){
  if(!stage?.isConnected)return;
+ renderAnalyzeResult();
  const c=current(),quick=quickBin();
  const shared=window.__55SharedEcu?.snapshot?.();
  const connectedId=shared?.connected&&/^[0-9A-F]{10}$/.test(shared.ecuId||'')?{
@@ -436,6 +493,7 @@ function mount(host){
    window.dispatchEvent(new Event('55:bin-selection-changed'));
    binOffsetHint=null;
    void previewBinOffset();
+   void analyzeSelectedBin();
    uploadStatus.textContent='✓ '+f.name+' ('+mainFileSize(f.size)+')'+
     (sourceSizeSupported?' · เปิดไฟล์สำเร็จ':' · เปิดอ่านได้ แต่ขนาดไม่มีตัวค้นรหัส BIN ใน Main');
    message=sourceSizeSupported?
@@ -456,6 +514,14 @@ function mount(host){
  const miniBar=make('div','n24-mini-bar');const miniFill=make('i','');dom.miniBar=miniFill;miniBar.append(miniFill);
  easy.append(uploadLabel,upload,uploadNote,uploadStatus,flash,recovery,miniBar,miniProgress);
  stage.append(easy);
+ const analyzeCard=card('n24-analysis','▤','Analyze Result · ตรวจ BIN จาก Main.zip + ECM.dat');
+ const analyzeStatus=make('p','n24-analysis-status','รอเลือกไฟล์ BIN');
+ const analyzeTrack=make('div','n24-analysis-track'),analyzeBar=make('i','');
+ analyzeTrack.append(analyzeBar);
+ const analyzeBody=make('div','n24-analysis-data','เลือก BIN เพื่อเริ่ม');
+ dom.analysisStatus=analyzeStatus;dom.analysisBar=analyzeBar;dom.analysisBody=analyzeBody;
+ analyzeCard.append(analyzeStatus,analyzeTrack,analyzeBody);
+ stage.append(analyzeCard);
  const file=card('n24-bin','▧','ไฟล์ที่จะอัด (BIN)');
  file.append(line('filename','ชื่อไฟล์'),line('source','ประเภทไฟล์'),line('size','ขนาดไฟล์'),line('sha','Checksum (SHA-256)'));stage.append(file);
  const ecu=card('n24-ecu','▣','ข้อมูล ECU (Identification)');
@@ -542,6 +608,7 @@ function mount(host){
  window.__55FlashLogRefresh();
  render();
  void previewBinOffset();
+ void analyzeSelectedBin();
  // Start read-only automatic Preflight when Fast Flash is entered with cable/BIN.
  queueMicrotask(()=>{if(stage===host)void autoPrepare().catch(e=>{error=e.message;render()})});
 }
@@ -582,6 +649,8 @@ const sourceBinPreview=()=>{
 window.__55FlashPreflight={mount,render,readECU,runCheck,autoPrepare,
  hasBin:()=>current().valid,ready:verified,sourceBinPreview};
 ['btnSave','sel','btnAutoOffset','btnRead','goTune'].forEach(id=>$(id)?.addEventListener('click',()=>queueMicrotask(render)));
+window.addEventListener('55:bin-selection-changed',()=>{if(stage?.isConnected)void analyzeSelectedBin()});
+$('btnSave')?.addEventListener('click',()=>{if(stage?.isConnected)queueMicrotask(()=>void analyzeSelectedBin())});
 window.addEventListener('55:bin-changed',render);
  const stepBox=$('stepTxt');
  if(stepBox)new MutationObserver(()=>{if(INLINEFLASH.busy||INLINEFLASH.postCheck){message=stepBox.textContent;render()}}).observe(stepBox,{childList:true,subtree:true,characterData:true});
