@@ -1459,6 +1459,25 @@ function inlineFlashProgress(p){
  $("#barFill").style.width=pct+"%";
  $("#pct").textContent=pct+"%";
 }
+// Presentation-only state. No timers, percentages or UI code may initiate
+// USB commands: all stage transitions come from HondaFlashEngine source events.
+let sourceFlashProgressModule=null;
+function inlineFlashStagePaint(){
+ window.__55FlashStageSnapshot=INLINEFLASH.stage||null;
+ window.__55FlashStageRender?.();
+}
+function inlineFlashStageEvent(e){
+ if(!sourceFlashProgressModule||!INLINEFLASH.stage)return;
+ INLINEFLASH.stage=sourceFlashProgressModule.updateSourceFlashProgress(INLINEFLASH.stage,e,Date.now());
+ if(['SECURITY_WAIT','SH_SECURITY_WAIT','SH_GET_SEED','SH_SEND_KEY',
+      'ERASE_BEGIN','SH_ERASE_BEGIN','ERASE_ACKNOWLEDGED','SH_ERASE_ACKNOWLEDGED',
+      'WRITE_PROGRESS','FLASH_SOURCE_COMPLETE'].includes(e.phase)){
+  // During the ten-second timer this displays a COUNTDOWN, not write
+  // progress. For WRITE, the engine's acknowledged source coverage is used.
+  inlineFlashProgress(INLINEFLASH.stage.barPercent);
+ }
+ inlineFlashStagePaint();
+}
 async function inlineFlashHash(b){const a=new Uint8Array(await crypto.subtle.digest('SHA-256',b));return [...a].map(x=>x.toString(16).padStart(2,'0')).join('')}
 function inlineFlashExportLog(){
  const head={project:'55 PERFORMANCE ECU TUNER',flashEngine:'V18',result:INLINEFLASH.status,
@@ -1550,6 +1569,7 @@ async function inlineFlashStart(){
  const fast=$('#mainFastWrite')?.checked??true;
  INLINEFLASH.busy=true;INLINEFLASH.status='CONNECTING';INLINEFLASH.flashAttempted=false;
  INLINEFLASH.firstSha=null;INLINEFLASH.writeSha=null;INLINEFLASH.ecuId=null;INLINEFLASH.plan=null;
+ INLINEFLASH.stage=null;inlineFlashStagePaint();
  inlineFlashRecovery(null);
  inlineFlashProgress(0);inlineFlashRefresh();
  inlineFlashLog('SOURCE_FAST_WRITE_SELECTED '+JSON.stringify({
@@ -1558,8 +1578,12 @@ async function inlineFlashStart(){
   stage:'BEFORE_ECU_IDENTIFY',
   timingProfileDeterminedAfterPhysicalFamilyAck:true
  }));
- let erasedOrSent=false;
+ let erasedOrSent=false,stageTicker=null;
  try{
+  sourceFlashProgressModule=await import('./ui/source-flash-progress-v1.js?v=1');
+  INLINEFLASH.stage=sourceFlashProgressModule.beginSourceFlashProgress(Date.now());
+  inlineFlashStagePaint();
+  stageTicker=setInterval(inlineFlashStagePaint,1000);
   const shared=window.__55SharedEcu;
   if(!shared)throw Error('ระบบสายหลักยังไม่พร้อม');
   INLINEFLASH.port=await shared.acquire('INLINE_FLASH');
@@ -1568,7 +1592,8 @@ async function inlineFlashStart(){
   // No network/license check may block physical ECU diagnostics or flash.
   INLINEFLASH.engine=new HondaFlashEngine(INLINEFLASH.port,ev=>{
    inlineFlashLog('ENGINE '+JSON.stringify(ev));
-   if(ev.phase==='WRITE_PROGRESS'){erasedOrSent=true;INLINEFLASH.flashAttempted=true;inlineFlashProgress(ev.percent)}
+   inlineFlashStageEvent(ev);
+   if(ev.phase==='WRITE_PROGRESS'){erasedOrSent=true;INLINEFLASH.flashAttempted=true}
    else if(ev.phase==='ERASE_BEGIN'||ev.phase==='SH_ERASE_BEGIN'||ev.phase==='WRITE_BLOCK_ACK'){
     erasedOrSent=true;INLINEFLASH.flashAttempted=true;
    }
@@ -1638,6 +1663,10 @@ async function inlineFlashStart(){
    } // end known Part Code branch
   }
   INLINEFLASH.plan=plan;
+  if(sourceFlashProgressModule&&INLINEFLASH.stage){
+   INLINEFLASH.stage=sourceFlashProgressModule.progressWithPlan(INLINEFLASH.stage,plan);
+   inlineFlashStagePaint();
+  }
   INLINEFLASH.writeSha=await inlineFlashHash(plan.bin);
   inlineFlashLog('PLAN '+JSON.stringify({ecuId:plan.ecuId,part:plan.part,profile:plan.profile,
    offset:plan.startOffset,size:plan.size,frames:plan.expectedBlockCount,writeAckMode:plan.writeAckMode,
@@ -1694,6 +1723,7 @@ async function inlineFlashStart(){
   }finally{if(wake)try{await wake.release()}catch(_){}}
  }catch(e){
   INLINEFLASH.status=erasedOrSent?'FAILED_AFTER_ERASE_POSSIBLE':'STOPPED_BEFORE_ERASE';
+  inlineFlashStageEvent({phase:'FLASH_STOP',error:e.message,eraseMayHaveStarted:erasedOrSent});
   inlineFlashLog('STOP '+(e.code||e.name)+': '+e.message);
   inlineFlashNote('หยุดทำงาน: '+e.message+(erasedOrSent?' • อาจเริ่มลบแล้ว ห้ามลองเขียนซ้ำโดยไม่ตรวจสภาพ ECU':' • ยังไม่ยืนยันว่า ERASE เริ่มแล้ว'));
   if(erasedOrSent){
@@ -1704,8 +1734,9 @@ async function inlineFlashStart(){
   }
   if(!erasedOrSent)inlineFlashProgress(0);
  }finally{
+  if(stageTicker!==null)clearInterval(stageTicker);
   if(!INLINEFLASH.postCheck)await inlineFlashClose();
-  INLINEFLASH.busy=false;inlineFlashRefresh();
+  INLINEFLASH.busy=false;inlineFlashRefresh();inlineFlashStagePaint();
  }
 }
 $("#btnFlash").onclick=inlineFlashStart;
