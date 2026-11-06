@@ -21,7 +21,7 @@ export function createSourceFlashProgress(now=Date.now()){
 export function beginSourceFlashProgress(now=Date.now()){
  const s=createSourceFlashProgress(now);
  return {...s,phase:'CONNECT',label:'กำลังตรวจ ECU จริง',
-  detail:'อ่าน ECU ID / Part Code / Family / BIN ก่อนเข้าสู่การอัด',startedAt:now};
+  detail:'อ่าน ECU ID / Part Code / Family / BIN ก่อนเข้าสู่การอัด',startedAt:null};
 }
 export function progressWithPlan(s,plan){
  const totalBytes=int(plan?.size??plan?.bin?.length)??0;
@@ -36,6 +36,7 @@ export function updateSourceFlashProgress(s,e,now=Date.now()){
  if(!phase)return s;
  const next={...s,updatedAt:now};
  if(phase==='FLASH_START'||phase==='PREWRITE_BEGIN'||phase==='SH_PREWRITE_BEGIN'){
+  if(next.startedAt===null)next.startedAt=now; // actual source flash started; exclude user confirmation time
   next.phase='PREPARE';next.label='เตรียม ECU / Programming Session';
   next.barKind='NONE';next.barPercent=0;
   next.detail='เริ่มสื่อสารตาม Main.zip • ยังไม่ลบหรือเขียนแฟลช';
