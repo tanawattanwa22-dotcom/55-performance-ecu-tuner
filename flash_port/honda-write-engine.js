@@ -724,14 +724,20 @@ export class HondaFlashEngine {
   try{
     const observed=await this.identify();
     if(this.lastResult.recovery){
-      if(!observed.sourceMatched||/0000$/.test(observed.ecuId))
-        fail('POST_RECOVERY_UNRECOGNISED','หลัง Recovery ECU ต้องรายงาน ID จริงที่อยู่ในฐาน C# แต่ได้ '+observed.ecuId);
+      // Main.zip only identifies the ECU after writing: a previously damaged
+      // boot ID need not belong to the 290-row Main table after recovery.
+      // Treat any non-boot ECU ID as "ECU responded", NOT a verified image
+      // or confirmed Part Code. Supplementary ECM.dat may hold the identity.
+      if(/0000$/.test(observed.ecuId))
+        fail('POST_RECOVERY_BOOT_STILL_ACTIVE','หลัง Recovery ECU ยังตอบ Boot ID '+observed.ecuId+' • ยังไม่ยืนยันว่ากู้สำเร็จ');
     }else if(observed.ecuId!==expected)
       fail('POST_FLASH_MISMATCH','อ่าน ECU ID หลังรีสตาร์ตไม่ตรงกับก่อนเขียน');
     const result={postFlashEcuResponded:true,ecuId:observed.ecuId,
       sourcePart:observed.sourcePart,flashCount:observed.count,
       idMatchesBeforeWrite:!this.lastResult.recovery,readbackVerified:false,
-      note:'Post-restart ECU ID and flash count communication only; firmware bytes were NOT read back'};
+      catalogMatched:!!observed.sourceMatched,
+      programmingFamilyVerified:!!observed.programmingSessionVerified,
+      note:'Post-restart ECU ID response only; catalog match and full firmware READBACK are independent and not guaranteed'};
     this.emit('POST_FLASH_ID_CONFIRMED',result);
     return result;
   }catch(error){
@@ -740,7 +746,7 @@ export class HondaFlashEngine {
     throw error;
   }
  }
- async flash(plan,{confirmation,physicalBackupConfirmed=false,backupUnavailableAcknowledged=false,externalPowerConfirmed=false,recoveryReady=false,operatorClickConfirmed=false}={}){
+ async flash(plan,{confirmation,recoveryFileConfirmed=false,physicalBackupConfirmed=false,backupUnavailableAcknowledged=false,externalPowerConfirmed=false,recoveryReady=false,operatorClickConfirmed=false}={}){
   if(this.state!=='identified')fail('NOT_READY','อ่านรหัส ECU ให้เสร็จก่อน');
   if(!plan?.recovery&&/0000$/.test(this.identity.ecuId))
    fail('BOOT_ID_REQUIRES_RECOVERY','Normal Flash ไม่อนุญาตให้ ERASE/WRITE เมื่อ ECU ตอบ Recovery Boot ID');
@@ -753,28 +759,25 @@ export class HondaFlashEngine {
      (plan.recovery&&!this.identity.recoveryFamilyVerified)||
      (sourceUnlistedPlan&&!unlistedValid))
     fail('PLAN_INVALID','แผนเขียนไม่ตรงกับ ECU ที่ตรวจแล้ว');
-  // In the normal Flash UI, pressing the dedicated "อัดไฟล์" button is the
-  // operator's single explicit write action. It does NOT assert that backup,
-  // voltage or recovery equipment were electronically verified.
-  // Recovery and advanced/offline paths retain their existing manual approvals.
-  // Even one-tap flash must not bypass operator confirmation of bench prerequisites.
-  // These are HUMAN declarations; neither FT232R nor Main.zip measures voltage
-  // or creates a full ECU backup. No backup/voltage/repair claim is inferred.
-  // The source write-only Shindengen path can use a known matching BIN
-  // without a per-ECU full read. Make that absence an explicit operator
-  // disclosure, never falsify it as a verified ECU backup.
-  // A backup waiver is for ordinary write-only firmware updates only.
-  // Recovery writes must retain their prior stricter backup requirement.
-  const backupWaiverAllowed=!!backupUnavailableAcknowledged&&!plan.recovery;
-  if(!(physicalBackupConfirmed||backupWaiverAllowed)||!externalPowerConfirmed||!recoveryReady)
-    fail('PRECONDITION','ต้องยืนยันไฟล์ Backup หรือรับทราบว่าไม่มี Full Read พร้อมตรวจไฟเลี้ยง/สาย K-Line และวิธีกู้ ECU ก่อน ERASE');
+  // Main.zip FormMain.cs has no complete on-wire FullFlash read/backup.
+  // A matching recovery firmware BIN is the required operator-supplied input,
+  // NOT proof of a Full Read from this ECU. The physical ECU/Family/Count/
+  // BIN/Offset checks, voltage declaration and recovery equipment still apply.
+  // Keep old arguments as compatibility for offline/source tests; they are
+  // not an automatic backup capability or a claim of a verified stock image.
+  const legacyNormalWaiver=!!backupUnavailableAcknowledged&&!plan.recovery;
+  const firmwareDeclared=!!recoveryFileConfirmed||!!physicalBackupConfirmed||legacyNormalWaiver;
+  if(!firmwareDeclared||!externalPowerConfirmed||!recoveryReady)
+    fail('PRECONDITION','ต้องยืนยัน BIN สำหรับอัด/กู้ว่าตรงกับ ECU และตรวจไฟเลี้ยง K-Line กับวิธีกู้ก่อน ERASE');
+  this.emit('SOURCE_FIRMWARE_DECLARED',{ecuId:plan.ecuId,recovery:!!plan.recovery,
+    matchingRecoveryBinConfirmedByOperator:firmwareDeclared,
+    backupReadFromEcuVerified:false,hardwareVoltageMeasured:false});
   if(!operatorClickConfirmed||plan.recovery||sourceUnlistedPlan){
     if(confirmation!=='FLASH '+plan.ecuId)fail('CONFIRMATION','ต้องพิมพ์ FLASH และ ECU ID ที่อ่านได้');
   }
   if(operatorClickConfirmed&&!plan.recovery)
     this.emit('OPERATOR_ONE_TAP',{ecuId:plan.ecuId,acknowledgement:'FLASH_BUTTON_CLICK',
-      backupConfirmedByOperator:!!physicalBackupConfirmed,
-      backupUnavailableAcknowledgedByOperator:backupWaiverAllowed,
+      matchingRecoveryBinConfirmedByOperator:firmwareDeclared,
       powerConfirmedByOperator:true,recoveryConfirmedByOperator:true,
       powerAndBackupElectronicallyVerified:false});
   if(!this.usb.ready)fail('USB_LOST','FTDI USB ไม่ได้เชื่อมต่อแล้ว');
