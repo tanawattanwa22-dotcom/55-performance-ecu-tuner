@@ -1563,7 +1563,7 @@ async function inlineFlashStart(){
   const shared=window.__55SharedEcu;
   if(!shared)throw Error('ระบบสายหลักยังไม่พร้อม');
   INLINEFLASH.port=await shared.acquire('INLINE_FLASH');
-  const {HondaFlashEngine}=await import('./flash_port/honda-write-engine.js?v=417');
+  const {HondaFlashEngine}=await import('./flash_port/honda-write-engine.js?v=418');
   // The login screen checked the license when this app session started.
   // No network/license check may block physical ECU diagnostics or flash.
   INLINEFLASH.engine=new HondaFlashEngine(INLINEFLASH.port,ev=>{
@@ -1647,27 +1647,6 @@ async function inlineFlashStart(){
   // The real engine still rechecks ECU ID and will refuse mismatched plans.
   // Full readback is not offered by the purchased Main.zip Shindengen
   // write route. Backup is recommended, not implied by loading a tune BIN.
-  const hasThisEcuBackup=confirm(
-    '55 PERFORMANCE • Full Backup จาก ECU คันนี้\n\n'+
-    'ECU ID: '+plan.ecuId+'\nBIN: '+plan.filename+'\n\n'+
-    'มีไฟล์เดิมที่อ่านออกจาก ECU คันนี้โดยตรงและตรวจสอบแล้วหรือไม่?\n'+
-    'ตกลง = มี Backup ของ ECU คันนี้จริง\n'+
-    'ยกเลิก = ยังไม่มี (จะมีคำเตือนก่อนเลือกไปต่อ)'
-  );
-  const noBackupAck=!hasThisEcuBackup&&confirm(
-    '55 PERFORMANCE • ไม่มี Full Backup ของ ECU คันนี้\n\n'+
-    'คุณอาจไม่สามารถคืนสภาพเดิมได้ แม้ BIN จากคันอื่นเคยใช้งานสำเร็จ\n'+
-    'ไฟเลี้ยงนิ่งไม่ได้ป้องกันปัญหาโปรโตคอล/เฟิร์มแวร์/การกู้คืนทั้งหมด\n\n'+
-    'ยืนยันว่าไม่มี Backup แต่มีไฟล์ที่ตรวจว่าตรง ECU และเตรียมวิธีกู้คืนไว้จริง?\n'+
-    'ตกลง = ยอมรับว่าไม่มี Full Backup แล้วไปตรวจไฟเลี้ยงและ Recovery\n'+
-    'ยกเลิก = หยุดก่อน ERASE'
-  );
-  if(!hasThisEcuBackup&&!noBackupAck){
-    INLINEFLASH.status='CANCELLED_NO_BACKUP';
-    inlineFlashLog('OPERATOR_STOPPED_NO_BACKUP');
-    inlineFlashNote('ยกเลิกก่อน ERASE • ไม่มี Backup และยังไม่ได้ส่งคำสั่งเขียน');
-    return;
-  }
   const benchConfirmed=confirm(
     '55 PERFORMANCE • ตรวจอุปกรณ์ก่อนเขียนจริง\n\n'+
     'ECU ID: '+plan.ecuId+'\nPart Code: '+plan.part+
@@ -1675,11 +1654,11 @@ async function inlineFlashStart(){
     '\nStart: 0x'+plan.startOffset.toString(16).toUpperCase()+
     '\nChecksum: 0x'+plan.checksumOffset.toString(16).toUpperCase()+
     '\nProfile: '+plan.profile+
-    '\nFull Backup คันนี้: '+(hasThisEcuBackup?'มี':'ไม่มี · รับความเสี่ยงแล้ว')+
     '\nWrite ACK: MAIN.ZIP (ตามต้นฉบับ)'+
-    '\n\nยืนยันด้วยตัวเองว่าทั้ง 2 ข้อนี้พร้อม:\n'+
-    '1. ไฟเลี้ยง ECU คงที่ และใช้ K-Line transceiver ที่ถูกต้อง\n'+
-    '2. มีวิธี Recovery และอุปกรณ์ที่ใช้กู้กล่องนี้ได้จริง\n\n'+
+    '\n\nยืนยันด้วยตัวเองว่าทั้ง 3 ข้อนี้พร้อม:\n'+
+    '1. BIN ที่เลือกตรงกับ ECU และมีไฟล์สำหรับกู้ที่ตรงรุ่น\n'+
+    '2. ไฟเลี้ยง ECU คงที่ และใช้ K-Line transceiver ที่ถูกต้อง\n'+
+    '3. มีวิธี Recovery และอุปกรณ์ที่ใช้กู้กล่องนี้ได้จริง\n\n'+
     'ตกลง = เริ่ม ERASE/WRITE จริง\n'+
     'ยกเลิก = หยุดก่อน ERASE'
   );
@@ -1690,7 +1669,7 @@ async function inlineFlashStart(){
     return;
   }
   inlineFlashLog('MANUAL_PREWRITE_APPROVAL '+JSON.stringify({
-    backupExists:hasThisEcuBackup,backupAbsentAcknowledged:noBackupAck,
+    matchingRecoveryBinConfirmedByOperator:true,
     powerAndKLineConfirmed:true,recoveryEquipmentConfirmed:true,
     electricallyMeasured:false,readbackAvailable:false
   }));
@@ -1701,8 +1680,7 @@ async function inlineFlashStart(){
    if(navigator.wakeLock?.request)wake=await navigator.wakeLock.request('screen').catch(()=>null);
    const result=await INLINEFLASH.engine.flash(plan,{
      operatorClickConfirmed:true,
-     physicalBackupConfirmed:hasThisEcuBackup,
-     backupUnavailableAcknowledged:noBackupAck,
+     recoveryFileConfirmed:benchConfirmed,
      externalPowerConfirmed:benchConfirmed,
      recoveryReady:benchConfirmed,
      confirmation:plan.checks?.sourceUnlistedWithProof?'FLASH '+plan.ecuId:undefined
@@ -1837,7 +1815,7 @@ mainToolsAction('mtReadEcu',async()=>{
  let owns=false;
  try{
   const port=await shared.acquire('MAIN_TOOLS');owns=true;
-  const {HondaFlashEngine}=await import('./flash_port/honda-write-engine.js?v=417');
+  const {HondaFlashEngine}=await import('./flash_port/honda-write-engine.js?v=418');
   const engine=new HondaFlashEngine(port,ev=>inlineFlashLog('MAIN READ '+JSON.stringify(ev)));
   mainToolsOut('กำลังอ่าน ECU ID และ Flash Count จาก FT232R สายกลาง…');
   const data=await engine.identify({programmingPreflight:true});MAINTOOLS.lastEcu=data;
@@ -3305,8 +3283,8 @@ function v3Draw(){
 })();
 </script>
 
-<script src="ui/neon-preflight-v24.js?v=422"></script>
-<script src="ui/neon-recovery-v35.js?v=386"></script>
+<script src="ui/neon-preflight-v24.js?v=423"></script>
+<script src="ui/neon-recovery-v35.js?v=387"></script>
 <script src="ui/advanced-admin-gate-v1.js?v=1"></script>
 <script src="ui/neon-v20.js?v=407"></script>
 <script src="ui/neon-live-v21.js?v=337"></script>
