@@ -146,6 +146,32 @@ try{
   assert.equal(await page.locator('#n20Stage .n24-hero').isVisible(),true,'real-state V24 Flash dashboard visible');
   assert.equal(await page.locator('#n20Stage .n24-panel').count(),8,'BIN upload, Analyze Result, Lock Read, ECU, Offset, checklist and TX/RX Flash panel');
   assert.equal(await page.locator('#n20Stage .n24-analysis').isVisible(),true,'BIN Analyze Result shown on main Fast Flash even without USB');
+  // The visible checkbox and legacy write-path flag MUST represent the same
+  // mode. No ECU is connected in this test, so no erase/write is possible.
+  assert.equal(await page.locator('#n24FastWrite').isVisible(),true,
+    'Fast Write toggle visible next to the actual Fast Flash button');
+  assert.equal(await page.locator('#n24FastWrite').isChecked(),true,
+    'Fast Write inherits original Main.zip checked-by-default mode');
+  assert.equal(await page.locator('#mainFastWrite').isChecked(),true,
+    'Main.zip write mode defaults to Fast Write');
+  await page.locator('#n24FastWrite').uncheck();
+  assert.equal(await page.locator('#mainFastWrite').isChecked(),false,
+    'unticking visible Fast Write selects normal source mode in actual Flash path');
+  assert.equal(await page.evaluate(()=>window.__55QuickFlashFast),false,
+    'state mirror is normal mode after visible toggle off');
+  await page.locator('#n24FastWrite').check();
+  assert.equal(await page.locator('#mainFastWrite').isChecked(),true,
+    'ticking visible Fast Write selects source Fast mode for actual Flash path');
+  assert.equal(await page.evaluate(()=>window.__55QuickFlashFast),true,
+    'state mirror is Fast mode after visible toggle on');
+  await page.evaluate(()=>{
+    const old=document.getElementById('mainFastWrite');
+    old.checked=false;
+    old.dispatchEvent(new Event('change',{bubbles:true}));
+  });
+  assert.equal(await page.locator('#n24FastWrite').isChecked(),false,
+    'legacy Main.zip Fast mode checkbox also synchronizes the visible control');
+  await page.locator('#n24FastWrite').check();
   assert.equal(await page.locator('#n20Stage .n24-lock').isVisible(),true,'Main.zip Keihin Lock ReadROM/Lock Mode actions visible without USB');
   assert.equal(await page.locator('#n20Stage .n24-lock button').count(),2,'Lock Read and Lock Mode are distinct functions');
   assert.equal(await page.locator('#n20Stage .n24-lock button:disabled').count(),2,'Lock Read actions disabled until a 48/64 KB BIN is selected');
