@@ -1464,6 +1464,8 @@ function inlineFlashProgress(p){
 let sourceFlashProgressModule=null;
 function inlineFlashStagePaint(){
  window.__55FlashStageSnapshot=INLINEFLASH.stage||null;
+ window.__55FlashStageView=sourceFlashProgressModule&&INLINEFLASH.stage?
+  sourceFlashProgressModule.displaySourceFlashProgress(INLINEFLASH.stage,Date.now()):null;
  window.__55FlashStageRender?.();
 }
 function inlineFlashStageEvent(e){
