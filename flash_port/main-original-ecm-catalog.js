@@ -25,10 +25,12 @@ export function findOriginalEcmDat(ecuId){
 export function originalEcmDatRows(){return ROWS.map(row=>row.slice())}
 
 
-/* ECM.dat is the primary *display* authority for a physically-read ECU ID.
- * Preserve all 122 original rows unchanged. Do not feed these labels into
- * destructive flash/session/offset checks. Some upstream model names are '-';
- * an unknown model remains unknown unless the row's Part text names it.
+/* ECM.dat is a supplementary, read-only catalog for a physically-read ECU ID.
+ * Preserve all 122 source rows. The Flash Engine may use an unlisted ID's
+ * Part and BIN size as pre-ERASE cross-checks, but never treats the ECM
+ * Family/Offset/Checksum columns as ECU protocol or write-address authority.
+ * Physical Family ACK and Main.zip BIN logic remain independent.
+ * Some upstream model names are '-'; do not invent a model for those rows.
  */
 function normalizeDisplayPart(rawPart){
  const cleaned=String(rawPart||'').toUpperCase().trim().replace(/^38770-/,'');
