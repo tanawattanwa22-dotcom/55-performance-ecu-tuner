@@ -52,6 +52,12 @@ pre{background:#0b1827;border-radius:10px;padding:12px;font:12px ui-monospace,mo
 <input id="bin" type="file" accept=".bin,application/octet-stream">
 <label for="part">ยืนยันรหัสอะไหล่ ECU ตามฐาน C# (กรอกเมื่อชื่อ BIN ไม่ระบุรุ่น)</label><input id="part" type="text" autocomplete="off" placeholder="เช่น 38770-K03-H01">
 <label><input type="checkbox" id="optFast">Fast Write (Keihin ทั่วไป: สลับเป็น 921600 baud / Shindengen: ตัดหน่วง 150 ms) — ยังไม่ผ่านทดสอบกล่องจริง</label>
+<label for="writeAckMode">นโยบาย WRITE ACK (เลือกสำหรับกล่องสำรอง)</label>
+<select id="writeAckMode" style="width:100%;padding:12px;border:1px solid #617c9d;background:#10253c;color:#fff;border-radius:9px;font:inherit">
+ <option value="source" selected>Main.zip · 5-byte ACK ผ่าน Checksum = เขียนต่อ</option>
+ <option value="strict">Strict ทดลอง · byte[3] ไม่เป็น 0 = หยุดส่งบล็อกถัดไป</option>
+</select>
+<small>Strict ยังไม่ยืนยันความหมายของ byte[3] ในทุก ECU และอาจหยุดหลัง ERASE · ทั้งสองโหมดเก็บ RX HEX ทุก WRITE_BLOCK ใน TX/RX Log</small>
 <label><input type="checkbox" id="optRecovery">Recovery จาก Main C# — ตรวจ Boot ECU ID และ Flash Count จากกล่องจริง (Keihin / Shindengen)</label>
 <input id="recStart" type="text" autocomplete="off" placeholder="Recovery Start Offset (HEX, เว้นว่าง=auto)"><input id="recChecksum" type="text" autocomplete="off" placeholder="Recovery Checksum Offset (HEX, เว้นว่าง=auto)"><small>เว้นว่างเพื่อใช้ค่าจาก Main C# หากข้อมูลไม่ครบระบบหยุดก่อน Erase</small>
 <button id="prepare" disabled>ตรวจ BIN และสร้างแผนเขียน</button>
@@ -82,7 +88,7 @@ pre{background:#0b1827;border-radius:10px;padding:12px;font:12px ui-monospace,mo
 <script type="module">
 import {verifySavedOfflinePermit,provisionOfflinePermit} from '../offline-license.js';
 import {Ft232rWebUsb} from '../ftdi-webusb.js?v=409';
-import {HondaFlashEngine} from '../honda-write-engine.js?v=410';
+import {HondaFlashEngine} from '../honda-write-engine.js?v=413';
 const $=id=>document.getElementById(id);
 let authorized=false,bundleReady=false,port=null,engine=null,identity=null,plan=null,busy=false,flashing=false,wakeLock=null;
 let lastPlanEvidence=null,flashOutcome='NOT_STARTED'; // immutable evidence survives plan reset after Final ACK
@@ -263,6 +269,7 @@ $('prepare').onclick=async()=>{
    push('RECOVERY FAMILY '+identity.family+' · '+identity.recoveryFamilyEvidence);
   }
    plan=engine.makePlan(data,{filename:file.name,confirmedPart:$('part').value,fast:$('optFast').checked,recovery:$('optRecovery').checked,
+    writeAckMode:$('writeAckMode').value,
     startOffsetOverride:recHex?parseInt(recHex,16):null,
     checksumOffsetOverride:recCkHex?parseInt(recCkHex,16):null});
   const writeSha=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',plan.bin)),b=>b.toString(16).padStart(2,'0')).join('');
@@ -270,7 +277,7 @@ $('prepare').onclick=async()=>{
    filename:plan.filename,originalSha256:sha,actualWriteSha256:writeSha,
    originalBinBytes:data.length,actualWriteBinBytes:plan.bin.length,checksumChanged:plan.checksumChanged,
    profile:plan.profile,startOffset:plan.startOffset,checksumOffset:plan.checksumOffset,
-   expectedBlockCount:plan.expectedBlockCount});
+   expectedBlockCount:plan.expectedBlockCount,writeAckMode:plan.writeAckMode});
   flashOutcome='PREFLIGHT_ONLY_NO_FLASH';
   $('plan').textContent=JSON.stringify({ecuId:plan.ecuId,part:plan.part,fileName:plan.filename,
    originalSha256:sha,actualWriteSha256:writeSha,checksumChanged:plan.checksumChanged,profile:plan.profile,fast:plan.fast,recovery:plan.recovery,startOffset:'0x'+plan.startOffset.toString(16).toUpperCase(),
@@ -281,6 +288,7 @@ $('prepare').onclick=async()=>{
  finally{busy=false;refreshButtons()}
 };
 for(const id of ['backup','power','recovery','typed'])$(id).addEventListener('input',refreshButtons);
+$('writeAckMode').addEventListener('change',()=>{if(busy||flashing){$('writeAckMode').value=plan?.writeAckMode||'source';return}plan=null;push('WRITE ACK MODE SELECTED '+$('writeAckMode').value+' · ต้องตรวจ BIN ใหม่');refreshButtons();});
 $('bin').addEventListener('change',()=>{plan=null;refreshButtons()});
 import {readBinId,findEcmIdInBin,lockRead,lockMode} from '../bin-tools.js';
 async function refreshBinInfo(){
