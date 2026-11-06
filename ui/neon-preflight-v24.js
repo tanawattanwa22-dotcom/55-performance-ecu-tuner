@@ -68,6 +68,28 @@ async function analyzeSelectedBin(){
  }
  render();
 }
+
+async function downloadLockedBin(mode){
+ const chosen=current();
+ if(INLINEFLASH.busy){dom.lockStatus.textContent='มีการอัด ECU อยู่ กรุณารอให้จบก่อน';return}
+ if(!chosen.valid||!(chosen.bytes instanceof Uint8Array)){dom.lockStatus.textContent='ยังไม่ได้เลือก BIN';return}
+ if(![49152,65536].includes(chosen.bytes.length)){dom.lockStatus.textContent='ฟังก์ชันนี้รองรับ Keihin 48 KB / 64 KB ตาม Main.zip เท่านั้น';return}
+ for(const b of [dom.lockRead,dom.lockMode])b.disabled=true;
+ dom.lockStatus.textContent='กำลังตรวจโค้ด Lock และคำนวณ Checksum ใหม่ในสำเนา BIN…';
+ try{
+  const {prepareMainLockCopy}=await import(new URL('flash_port/main-bin-lock-export.js?v=1',document.baseURI).href);
+  const result=await prepareMainLockCopy(chosen.bytes,{mode,filename:chosen.saved.filename||S.fname||'firmware.bin'});
+  if(current().saved!==chosen.saved)throw Error('เลือก BIN ใหม่ระหว่างประมวลผล กรุณาลองอีกครั้ง');
+  const url=URL.createObjectURL(new Blob([result.bytes],{type:'application/octet-stream'}));
+  const a=document.createElement('a');a.href=url;a.download=result.filename;
+  document.body.append(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),10000);
+  dom.lockStatus.textContent='สร้างสำเนา '+result.filename+' • แก้ '+result.count+' ไบต์ • Checksum 8-bit = 00'+
+    ' • Main '+(result.mainCatalogMatch?'พบ ECU ID ในฐาน 290':'คำนวณตามขนาด BIN')+
+    ' • ไม่มีการเปลี่ยน BIN ต้นฉบับและไม่ได้ส่งคำสั่ง ECU';
+ }catch(e){dom.lockStatus.textContent='Lock ไม่สำเร็จ: '+(e?.message||String(e))}
+ finally{if(stage?.isConnected)render()}
+}
 function renderAnalyzeResult(){
  if(!dom.analysisBody)return;
  const c=current(),state=fileAnalysis;
@@ -155,6 +177,13 @@ function render(){
  if(!stage?.isConnected)return;
  renderAnalyzeResult();
  const c=current(),quick=quickBin();
+ if(dom.lockRead&&dom.lockMode){
+  const eligible=c.valid&&[49152,65536].includes(c.bytes?.length)&&!INLINEFLASH.busy;
+  dom.lockRead.disabled=!eligible;dom.lockMode.disabled=!eligible;
+  if(!eligible&&!INLINEFLASH.busy)dom.lockStatus.textContent=c.valid?
+   'Lock ตาม Main.zip รองรับเฉพาะ BIN Keihin 48 KB / 64 KB; ไฟล์ขนาดนี้ยังไม่รองรับ':
+   'เลือก BIN Keihin 48 KB / 64 KB เพื่อสร้างไฟล์ Lock แยกจากต้นฉบับ';
+ }
  const shared=window.__55SharedEcu?.snapshot?.();
  const connectedId=shared?.connected&&/^[0-9A-F]{10}$/.test(shared.ecuId||'')?{
   ecuId:shared.ecuId,family:'UNVERIFIED',sourcePart:shared.part||null,
@@ -522,6 +551,17 @@ function mount(host){
  dom.analysisStatus=analyzeStatus;dom.analysisBar=analyzeBar;dom.analysisBody=analyzeBody;
  analyzeCard.append(analyzeStatus,analyzeTrack,analyzeBody);
  stage.append(analyzeCard);
+ const lockCard=card('n24-lock','🔒','Lock ReadROM / Lock Mode · Main.zip');
+ const lockNote=make('p','n24-help',
+  'ใช้ฟังก์ชันต้นฉบับ FormMain.cs เฉพาะ Keihin BIN 48/64 KB เท่านั้น • สร้างสำเนา BIN พร้อมคำนวณ Checksum ใหม่ • ไม่ใช่คำสั่ง Lock EEPROM และไม่รับรองว่าป้องกันการอ่านด้วยอุปกรณ์อื่นได้ทุกวิธี');
+ const lockActions=make('div','n24-actions n24-main-check-actions');
+ const lockReadBtn=btn('🔒 Lock ReadROM · ดาวน์โหลด BIN','n24-btn',()=>void downloadLockedBin('read'));
+ const lockModeBtn=btn('🔒 Lock Mode · ดาวน์โหลด BIN','n24-btn',()=>void downloadLockedBin('mode'));
+ dom.lockRead=lockReadBtn;dom.lockMode=lockModeBtn;
+ lockActions.append(lockReadBtn,lockModeBtn);
+ const lockStatus=make('p','n24-lock-status','เลือก BIN 48 KB หรือ 64 KB เพื่อใช้ Main Lock');
+ dom.lockStatus=lockStatus;lockCard.append(lockNote,lockActions,lockStatus);
+ stage.append(lockCard);
  const file=card('n24-bin','▧','ไฟล์ที่จะอัด (BIN)');
  file.append(line('filename','ชื่อไฟล์'),line('source','ประเภทไฟล์'),line('size','ขนาดไฟล์'),line('sha','Checksum (SHA-256)'));stage.append(file);
  const ecu=card('n24-ecu','▣','ข้อมูล ECU (Identification)');
