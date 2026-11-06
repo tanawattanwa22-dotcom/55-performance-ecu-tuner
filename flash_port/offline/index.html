@@ -61,7 +61,7 @@ pre{background:#0b1827;border-radius:10px;padding:12px;font:12px ui-monospace,mo
 <div class="row"><button class="secondary" id="lockRead" disabled>Lock Read (48/64 KB) → ดาวน์โหลด</button><button class="secondary" id="lockMode" disabled>Lock Mode (48/64 KB) → ดาวน์โหลด</button></div>
 <small>ปุ่มเหล่านี้สร้างสำเนา BIN ที่แก้แล้วให้ดาวน์โหลด ไม่แก้ไฟล์เดิม และไม่ส่งเข้ากล่อง ถ้าจะเขียนไฟล์ที่แก้ ให้เลือกไฟล์ใหม่ในขั้นตอน 3 (ระบบจะคำนวณ Checksum ใหม่ตอนสร้างแผนเขียน)</small></div>
 <div class="card danger"><div class="step">ขั้นตอน 4 — มีความเสี่ยง</div><h2>ยืนยันก่อนส่งคำสั่งเขียนจริง</h2>
-<label><input type="checkbox" id="backup">มีไฟล์ BIN เดิมที่ถูกต้องจาก ECU รุ่นนี้ สำรองไว้นอกมือถือแล้ว</label>
+<label><input type="checkbox" id="firmware">ตรวจแล้วว่า BIN ที่เลือกตรง ECU/ฮาร์ดแวร์ และเป็นไฟล์ที่เตรียมไว้สำหรับกู้คืน</label>
 <label><input type="checkbox" id="power">ECU สำรองต่อไฟเลี้ยงนิ่ง มีวงจรป้องกันและสาย K-Line ที่ตรวจสอบแล้ว</label>
 <label><input type="checkbox" id="recovery">มีเครื่องมือกู้คืน ECU และรู้ขั้นตอนกู้ หาก ERASE/WRITE ล้มเหลว</label>
 <label for="typed">พิมพ์ FLASH ตามด้วยรหัส ECU 10 หลักที่อ่านได้ เช่น <code>FLASH 0101880D01</code></label>
@@ -82,7 +82,7 @@ pre{background:#0b1827;border-radius:10px;padding:12px;font:12px ui-monospace,mo
 <script type="module">
 import {verifySavedOfflinePermit,provisionOfflinePermit} from '../offline-license.js';
 import {Ft232rWebUsb} from '../ftdi-webusb.js?v=409';
-import {HondaFlashEngine} from '../honda-write-engine.js?v=417';
+import {HondaFlashEngine} from '../honda-write-engine.js?v=418';
 const $=id=>document.getElementById(id);
 let authorized=false,bundleReady=false,port=null,engine=null,identity=null,plan=null,busy=false,flashing=false,wakeLock=null;
 let lastPlanEvidence=null,flashOutcome='NOT_STARTED'; // immutable evidence survives plan reset after Final ACK
@@ -107,7 +107,7 @@ function refreshButtons(){
  $('prepare').disabled=busy||!authorized||!identity||!$('bin').files?.length;
  $('postCheck').disabled=busy||!authorized||!port?.ready||engine?.state!=='finished';
  $('write').disabled=busy||!authorized||!port?.ready||!plan||identity?.ecuId!==plan.ecuId||
-  !$('backup').checked||!$('power').checked||!$('recovery').checked||
+  !$('firmware').checked||!$('power').checked||!$('recovery').checked||
   $('typed').value.trim().toUpperCase()!=='FLASH '+identity.ecuId;
 
  const missing=[];
@@ -117,7 +117,7 @@ function refreshButtons(){
  if(!identity?.ecuId)missing.push('ยังไม่ได้อ่าน ECU ID');
  if(!plan)missing.push('ยังไม่ได้ตรวจ BIN / Part Code / Checksum / Offset');
  if(plan&&identity?.ecuId!==plan.ecuId)missing.push('ECU ID ไม่ตรงแผนเขียน');
- if(!$('backup').checked)missing.push('ยังไม่ยืนยัน Backup');
+ if(!$('firmware').checked)missing.push('ยังไม่ยืนยันว่า BIN ที่จะเขียนตรงกับ ECU');
  if(!$('power').checked)missing.push('ยังไม่ยืนยันไฟเลี้ยงและ K-Line');
  if(!$('recovery').checked)missing.push('ยังไม่ยืนยันเครื่องมือ Recovery');
  if(identity?.ecuId&&$('typed').value.trim().toUpperCase()!=='FLASH '+identity.ecuId)missing.push('ยังไม่พิมพ์ FLASH + ECU ID');
@@ -338,7 +338,7 @@ $('write').onclick=async()=>{
  try{
   if(navigator.wakeLock?.request){try{wakeLock=await navigator.wakeLock.request('screen')}catch(e){push('Screen WakeLock unavailable: '+e.message)}}
   const result=await engine.flash(plan,{confirmation:$('typed').value.trim().toUpperCase(),
-   physicalBackupConfirmed:$('backup').checked,externalPowerConfirmed:$('power').checked,
+   recoveryFileConfirmed:$('firmware').checked,externalPowerConfirmed:$('power').checked,
    recoveryReady:$('recovery').checked});
   $('percent').textContent='ได้รับ SOURCE FINAL ACK • โปรดรีสตาร์ต ECU และตรวจซ้ำ • ยังไม่ได้ Readback VERIFY';
   $('percent').className='status ok';
