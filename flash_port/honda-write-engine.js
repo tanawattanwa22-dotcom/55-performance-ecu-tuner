@@ -324,11 +324,15 @@ export class HondaFlashEngine {
       fail('UNLISTED_FAMILY_UNVERIFIED','ECU ID นอกฐาน 290: ยังไม่มี Family ACK จากโหมดโปรแกรมมิ่งจริง');
     const dat=this.identity.datReference;
     if(dat?.family&&dat.family!=='UNVERIFIED'&&dat.family!==family)
-      fail('DAT_FAMILY_CONFLICT','ecuData.dat family '+dat.family+
-       ' differs from ECU source Flash Count ACK '+family);
+      fail('DAT_FAMILY_CONFLICT',(dat.origin==='ORIGINAL_PUBLIC_ECM_DAT'?'ECM.dat':'ecuData.dat')+
+       ' family '+dat.family+' differs from ECU source Flash Count ACK '+family);
+    // ECM.dat supplies matching reference fields only. Its address columns
+    // never override Main.zip address/checksum inference or a user-supplied
+    // original-format ecuData.dat.
+    const sourceDat=dat?.origin==='ORIGINAL_PUBLIC_ECM_DAT'?null:dat;
     catalog={part:dat?.part||null,
-      startOffset:Number.isInteger(dat?.startOffset)?dat.startOffset:null,
-      checksumOffset:Number.isInteger(dat?.checksumOffset)?dat.checksumOffset:null,
+      startOffset:Number.isInteger(sourceDat?.startOffset)?sourceDat.startOffset:null,
+      checksumOffset:Number.isInteger(sourceDat?.checksumOffset)?sourceDat.checksumOffset:null,
       family};
    }
   if(!['KEIHIN','SHINDENGEN'].includes(family))
@@ -430,8 +434,13 @@ export class HondaFlashEngine {
       recoveryFamilyEvidence:rec?this.identity.recoveryFamilyEvidence:null,
       binFullId:completeBinId,binFullIdMatched:rec?null:!completeBinId||completeBinId===ecuId,
       familyFlashCountResponded:true,partFromCSharp:!rec&&!sourceUnlisted,
-       partFromMainDat:sourceUnlisted&&!!this.identity.datReference?.part,
+       partFromMainDat:sourceUnlisted&&!!this.identity.datReference?.part&&
+         this.identity.datReference?.origin!=='ORIGINAL_PUBLIC_ECM_DAT',
+       partFromEcmDat:sourceUnlisted&&this.identity.datReference?.origin==='ORIGINAL_PUBLIC_ECM_DAT'&&
+         !!this.identity.datReference?.part,
+       ecmBinSizeMatched:!!originalEcm?.expectedSizeKb&&originalEcm.expectedSizeKb*1024===bin.length,
        startOffsetFromMainDat:sourceUnlisted&&family==='KEIHIN'&&
+         this.identity.datReference?.origin!=='ORIGINAL_PUBLIC_ECM_DAT'&&
          !useManualStart&&Number.isInteger(this.identity.datReference?.startOffset),
        sourceUnlistedWithProof:sourceUnlisted,
        sourceKeihinOtherFallback:sourceKeihinFallback,
