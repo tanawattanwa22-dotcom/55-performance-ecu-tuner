@@ -144,8 +144,11 @@ try{
   assert.equal(jsErrors.length,0,'No JS crash when mounting Flash UI: '+JSON.stringify(jsErrors));
   assert.equal(await page.locator('#flashCard').evaluate(el=>el.classList.contains('n20-hidden')),true,'old Flash form hidden behind V24');
   assert.equal(await page.locator('#n20Stage .n24-hero').isVisible(),true,'real-state V24 Flash dashboard visible');
-  assert.equal(await page.locator('#n20Stage .n24-panel').count(),7,'BIN upload, Analyze Result, ECU, Offset, checklist and TX/RX Flash panel');
+  assert.equal(await page.locator('#n20Stage .n24-panel').count(),8,'BIN upload, Analyze Result, Lock Read, ECU, Offset, checklist and TX/RX Flash panel');
   assert.equal(await page.locator('#n20Stage .n24-analysis').isVisible(),true,'BIN Analyze Result shown on main Fast Flash even without USB');
+  assert.equal(await page.locator('#n20Stage .n24-lock').isVisible(),true,'Main.zip Keihin Lock ReadROM/Lock Mode actions visible without USB');
+  assert.equal(await page.locator('#n20Stage .n24-lock button').count(),2,'Lock Read and Lock Mode are distinct functions');
+  assert.equal(await page.locator('#n20Stage .n24-lock button:disabled').count(),2,'Lock Read actions disabled until a 48/64 KB BIN is selected');
   assert.equal(await page.locator('#n20Stage .n24-flash-trace').isVisible(),true,'Live TX/RX log is visible in Fast Flash without entering Advanced Tools');
   assert.equal(await page.locator('#n20Stage .n24-flash-trace button').count(),2,'TX/RX Flash panel offers download and copy actions');
   assert.equal(await page.locator('#n20Stage .n24-info-line').count(),15,'read-only BIN/ECU/Offset fields');
