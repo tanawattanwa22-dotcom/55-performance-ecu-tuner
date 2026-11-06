@@ -134,6 +134,41 @@ await check('Unlisted PCX160 uses real Shindengen read-only Flash Count ACK, nev
   id.programmingSessionVerified===true&&id.sourceMatched===false&&
   !labels.includes('KEIHIN_FLASH_COUNT')&&!labels.includes('SHINDENGEN_FLASH_COUNT');
 });
+
+await check('ECM.dat restores real ECU ID/Part/size lookup for unlisted PCX160',async()=>{
+ const e=new HondaFlashEngine(fake('0105040D01'));
+ const id=await e.identify({programmingPreflight:true});
+ return id.ecuId==='0105040D01'&&id.family==='SHINDENGEN'&&
+  id.sourceMatched===false&&id.programmingSessionVerified===true&&
+  id.datReference?.origin==='ORIGINAL_PUBLIC_ECM_DAT'&&
+  id.datReference?.expectedSizeKb===384&&/K1ZP-T71/i.test(id.sourcePart);
+});
+await check('ECM.dat catches a wrong 256KB BIN before source erase on PCX160 384KB entry',async()=>{
+ const e=new HondaFlashEngine(fake('0105040D01'));
+ await e.identify({programmingPreflight:true});
+ try{
+  e.makePlan(shBin(),{filename:'K1ZP-T71.bin',confirmedPart:'CONFIRM 0105040D01'});
+  return false;
+ }catch(error){return error.code==='ECM_BIN_SIZE_MISMATCH'}
+});
+await check('ECM.dat matching 384KB BIN supplements source-only offsets and checksum',async()=>{
+ const e=new HondaFlashEngine(fake('0105040D01'));
+ await e.identify({programmingPreflight:true});
+ const bin=new Uint8Array(393216).fill(255);
+ bin.set([0,0,0,0],1924);bin.set([0,0,0,0],2044);
+ bin.set([1,5,4],2048); // Main.zip 384KB three-byte BIN ID locator
+ bin.set([83,72,56,53,48],19856); // Main SH850
+ bin.set([165,165,165,165,0],40960); // RH850B source start0
+ bin.set([17,18,19,20,21,21,23],265686); // Main write-key marker
+ bin.set([0xD0,0x07],265706);
+ bin.set([90,90,90,90],bin.length-4);
+ const plan=e.makePlan(bin,{filename:'K1ZP-T71.bin',confirmedPart:'CONFIRM 0105040D01'});
+ return plan.checks.partFromEcmDat===true&&plan.checks.partFromMainDat===false&&
+  plan.checks.ecmBinSizeMatched===true&&plan.checks.offsetsFromCSharp===true&&
+  plan.profile==='SHINDENGENRH850B'&&plan.startOffset===0xA000&&
+  plan.checksumOffset===265696&&plan.size===393216&&
+  plan.writeAckMode==='source'&&plan.checks.hardwareValidated===false;
+});
 await check('Shindengen firmware preflight offset derived',async()=>{const e=new HondaFlashEngine(fake('01046B0F01'));await e.identify();const p=e.makePlan(shBin(),{filename:'K2SA-N02.bin'});return p.startOffset===65536&&p.expectedBlockCount===1536});
 await check('Post-restart matching ECU ID, not readback verify',async()=>{
  const e=new HondaFlashEngine(fake('0101880D01'));e.state='finished';e.identity={ecuId:'0101880D01'};e.lastResult={ok:true,ecuId:'0101880D01'};
