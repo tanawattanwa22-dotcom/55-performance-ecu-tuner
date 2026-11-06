@@ -98,3 +98,29 @@
 .n24-lock .n24-panel-icon{color:#ffcc77;border-color:#c18a45}
 .n24-lock .n24-actions{margin:12px 0}
 .n24-lock-status{font-size:12px;line-height:1.6;color:#f0dab8;background:#242d3d;border:1px solid #645a50;border-radius:10px;padding:11px;overflow-wrap:anywhere}
+
+/* Live FormMain.cs flash stages — purely descriptive, never sends USB commands. */
+.n24-source-progress{border:1px solid #24cbbf;background:linear-gradient(125deg,#11313d,#15223e)}
+.n24-source-progress .n24-panel-icon{border-color:#3dd9b9;color:#68f9d6}
+.n24-source-steps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;margin:8px 0 14px}
+.n24-source-step{padding:8px 3px;min-height:63px;border-radius:10px;background:#142b43;border:1px solid #486886;color:#b0cbe0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:3px;text-align:center}
+.n24-source-step b{display:grid;place-items:center;width:25px;height:25px;font-size:12px;border-radius:50%;border:1px solid #6d99b0}
+.n24-source-step span{font-size:10px;line-height:1.4;font-weight:700}
+.n24-source-step.active{border-color:#f6bc62;color:#ffe6a6;box-shadow:0 0 10px #edbd4760}
+.n24-source-step.done{border-color:#3bd3b1;color:#a1ffe6;background:#12463f}
+.n24-source-title{display:block;color:#e9faff;font-weight:900;font-size:15px;margin:5px 0}
+.n24-source-detail{color:#b5dcef;line-height:1.55;font-size:12px;min-height:34px;margin:4px 0 8px;overflow-wrap:anywhere}
+.n24-source-track{position:relative;width:100%;height:15px;background:#253d54;border-radius:99px;overflow:hidden;border:1px solid #44627e}
+.n24-source-track>i{display:block;width:0;height:100%;border-radius:99px;background:linear-gradient(90deg,#11b9d0,#65f4d2);transition:width .25s}
+.n24-source-track.n24-source-countdown>i{background:linear-gradient(90deg,#c88e23,#ffdb85)}
+.n24-source-track.n24-source-indeterminate:after{content:'';position:absolute;inset:0 auto 0 -40%;width:40%;background:linear-gradient(90deg,transparent,#f4c26d,transparent);animation:n24erase-pulse 1.6s infinite ease-in-out}
+@keyframes n24erase-pulse{to{left:100%}}
+.n24-source-pct{color:#e8fcff;text-align:right;font-size:14px;font-variant-numeric:tabular-nums;font-weight:850;margin-top:6px}
+.n24-source-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin:9px 0}
+.n24-source-stat{display:flex;flex-direction:column;gap:4px;align-items:flex-start;border:1px solid #396782;border-radius:10px;padding:10px;background:#112e42}
+.n24-source-stat:last-child{grid-column:1/-1}
+.n24-source-stat span{color:#bed8e9;font-size:11px}
+.n24-source-stat strong{font-weight:850;font-size:13px;color:#f0fffb;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.n24-source-status{color:#83e8d7;font-size:11px;line-height:1.5;margin:8px 0}
+.n24-source-reference{color:#b5c5df;font-size:10px;line-height:1.5;border-top:1px solid #3b5b6b;margin:8px 0 0;padding-top:8px}
+@media(prefers-reduced-motion:reduce){.n24-source-track>i{transition:none}.n24-source-track.n24-source-indeterminate:after{animation:none}}
