@@ -66,7 +66,7 @@
    ui.scan.disabled=busy;
    ui.prepare.disabled=busy||!bin||!boot;
    ui.write.disabled=busy||!plan||!port?.ready||!identity?.recoveryFamilyVerified||
-     !ui.backup.checked||!ui.power.checked||!ui.tools.checked||
+     !ui.firmware.checked||!ui.power.checked||!ui.tools.checked||
      ui.typed.value.trim().toUpperCase()!=='FLASH '+identity.ecuId;
    ui.post.disabled=busy||!postCheck||!port?.ready;
    ui.cancel.disabled=busy||!plan;
@@ -91,13 +91,13 @@
      const shared=sharedPort();
      port=await shared.acquire(OWNER);
      if(!port?.ready)throw Error('สาย FT232R ไม่พร้อม หรือถูกใช้งานโดยเมนูอื่น');
-     const {HondaFlashEngine}=await import(new URL('flash_port/honda-write-engine.js?v=410',document.baseURI).href);
+     const {HondaFlashEngine}=await import(new URL('flash_port/honda-write-engine.js?v=418',document.baseURI).href);
      engine=new HondaFlashEngine(port,e=>log(e.phase+' '+JSON.stringify(e)));
      identity=await engine.identify({programmingPreflight:true});
      log('READ ECU_ID '+identity.ecuId+' SESSION '+identity.handshake);
      if(identity.ecuId.endsWith('0000')){
        phase='RECOVERY_BOOT_DETECTED';
-       note('พบ Recovery Boot ID '+identity.ecuId+' • ยังไม่ได้ยืนยัน Family\nเลือก BIN สำรองที่ตรงกับกล่องเพื่อให้ตรวจ Flash Count และสร้างแผนกู้');
+       note('พบ Recovery Boot ID '+identity.ecuId+' • ยังไม่ได้ยืนยัน Family\nเลือก BIN สำหรับกู้ที่ตรงกับกล่องเพื่อให้ตรวจ Flash Count และสร้างแผนกู้');
      }else{
        phase='NOT_RECOVERY';
        note('ECU ตอบ '+identity.ecuId+' ในโหมด '+identity.handshake+
@@ -113,13 +113,13 @@
  }
  async function prepare(){
    if(busy||!isOpen())return;
-   if(!bin)return note('เลือกไฟล์ BIN สำรองที่ตรงกับ ECU ก่อน',true);
+   if(!bin)return note('เลือกไฟล์ BIN สำหรับกู้ที่ตรงกับ ECU ก่อน',true);
    if(!identity?.ecuId?.endsWith('0000'))return note('ยังไม่พบ Recovery Boot ID จริง • ไม่สร้างแผนเขียน',true);
    if(!sharedPort()?.port?.ready)return note('ต้องเชื่อม FT232R จากหน้าแรกก่อน',true);
    lastFailure='';busy=true;phase='VERIFY RECOVERY FAMILY';release();update();
    try{
      port=await sharedPort().acquire(OWNER);
-     const {HondaFlashEngine}=await import(new URL('flash_port/honda-write-engine.js?v=410',document.baseURI).href);
+     const {HondaFlashEngine}=await import(new URL('flash_port/honda-write-engine.js?v=418',document.baseURI).href);
      engine=new HondaFlashEngine(port,e=>{
        log(e.phase+' '+JSON.stringify(e));
        if(e.phase==='WRITE_PROGRESS'&&ui.progress)ui.progress.textContent=String(e.percent||0)+'% • WRITE ACK';
@@ -156,9 +156,9 @@
  }
  async function write(){
    if(busy||!plan||!port?.ready||!identity?.recoveryFamilyVerified)return;
-   const checks=ui.backup.checked&&ui.power.checked&&ui.tools.checked;
+   const checks=ui.firmware.checked&&ui.power.checked&&ui.tools.checked;
    const typed=ui.typed.value.trim().toUpperCase();
-   if(!checks||typed!=='FLASH '+identity.ecuId)return note('Recovery ต้องยืนยันสำรอง BIN, ไฟเลี้ยง, เครื่องมือกู้ และ ECU ID ให้ครบ',true);
+   if(!checks||typed!=='FLASH '+identity.ecuId)return note('Recovery ต้องยืนยัน BIN สำหรับกู้ตรงรุ่น, ไฟเลี้ยง, เครื่องมือกู้ และ ECU ID',true);
    if(!confirm('กู้คืน ECU '+identity.ecuId+' ('+identity.family+')\nBIN: '+plan.filename+
       '\nStart: '+fmt(plan.startOffset)+'\n\nยืนยัน ERASE/WRITE จริงกับกล่องที่ต่อสายอยู่หรือไม่?'))return;
    busy=true;writing=true;phase='RECOVERY_WRITING';lastFailure='';update();
@@ -166,7 +166,7 @@
    let wake=null;
    try{
      if(navigator.wakeLock?.request)wake=await navigator.wakeLock.request('screen').catch(()=>null);
-     const outcome=await engine.flash(plan,{confirmation:typed,physicalBackupConfirmed:ui.backup.checked,
+     const outcome=await engine.flash(plan,{confirmation:typed,recoveryFileConfirmed:ui.firmware.checked,
        externalPowerConfirmed:ui.power.checked,recoveryReady:ui.tools.checked});
      phase='SOURCE_FINAL_ACK_NOT_READBACK';
      postCheck=true;
@@ -211,9 +211,9 @@
    const dt=el('div','n24-panel-title');dt.append(el('span','n24-panel-icon','▣'),el('b','','ผลตรวจ ECU จากกล่องจริง'));data.append(dt);
    ui.ecu=field(data,'ECU ID');ui.session=field(data,'Session / Boot');ui.family=field(data,'ECU Family');ui.count=field(data,'Flash Count');ui.part=field(data,'Part Code');host.append(data);
    const section=el('section','n24-panel n24-bin');
-   const bt=el('div','n24-panel-title');bt.append(el('span','n24-panel-icon','▧'),el('b','','เลือก BIN สำรองสำหรับกู้'));section.append(bt);
+   const bt=el('div','n24-panel-title');bt.append(el('span','n24-panel-icon','▧'),el('b','','เลือก BIN สำหรับกู้ (Recovery Firmware)'));section.append(bt);
    ui.upload=el('input','n24-file-input');ui.upload.type='file';ui.upload.accept='.bin,.rom,application/octet-stream';
-   ui.upload.setAttribute('aria-label','เลือกไฟล์ BIN สำรองสำหรับ Recovery');section.append(ui.upload);
+   ui.upload.setAttribute('aria-label','เลือกไฟล์ BIN สำหรับ Recovery');section.append(ui.upload);
    ui.upload.onchange=async()=>{
      if(busy)return;
      const file=ui.upload.files?.[0];if(!file)return;
@@ -224,7 +224,7 @@
        bin={name:file.name,data};
        release();lastFailure='';phase='BIN_SELECTED';
        log('RECOVERY BIN CHOSEN '+file.name+' '+data.length+' bytes');
-       note('เลือก BIN สำรองแล้ว • ระบบจะตรวจ Boot/Family/Flash Count/Offset ก่อนสร้างแผน Recovery');
+       note('เลือก BIN สำหรับกู้แล้ว • ระบบจะตรวจ Boot/Family/Flash Count/Offset ก่อนสร้างแผน Recovery');
        update();
        if(identity?.ecuId?.endsWith('0000'))await prepare();
      }catch(e){bin=null;lastFailure=e.message;note('อ่าน BIN ไม่สำเร็จ: '+e.message,true);update()}
@@ -247,7 +247,7 @@
    const gt=el('div','n24-panel-title');gt.append(el('span','n24-panel-icon','✓'),el('b','','ยืนยันก่อน Recovery ERASE / WRITE'));gate.append(gt);
    ui.hardware=el('p','n24-help');gate.append(ui.hardware);
    for(const [key,label] of [
-     ['backup','มี BIN สำรองที่ถูกต้องของ ECU คันนี้เก็บไว้แล้ว'],
+     ['firmware','ตรวจแล้วว่า BIN สำหรับกู้ตรงกับ ECU และฮาร์ดแวร์ที่ต่ออยู่ (ไม่จำเป็นต้องมี Full Read)'],
      ['power','ตรวจไฟเลี้ยงและวงจร K-Line จริงแล้ว'],
      ['tools','เตรียมอุปกรณ์และขั้นตอนกู้คืนไว้แล้ว']
    ]){
