@@ -82,3 +82,13 @@
 .n24-advanced{margin:4px 0 12px;padding:11px 12px;border:1px solid #3b6382;border-radius:13px;background:#10243a;}
 .n24-advanced>summary{font-weight:700;color:#b4dfec;cursor:pointer;}
 .n24-advanced .n24-actions{margin-top:12px;grid-template-columns:repeat(2,minmax(0,1fr));}
+
+/* Read-only Analyze Complete / Analyze Result, never flash progress. */
+.n24-analysis{border:1px solid #29b9a0;background:linear-gradient(125deg,#102e36,#131f36)}
+.n24-analysis .n24-panel-icon{border-color:#3bd9bd;color:#74ffdb}
+.n24-analysis-status{font-size:13px;font-weight:800;color:#82f0d2;margin:8px 0}
+.n24-analysis-track{width:100%;height:9px;border-radius:99px;background:#213b50;overflow:hidden;margin:7px 0 11px}
+.n24-analysis-track i{display:block;width:0;height:100%;background:linear-gradient(90deg,#159bce,#4be9aa);transition:width .25s}
+.n24-analysis-data{font-size:12px;color:#d7eafa;line-height:1.5;overflow-wrap:anywhere}
+.n24-analysis-note{padding:9px 11px;background:#152d42;border:1px solid #3e607b;border-radius:10px;color:#b6d8f1;font-size:11px;line-height:1.5;margin:10px 0}
+.n24-analysis-warning{padding:10px 11px;background:#3b2d25;border:1px solid #b38347;border-radius:11px;color:#ffddac;font-size:11px;line-height:1.6;white-space:pre-wrap}
