@@ -489,6 +489,94 @@ function startFlash(){
  message=INLINEFLASH.postCheck?'กำลังตรวจ ECU ID หลังเปิดกุญแจใหม่':'กำลังตรวจ ECU ID, Family, Part Code, BIN, Checksum และ Offset อัตโนมัติ ก่อน ERASE/WRITE';
  render();
 }
+
+let flashOverlay=null,flashOverlayMarker=null,flashOverlayFocus=null;
+function updateFlashOverlay(){
+ if(!flashOverlay)return;
+ const active=!!INLINEFLASH.busy;
+ const state=window.__55FlashStageView?.phase;
+ const notice=flashOverlay.querySelector('.n24-flash-lock-summary');
+ const icon=flashOverlay.querySelector('.n24-flash-lock-icon');
+ const close=flashOverlay.querySelector('.n24-flash-overlay-close');
+ if(active){
+  icon.textContent='🔒';
+  notice.textContent=state==='WRITE'?'กำลังเขียน BIN ลง ECU จริง · อย่าขัดจังหวะ':
+   state==='ERASE'?'กำลังลบแฟลช ECU · อย่าขัดจังหวะ':
+   state==='FINAL'?'รอ Final ACK จาก ECU · ยังห้ามออกจากหน้านี้':
+   'กำลังตรวจและเตรียมการอัด ECU · กรุณาอยู่ที่หน้านี้';
+ }else{
+  icon.textContent=state==='DONE'?'✅':state==='STOP'?'⚠️':'🔓';
+  notice.textContent=state==='DONE'?'ได้รับ Final ACK แล้ว · ทำตามคำสั่งปิด/เปิดกุญแจหลังอัด':
+   state==='STOP'||INLINEFLASH.status?.includes('FAILED')?'การอัดหยุดแล้ว · ตรวจ Log และสถานะ ECU ก่อนทำต่อ':
+   INLINEFLASH.postCheck?'การอัดเสร็จแล้ว · ไปตรวจ ECU หลังรีสตาร์ต':
+   'สิ้นสุดการทำงาน Flash · ตรวจสถานะและ Log ก่อนทำต่อ';
+ }
+ close.hidden=active;
+ flashOverlay.classList.toggle('n24-flash-overlay-finished',!active);
+ flashOverlay.setAttribute('aria-busy',active?'true':'false');
+}
+function closeFlashOverlay(){
+ if(!flashOverlay||INLINEFLASH.busy)return;
+ const progress=dom.sourceCard;
+ if(progress&&flashOverlayMarker?.parentNode){
+  flashOverlayMarker.parentNode.replaceChild(progress,flashOverlayMarker);
+ }
+ flashOverlayMarker=null;
+ flashOverlay.remove();flashOverlay=null;
+ document.body.classList.remove('n24-flash-dialog-open');
+ if(flashOverlayFocus?.isConnected)flashOverlayFocus.focus({preventScroll:true});
+ flashOverlayFocus=null;
+}
+function openFlashOverlay(){
+ if(flashOverlay){updateFlashOverlay();return}
+ const progress=dom.sourceCard;
+ if(!progress?.isConnected)return;
+ flashOverlayFocus=document.activeElement;
+ flashOverlayMarker=document.createComment('flash-progress-return');
+ progress.parentNode.insertBefore(flashOverlayMarker,progress);
+ const shade=make('div','n24-flash-overlay');
+ shade.id='n24FlashOverlay';
+ shade.setAttribute('role','dialog');
+ shade.setAttribute('aria-modal','true');
+ shade.setAttribute('aria-label','55 Performance · กำลังอัดไฟล์ ECU');
+ shade.setAttribute('aria-busy','true');
+ const modal=make('div','n24-flash-overlay-modal');
+ const header=make('div','n24-flash-overlay-heading');
+ header.append(make('span','n24-flash-lock-icon','🔒'),
+  make('div','n24-flash-lock-summary','กำลังตรวจและเตรียมการอัด ECU · กรุณาอยู่ที่หน้านี้'));
+ const warning=make('div','n24-flash-overlay-warning');
+ warning.append(make('strong','','⚠ ระหว่างแฟลช ห้ามขัดจังหวะ'));
+ const list=make('p','',
+  'ห้ามปิดเว็บ / รีเฟรช / กดกลับ / สลับแอป / ปิดจอ / ถอดสาย USB หรือ OTG / ดับไฟเลี้ยง ECU / บิดกุญแจ OFF / สตาร์ตเครื่อง จนกว่าระบบจะแจ้งผล');
+ warning.append(list);
+ const slot=make('div','n24-flash-overlay-progress');
+ slot.append(progress); // Move the ACTUAL progress card: engine events keep updating this single UI.
+ const close=btn('ปิดหน้าต่าง · กลับหน้า Flash','n24-flash-overlay-close',closeFlashOverlay);
+ close.hidden=true;
+ const footer=make('p','n24-flash-overlay-footer',
+  'หน้าต่างนี้แสดงผลจาก ECU จริง • ไม่เพิ่มคำสั่ง USB และไม่เปลี่ยนสูตรเปอร์เซ็นต์จาก Main.zip');
+ modal.append(header,warning,slot,close,footer);
+ shade.append(modal);
+ document.body.append(shade);
+ document.body.classList.add('n24-flash-dialog-open');
+ flashOverlay=shade;
+ updateFlashOverlay();
+}
+window.__55FlashStageOverlayOpen=openFlashOverlay;
+window.__55FlashStageOverlayFinish=updateFlashOverlay;
+window.addEventListener('beforeunload',event=>{
+ if(INLINEFLASH.busy&&!INLINEFLASH.postCheck){
+  event.preventDefault();
+  event.returnValue='';
+ }
+});
+document.addEventListener('keydown',event=>{
+ if(event.key==='Escape'&&flashOverlay){
+  if(INLINEFLASH.busy){event.preventDefault();return}
+  closeFlashOverlay();
+ }
+});
+
 // Event-driven source Flash progress. This panel never controls ECU I/O.
 function renderSourceFlashStage(){
  if(!dom.sourceTitle)return;
@@ -520,8 +608,10 @@ function renderSourceFlashStage(){
   p?.phase==='ERASE'?'กำลัง ERASE • ไม่สร้างเปอร์เซ็นต์ระหว่างรอ ECU':
   p?.phase==='WRITE'?'ความคืบหน้าจากตำแหน่งบล็อกที่ ECU ตอบรับ':
   'ขั้นตอนจะแสดงตามคำตอบ ECU จริง';
+ updateFlashOverlay();
 }
 function mount(host){
+ if(flashOverlay&&!INLINEFLASH.busy)closeFlashOverlay();
  stage=host;stage.classList.add('n24-preflight-stage');stage.replaceChildren();dom={};
  const head=make('section','n24-hero');
  head.append(make('div','n24-headline','FAST FLASH'),make('p','','ตรวจ ECU และไฟล์อัตโนมัติ'));
@@ -625,11 +715,10 @@ function mount(host){
   const cell=make('div','n24-source-stat');cell.append(make('span','',caption),value);sourceStats.append(cell);
  }
  const sourceStatus=make('p','n24-source-status','ขั้นตอนจะแสดงตามคำตอบ ECU จริง');
- const reference=make('p','n24-source-reference',
-  'ข้อมูลเทียบ: Honda Tuner อัด Giorno ~256 KiB ใช้ 3:54 (ผู้ใช้แจ้ง) · ไม่ใช่เวลารับประกันของ 55 Performance');
  Object.assign(dom,{sourceTitle,sourceDetail,sourceTrack,sourceFill,sourcePct,sourceElapsed:elapsed,
   sourceRemaining:remaining,sourceBlocks:blocks,sourceStatus});
- sourceCard.append(sourceSteps,sourceTitle,sourceDetail,sourceTrack,sourcePct,sourceStats,sourceStatus,reference);
+ sourceCard.append(sourceSteps,sourceTitle,sourceDetail,sourceTrack,sourcePct,sourceStats,sourceStatus);
+ dom.sourceCard=sourceCard;
  stage.append(sourceCard);
  window.__55FlashStageRender=()=>{if(sourceCard.isConnected)renderSourceFlashStage()};
  window.__55FlashStageRender();
