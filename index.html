@@ -375,12 +375,6 @@ button:not(:disabled):active,.btn:not(:disabled):active,.chip:active,.ib:active,
     <input id="mainFastWrite" type="checkbox" checked style="width:auto">
     Fast Write (ค่าเริ่มต้น MainForm.cs)
    </label>
-   <label for="mainWriteAckMode" style="display:block;margin:10px 0 4px">นโยบายตอบรับ WRITE ACK (ทดสอบกับ ECU สำรอง)</label>
-   <select id="mainWriteAckMode" style="width:100%;max-width:100%">
-    <option value="source" selected>ตาม Main.zip · ACK 5 ไบต์ผ่าน Checksum = เขียนต่อ</option>
-    <option value="strict">Strict ทดลอง · ACK byte[3] ≠ 00 = หยุดบล็อกถัดไป</option>
-   </select>
-   <p class="mu sm" style="margin:5px 0 12px">Strict เป็นการทดลอง ไม่ได้พิสูจน์ว่า byte[3] คือสถานะผิดพลาดของ ECU ทุกรุ่น และอาจหยุดหลัง ERASE แล้ว · ทั้งสองโหมดเก็บ RX HEX ทุกบล็อกใน Log</p>
    <details id="mainManualOffsetsPanel" style="margin:10px 0;padding:10px;border:1px solid #444;border-radius:10px">
     <summary>FormMain · Manual Offset (HEX)</summary>
     <label style="display:flex;align-items:center;gap:8px;margin:10px 0"><input type="checkbox" id="mainManualOffset" style="width:auto"> เปิด Manual Offset ตาม FormMain.cs</label>
@@ -1441,15 +1435,7 @@ $("#btnSave").onclick=saveBin;
 $("#btnToFlash").onclick=()=>{S.flash=true;history.back();setTimeout(()=>{home();$("#flashCard").scrollIntoView({behavior:"smooth",block:"center"})},60)};
 /* Integrated Flash V18 — original UI, Engine runs only on physical ECU */
 const INLINEFLASH={busy:false,engine:null,port:null,plan:null,postCheck:false,log:[],status:'IDLE',firstSha:null,writeSha:null,filename:null,ecuId:null,flashAttempted:false};
-window.__55WriteAckMode='source'; // deliberately do NOT persist experimental strict mode
-$('#mainWriteAckMode').addEventListener('change',event=>{
- if(INLINEFLASH.busy){event.target.value=window.__55WriteAckMode;return}
- window.__55WriteAckMode=event.target.value==='strict'?'strict':'source';
- window.dispatchEvent(new Event('55:write-ack-mode-changed'));
-});
-window.addEventListener('55:write-ack-mode-changed',()=>{
- $('#mainWriteAckMode').value=window.__55WriteAckMode==='strict'?'strict':'source';
-});
+window.__55WriteAckMode='source'; // Main.zip WRITE ACK parity is fixed; no UI policy switch
 window.__55RetailFlashState=()=>({busy:INLINEFLASH.busy,flashAttempted:INLINEFLASH.flashAttempted,status:INLINEFLASH.status});
 function inlineFlashNote(txt){const box=$("#stepTxt");if(box)box.textContent=txt}
 function inlineFlashLog(txt){
@@ -1461,7 +1447,6 @@ function inlineFlashLog(txt){
 }
 function inlineFlashRefresh(){
  const b=$("#btnFlash");if(!b)return;
- $('#mainWriteAckMode').disabled=INLINEFLASH.busy;
  b.disabled=INLINEFLASH.busy||(!S.bin&&!window.__55QuickFlashBin?.bytes&&!INLINEFLASH.postCheck)||
    !!document.getElementById('licenseGate');
  b.textContent=INLINEFLASH.busy?'กำลังดำเนินการ • อย่าปิดแอป':
@@ -1479,7 +1464,7 @@ function inlineFlashExportLog(){
  const head={project:'55 PERFORMANCE ECU TUNER',flashEngine:'V18',result:INLINEFLASH.status,
   filename:INLINEFLASH.filename,ecuId:INLINEFLASH.ecuId,originalSha256:INLINEFLASH.firstSha,
   correctedSha256:INLINEFLASH.writeSha,writeStarted:INLINEFLASH.flashAttempted,
-  writeAckMode:INLINEFLASH.plan?.writeAckMode||window.__55WriteAckMode,
+  writeAckMode:'source',
   note:'SOURCE FINAL ACK is not firmware readback verification'};
  const text=JSON.stringify(head,null,2)+'\n\n'+INLINEFLASH.log.join('\n');
  const url=URL.createObjectURL(new Blob([text],{type:'text/plain;charset=utf-8'}));
@@ -1600,8 +1585,7 @@ async function inlineFlashStart(){
   INLINEFLASH.firstSha=await inlineFlashHash(bin);
   INLINEFLASH.filename=quick?.filename||S.saved?.filename||S.fname||('55_TUNED_'+MODELS[S.mi]?.id+'.bin');
   const fast=$('#mainFastWrite')?.checked??true;
-  const offsetOptions={...mainFormOffsetOptions(identity.family),
-   writeAckMode:window.__55WriteAckMode==='strict'?'strict':'source'};
+  const offsetOptions=mainFormOffsetOptions(identity.family);
   let plan;
   try{plan=INLINEFLASH.engine.makePlan(bin,{filename:INLINEFLASH.filename,...offsetOptions,fast,recovery:false})}
   catch(e){
@@ -1684,7 +1668,7 @@ async function inlineFlashStart(){
     '\nChecksum: 0x'+plan.checksumOffset.toString(16).toUpperCase()+
     '\nProfile: '+plan.profile+
     '\nFull Backup คันนี้: '+(hasThisEcuBackup?'มี':'ไม่มี · รับความเสี่ยงแล้ว')+
-    '\nWrite ACK: '+(plan.writeAckMode==='strict'?'STRICT (ทดสอบ: อาจหยุดหลัง ERASE)':'MAIN.ZIP (ตามต้นฉบับ)')+
+    '\nWrite ACK: MAIN.ZIP (ตามต้นฉบับ)'+
     '\n\nยืนยันด้วยตัวเองว่าทั้ง 2 ข้อนี้พร้อม:\n'+
     '1. ไฟเลี้ยง ECU คงที่ และใช้ K-Line transceiver ที่ถูกต้อง\n'+
     '2. มีวิธี Recovery และอุปกรณ์ที่ใช้กู้กล่องนี้ได้จริง\n\n'+
@@ -3313,7 +3297,7 @@ function v3Draw(){
 })();
 </script>
 
-<script src="ui/neon-preflight-v24.js?v=415"></script>
+<script src="ui/neon-preflight-v24.js?v=416"></script>
 <script src="ui/neon-recovery-v35.js?v=386"></script>
 <script src="ui/advanced-admin-gate-v1.js?v=1"></script>
 <script src="ui/neon-v20.js?v=407"></script>

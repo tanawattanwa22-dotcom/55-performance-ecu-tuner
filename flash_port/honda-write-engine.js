@@ -270,10 +270,8 @@ export class HondaFlashEngine {
   }
  }
 
- makePlan(bin,{filename='',confirmedPart='',fast=false,recovery=false,startOffsetOverride=null,checksumOffsetOverride=null,writeAckMode='source'}={}){
-  // Default retains verified source-parity behavior. Strict mode is an
-  // EXPLICIT bench experiment, not a proven universal ECU status rule.
-  if(writeAckMode!=='source'&&writeAckMode!=='strict')fail('WRITE_ACK_MODE_INVALID','Unknown write ACK policy');
+ makePlan(bin,{filename='',confirmedPart='',fast=false,recovery=false,startOffsetOverride=null,checksumOffsetOverride=null}={}){
+  // Main.zip FormMain.cs is the only WRITE ACK success criterion.
   if(this.state!=='identified'||!this.identity?.ecuId)
    fail('NO_ID','ต้องอ่าน ECU ID จริงก่อนสร้างแผนเขียน');
   if(!(bin instanceof Uint8Array))fail('NO_BIN','กรุณาเลือกไฟล์ BIN');
@@ -403,7 +401,7 @@ export class HondaFlashEngine {
      ?correctKeihinChecksum(originalBin,keihinChecksumOffset)
      :correctShindengenChecksum(originalBin);
   const checksumOffset=corrected.checksumOffset;
-  const plan={ecuId,part:sourcePart,profile,startOffset:offset,checksumOffset,fast:!!fast,recovery:rec,writeAckMode,
+  const plan={ecuId,part:sourcePart,profile,startOffset:offset,checksumOffset,fast:!!fast,recovery:rec,writeAckMode:'source',
     filename,size:corrected.data.length,blockBytes:p.blockSize,bin:corrected.data,
     checksumChanged:corrected.modified,expectedBlockCount:corrected.data.length/p.blockSize-first,
     checks:{physicalIdMatched:!rec,recoveryBootIdObserved:rec,
@@ -538,8 +536,7 @@ export class HondaFlashEngine {
  }
  async writeBlocks(plan){
   this.state='writing';
-  const writeAckMode=plan.writeAckMode||'source';
-  if(writeAckMode!=='source'&&writeAckMode!=='strict')fail('WRITE_ACK_MODE_INVALID','Unknown write ACK policy');
+  const writeAckMode='source'; // fixed parity; ignore unsupported caller overrides
   this.emit('WRITE_ACK_POLICY',{mode:writeAckMode,verifiedEcuStatusSemantics:false});
   const blockSize=plan.blockBytes,total=plan.bin.length/blockSize;
   const firstBlock=plan.profile.startsWith('SHINDENGEN')?plan.startOffset/blockSize:0;
@@ -581,13 +578,6 @@ export class HondaFlashEngine {
          this.emit('SOURCE_WRITE_ACK_NONZERO_UNINTERPRETED',{
            block:current,rawByte3:reply[3],mode:writeAckMode,
            sourceAcceptsByLengthAndChecksum:true,writeReadbackVerified:false});
-         // Optional strict diagnostic stops sending subsequent blocks; this
-         // status interpretation is unverified and stopping after ERASE may
-         // require recovery. Do not silently change Main.zip's default.
-         if(writeAckMode==='strict')
-           fail('WRITE_ACK_NONZERO','Strict ACK mode: block '+current+
-             ' RX[3]=0x'+reply[3].toString(16).toUpperCase().padStart(2,'0')+
-             ' (source permits this checksum-valid 5-byte reply); no more blocks sent');
        }
        this.emit('WRITE_BLOCK_ACK',{block:current,sourceReplyStatus:reply[3],
          sourceRule:'FORMMAIN_FIVE_BYTE_CHECKSUM_VALID',readbackVerified:false});
@@ -750,7 +740,7 @@ export class HondaFlashEngine {
   // Do not report destructive activity during handshake, seed/key or wait.
   this.eraseStageEntered=false;
   try {
-   this.emit('FLASH_START',{ecuId:plan.ecuId,part:plan.part,writeAckMode:plan.writeAckMode||'source'});
+   this.emit('FLASH_START',{ecuId:plan.ecuId,part:plan.part,writeAckMode:'source'});
    // User may have spent time choosing BIN; renew the ECU session and
    // reconfirm its physical identity before entering destructive mode.
    let recheckedEcuId=null;
