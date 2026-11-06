@@ -52,8 +52,10 @@ class MockHonda {
      if(this.failure!=='KH_HANDSHAKE_ONCE'){this.ready=false;this.closed=true}
      throw Error('SIMULATED_FIRST_HANDSHAKE_TIMEOUT');
   }
-  if(this.failure==='KH_HANDSHAKE_ALWAYS'&&label.startsWith('KH_HANDSHAKE_A'))
+  if(['KH_HANDSHAKE_ALWAYS','KH_HANDSHAKE_DROP_TWICE'].includes(this.failure)&&label.startsWith('KH_HANDSHAKE_A')){
+   if(this.failure==='KH_HANDSHAKE_DROP_TWICE'){this.ready=false;this.closed=true}
    throw Error('SIMULATED_TIMEOUT:'+label);
+  }
   if(label==='RECHECK_HELLO'&&
     ['RECOVERY_RECHECK_USB_TIMEOUT','RECOVERY_RECHECK_CHANGED_BOOT'].includes(this.failure)){
      this.ready=false;this.closed=true;
@@ -161,8 +163,8 @@ await check('After reconnect a DIFFERENT ECU is rejected before first erase comm
  assert(!device.labels.includes('KH_PREPARE'));
  assert(events.some(x=>x.phase==='FLASH_STOP'&&x.eraseMayHaveStarted===false));
 });
-await check('Failure before ERASE never reports possible erase',async()=>{
- const {engine,device,events}=setup('0101880D01','KH_HANDSHAKE_ALWAYS');
+await check('Second Keihin hello USB loss stops before ERASE',async()=>{
+ const {engine,device,events}=setup('0101880D01','KH_HANDSHAKE_DROP_TWICE');
  await engine.identify();
  const plan=engine.makePlan(new Uint8Array(65536),{filename:'K03-H01.bin'});
  await assert.rejects(engine.flash(plan,{confirmation:'FLASH 0101880D01',
@@ -170,6 +172,60 @@ await check('Failure before ERASE never reports possible erase',async()=>{
  assert(!device.labels.includes('KH_PREPARE'));
  assert(events.some(x=>x.phase==='FLASH_STOP'&&x.eraseMayHaveStarted===false));
 });
+
+await check('Main C# Keihin hello false twice skips B if same session stays usable',async()=>{
+ const {engine,device,events}=setup('0101880D01','KH_HANDSHAKE_ALWAYS');
+ await engine.identify();
+ const plan=engine.makePlan(new Uint8Array(65536),{filename:'K03-H01.bin'});
+ const result=await engine.flash(plan,{confirmation:'FLASH 0101880D01',
+  physicalBackupConfirmed:true,externalPowerConfirmed:true,recoveryReady:true});
+ assert.equal(result.ok,true);
+ assert.equal(device.labels.filter(x=>x.startsWith('KH_HANDSHAKE_A')).length,2);
+ assert(!device.labels.includes('KH_HANDSHAKE_B'));
+ assert(device.labels.includes('KH_READY'));
+ assert(events.some(x=>x.phase==='SOURCE_SENDCOMMAND_FALSE_IGNORED'&&x.command==='KH_HANDSHAKE_A_RETRY'));
+});
+await check('Main C# unchecked Keihin preparatory SendCommand does not gate erase on reusable mock',async()=>{
+ const {engine,device,events}=setup('0101880D01','KH_ERASE_PARAM');
+ await engine.identify();
+ const plan=engine.makePlan(new Uint8Array(65536),{filename:'K03-H01.bin'});
+ const result=await engine.flash(plan,{confirmation:'FLASH 0101880D01',
+  physicalBackupConfirmed:true,externalPowerConfirmed:true,recoveryReady:true});
+ assert.equal(result.ok,true);
+ assert(device.labels.includes('KH_ERASE_PARAM')&&device.labels.includes('KH_ERASE_GO'));
+ assert(events.some(x=>x.phase==='SOURCE_SENDCOMMAND_FALSE_IGNORED'&&x.command==='KH_ERASE_PARAM'));
+});
+await check('Main C# interim Keihin finish SendCommand false still evaluates last required ACK',async()=>{
+ const {engine,device,events}=setup('0101880D01','KH_FINAL_2');
+ await engine.identify();
+ const plan=engine.makePlan(new Uint8Array(65536),{filename:'K03-H01.bin'});
+ const result=await engine.flash(plan,{confirmation:'FLASH 0101880D01',
+  physicalBackupConfirmed:true,externalPowerConfirmed:true,recoveryReady:true});
+ assert.equal(result.ok,true);
+ assert(device.labels.includes('KH_FINAL_5'));
+ assert(events.some(x=>x.phase==='SOURCE_SENDCOMMAND_FALSE_IGNORED'&&x.command==='KH_FINAL_2'));
+});
+await check('Main C# Shindengen unchecked handshake preserves source behavior on reusable mock',async()=>{
+ const {engine,device,events}=setup('01046B0F01','SH_HANDSHAKE_B');
+ await engine.identify();
+ const plan=engine.makePlan(shBin(),{filename:'K2SA-N02.bin'});
+ const result=await engine.flash(plan,{confirmation:'FLASH 01046B0F01',
+  physicalBackupConfirmed:true,externalPowerConfirmed:true,recoveryReady:true});
+ assert.equal(result.ok,true);
+ assert(events.some(x=>x.phase==='SOURCE_SENDCOMMAND_FALSE_IGNORED'&&x.command==='SH_HANDSHAKE_B'));
+ assert(device.labels.includes('SH_ERASE_FINISH')&&device.labels.includes('SH_FINAL5'));
+});
+await check('Main C# interim Shindengen finish false still evaluates final required ACK',async()=>{
+ const {engine,device,events}=setup('01046B0F01','SH_FINAL2');
+ await engine.identify();
+ const plan=engine.makePlan(shBin(),{filename:'K2SA-N02.bin'});
+ const result=await engine.flash(plan,{confirmation:'FLASH 01046B0F01',
+  physicalBackupConfirmed:true,externalPowerConfirmed:true,recoveryReady:true});
+ assert.equal(result.ok,true);
+ assert(events.some(x=>x.phase==='SOURCE_SENDCOMMAND_FALSE_IGNORED'&&x.command==='SH_FINAL2'));
+ assert(device.labels.includes('SH_FINAL5'));
+});
+
 await check('Keihin corrupted write ACK aborts after erase; no finish phase',async()=>{
  const {engine,device,events}=setup('0101880D01','REJECT_WRITE_2');
  await engine.identify();
