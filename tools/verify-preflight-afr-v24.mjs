@@ -45,19 +45,18 @@ assert(p.includes("()=>runCheck({requestConfirmation:true})"),
  'Manual Preflight action must request explicit technician confirmation for source 3-byte BIN IDs');
 assert(p.includes('if(!requestConfirmation&&!previouslyApproved)')&&p.includes('confirmedPart:\'CONFIRM \'+id'),
  'Auto Preflight may calculate partial BIN-ID source plan; manual check remains available and real Flash still asks for approval');
-// The purchased Shindengen source has no full-read route. Its absence must
-// never be silently represented as a completed physical ECU backup.
+// Main.zip does not provide a full ECU Flash read. The flash gate now asks
+// for a compatible recovery BIN, not a fictitious readback/Full Backup.
 const writer=get('flash_port/honda-write-engine.js');
-assert(writer.includes('backupUnavailableAcknowledged=false')&&
- writer.includes('const backupWaiverAllowed=!!backupUnavailableAcknowledged&&!plan.recovery;'),
- 'Normal flash accepts an explicit backup-unavailable acknowledgement; Recovery remains stricter');
-assert(writer.includes('!externalPowerConfirmed||!recoveryReady'),
- 'Lack of full backup must NOT waive power and recovery checks');
-assert(index.includes('const hasThisEcuBackup=confirm(')&&
- index.includes('const noBackupAck=!hasThisEcuBackup&&confirm(')&&
- index.includes('physicalBackupConfirmed:hasThisEcuBackup,')&&
- index.includes('backupUnavailableAcknowledged:noBackupAck,'),
- 'Flash UI must accurately distinguish existing original backup from risk acknowledgement');
+assert(writer.includes('recoveryFileConfirmed=false')&&
+ writer.includes('const firmwareDeclared=!!recoveryFileConfirmed'),
+ 'Source engine accepts explicitly verified recovery firmware without requiring Full Read');
+assert(writer.includes('!firmwareDeclared||!externalPowerConfirmed||!recoveryReady'),
+ 'Matching BIN, voltage/K-Line and recovery equipment confirmations stay mandatory');
+assert(!index.includes('const hasThisEcuBackup=confirm(')&&
+ !index.includes('const noBackupAck=!hasThisEcuBackup&&confirm(')&&
+ index.includes('recoveryFileConfirmed:benchConfirmed,'),
+ 'Normal Flash removes Full Backup prompts but retains BIN and bench approval');
 const preflightVersion=Number(index.match(/ui\/neon-preflight-v24\.js\?v=(\d+)/)?.[1]||0);
 const indexFlashVersion=Number(index.match(/honda-write-engine\.js\?v=(\d+)/)?.[1]||0);
 const preflightFlashVersion=Number(p.match(/honda-write-engine\.js\?v=(\d+)/)?.[1]||0);
