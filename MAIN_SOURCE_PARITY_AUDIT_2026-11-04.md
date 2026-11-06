@@ -35,3 +35,19 @@ This report compares **implemented code paths**; it is not a claim of real hardw
 ## Decision
 
 Not 100% source parity. The tested original is the reference for frame bytes, checksums and intended sequence; deviations are named rather than hidden. This branch changes read-only ID retry, source SendCommand reply acceptance and transfer order, five/seven-byte WriteFlash ACK handling, and shared blank-block pointer logic; existing Flash/Recovery/DTC/Live/License UI is preserved.
+
+## 6 November 2026 — Main.zip-only Flash protocol behavior (Engine v416)
+
+Source: purchased FormMain.cs — SendCommand, WriteFlash, ShindengenPreWriteFlash, KeihinPreWriteFlash, WorkerThread.
+
+- Unchecked source SendCommand calls now use sourceUnchecked: Keihin/Shindengen preparatory handshake, poll, intermediate erase, H8C flush, Fast Write request, and intermediate finish commands. No invented status-byte ACK gate for these original unchecked call sites.
+- Source-required ACK remains: Shindengen seed/key, erase status/finish, write block five/seven-byte acceptance with two TOTAL explicit retransmits, and source final 0x0F acknowledgments. No arbitrary new ECU commands.
+- Keihin initial hello: at most two source attempts; after two false results on a still usable interface, skip second handshake and continue original sequence; if WebUSB is closed, stop rather than sending commands over an invalid channel.
+- Count payload source byte reply[6] is checked only on replies with at least 8 bytes (otherwise the byte could be the checksum, not Flash Count).
+- Public ECM.dat 122-row reference is no longer used to provide Flash Engine part/size/offset proof. Main.zip embedded catalog and user-imported source-format ecuData.dat are the Flash metadata sources. Public ECM.dat remains display-only elsewhere.
+
+Remaining unavoidable or unverified differences:
+- Android WebUSB does not expose the native D2XX FT_GetQueueStatus/FT_Read timing of Windows. transferIn cannot be cancelled with the source D2XX method. A timed-out bulk read closes the WebUSB interface; a still-open Windows serial port could continue. Flash Engine does NOT automatically replay ambiguous erase/write.
+- Browser USB timeouts, pre-erase physical ECU ID/BIN confirmation, user approvals, logs, and UI are web additions; there is no claim of byte-for-byte WinForms/FTDI parity.
+- The source itself lacks a full firmware readback verify. Final ACK and post-restart ID only prove a protocol response, not exact bytes in flash memory.
+- CI simulation tests compare source rules in memory only. No real ECU ERASE/WRITE was tested in this revision.
