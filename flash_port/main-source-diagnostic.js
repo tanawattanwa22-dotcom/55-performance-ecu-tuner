@@ -68,6 +68,15 @@ export function decodeMainDiagnosticTrace(raw,group=1){
  if(bytes.length<min)throw Error('Diagnostic capture too short for C# group '+g+': '+bytes.length+' / '+min);
  const b=i=>{if(i<0||i>=bytes.length)throw Error('Missing byte '+i);return bytes[i]};
  const n=(name,value,unit='')=>({name,value,unit});
+ // Keep the FM_diag.cs RAW-40 formula unchanged for supported values.
+ // 0xFF produces 215°C but is not a verified physical temperature;
+ // preserve the exact raw source byte for checking ECU/sensor/group faults.
+ const temperature=(name,byteIndex)=>{
+  const rawByte=b(byteIndex);
+  return {name,value:rawByte===0xFF?null:rawByte-40,unit:'°C',
+   rawByte,rawHex:rawByte.toString(16).padStart(2,'0').toUpperCase(),
+   sourceByteIndex:byteIndex,status:rawByte===0xFF?'RAW_FF':'OK'};
+ };
  const r=(x,k=0)=>roundMainCSharp(x,k);
  const af=x=>r((x<128?147-(128-x)*100/87:147+(x-128)*100/87)/10,1);
  const base=[
@@ -80,8 +89,8 @@ export function decodeMainDiagnosticTrace(raw,group=1){
  if(g===1)return [...base,
   n('O2 voltage',r(b(45)*19.5),'mV'),
   n('Fuel correction',r(b(46)*.78-100),'%'),
-  n('ECT',b(17)-40,'°C'),n('ECT voltage',r(b(16)*19.5),'mV'),
-  n('IAT',b(19)-40,'°C'),n('IAT voltage',r(b(18)*19.5),'mV'),
+  temperature('ECT',17),n('ECT voltage',r(b(16)*19.5),'mV'),
+  temperature('IAT',19),n('IAT voltage',r(b(18)*19.5),'mV'),
   n('MAP',b(21),'kPa'),n('MAP voltage',r(b(20)*19.5,0),'mV'),n('Speed',b(25),'km/h'),
   n('Battery',r(b(24)/10,1),'V'),n('IACV',b(29),'step'),
   n('Environmental correction','Not available'),
@@ -93,8 +102,8 @@ export function decodeMainDiagnosticTrace(raw,group=1){
  if(g===4)return [...base,
   n('O2 voltage',r(b(59)*19.5),'mV'),
   n('Fuel correction',r(b(60)*.78-100),'%'),
-  n('ECT',b(17)-40,'°C'),n('ECT voltage',r(b(16)*19.5),'mV'),
-  n('IAT',b(19)-40,'°C'),n('IAT voltage',r(b(18)*19.5),'mV'),
+  temperature('ECT',17),n('ECT voltage',r(b(16)*19.5),'mV'),
+  temperature('IAT',19),n('IAT voltage',r(b(18)*19.5),'mV'),
   n('MAP','Not supported'),n('MAP voltage','Not supported'),n('Speed','Not supported'),
   n('Battery',r(b(22)/10,1),'V'),
   n('FISV',Math.floor(b(44)/16)===4?'ON':'OFF'),
@@ -105,8 +114,8 @@ export function decodeMainDiagnosticTrace(raw,group=1){
   n('Relay',Boolean(b(44)&0x90)?'ON':'OFF'),
   n('MIL',b(74)>=128?'ON':'OFF')];
  return [...base,
-  n('ECT',b(17)-40,'°C'),n('ECT voltage',r(b(16)*19.5),'mV'),
-  n('IAT',b(19)-40,'°C'),n('IAT voltage',r(b(18)*19.5),'mV'),
+  temperature('ECT',17),n('ECT voltage',r(b(16)*19.5),'mV'),
+  temperature('IAT',19),n('IAT voltage',r(b(18)*19.5),'mV'),
   n('MAP',b(21),'kPa'),n('MAP voltage',r(b(20)*19.5),'mV'),
   n('Battery',r(b(22)/10,1),'V'),n('DTC count',b(39)&0x7f),
   n('Fuel pump',Boolean(b(39)&0x80)?'ON':'OFF'),
