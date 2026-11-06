@@ -92,7 +92,9 @@ const notify=()=>{
  const st=reader.status(),list=st.sourceReadings||[];
  const summary=document.createElement('summary');
  summary.style.cssText='font-weight:700;color:#8ddafa;cursor:pointer';
- summary.textContent='ข้อมูลเซ็นเซอร์เพิ่มเติม ('+list.length+' ค่า)';
+ const invalidTemps=list.filter(r=>r.status==='RAW_FF');
+ summary.textContent='ข้อมูลเซ็นเซอร์เพิ่มเติม ('+list.length+' ค่า)'+
+  (invalidTemps.length?' • RAW FF: '+invalidTemps.map(r=>r.name).join(', '):'');
  const rows=document.createElement('div');
  rows.style.cssText='display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:7px;margin-top:11px';
  for(const r of list){
@@ -101,7 +103,9 @@ const notify=()=>{
   const name=document.createElement('small');name.textContent=r.name;name.style.color='#a2d3e5';
   const value=document.createElement('div');
   value.style.cssText='color:#f3f8ff;font-weight:700;font-size:15px';
-  value.textContent=(r.value===null||r.value===undefined?'—':String(r.value))+(r.unit?' '+r.unit:'');
+  value.textContent=r.status==='RAW_FF'
+   ?'— · RAW '+r.rawHex+' (ตำแหน่ง '+r.sourceByteIndex+')'
+   :(r.value===null||r.value===undefined?'—':String(r.value))+(r.unit?' '+r.unit:'');
   item.append(name,value);rows.append(item);
  }
  if(!list.length){
@@ -144,6 +148,10 @@ old.snapshot=()=>{
   :[];
  const verifiedModel=matches.length===1?matches[0]:null;
  const values=s.running&&s.connected?{...s.values}:empty();
+ const invalidTemps=s.running?(s.sourceReadings||[]).filter(r=>r.status==='RAW_FF'):[];
+ const tempNotice=invalidTemps.length?
+  'อุณหภูมิ '+invalidTemps.map(r=>r.name+' RAW '+r.rawHex).join(' / ')+
+  ' · ECU ส่ง FF หรือกลุ่มข้อมูลไม่ตรงรุ่น • แสดง — แทน 215°C (ค่าอื่นอ่านตามปกติ)':'';
  return {
   mode:'gauge',source:s.running?'ecu':'idle',demo:false,run:s.running,
   connected:s.connected,cable:s.cable,connecting:s.connecting,
@@ -154,7 +162,7 @@ old.snapshot=()=>{
    'A/F เป็นค่าประเมินจาก ECU · ไม่ใช่ Wideband ที่วัดโดยตรง',
   values,refreshHz:s.hz,sampleSeq:s.sampleSeq,sampleAt:s.sampleAt,
   recording:s.recording,recordSeconds:s.recordSeconds,hasLog:s.hasLog,
-  message:s.error||lastConnectError||(
+  message:s.error||lastConnectError||tempNotice||(
    s.connecting?(phases[s.phase]||'กำลังเปิด FT232R…'):
    s.phase==='LIVE_AUTO_RECOVER'?s.autoStatus:
    s.running?(s.liveAutoRecoveries?'กำลังอ่านเซนเซอร์จากรถ · ต่อกลับอัตโนมัติ '+s.liveAutoRecoveries+' ครั้ง':'กำลังอ่านเซนเซอร์จากรถ'):
