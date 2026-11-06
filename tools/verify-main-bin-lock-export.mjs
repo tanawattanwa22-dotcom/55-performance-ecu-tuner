@@ -1,0 +1,52 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {prepareMainLockCopy} from '../flash_port/main-bin-lock-export.js';
+import {correctKeihinChecksum} from '../flash_port/csharp-logic.js';
+const oldFetch=globalThis.fetch;
+globalThis.fetch=async input=>{
+ const u=input instanceof URL?input:new URL(input);
+ if(u.protocol!=='file:')throw Error('unexpected network');
+ return new Response(readFileSync(u),{status:200,headers:{'Content-Type':'application/json'}});
+};
+const marker48=(id=[1,1,0x35,0x0d,1])=>{
+ const b=new Uint8Array(49152).fill(0);
+ b.set([0x8c,0x0f,0xa0,0],38809);
+ b.set(id,38813);
+ b.set([65,114,110],1200);
+ b.set([65,114,110],1300);
+ b.set([163,3,16,32,0],2000);
+ return correctKeihinChecksum(b,0x7600).data;
+};
+try{
+ const orig=marker48(),before=orig.slice();
+ const read=await prepareMainLockCopy(orig,{mode:'read',filename:'MSX-GEN1-K26-901.bin'});
+ assert.equal(read.filename,'MSX-GEN1-K26-901_LOCK_READ.bin');
+ assert.equal(read.ecuId,'0101350D01');
+ assert.equal(read.part,'K26-901');
+ assert.equal(read.patternHits,1);
+ assert.equal(read.checksumOffset,0x7600);
+ assert.equal(read.checksumValid,true);
+ assert.deepEqual(Array.from(read.bytes.slice(1200,1203)),[66,114,110]);
+ assert.deepEqual(Array.from(read.bytes.slice(1300,1303)),[65,114,110],'Main changes only first Arn');
+ assert.deepEqual(orig,before,'never mutate original BIN');
+ assert.equal(read.bytes.reduce((s,x)=>(s+x)&255,0),0,'corrected copy checksum matches');
+ const mode=await prepareMainLockCopy(orig,{mode:'mode',filename:'MSX.bin'});
+ assert(mode.patternHits>=1);
+ assert.equal(mode.filename,'MSX_LOCK_MODE.bin');
+ assert.deepEqual(Array.from(mode.bytes.slice(2000,2005)),[131,3,0,32,0]);
+ assert.deepEqual(orig,before);
+ const sixtyfour=new Uint8Array(65536);
+ sixtyfour.set([0,0,0,0],9140);
+ sixtyfour.set([1,3,0xfa,0x0d,1],9144);
+ sixtyfour.set([65,114,110],1000);
+ const dream=correctKeihinChecksum(sixtyfour,0).data;
+ const d=await prepareMainLockCopy(dream,{filename:'K1M-T01.bin'});
+ assert.equal(d.ecuId,'0103FA0D01');assert.equal(d.checksumOffset,0);
+ assert.equal(d.checksumValid,true);assert.deepEqual(dream.slice(1000,1003),Uint8Array.of(65,114,110));
+ await assert.rejects(prepareMainLockCopy(new Uint8Array(393216),{mode:'read'}),/48 KB/);
+ const conflict=marker48([1,0,0xce,0x0d,2]);
+ await assert.rejects(prepareMainLockCopy(conflict,{filename:'KWW-643.bin'}),/Checksum Offset ขัดกัน/);
+ const noPattern=orig.slice();noPattern.set([0,0,0],1200);noPattern.set([0,0,0],1300);
+ await assert.rejects(prepareMainLockCopy(noPattern),/Cannot Lock Read/);
+ console.log('PASS Main.zip Keihin Lock Read/Lock Mode: immutable 48/64KB copies, corrected checksum, ECM conflict stop, unsupported size stop');
+}finally{globalThis.fetch=oldFetch}
