@@ -328,6 +328,16 @@ await check('Keihin Recovery supports original BIN-size offset inference, never 
  return p.profile==='KEIHINOTHER'&&p.startOffset===0x8000&&
    p.checksumOffset===0&&p.checks.recoveryFamilyEvidence==='MAIN_WORKER_FLASH_COUNT_ACK';
 });
+await check('Main.zip unchecked command permits false result only on a usable transport',async()=>{
+ const engine=new HondaFlashEngine({ready:true});
+ const events=[];engine.onEvent=x=>events.push(x);
+ engine.x=async()=>{throw Error('SIMULATED_FALSE_SENDCOMMAND')};
+ const ignored=await engine.sourceUnchecked('KH_READY',Uint8Array.of(126,6,1,1,0,122));
+ if(ignored!==null||!events.some(x=>x.phase==='SOURCE_SENDCOMMAND_FALSE_IGNORED'))return false;
+ engine.usb.ready=false;
+ try{await engine.sourceUnchecked('SH_ERASE_RANGE',Uint8Array.of(124,11,2,11,0,0,0,255,255,255,111));return false}
+ catch{return events.some(x=>x.phase==='SOURCE_IGNORED_ACK_USB_UNUSABLE')}
+});
 const ok=checks.filter(x=>x.ok).length;
 console.log('\n'+ok+'/'+checks.length+' PASS — OFFLINE/MOCK ONLY');
 if(ok!==checks.length){process.exitCode=1;console.error('FAILURES:',checks.filter(x=>!x.ok))}
