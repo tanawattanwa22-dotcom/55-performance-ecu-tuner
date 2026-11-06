@@ -4,7 +4,7 @@
  * Physical ECU ID is never inferred from the filename or database metadata.
  */
 import {auditMainBin} from './main-bin-audit.js?v=6';
-import {csharpOffsetInference,inspectCSharpEcuType} from './csharp-offsets.js?v=317';
+import {csharpOffsetInference} from './csharp-offsets.js?v=317';
 import {correctKeihinChecksum,correctShindengenChecksum} from './csharp-logic.js';
 import {previewMainShindengenBin} from './main-shindengen-auto-preview.js?v=2';
 import {findOriginalEcmDat,originalEcmDatRows} from './main-original-ecm-catalog.js';
