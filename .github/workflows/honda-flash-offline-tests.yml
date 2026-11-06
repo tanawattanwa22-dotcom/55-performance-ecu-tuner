@@ -19,6 +19,7 @@ on:
       - "tools/verify-main-auto-group.mjs"
       - "tools/verify-main-bin-sizes.mjs"
       - "tools/verify-original-ecm-reference.mjs"
+      - "tools/verify-main-bin-analyze-result.mjs"
       - "tests/**"
       - "package.json"
       - ".github/workflows/honda-flash-offline-tests.yml"
@@ -33,6 +34,7 @@ on:
       - "tools/verify-main-diagnostic.mjs"
       - "tools/verify-shared-operations.mjs"
       - "tools/verify-original-ecm-reference.mjs"
+      - "tools/verify-main-bin-analyze-result.mjs"
       - "tests/**"
       - "package.json"
   workflow_dispatch:
