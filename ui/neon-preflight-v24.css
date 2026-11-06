@@ -124,3 +124,84 @@
 .n24-source-status{color:#83e8d7;font-size:11px;line-height:1.5;margin:8px 0}
 .n24-source-reference{color:#b5c5df;font-size:10px;line-height:1.5;border-top:1px solid #3b5b6b;margin:8px 0 0;padding-top:8px}
 @media(prefers-reduced-motion:reduce){.n24-source-track>i{transition:none}.n24-source-track.n24-source-indeterminate:after{animation:none}}
+
+
+/* Flash progress is a presentation-only dialog; it portals the existing source
+   card into focus and leaves HondaFlashEngine TX/RX, BIN and ACK untouched. */
+body.n24-flash-dialog-open{overflow:hidden}
+#n24FlashOverlay.n24-flash-overlay{
+ position:fixed;inset:0;z-index:11000;
+ display:flex;justify-content:center;align-items:center;
+ padding:max(10px,env(safe-area-inset-top)) 10px max(10px,env(safe-area-inset-bottom));
+ box-sizing:border-box;
+ background:rgba(3,9,23,.82);
+ -webkit-backdrop-filter:blur(10px);
+ backdrop-filter:blur(10px);
+ overscroll-behavior:contain;
+ color:#f1faff;
+}
+#n24FlashOverlay .n24-flash-overlay-modal{
+ box-sizing:border-box;
+ width:min(100%,570px);
+ max-height:calc(100dvh - 20px);
+ overflow-y:auto;overscroll-behavior:contain;
+ padding:14px;
+ background:linear-gradient(145deg,#14243a,#0c182e);
+ border:1px solid #59bcd6;
+ border-radius:23px;
+ box-shadow:0 24px 90px #000c,0 0 35px #22c8e11e;
+}
+#n24FlashOverlay .n24-flash-overlay-heading{
+ display:flex;align-items:center;gap:12px;
+ margin-bottom:11px;
+}
+#n24FlashOverlay .n24-flash-lock-icon{
+ display:grid;place-items:center;flex:none;
+ width:56px;height:56px;
+ font-size:31px;
+ border-radius:17px;
+ background:#183956;border:1px solid #5df1e0;
+ box-shadow:inset 0 1px #ffffff24,0 0 20px #15d9de2d;
+}
+#n24FlashOverlay .n24-flash-lock-summary{
+ flex:1;color:#f2fbff;font-size:16px;font-weight:800;line-height:1.45;
+ overflow-wrap:anywhere;
+}
+#n24FlashOverlay .n24-flash-overlay-warning{
+ padding:11px 13px;margin-bottom:12px;
+ background:linear-gradient(120deg,#44301e,#2e2435);
+ border:1px solid #ffbc70;border-radius:14px;
+ color:#ffedcf;
+}
+#n24FlashOverlay .n24-flash-overlay-warning strong{
+ display:block;font-size:14px;color:#ffe4a4;line-height:1.5;
+}
+#n24FlashOverlay .n24-flash-overlay-warning p{
+ margin:5px 0 0;color:#fff3df;font-size:12px;line-height:1.6;
+}
+#n24FlashOverlay .n24-flash-overlay-progress{width:100%}
+#n24FlashOverlay .n24-source-progress{margin:0;width:100%;max-width:none}
+#n24FlashOverlay .n24-flash-overlay-close{
+ display:block;width:100%;min-height:48px;
+ padding:12px 15px;margin:13px 0 4px;
+ border-radius:13px;border:1px solid #5effdb;
+ background:#13735c;color:#fff;font-size:14px;font-weight:850;
+ cursor:pointer;
+}
+#n24FlashOverlay .n24-flash-overlay-close[hidden]{display:none!important}
+#n24FlashOverlay .n24-flash-overlay-footer{
+ margin:10px 3px 2px;color:#9fc7dd;
+ font-size:11px;line-height:1.5;text-align:center;
+}
+#n24FlashOverlay.n24-flash-overlay-finished .n24-flash-overlay-warning{
+ border-color:#58788e;background:#14283a;
+}
+@media(max-width:380px){
+ #n24FlashOverlay .n24-flash-overlay-modal{padding:10px;border-radius:17px}
+ #n24FlashOverlay .n24-flash-lock-icon{width:46px;height:46px;font-size:24px}
+ #n24FlashOverlay .n24-flash-lock-summary{font-size:14px}
+ #n24FlashOverlay .n24-source-step{padding:6px 2px}
+}
+@media(prefers-reduced-motion:reduce){
+ #n24FlashOverlay *{scroll-behavior:auto!important}
+}
