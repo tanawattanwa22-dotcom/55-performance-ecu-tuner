@@ -282,7 +282,9 @@ const noBackupOutcome=await knownBinNoBackup.e.flash(knownBinNoBackup.plan,{
 });
 assert.equal(noBackupOutcome.ok,true,'Explicit no-backup waiver may proceed on fake write-only transport');
 assert(knownBinNoBackup.events.some(e=>e.phase==='OPERATOR_ONE_TAP'&&
- e.backupConfirmedByOperator===false&&e.backupUnavailableAcknowledgedByOperator===true));
+ e.matchingRecoveryBinConfirmedByOperator===true));
+assert(knownBinNoBackup.events.some(e=>e.phase==='SOURCE_FIRMWARE_DECLARED'&&
+ e.backupReadFromEcuVerified===false));
 
 const switched=makeExpiredSourceSession({changeId:true});
 await assert.rejects(()=>switched.e.flash(switched.plan,{
