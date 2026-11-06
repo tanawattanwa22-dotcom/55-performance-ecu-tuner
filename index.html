@@ -1554,7 +1554,7 @@ async function inlineFlashStart(){
   const shared=window.__55SharedEcu;
   if(!shared)throw Error('ระบบสายหลักยังไม่พร้อม');
   INLINEFLASH.port=await shared.acquire('INLINE_FLASH');
-  const {HondaFlashEngine}=await import('./flash_port/honda-write-engine.js?v=416');
+  const {HondaFlashEngine}=await import('./flash_port/honda-write-engine.js?v=417');
   // The login screen checked the license when this app session started.
   // No network/license check may block physical ECU diagnostics or flash.
   INLINEFLASH.engine=new HondaFlashEngine(INLINEFLASH.port,ev=>{
@@ -1829,7 +1829,7 @@ mainToolsAction('mtReadEcu',async()=>{
  let owns=false;
  try{
   const port=await shared.acquire('MAIN_TOOLS');owns=true;
-  const {HondaFlashEngine}=await import('./flash_port/honda-write-engine.js?v=416');
+  const {HondaFlashEngine}=await import('./flash_port/honda-write-engine.js?v=417');
   const engine=new HondaFlashEngine(port,ev=>inlineFlashLog('MAIN READ '+JSON.stringify(ev)));
   mainToolsOut('กำลังอ่าน ECU ID และ Flash Count จาก FT232R สายกลาง…');
   const data=await engine.identify({programmingPreflight:true});MAINTOOLS.lastEcu=data;
@@ -3297,7 +3297,7 @@ function v3Draw(){
 })();
 </script>
 
-<script src="ui/neon-preflight-v24.js?v=418"></script>
+<script src="ui/neon-preflight-v24.js?v=419"></script>
 <script src="ui/neon-recovery-v35.js?v=386"></script>
 <script src="ui/advanced-admin-gate-v1.js?v=1"></script>
 <script src="ui/neon-v20.js?v=407"></script>
