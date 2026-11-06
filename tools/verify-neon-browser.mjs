@@ -144,7 +144,10 @@ try{
   assert.equal(jsErrors.length,0,'No JS crash when mounting Flash UI: '+JSON.stringify(jsErrors));
   assert.equal(await page.locator('#flashCard').evaluate(el=>el.classList.contains('n20-hidden')),true,'old Flash form hidden behind V24');
   assert.equal(await page.locator('#n20Stage .n24-hero').isVisible(),true,'real-state V24 Flash dashboard visible');
-  assert.equal(await page.locator('#n20Stage .n24-panel').count(),8,'BIN upload, Analyze Result, Lock Read, ECU, Offset, checklist and TX/RX Flash panel');
+  assert.equal(await page.locator('#n20Stage .n24-panel').count(),9,'BIN upload, live Main.zip Flash Progress, Analyze Result, Lock Read, ECU, Offset, checklist and TX/RX Flash panel');
+  assert.equal(await page.locator('#n20Stage .n24-source-progress').isVisible(),true,'real Main.zip Flash stages visible on Android without exposing any fake erase/write progress');
+  assert.equal(await page.locator('#n20Stage .n24-source-step').count(),4,'Prepare, Erase, Write and Final ACK are distinct visible stages');
+  assert((await page.locator('#n20Stage .n24-source-progress').innerText()).includes('ยังไม่มี WRITE ACK'),'no fake write ACK or byte counter while disconnected');
   assert.equal(await page.locator('#n20Stage .n24-analysis').isVisible(),true,'BIN Analyze Result shown on main Fast Flash even without USB');
   // The visible checkbox and legacy write-path flag MUST represent the same
   // mode. No ECU is connected in this test, so no erase/write is possible.
