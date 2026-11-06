@@ -401,4 +401,58 @@ await check('Hard stop before ERASE when wrong confirmation',async()=>{
  physicalBackupConfirmed:true,externalPowerConfirmed:true,recoveryReady:true}),/FLASH/);
  assert(!device.labels.includes('KH_ERASE_GO'));
 });
+await check('Keihin Recovery accepts verified matching BIN with NO Full Backup requirement',async()=>{
+ const {engine,device,events}=setup('0102030000');
+ await engine.identify();
+ const bin=new Uint8Array(65536);bin[123]=7;
+ await engine.confirmRecoveryFamily(bin);
+ const plan=engine.makePlan(bin,{filename:'matching-recovery-firmware.bin',recovery:true});
+ const out=await engine.flash(plan,{confirmation:'FLASH 0102030000',
+   recoveryFileConfirmed:true,externalPowerConfirmed:true,recoveryReady:true});
+ assert.equal(out.recovery,true);assert.equal(out.readbackVerified,false);
+ assert.equal(out.ok,true);assert(device.labels.includes('KH_FINAL_5'));
+ assert(events.some(e=>e.phase==='SOURCE_FIRMWARE_DECLARED'&&
+   e.matchingRecoveryBinConfirmedByOperator===true&&e.backupReadFromEcuVerified===false));
+});
+await check('Shindengen Recovery accepts verified matching BIN and original recovery-key logic with NO Full Backup',async()=>{
+ const {engine,device}=setup('0102030000');
+ await engine.identify();
+ const bin=shBin();bin.set([1,2,3,4,5,6,145,145,13,0,158,141],500);
+ await engine.confirmRecoveryFamily(bin);
+ const plan=engine.makePlan(bin,{filename:'shindengen-recovery.bin',recovery:true});
+ const out=await engine.flash(plan,{confirmation:'FLASH 0102030000',
+   recoveryFileConfirmed:true,externalPowerConfirmed:true,recoveryReady:true});
+ assert.equal(out.ok,true);assert.equal(out.recovery,true);
+ assert(device.labels.includes('SH_GET_SEED')&&device.labels.includes('SH_SEND_KEY'));
+ assert(device.labels.includes('SH_FINAL5'));
+});
+await check('Missing matching recovery BIN confirmation cannot initiate ERASE even if power and tools are checked',async()=>{
+ const {engine,device}=setup('0102030000');
+ await engine.identify();
+ const bin=new Uint8Array(65536);bin[123]=7;
+ await engine.confirmRecoveryFamily(bin);
+ const plan=engine.makePlan(bin,{filename:'unknown-recovery.bin',recovery:true});
+ const before=device.labels.length;
+ await assert.rejects(engine.flash(plan,{confirmation:'FLASH 0102030000',
+   recoveryFileConfirmed:false,externalPowerConfirmed:true,recoveryReady:true}),/ต้องยืนยัน BIN/);
+ assert.equal(device.labels.length,before);
+ assert(!device.labels.includes('KH_ERASE_GO'));
+});
+await check('After Recovery, a non-catalog ECU ID is a real response, NOT a readback verification',async()=>{
+ const {engine}=setup('0102030000');
+ engine.state='finished';engine.lastResult={ok:true,recovery:true,ecuId:'0102030000'};
+ engine.identify=async()=>({ecuId:'0105040D01',sourcePart:'K1ZP-T71',
+   sourceMatched:false,programmingSessionVerified:false,count:null});
+ const checked=await engine.postFlashCheck();
+ assert.equal(checked.postFlashEcuResponded,true);
+ assert.equal(checked.ecuId,'0105040D01');
+ assert.equal(checked.catalogMatched,false);
+ assert.equal(checked.readbackVerified,false);
+});
+await check('After Recovery, ECU still reporting Boot ID is NOT reported recovered',async()=>{
+ const {engine}=setup('0102030000');
+ engine.state='finished';engine.lastResult={ok:true,recovery:true,ecuId:'0102030000'};
+ engine.identify=async()=>({ecuId:'0102030000',sourceMatched:false});
+ await assert.rejects(engine.postFlashCheck(),/ยังตอบ Boot ID/);
+});
 console.log('ALL V27 full-flow simulated flash checks PASS. No real K-Line, ECU write, erase, recovery, or readback performed.');
