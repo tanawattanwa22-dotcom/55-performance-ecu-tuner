@@ -61,7 +61,7 @@ export async function probeMainProgrammingSession(port,{expectedEcuId=null,onEve
    // and checksum; it does NOT require five bytes for the HELLO handshake.
    // The PCX160 0105040D01 returns 02 04 00 FA (four-byte valid reply).
    const minLength=(name==='HELLO'||name==='KH_FALLBACK')?4:
-    name==='ECU_ID'?11:7;
+    name==='ECU_ID'?11:8;
    if(reply.length<minLength)throw Error(name+' reply shorter than '+minLength+' bytes');
    // For a four-byte reply, byte[3] is the checksum (FA), NOT a status
    // byte. Keep the legacy raw byte for C# WorkerThread fallback parity.
@@ -158,12 +158,12 @@ export async function probeMainProgrammingSession(port,{expectedEcuId=null,onEve
   const order=preferredFamily==='SHINDENGEN'?
    ['SHINDENGEN_COUNT','KEIHIN_COUNT']:['KEIHIN_COUNT','SHINDENGEN_COUNT'];
   const accept=(name,r)=>{
-   if(!r.ok||r.reply.length<7)return false;
+   if(!r.ok||r.reply.length<8)return false;
    result.countState='CONFIRMED';
    result.family=name==='SHINDENGEN_COUNT'?'SHINDENGEN':'KEIHIN';
    result.flashCount=r.reply[6]; // Main.zip FormMain.WorkerThread uses reply[6]
    log('MAIN_WORKER_COUNT_ACCEPTED',{name,flashCount:result.flashCount,
-    frame:toHex(r.reply),validation:'SOURCE_CHECKSUM_AND_REPLY_6',rawByte3:r.rawByte3});
+    frame:toHex(r.reply),validation:'SOURCE_CHECKSUM_AND_PAYLOAD_AT_6',rawByte3:r.rawByte3});
    return true;
   };
   const first=await exchange(order[0],1900);
