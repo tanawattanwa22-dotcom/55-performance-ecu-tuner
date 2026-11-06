@@ -82,7 +82,7 @@ pre{background:#0b1827;border-radius:10px;padding:12px;font:12px ui-monospace,mo
 <script type="module">
 import {verifySavedOfflinePermit,provisionOfflinePermit} from '../offline-license.js';
 import {Ft232rWebUsb} from '../ftdi-webusb.js?v=409';
-import {HondaFlashEngine} from '../honda-write-engine.js?v=418';
+import {HondaFlashEngine} from '../honda-write-engine.js?v=419';
 const $=id=>document.getElementById(id);
 let authorized=false,bundleReady=false,port=null,engine=null,identity=null,plan=null,busy=false,flashing=false,wakeLock=null;
 let lastPlanEvidence=null,flashOutcome='NOT_STARTED'; // immutable evidence survives plan reset after Final ACK
@@ -280,7 +280,7 @@ $('prepare').onclick=async()=>{
  }catch(e){$('plan').textContent='ห้ามเขียน: '+e.message;push('PREFLIGHT STOP: '+e.message)}
  finally{busy=false;refreshButtons()}
 };
-for(const id of ['backup','power','recovery','typed'])$(id).addEventListener('input',refreshButtons);
+for(const id of ['firmware','power','recovery','typed'])$(id).addEventListener('input',refreshButtons);
 $('bin').addEventListener('change',()=>{plan=null;refreshButtons()});
 import {readBinId,findEcmIdInBin,lockRead,lockMode} from '../bin-tools.js';
 async function refreshBinInfo(){
