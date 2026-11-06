@@ -177,6 +177,7 @@ function render(){
  if(!stage?.isConnected)return;
  renderAnalyzeResult();
  const c=current(),quick=quickBin();
+ if(dom.fast)dom.fast.disabled=!!INLINEFLASH.busy;
  if(dom.lockRead&&dom.lockMode){
   const eligible=c.valid&&[49152,65536].includes(c.bytes?.length)&&!INLINEFLASH.busy;
   dom.lockRead.disabled=!eligible;dom.lockMode.disabled=!eligible;
@@ -501,9 +502,40 @@ function mount(host){
  uploadLabel.htmlFor='n24QuickBin';
  const upload=make('input','n24-file-input');upload.type='file';upload.id='n24QuickBin';upload.accept='.bin'; // FormMain.OpenFileDialog.Filter: Bin file (*.bin)|*.bin
  const uploadNote=make('p','n24-help','เลือกไฟล์จากโทรศัพท์ได้เลย ไม่ต้องเลือกรุ่นรถเอง · ระบบจะอ่านรหัสกล่องจริงก่อนอัด');
- const fastLabel=make('label','n24-fast-label');const fast=make('input','');fast.type='checkbox';fast.id='n24FastWrite';fast.checked=!!window.__55QuickFlashFast;
- fastLabel.append(fast,document.createTextNode(' เขียนเร็ว (Fast Write · ใช้เฉพาะโปรไฟล์ที่รองรับ)'));
- fast.onchange=()=>{window.__55QuickFlashFast=fast.checked;message=fast.checked?'เปิด Fast Write แล้ว · Flash Engine จะเลือกวิธีตาม ECU ที่ตรวจได้':'ใช้โหมดเขียนปกติ';render()};
+ // One source of truth: the old hidden FormMain checkbox is the actual value
+ // consumed by inlineFlashStart(). The visible Fast Flash checkbox mirrors it.
+ const sourceFast=$('mainFastWrite');
+ const fastLabel=make('label','n24-fast-label');const fast=make('input','');fast.type='checkbox';fast.id='n24FastWrite';
+ fast.checked=sourceFast?.checked??true;
+ window.__55QuickFlashFast=fast.checked;
+ fastLabel.append(fast,document.createTextNode(' เขียนเร็ว (Fast Write) · ไม่ติ๊ก = เขียนปกติ'));
+ const fastStatus=make('p','n24-help',fast.checked?
+  '✓ เปิด Fast Write ตาม Main.zip · ใช้เฉพาะโปรไฟล์ ECU ที่รองรับ':
+  'โหมดเขียนปกติ ตาม Main.zip');
+ dom.fast=fast;dom.fastStatus=fastStatus;
+ const syncFastDisplay=()=>{
+  const active=sourceFast?.checked??true;
+  fast.checked=active;
+  window.__55QuickFlashFast=active;
+  fastStatus.textContent=active?
+   '✓ Fast Write: ใช้การเร่งตามโปรไฟล์ที่ Main.zip รองรับ':
+   'เขียนปกติ: ไม่เร่ง Baud Rate และไม่ลดช่วงหน่วง 150 ms ของ Shindengen';
+ };
+ fast.onchange=()=>{
+  if(INLINEFLASH.busy){syncFastDisplay();return}
+  if(sourceFast){
+   sourceFast.checked=fast.checked;
+   sourceFast.dispatchEvent(new Event('change',{bubbles:true}));
+  }
+  syncFastDisplay();
+  message=fast.checked?'เลือก Fast Write แล้ว · โปรแกรมจะใช้โหมดเร็วตามชนิด ECU ที่พบ':
+   'เลือกโหมดเขียนปกติแล้ว';
+  render();
+ };
+ sourceFast?.addEventListener('change',()=>{
+  if(INLINEFLASH.busy)return;
+  syncFastDisplay();
+ });
  const previous=quickBin();
  const uploadStatus=make('p','n24-upload-status',previous?'✓ '+previous.filename+' ('+mainFileSize(previous.bytes.length)+')':'ยังไม่ได้เลือกไฟล์');dom.quickStatus=uploadStatus;
  upload.onchange=async()=>{
@@ -541,7 +573,7 @@ function mount(host){
  });dom.recovery=recovery;recovery.hidden=true;
  const miniProgress=make('p','n24-mini-progress','พร้อมเริ่มตรวจ');dom.miniProgress=miniProgress;
  const miniBar=make('div','n24-mini-bar');const miniFill=make('i','');dom.miniBar=miniFill;miniBar.append(miniFill);
- easy.append(uploadLabel,upload,uploadNote,uploadStatus,flash,recovery,miniBar,miniProgress);
+ easy.append(uploadLabel,upload,uploadNote,uploadStatus,fastLabel,fastStatus,flash,recovery,miniBar,miniProgress);
  stage.append(easy);
  const analyzeCard=card('n24-analysis','▤','Analyze Result · ตรวจ BIN จาก Main.zip + ECM.dat');
  const analyzeStatus=make('p','n24-analysis-status','รอเลือกไฟล์ BIN');
@@ -589,7 +621,7 @@ function mount(host){
  actions.append(read,check);
  stage.append(actions);
  const advanced=make('details','n24-advanced');
- advanced.append(make('summary','','ตัวเลือกขั้นสูง / Fast Write / ตรวจละเอียด'),fastLabel);
+ advanced.append(make('summary','','ตัวเลือกขั้นสูง / ตรวจละเอียด'));
  stage.append(advanced);
  const gate=make('p','n24-help','');gate.setAttribute('role','status');dom.gateReason=gate;stage.append(gate);
  // The user's Main.zip FormMain.cs SHA-256 matches the source already ported
