@@ -21,6 +21,7 @@ on:
       - "tools/verify-original-ecm-reference.mjs"
       - "tools/verify-main-bin-analyze-result.mjs"
       - "tools/verify-main-bin-lock-export.mjs"
+      - "tools/verify-source-flash-progress.mjs"
       - "tests/**"
       - "package.json"
       - ".github/workflows/honda-flash-offline-tests.yml"
@@ -37,6 +38,7 @@ on:
       - "tools/verify-original-ecm-reference.mjs"
       - "tools/verify-main-bin-analyze-result.mjs"
       - "tools/verify-main-bin-lock-export.mjs"
+      - "tools/verify-source-flash-progress.mjs"
       - "tests/**"
       - "package.json"
   workflow_dispatch:
@@ -64,6 +66,8 @@ jobs:
         run: node tools/verify-main-bin-analyze-result.mjs
       - name: Verify Keihin Main C# Lock Read and Lock Mode BIN copy exports
         run: node tools/verify-main-bin-lock-export.mjs
+      - name: Verify real Main source 10-second countdown and ACK-derived Flash progress UI
+        run: node tools/verify-source-flash-progress.mjs
       - name: Verify read-only Main programming probe, timeout recovery and DAT trust (NO ECU)
         run: node tools/verify-main-programming-probe.mjs
       - name: Verify V28 signed Offline Flash and shared original source engine
