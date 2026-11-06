@@ -1545,10 +1545,19 @@ async function inlineFlashStart(){
  }
  if(!window.__55QuickFlashBin?.bytes?.length&&(!S.bin||!S.bin.length))return toast('เลือก BIN ก่อน');
  if(document.getElementById('licenseGate'))return toast('ต้องล็อกอินก่อน');
+ // Snapshot the single selected mode BEFORE USB identification/awaits.
+ // One click = one mode for the entire Main.zip flash attempt.
+ const fast=$('#mainFastWrite')?.checked??true;
  INLINEFLASH.busy=true;INLINEFLASH.status='CONNECTING';INLINEFLASH.flashAttempted=false;
  INLINEFLASH.firstSha=null;INLINEFLASH.writeSha=null;INLINEFLASH.ecuId=null;INLINEFLASH.plan=null;
  inlineFlashRecovery(null);
  inlineFlashProgress(0);inlineFlashRefresh();
+ inlineFlashLog('SOURCE_FAST_WRITE_SELECTED '+JSON.stringify({
+  fast,mode:fast?'FAST_WRITE':'NORMAL_WRITE',
+  mainSource:'FormMain.cs isFastWrite',
+  stage:'BEFORE_ECU_IDENTIFY',
+  timingProfileDeterminedAfterPhysicalFamilyAck:true
+ }));
  let erasedOrSent=false;
  try{
   const shared=window.__55SharedEcu;
@@ -1584,7 +1593,6 @@ async function inlineFlashStart(){
   // Both paths use a stable copied BIN; tuning snapshots still pass the original strict guard.
   INLINEFLASH.firstSha=await inlineFlashHash(bin);
   INLINEFLASH.filename=quick?.filename||S.saved?.filename||S.fname||('55_TUNED_'+MODELS[S.mi]?.id+'.bin');
-  const fast=$('#mainFastWrite')?.checked??true;
   const offsetOptions=mainFormOffsetOptions(identity.family);
   let plan;
   try{plan=INLINEFLASH.engine.makePlan(bin,{filename:INLINEFLASH.filename,...offsetOptions,fast,recovery:false})}
@@ -1633,7 +1641,7 @@ async function inlineFlashStart(){
   INLINEFLASH.writeSha=await inlineFlashHash(plan.bin);
   inlineFlashLog('PLAN '+JSON.stringify({ecuId:plan.ecuId,part:plan.part,profile:plan.profile,
    offset:plan.startOffset,size:plan.size,frames:plan.expectedBlockCount,writeAckMode:plan.writeAckMode,
-   binBefore:INLINEFLASH.firstSha,binAfter:INLINEFLASH.writeSha}));
+   binBefore:INLINEFLASH.firstSha,binAfter:INLINEFLASH.writeSha,fastWriteSelected:fast}));
   // Single confirmation instead of typed HEX: this is an explicit MANUAL
   // declaration, not electronic voltage measurement or a full ECU backup.
   // The real engine still rechecks ECU ID and will refuse mismatched plans.
