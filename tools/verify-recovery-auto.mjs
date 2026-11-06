@@ -28,7 +28,11 @@ must(engine,'if(!operatorClickConfirmed||plan.recovery||sourceUnlistedPlan)',
 must(engine,'(sourceUnlistedPlan&&!unlistedValid)',
  'Unlisted physical ECU requires verified Main C# programming session and BIN matching');
 must(preflight,"const flash=btn('⇧ อัดไฟล์ ECU'","Simple UI offers one Flash button");
-must(preflight,'easy.append(uploadLabel,upload,uploadNote,uploadStatus,flash,recovery,miniBar,miniProgress)','Fast mode is not a mandatory front-page checkbox');
+must(preflight,'easy.append(uploadLabel,upload,uploadNote,uploadStatus,fastLabel,fastStatus,flash,recovery,miniBar,miniProgress)', 'Fast Write is an optional checkbox beside the single Flash button');
+must(preflight,"fast.checked=sourceFast?.checked??true;", 'Visible Fast Write inherits Main.zip actual write mode');
+must(preflight,"sourceFast.checked=fast.checked;", 'Fast Write checkbox updates source write mode');
+must(index,"const fast=$('#mainFastWrite')?.checked??true;", 'Flash snapshots chosen source Fast/normal mode before ECU I/O');
+must(index,"fastWriteSelected:fast", 'Flash plan records exact selected write mode');
 must(bench,"const boot=!!identity?.ecuId?.endsWith('0000')",'Advanced Flash detects recovery');
 must(bench,"engine.identify({programmingPreflight:true})",'Advanced Flash requires programming probe');
 must(bench,"(!recoveryMode&&identity?.ecuId?.endsWith('0000'))",'Advanced Flash blocks normal write on boot');
