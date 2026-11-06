@@ -489,6 +489,38 @@ function startFlash(){
  message=INLINEFLASH.postCheck?'กำลังตรวจ ECU ID หลังเปิดกุญแจใหม่':'กำลังตรวจ ECU ID, Family, Part Code, BIN, Checksum และ Offset อัตโนมัติ ก่อน ERASE/WRITE';
  render();
 }
+// Event-driven source Flash progress. This panel never controls ECU I/O.
+function renderSourceFlashStage(){
+ if(!dom.sourceTitle)return;
+ const p=window.__55FlashStageView;
+ const phases={CONNECT:0,PREPARE:0,WAIT:0,AUTH:0,ERASE:1,ERASE_OK:1,WRITE:2,FINAL:3,DONE:3};
+ const currentStep=phases[p?.phase]??-1;
+ dom.sourceTitle.textContent=p?.label||'รอเริ่มการอัดไฟล์จริง';
+ dom.sourceDetail.textContent=p?.detail||'ยังไม่มีคำสั่งแฟลชจาก ECU';
+ dom.sourcePct.textContent=p?.barKind==='COUNTDOWN'?
+  p.barPercent+'% · นับถอยหลัง':p?.barKind==='WRITE'||p?.barKind==='DONE'?
+  p.barPercent+'% · ตำแหน่ง BIN':'—';
+ dom.sourceFill.style.width=p&&['COUNTDOWN','WRITE','DONE','STOP'].includes(p.barKind)?
+  p.barPercent+'%':'0%';
+ dom.sourceTrack.classList.toggle('n24-source-indeterminate',p?.barKind==='INDETERMINATE');
+ dom.sourceTrack.classList.toggle('n24-source-countdown',p?.barKind==='COUNTDOWN');
+ dom.sourceElapsed.textContent=p?.elapsedSeconds===null||p?.elapsedSeconds===undefined?'—':p.elapsedText;
+ dom.sourceRemaining.textContent=p?.remainingText||'—';
+ dom.sourceBlocks.textContent=p&&p.blocksSent?
+  p.blocksSent.toLocaleString('en-US')+' บล็อก · '+(p.bytesSent/1024).toFixed(1)+' KiB ส่งจริง':'ยังไม่มี WRITE ACK';
+ for(let i=0;i<dom.sourceSteps.length;i++){
+  const el=dom.sourceSteps[i];
+  el.classList.toggle('done',p?.phase==='DONE'||currentStep>i);
+  el.classList.toggle('active',p?.phase!=='STOP'&&currentStep===i);
+ }
+ dom.sourceStatus.textContent=p?.phase==='STOP'?
+  'หยุดดำเนินการ • ตรวจ TX/RX และ Recovery ก่อนส่งคำสั่งใหม่':
+  p?.phase==='DONE'?'เสร็จสิ้นตาม Final ACK • ต้องตรวจ ECU หลัง OFF/ON':
+  p?.phase==='WAIT'?'กำลังรอเวลาจริงของ Main.zip ไม่ใช่เปอร์เซ็นต์การเขียน':
+  p?.phase==='ERASE'?'กำลัง ERASE • ไม่สร้างเปอร์เซ็นต์ระหว่างรอ ECU':
+  p?.phase==='WRITE'?'ความคืบหน้าจากตำแหน่งบล็อกที่ ECU ตอบรับ':
+  'ขั้นตอนจะแสดงตามคำตอบ ECU จริง';
+}
 function mount(host){
  stage=host;stage.classList.add('n24-preflight-stage');stage.replaceChildren();dom={};
  const head=make('section','n24-hero');
@@ -575,6 +607,32 @@ function mount(host){
  const miniBar=make('div','n24-mini-bar');const miniFill=make('i','');dom.miniBar=miniFill;miniBar.append(miniFill);
  easy.append(uploadLabel,upload,uploadNote,uploadStatus,fastLabel,fastStatus,flash,recovery,miniBar,miniProgress);
  stage.append(easy);
+ const sourceCard=card('n24-source-progress','◴','Flash Progress · Main.zip');
+ const sourceSteps=make('div','n24-source-steps');
+ dom.sourceSteps=['เตรียม','ลบแฟลช','เขียน BIN','Final ACK'].map((label,i)=>{
+  const tile=make('div','n24-source-step');
+  tile.append(make('b','',String(i+1)),make('span','',label));
+  sourceSteps.append(tile);return tile;
+ });
+ const sourceTitle=make('strong','n24-source-title','รอเริ่มการอัดไฟล์จริง');
+ const sourceDetail=make('p','n24-source-detail','ขั้นตอนจะมาจากคำสั่ง ECU จริง');
+ const sourceTrack=make('div','n24-source-track'),sourceFill=make('i','');
+ sourceTrack.append(sourceFill);
+ const sourcePct=make('div','n24-source-pct','—');
+ const sourceStats=make('div','n24-source-stats');
+ const elapsed=make('strong','','—'),remaining=make('strong','','—'),blocks=make('strong','','ยังไม่มี WRITE ACK');
+ for(const [caption,value] of [['เวลาที่ใช้',elapsed],['เวลาคงเหลือ (ประมาณ)',remaining],['ข้อมูลที่เขียนจริง',blocks]]){
+  const cell=make('div','n24-source-stat');cell.append(make('span','',caption),value);sourceStats.append(cell);
+ }
+ const sourceStatus=make('p','n24-source-status','ขั้นตอนจะแสดงตามคำตอบ ECU จริง');
+ const reference=make('p','n24-source-reference',
+  'ข้อมูลเทียบ: Honda Tuner อัด Giorno ~256 KiB ใช้ 3:54 (ผู้ใช้แจ้ง) · ไม่ใช่เวลารับประกันของ 55 Performance');
+ Object.assign(dom,{sourceTitle,sourceDetail,sourceTrack,sourceFill,sourcePct,sourceElapsed:elapsed,
+  sourceRemaining:remaining,sourceBlocks:blocks,sourceStatus});
+ sourceCard.append(sourceSteps,sourceTitle,sourceDetail,sourceTrack,sourcePct,sourceStats,sourceStatus,reference);
+ stage.append(sourceCard);
+ window.__55FlashStageRender=()=>{if(sourceCard.isConnected)renderSourceFlashStage()};
+ window.__55FlashStageRender();
  const analyzeCard=card('n24-analysis','▤','Analyze Result · ตรวจ BIN จาก Main.zip + ECM.dat');
  const analyzeStatus=make('p','n24-analysis-status','รอเลือกไฟล์ BIN');
  const analyzeTrack=make('div','n24-analysis-track'),analyzeBar=make('i','');
