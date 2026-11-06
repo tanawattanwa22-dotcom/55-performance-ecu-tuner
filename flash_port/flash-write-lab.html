@@ -75,7 +75,7 @@ pre{background:#0b1827;border-radius:10px;padding:12px;font:12px ui-monospace,mo
 <script src="../license-config.js"></script><script src="../license-client.js"></script>
 <script type="module">
 import {Ft232rWebUsb} from './ftdi-webusb.js?v=409';
-import {HondaFlashEngine} from './honda-write-engine.js?v=418';
+import {HondaFlashEngine} from './honda-write-engine.js?v=419';
 import {lookupEcmId} from './ecu-id-lookup.js?v=252';
 import {renderEcmIdentification,showEcmPopup} from './ecu-id-ui.js?v=251';
 const $=id=>document.getElementById(id);
@@ -286,7 +286,7 @@ $('prepare').onclick=async()=>{
  }catch(e){$('plan').textContent='ห้ามเขียน: '+e.message;if(recoveryMode)renderRecoveryDecision(e.message);push('PREFLIGHT STOP: '+e.message)}
  finally{busy=false;refreshButtons()}
 };
-for(const id of ['backup','power','recovery','typed'])$(id).addEventListener('input',refreshButtons);
+for(const id of ['firmware','power','recovery','typed'])$(id).addEventListener('input',refreshButtons);
 $('bin').addEventListener('change',()=>{plan=null;refreshButtons()});
 import {readBinId,findEcmIdInBin,lockRead,lockMode} from './bin-tools.js';
 async function refreshBinInfo(){
