@@ -1466,7 +1466,8 @@ function inlineFlashStagePaint(){
  window.__55FlashStageSnapshot=INLINEFLASH.stage||null;
  window.__55FlashStageView=sourceFlashProgressModule&&INLINEFLASH.stage?
   sourceFlashProgressModule.displaySourceFlashProgress(INLINEFLASH.stage,Date.now()):null;
- window.__55FlashStageRender?.();
+ try{window.__55FlashStageRender?.()}
+ catch(uiError){console.warn('Flash stage display only:',uiError)}
 }
 function inlineFlashStageEvent(e){
  if(!sourceFlashProgressModule||!INLINEFLASH.stage)return;
@@ -1575,7 +1576,8 @@ async function inlineFlashStart(){
  inlineFlashRecovery(null);
  inlineFlashProgress(0);inlineFlashRefresh();
  // Presentation only: show the existing real source-progress card in a locked modal.
- window.__55FlashStageOverlayOpen?.();
+ try{window.__55FlashStageOverlayOpen?.()}
+ catch(uiError){console.warn('Flash overlay display only:',uiError)}
  inlineFlashLog('SOURCE_FAST_WRITE_SELECTED '+JSON.stringify({
   fast,mode:fast?'FAST_WRITE':'NORMAL_WRITE',
   mainSource:'FormMain.cs isFastWrite',
@@ -1741,7 +1743,8 @@ async function inlineFlashStart(){
   if(stageTicker!==null)clearInterval(stageTicker);
   if(!INLINEFLASH.postCheck)await inlineFlashClose();
   INLINEFLASH.busy=false;inlineFlashRefresh();inlineFlashStagePaint();
-  window.__55FlashStageOverlayFinish?.();
+  try{window.__55FlashStageOverlayFinish?.()}
+  catch(uiError){console.warn('Flash overlay finish display only:',uiError)}
  }
 }
 $("#btnFlash").onclick=inlineFlashStart;
