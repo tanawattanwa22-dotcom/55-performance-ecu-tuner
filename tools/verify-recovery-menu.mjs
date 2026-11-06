@@ -22,7 +22,8 @@ assert(!nav.includes("if(id==='recovery')window.__55OpenRecoveryPanel?.()"),'Nav
 assert(native.includes('engine.identify({programmingPreflight:true})'),'Native Recovery auto checks ECU ID');
 assert(native.includes('await engine.confirmRecoveryFamily(bin.data)'),'Native Recovery verifies family Flash Count ACK');
 assert(native.includes('engine.makePlan(bin.data.slice()'),'Native Recovery creates strict source recovery plan');
-assert(native.includes('await engine.flash(plan,')&&native.includes('physicalBackupConfirmed:ui.backup.checked'),'Native Recovery has guarded write path');
+assert(native.includes('await engine.flash(plan,')&&native.includes('recoveryFileConfirmed:ui.firmware.checked'),'Native Recovery requires matching recovery firmware, not a Full Read Backup');
+assert(!native.includes('ui.backup.checked')&&native.includes("['firmware','ตรวจแล้วว่า BIN"), 'Recovery screen confirms ECU-compatible BIN before write');
 assert(native.includes("ui.upload.onchange=async()=>"),'Native Recovery selects BIN locally');
 assert(shared.includes("shared.acquire('DTC')"),'original DTC path is preserved');
 assert(bench.includes("get('mode')==='recovery'"),'Recovery page is conditional');
