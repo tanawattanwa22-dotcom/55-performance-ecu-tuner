@@ -56,6 +56,8 @@ jobs:
         run: node tests/main-source-parity.test.mjs
       - name: Verify original developer ECM.dat 122-row snapshot / PCX160 ABS read-only metadata
         run: node tools/verify-original-ecm-reference.mjs
+      - name: Verify read-only Analyze Complete/Analyze Result with source BIN fixtures
+        run: node tools/verify-main-bin-analyze-result.mjs
       - name: Verify read-only Main programming probe, timeout recovery and DAT trust (NO ECU)
         run: node tools/verify-main-programming-probe.mjs
       - name: Verify V28 signed Offline Flash and shared original source engine
