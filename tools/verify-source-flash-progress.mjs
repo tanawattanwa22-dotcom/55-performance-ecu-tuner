@@ -10,7 +10,9 @@ assert.equal(REFERENCE_GIORNO.seconds,234);
 assert.equal(flashClock(234),'3:54');
 assert.equal(flashClock(10),'0:10');
 let p=beginSourceFlashProgress(0);
-assert.equal(p.phase,'CONNECT');assert.equal(p.startedAt,0);
+assert.equal(p.phase,'CONNECT');assert.equal(p.startedAt,null,'user file selection/confirmation must not count as flash elapsed time');
+p=updateSourceFlashProgress(p,{phase:'FLASH_START'},0);
+assert.equal(p.startedAt,0,'timer starts only from actual source Flash command phase');
 p=progressWithPlan(p,{ecuId:'0105040D01',profile:'SHINDENGENRH850',size:262144,
   startOffset:65536,blockBytes:128});
 assert.equal(p.totalBytes,262144);assert.equal(p.startOffset,65536);
