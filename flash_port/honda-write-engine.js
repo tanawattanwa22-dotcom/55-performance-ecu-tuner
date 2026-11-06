@@ -13,7 +13,7 @@ import {inspectCSharpEcuType,correctKeihinChecksum,correctShindengenChecksum,der
 import {csharpOffsetInference,catalogLookup} from './csharp-offsets.js?v=317';
 import {findCSharpEcuId} from './csharp-ecu-catalog.js?v=302';
 import {readBinId} from './bin-tools.js?v=379';
-import {probeMainProgrammingSession} from './main-programming-probe.js?v=7';
+import {probeMainProgrammingSession} from './main-programming-probe.js?v=8';
 import {sourceFamilyHint} from './main-source-family-hints.js?v=2';
 import {lookupMainDatReference} from './main-dat-reference.js?v=2';
 import {findOriginalEcmDat} from './main-original-ecm-catalog.js';
@@ -100,6 +100,27 @@ export class HondaFlashEngine {
     rawByte3:reply[3],replyLength:reply.length,elapsedMs:Date.now()-startedAt,
     requestedTimeoutMs:opts.timeoutMs??null});
   return reply;
+ }
+ async sourceUnchecked(name,frame,opts={}){
+  // Main.zip FormMain.cs SendCommand return is ignored at these call sites.
+  // Keep source ACK semantics distinct from the browser transport.
+  try{
+   const reply=await this.x(name,frame,opts);
+   this.emit('SOURCE_SENDCOMMAND_RESULT_UNCHECKED',{command:name,replyLength:reply.length});
+   return reply;
+  }catch(error){
+   // WebUSB cannot continue if transferIn timeout closed the USB interface.
+   // Never treat an abandoned USB transfer or a lost port as a reusable
+   // Windows D2XX RX queue: no new ECU commands on a dead connection.
+   if(!this.usb?.ready){
+    this.emit('SOURCE_IGNORED_ACK_USB_UNUSABLE',{command:name,error:error.message,
+      sourceReturnIgnored:true,continued:false});
+    throw error;
+   }
+   this.emit('SOURCE_SENDCOMMAND_FALSE_IGNORED',{command:name,error:error.message,
+     sourceReturnIgnored:true,continued:true});
+   return null;
+  }
  }
  async identify({programmingPreflight=false}={}){
   if(!this.usb.ready)fail('USB_NOT_CONNECTED','เปิด FTDI กับ OTG ก่อน');
@@ -207,7 +228,7 @@ export class HondaFlashEngine {
      const label=isSh?'SHINDENGEN_FLASH_COUNT':'KEIHIN_FLASH_COUNT';
      const command=isSh?CMD.shPoll:CMD.khCount;
      const r=await this.x(label,command,{timeoutMs:1800});
-     if(r.length>=7){family=isSh?'SHINDENGEN':'KEIHIN';count=r[6];physicalFamilyEvidence='MAIN_SOURCE_READ_ONLY_FLASH_COUNT_ACK'}
+     if(r.length>=8){family=isSh?'SHINDENGEN':'KEIHIN';count=r[6];physicalFamilyEvidence='MAIN_SOURCE_READ_ONLY_FLASH_COUNT_ACK'}
     }
    }catch(e){
     // The C# source uses family-specific count responses. Stop when absent;
@@ -480,8 +501,10 @@ export class HondaFlashEngine {
   this.state='preparing';
   this.emit('PREWRITE_BEGIN');
   const expected={...this.identity};
+  let firstHelloAccepted=false;
   try{
    await this.x('KH_HANDSHAKE_A',CMD.kh1,{timeoutMs:2500});
+   firstHelloAccepted=true;
   }catch(firstError){
    this.emit('KH_HANDSHAKE_SOURCE_RETRY',{attempt:2,maxAttempts:2,
      firstError:firstError.message,eraseStarted:false});
@@ -508,11 +531,15 @@ export class HondaFlashEngine {
     }
     this.state='preparing';
    }
-   await this.x('KH_HANDSHAKE_A_RETRY',CMD.kh1,{timeoutMs:2500});
+   // KeihinPreWriteFlash: second false response skips handshake B, then
+   // continues the existing poll/wait sequence only on a usable port.
+   const retry=await this.sourceUnchecked('KH_HANDSHAKE_A_RETRY',CMD.kh1,{timeoutMs:2500});
+   firstHelloAccepted=retry!==null;
   }
-  await this.x('KH_HANDSHAKE_B',CMD.kh2,{timeoutMs:2500});
+  if(firstHelloAccepted)
+   await this.sourceUnchecked('KH_HANDSHAKE_B',CMD.kh2,{timeoutMs:2500});
   await this.wait(200);
-  await this.x('KH_READY',CMD.khPoll,{timeoutMs:2500});
+  await this.sourceUnchecked('KH_READY',CMD.khPoll,{timeoutMs:2500});
   for(let n=10;n>=1;n--){
    this.emit('SECURITY_WAIT',{secondsRemaining:n});
    await this.wait(1000);
@@ -520,18 +547,18 @@ export class HondaFlashEngine {
   await this.wait(500);
   this.eraseStageEntered=true;
   this.emit('ERASE_BEGIN'); // First following command begins destructive phase
-  await this.x('KH_PREPARE',CMD.khPrepare,{timeoutMs:2400,afterWriteMs:250});
-  await this.x('KH_ERASE_PARAM',CMD.khErase1,{timeoutMs:2400});
-  await this.x('KH_POLL_1',CMD.khPoll,{timeoutMs:2400});
-  await this.x('KH_ERASE_RANGE',CMD.khErase2,{timeoutMs:3200});
-  await this.x('KH_POLL_2',CMD.khPoll,{timeoutMs:2400});
-  await this.x('KH_ERASE_GO',CMD.khErase3,{timeoutMs:2500});
+  await this.sourceUnchecked('KH_PREPARE',CMD.khPrepare,{timeoutMs:2400,afterWriteMs:250});
+  await this.sourceUnchecked('KH_ERASE_PARAM',CMD.khErase1,{timeoutMs:2400});
+  await this.sourceUnchecked('KH_POLL_1',CMD.khPoll,{timeoutMs:2400});
+  await this.sourceUnchecked('KH_ERASE_RANGE',CMD.khErase2,{timeoutMs:3200});
+  await this.sourceUnchecked('KH_POLL_2',CMD.khPoll,{timeoutMs:2400});
+  await this.sourceUnchecked('KH_ERASE_GO',CMD.khErase3,{timeoutMs:2500});
   const r=await this.x('KH_ERASE_STATUS',CMD.khErase4,{timeoutMs:5000});
   if(r[3]!==0)fail('ERASE_ERROR','ECU refused erase: status '+r[3]);
   await this.wait(2000);
   const verify=await this.x('KH_ERASE_FINISH',CMD.khEraseFinal,{timeoutMs:5000,afterWriteMs:250});
   if(verify[3]!==0)fail('ERASE_NOT_DONE','ECU did not confirm erase: status '+verify[3]);
-  await this.x('KH_POLL_3',CMD.khPoll,{timeoutMs:2400});
+  await this.sourceUnchecked('KH_POLL_3',CMD.khPoll,{timeoutMs:2400});
   this.emit('ERASE_ACKNOWLEDGED');
  }
  async writeBlocks(plan){
@@ -548,11 +575,11 @@ export class HondaFlashEngine {
   // C# WriteFlash(): KEIHINOTHER + fastWrite sends a special command and, only
   // if the ECU answers 05 xx 00 (status 0), switches the FTDI to 921600 baud.
   if(plan.fast&&plan.profile==='KEIHINOTHER'){
-   const r=await this.x('KH_FAST_SWITCH',Uint8Array.from(FAST_SWITCH_COMMAND),{timeoutMs:3000});
-   if(r.length===5&&r[3]===0){
+   const r=await this.sourceUnchecked('KH_FAST_SWITCH',Uint8Array.from(FAST_SWITCH_COMMAND),{timeoutMs:3000});
+   if(r?.length===5&&r[3]===0){
     await this.usb.setBaud(921600);this.fastBaudActive=true;
     this.emit('FAST_BAUD_ENABLED',{baud:921600});
-   }else this.emit('FAST_BAUD_REFUSED',{replyLength:r.length,status:r[3]}); // C# continues at normal speed
+   }else this.emit('FAST_BAUD_REFUSED',{replyLength:r?.length??0,status:r?.[3]??null}); // C# continues at normal speed
   }else if(plan.fast)this.emit('FAST_IGNORED',{profile:plan.profile}); // C# only fast-switches KEIHINOTHER
   const writeDelay=plan.profile.startsWith('SHINDENGEN')&&!plan.fast?150:0; // C# sleepMs
   while(current<total){
@@ -593,7 +620,7 @@ export class HondaFlashEngine {
    }
    sent++;
    if(plan.blockBytes===64&&(current+1)%2===0){
-     await this.x('KH_H8C_FLUSH',CMD.kh64Flush,{timeoutMs:3000});
+     await this.sourceUnchecked('KH_H8C_FLUSH',CMD.kh64Flush,{timeoutMs:3000});
      await this.wait(100);
    }
    this.emit('WRITE_PROGRESS',{bytesCovered:next*blockSize,totalBytes:plan.bin.length,
@@ -603,15 +630,15 @@ export class HondaFlashEngine {
   }
   if(!lastFrame)fail('NO_WRITE','No flash blocks sent');
   // FormMain.WriteFlash sends one additional H8C flush before FINAL1.
-  if(plan.blockBytes===64){await this.x('KH_H8C_FINAL_FLUSH',CMD.kh64Flush,{timeoutMs:3000});await this.wait(100);}
+  if(plan.blockBytes===64){await this.sourceUnchecked('KH_H8C_FINAL_FLUSH',CMD.kh64Flush,{timeoutMs:3000});await this.wait(100);}
   return sent;
  }
  async shPreErase(plan){
   this.state='preparing';
   this.emit('SH_PREWRITE_BEGIN',{profile:plan.profile});
   const latency=plan.fast?0:150; // C# sleepMs: 150 unless fastWrite
-  await this.x('SH_HANDSHAKE_A',CMD.shHello1,{timeoutMs:3000,afterWriteMs:latency});
-  await this.x('SH_HANDSHAKE_B',CMD.shHello2,{timeoutMs:3000,afterWriteMs:latency});
+  await this.sourceUnchecked('SH_HANDSHAKE_A',CMD.shHello1,{timeoutMs:3000,afterWriteMs:latency});
+  await this.sourceUnchecked('SH_HANDSHAKE_B',CMD.shHello2,{timeoutMs:3000,afterWriteMs:latency});
   for(let n=10;n>=1;n--){this.emit('SH_SECURITY_WAIT',{secondsRemaining:n});await this.wait(1000)}
   await this.wait(500);
   const seedReply=await this.x('SH_GET_SEED',CMD.shSeed,{timeoutMs:3200,afterWriteMs:latency});
@@ -626,9 +653,9 @@ export class HondaFlashEngine {
   if(keyReply.length!==5||keyReply[3]!==0)fail('SH_KEY_REJECTED','Seed/Key authentication rejected');
   this.eraseStageEntered=true;
   this.emit('SH_ERASE_BEGIN');
-  await this.x('SH_PRE_ERASE_A',CMD.shErase1,{timeoutMs:3500,afterWriteMs:latency});
-  await this.x('SH_ERASE_RANGE',CMD.shErase2,{timeoutMs:3500,afterWriteMs:latency});
-  await this.x('SH_ERASE_MODE',CMD.shErase3,{timeoutMs:3500,afterWriteMs:latency});
+  await this.sourceUnchecked('SH_PRE_ERASE_A',CMD.shErase1,{timeoutMs:3500,afterWriteMs:latency});
+  await this.sourceUnchecked('SH_ERASE_RANGE',CMD.shErase2,{timeoutMs:3500,afterWriteMs:latency});
+  await this.sourceUnchecked('SH_ERASE_MODE',CMD.shErase3,{timeoutMs:3500,afterWriteMs:latency});
   const erase=await this.x('SH_ERASE_START',CMD.shErase4,{timeoutMs:5000,afterWriteMs:latency});
   if(erase[3]!==0)fail('SH_ERASE_STATUS','Shindengen erase failed status '+erase[3]);
   await this.wait(2000);
@@ -643,7 +670,9 @@ export class HondaFlashEngine {
     ['SH_FINAL3',CMD.shFinish3,1000],['SH_FINAL4',CMD.shFinish4,3000],
     ['SH_FINAL5',CMD.shFinish5,0]
   ]){
-    const r=await this.x(label,frame,{timeoutMs:6000,afterWriteMs:plan.fast?0:150});
+    const r=label==='SH_FINAL5'
+      ?await this.x(label,frame,{timeoutMs:6000,afterWriteMs:plan.fast?0:150})
+      :await this.sourceUnchecked(label,frame,{timeoutMs:6000,afterWriteMs:plan.fast?0:150});
     if(label==='SH_FINAL5'&&r[3]!==15)fail('SH_FINAL_ACK','Shindengen final ACK must be 0x0F');
     if(delay)await this.wait(delay);
   }
@@ -663,7 +692,9 @@ export class HondaFlashEngine {
    ['KH_FINAL_5',CMD.khFinish5,0]
   ];
   for(const [name,bytes,waitMs] of steps){
-   const reply=await this.x(name,bytes,{timeoutMs:4000});
+   const reply=(name==='KH_POLL_F4'||name==='KH_FINAL_5')
+     ?await this.x(name,bytes,{timeoutMs:4000})
+     :await this.sourceUnchecked(name,bytes,{timeoutMs:4000});
    if(name==='KH_POLL_F4'&&reply[3]!==15)fail('FINAL_ACK','Final poll must return ECU status 0x0F');
    if(name==='KH_FINAL_5'&&reply[3]!==15)fail('FINAL_ACK','Final status must be 0x0F');
    if(waitMs)await this.wait(waitMs);
@@ -795,7 +826,7 @@ export class HondaFlashEngine {
      // erase: no browser-cached evidence authorizes destructive commands.
      const countReply=await this.x('RECHECK_UNLISTED_FAMILY_COUNT',
         this.identity.family==='SHINDENGEN'?CMD.shPoll:CMD.khCount,{timeoutMs:2000});
-     if(countReply.length<7||countReply[3]===15||
+     if(countReply.length<8||countReply[3]===15||
         !Number.isInteger(this.identity.count)||countReply[6]!==this.identity.count)
       fail('UNLISTED_FAMILY_CHANGED','Flash Count/Family จาก ECU จริงไม่ตรงกับขั้นตอนตรวจแรก • หยุดก่อน ERASE');
      this.emit('SOURCE_UNLISTED_RECONFIRMED',{ecuId:plan.ecuId,
