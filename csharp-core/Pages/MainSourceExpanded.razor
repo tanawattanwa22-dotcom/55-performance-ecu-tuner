@@ -35,6 +35,13 @@
     <button @onclick="AuditWrite">ตรวจเฟรม WRITE ทั้งไฟล์ด้วย C# โดยไม่ส่ง USB</button>
     <p class="value">@writeInfo</p>
     @if(frameSamples.Count>0){<code>@string.Join(" | ",frameSamples)</code>}
+    <button @onclick="PreviewSourceChecksum">ตรวจ Auto Checksum ตาม Main.zip (สำเนา BIN)</button>
+    <p class="muted">@autoChecksumInfo</p>
+    @if(selectedBin?.Length is 49152 or 65536){
+      <button @onclick="PreviewLockRead">ตรวจ Lock Read C# (Offline)</button>
+      <button @onclick="PreviewLockMode">ตรวจ Lock Mode C# (Offline)</button>
+      <p class="muted">@lockInfo</p>
+    }
     <label for="seedHex">Seed Shindengen (2 ไบต์ HEX จากการทดสอบ)</label>
     <input id="seedHex" @bind="seedHex" placeholder="12 34" />
     <button @onclick="CheckSeed">คำนวณ Seed/Key แบบ Offline</button>
@@ -103,6 +110,7 @@
   private string offlineProfile="KEIHINOTHER",fileStatus="ยังไม่ได้เลือก BIN",binSha="—",
     profileFromBin="—",binId="—",startInfo="—",checksumInfo="—",keihinInfo="—",
     writeInfo="รอ BIN",seedHex="12 34",seedResult="ยังไม่ได้คำนวณ",
+    autoChecksumInfo="ยังไม่ได้ตรวจ",lockInfo="ยังไม่ได้ตรวจ",
     liveHex="",liveStatus="ยังไม่มี RAW",dtcHex="",dtcStatus="ยังไม่ได้อ่าน",
     busyInfo="";
   private int liveGroup=7;
@@ -147,6 +155,41 @@
         "#"+s.Block+" → "+s.NextBlock+": "+s.HeaderHex+"…"+s.TailHex+
         (s.ChecksumValid?" ✓":" INVALID")).ToList();
     }catch(Exception ex){writeInfo="แผนตัวอย่างไม่ผ่าน: "+ex.Message;frameSamples.Clear();}
+  }
+
+  private void PreviewSourceChecksum(){
+    if(selectedBin is null)return;
+    try{
+      var p=MainBinSource.Examine(selectedBin);
+      if(p.ShindengenAuto){
+        var corrected=MainBinSource.ShindengenChecksumCopy(selectedBin);
+        autoChecksumInfo=corrected is null?
+          "ต้นฉบับหา Shindengen write signature/checksum locator ไม่พบ":
+          "SH Source checksum @0x"+corrected.ChecksumOffset.ToString("X")+
+          " · 0x"+corrected.CalculatedValue.ToString("X8")+" (คำนวณบนสำเนา)";
+      }else{
+        int offset=p.ChecksumOffset??-1;
+        if(offset<0||offset>=selectedBin.Length)throw new InvalidOperationException("ยังไม่มี source checksum offset ที่ใช้กับ BIN นี้");
+        var corrected=MainBinSource.KeihinChecksumCopy(selectedBin,offset);
+        autoChecksumInfo="Keihin Source @0x"+offset.ToString("X")+
+          " · เดิม "+selectedBin[offset].ToString("X2")+
+          " → "+corrected[offset].ToString("X2")+" (สำเนา BIN)";
+      }
+    }catch(Exception ex){autoChecksumInfo="คำนวณไม่ผ่าน: "+ex.Message;}
+  }
+  private void PreviewLockRead(){
+    if(selectedBin is null)return;
+    try{
+      var r=MainBinLocksSource.LockReadCopy(selectedBin);
+      lockInfo=r.Description+" · changed "+r.ChangedBytes+" byte(s) · ไม่แก้ BIN ต้นฉบับ";
+    }catch(Exception ex){lockInfo=ex.Message;}
+  }
+  private void PreviewLockMode(){
+    if(selectedBin is null)return;
+    try{
+      var r=MainBinLocksSource.LockModeCopy(selectedBin);
+      lockInfo=r.Description+" · changed "+r.ChangedBytes+" byte(s) · ไม่แก้ BIN ต้นฉบับ";
+    }catch(Exception ex){lockInfo=ex.Message;}
   }
   private void CheckSeed(){
     if(selectedBin is null)return;
