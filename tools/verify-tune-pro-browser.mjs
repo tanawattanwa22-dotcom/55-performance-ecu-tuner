@@ -54,6 +54,21 @@ try{
   await page.waitForFunction(()=>document.querySelector('#tune.tp-on.on .tp-shell')&&
    window.__55TuneProUI?.getLayout&&
    document.querySelectorAll('#tune .tp-side-item').length>=4);
+  // V4: duplicate floating back must not cover Undo/toolbar on Tune.
+  assert.equal(await page.locator('#retailGlobalBack').evaluate(el=>getComputedStyle(el).display),'none',
+   'legacy global Back must be hidden on Tune (the header Back remains)');
+  assert.equal(await page.locator('#tune .tp-save-now').count(),1);
+  assert.equal(await page.locator('#tune .tp-flash-now').count(),1);
+  assert.equal(await page.locator('#tune .tp-flash-now').isDisabled(),true,
+   'Flash action is grey/disabled before an actual saved BIN snapshot');
+  // The old 'ย่อ' must close the entire value dock, not just its contents.
+  await page.evaluate(()=>{
+   const toggle=document.querySelector('#tune .tp-mainbar [aria-label="เปิดหรือปิดเครื่องมือปรับค่า"]');
+   if(!window.__55TuneProUI.getLayout().rightOpen)toggle.click();
+   document.getElementById('fpc').click();
+  });
+  assert.equal(await page.evaluate(()=>window.__55TuneProUI.getLayout().rightOpen),false,
+   'minimize closes the entire right dock and frees the grid');
   assert.equal(await page.locator('#tune .tp-side-item').count(),4,'all original fixture tables in sidebar');
   assert.equal(await page.locator('#tune .tp-side-item.tp-fuel').count(),2);
   assert.equal(await page.locator('#tune .tp-side-item.tp-ign').count(),1);
@@ -94,6 +109,15 @@ try{
    'real saved snapshot holds the current edited BIN');
   assert.equal(await page.evaluate(()=>document.querySelector('#tune #btnToFlash').hidden),false,
    'old Go to Flash becomes available only when BIN was saved');
+  await page.waitForFunction(()=>!document.querySelector('#tune .tp-flash-now')?.disabled);
+  await page.locator('#tune .tp-flash-now').click();
+  assert.equal(await page.locator('.tp-flash-dialog').evaluate(el=>el.open),true,
+   'ready action opens 12V/cable preparation dialog');
+  assert.equal(await page.locator('.tp-flash-dialog input[data-check]').count(),3);
+  assert.equal(await page.locator('.tp-flash-accept').isDisabled(),true,
+   'no USB: do not auto-start real ECU flash after only saving a BIN');
+  await page.locator('.tp-flash-dialog-actions button').first().click();
+
   // Later editing must invalidate the old snapshot before Flash.
   await page.evaluate(()=>{
    document.querySelector('#tune #gw td[data-r="0"][data-c="0"]').click();
