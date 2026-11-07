@@ -838,7 +838,7 @@ export class MainLiveSession {
    this.running=false;this.recording=false;
    if(this.disconnectRequested){
     const port=this.port;this.port=null;this.ecuId='';
-    if(port)try{await port.close()}catch{}
+    if(port)await this._queueUsbRelease(port);
     this.values=EMPTY();this.hz=null;this.disconnectRequested=false;
    }else if(this.port&&!this.port.ready){
     const dev=this.port.lastDevice;
