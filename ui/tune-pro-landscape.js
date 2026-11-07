@@ -44,7 +44,12 @@
  const rightToggle=control('⚙ Tools','เปิดหรือปิดเครื่องมือปรับตัวเลข',()=>toggleRight());
  rightToggle.setAttribute('aria-label','เปิดหรือปิดเครื่องมือปรับค่า');
  const previewToggle=control('▦ Preview','แสดงหรือซ่อนตารางย่อย',()=>togglePreviews());
- mainBar.append(leftToggle,title,spacer,previewToggle,rightToggle);
+ const saveNow=control('💾 บันทึก BIN','บันทึกและดาวน์โหลด BIN ที่จูนแล้ว โดยใช้ Save เดิม',()=>{
+  document.getElementById('btnSave')?.click();queueMicrotask(schedule);
+ },'tp-save-now');
+ const flashNow=control('⚡ อัดไฟล์','เตรียมสายและไฟเลี้ยง 12V ก่อนเริ่มอัดจริง',()=>openFlashDialog(),'tp-flash-now');
+ flashNow.disabled=true;
+ mainBar.append(leftToggle,title,spacer,saveNow,flashNow,previewToggle,rightToggle);
  const openTabs=node('div','tp-open-tabs');
  openTabs.setAttribute('role','tablist');
  openTabs.setAttribute('aria-label','ตารางจูนที่เปิดอยู่');
@@ -115,6 +120,13 @@
  const panelHeader=toolPanel.querySelector('#fph');
  panelHeader?.addEventListener('pointerdown',event=>{
   if(tune.classList.contains('tp-on'))event.stopImmediatePropagation();
+ },true);
+ // Legacy #fpc only minimized its own content, while TUNE PRO kept the
+ // right dock open. Make the same button collapse the entire dock.
+ toolPanel.querySelector('#fpc')?.addEventListener('click',event=>{
+  if(!tune.classList.contains('tp-on'))return;
+  event.preventDefault();event.stopImmediatePropagation();
+  toggleRight(false);
  },true);
  tune.classList.add('tp-on');
  const setClass=()=>{
@@ -327,8 +339,108 @@
   lastActive=state.active;
   title.textContent='MAP EDITOR · '+state.tables.length+' TABLES';
   renderSidebar(state);renderTabs(state);renderPreviews(state);
-  updateStatus(state);setClass();
+  updateStatus(state);syncActions(state);setClass();
  }
+
+ // Both actions use the ORIGINAL BIN snapshot and Flash handlers.
+ // No duplicated write commands, checksum routine or second FT232R session.
+ const isSaved=()=>!!api.state()?.saved&&
+  document.getElementById('btnToFlash')?.hidden===false;
+ function syncActions(state){
+  const saved=!!state.saved&&isSaved();
+  saveNow.textContent=saved?'✓ BIN บันทึกแล้ว':'💾 บันทึก BIN';
+  flashNow.disabled=!saved;
+  flashNow.classList.toggle('tp-flash-ready',saved);
+  flashNow.setAttribute('aria-disabled',String(!saved));
+  flashNow.title=saved?
+   'BIN บันทึกแล้ว • ตรวจ 12V สาย FT232R และ ECU ก่อนเริ่มแฟลช':
+   'ต้องบันทึก BIN ที่จูนก่อน จึงจะอัดไฟล์ได้';
+ }
+ let flashDialog=null,flashPoll=null;
+ function openFlashDialog(){
+  if(!isSaved())return;
+  if(!flashDialog){
+   flashDialog=node('dialog','tp-flash-dialog');
+   flashDialog.setAttribute('aria-labelledby','tp-flash-title');
+   const wrap=node('div','tp-flash-dialog-body');
+   const heading=node('h2','', '⚡ เตรียมอัดไฟล์ ECU');
+   heading.id='tp-flash-title';
+   const description=node('p','',
+    'ตรวจความพร้อมก่อนอัดจริง ระบบจะใช้ BIN ที่บันทึกไว้และ Flash Engine เดิม ตรวจ ECU ID / Part / Offset / Checksum ซ้ำก่อน ERASE');
+   const list=node('div','tp-flash-checklist');
+   const items=[
+    'ตรวจแรงดันไฟเลี้ยง 12V ด้วยเครื่องมือจริงและเตรียมแหล่งจ่ายให้เสถียรแล้ว',
+    'เสียบ FT232R / OTG / K-Line แน่น เปิดสวิตช์กุญแจตามขั้นตอน และเตรียมรถพร้อมแล้ว',
+    'พร้อมเปิดหน้าจอค้างไว้ ไม่สลับแอป ไม่ถอดสายหรือปิดกุญแจระหว่างอัด'
+   ];
+   const checks=items.map((text,i)=>{
+    const label=node('label','tp-flash-check-item');
+    const input=node('input');
+    input.type='checkbox';input.dataset.check=String(i);
+    const desc=node('span','',text);
+    label.append(input,desc);list.append(label);return input;
+   });
+   const connection=node('p','tp-flash-connection');
+   const note=node('p','tp-flash-note',
+    'หมายเหตุ: โปรแกรมไม่สามารถวัดแรงดัน 12V ผ่านสาย FT232R ได้โดยตรง • ต้องตรวจด้วยเครื่องมือภายนอก การติ๊กยืนยันไม่ใช่ค่าที่วัดอัตโนมัติ');
+   const actions=node('div','tp-flash-dialog-actions');
+   const cancel=control('ยกเลิก','กลับไปจูนต่อ',()=>flashDialog.close());
+   const accept=control('ยืนยัน · เริ่มตรวจและอัด','เริ่มด้วยระบบแฟลชเดิม',()=>beginConfirmedFlash());
+   accept.classList.add('tp-flash-accept');
+   accept.disabled=true;
+   actions.append(cancel,accept);
+   wrap.append(heading,description,list,connection,note,actions);
+   flashDialog.append(wrap);document.body.append(flashDialog);
+   const refresh=()=>{
+    const snap=window.__55SharedEcu?.snapshot?.();
+    const plugged=!!(snap?.connected&&window.__55SharedEcu?.port?.ready);
+    connection.textContent=plugged?
+     '✓ FT232R เชื่อมต่อ • ECU ID: '+(snap.ecuId||'รออ่าน ID จริง'):
+     '⚠ ยังไม่พบ FT232R ที่เชื่อมต่อ • กรุณาเชื่อมสายจากหน้าแรกก่อน';
+    connection.classList.toggle('tp-flash-cable-ok',plugged);
+    accept.disabled=!plugged||!checks.every(c=>c.checked)||!isSaved();
+   };
+   checks.forEach(c=>c.addEventListener('change',refresh));
+   flashDialog.addEventListener('close',()=>{
+    for(const c of checks)c.checked=false;
+    if(flashPoll!==null){clearInterval(flashPoll);flashPoll=null}
+   });
+   flashDialog.tpRefresh=refresh;
+  }
+  flashDialog.tpRefresh();
+  if(!flashDialog.open)flashDialog.showModal();
+  if(flashPoll!==null)clearInterval(flashPoll);
+  flashPoll=setInterval(()=>{if(flashDialog?.open)flashDialog.tpRefresh()},800);
+ }
+ function beginConfirmedFlash(){
+  if(!flashDialog?.open||!isSaved())return;
+  const checks=[...flashDialog.querySelectorAll('input[data-check]')];
+  if(checks.length!==3||!checks.every(c=>c.checked))return;
+  const shared=window.__55SharedEcu;
+  if(!shared?.snapshot?.()?.connected||!shared.port?.ready)return;
+  const go=document.getElementById('btnToFlash');
+  if(!go||go.hidden)return;
+  flashDialog.close();
+  // Hand control to existing Tune->Flash navigation. The real Fast Flash
+  // button performs its own preflight and does not skip the customer warning.
+  go.click();
+  const began=Date.now();
+  const runner=setInterval(()=>{
+   if(Date.now()-began>30000){
+    clearInterval(runner);
+    console.warn('TUNE PRO: Flash Preflight not ready; manual review required');
+    return;
+   }
+   if(!isSaved()){clearInterval(runner);return}
+   const home=document.getElementById('home');
+   if(!home?.classList.contains('on')||home.dataset.neonPage!=='flash')return;
+   const action=home.querySelector('.n24-easy-flash');
+   if(!action||action.disabled)return;
+   clearInterval(runner);
+   action.click(); // goes through original btnFlash + stay-awake warning
+  },250);
+ }
+ document.getElementById('btnSave')?.addEventListener('click',()=>queueMicrotask(schedule));
  function schedule(){
   if(scheduled)return;
   scheduled=true;
@@ -359,7 +471,7 @@
  });
  schedule();
  window.__55TuneProUI=Object.freeze({
-  version:'1.0',
+  version:'1.1-handoff',
   getLayout:()=>({leftOpen,rightOpen,previewOpen,openTabs:[...opened],pinned:[...pinned]}),
   refresh:schedule
  });
