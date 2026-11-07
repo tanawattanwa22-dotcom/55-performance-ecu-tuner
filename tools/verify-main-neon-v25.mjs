@@ -13,6 +13,14 @@ assert.doesNotMatch(bridge,/main-source-live\.html|location\.assign|lvStart\(/,'
 assert.match(sessionSource,/FRAME_ALLOWLIST\.has/,'Main source frames explicitly allowlisted');
 assert.match(index,/id="licenseGate"/,'app retains its login and license gate');
 assert.match(sessionSource,/Ft232rWebUsb\.choose\(\{forcePicker\}\)/,'WebUSB picker invoked directly in the user gesture');
+assert.match(bridge,/void old\.connect\(\{forcePicker:true\}\)/,
+ 'manual Home USB button must always show the native chooser instead of a cached USB grant');
+assert.match(bridge,/connect\.onclick=\(\)=>chooseFromHome\('connect'\)/,
+ 'Home connect button must be bound to the native USB chooser handler');
+assert.match(bridge,/selectAgain\.onclick=\(\)=>chooseFromHome\('select-again'\)/,
+ 'explicit select-again must share the same native chooser path');
+assert.doesNotMatch(bridge,/connect\.onclick=\(\)=>\{[^}]*void old\.connect\(\)/,
+ 'legacy Home handler must not skip the native chooser due to stale grant cache');
 assert.doesNotMatch(sessionSource,/\.flash\(|\.erase\(|\.writeRaw\(/,'module cannot program ECU');
 assert.match(neon,/id="n21MainGroup"/,'source-group selector built into existing UI');
 assert.doesNotMatch(neon,/id="n21Demo"/,'no DEMO entry in original Neon Live UI');
