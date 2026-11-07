@@ -777,7 +777,7 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
   disconnect.disabled=programmingProbeBusy||(!st.connected&&!st.connecting);
  }
  const oldNotify=reader.onUpdate;
- let previousLink={connected:false,port:null,ecuId:'',available:false};
+ let previousLink={connected:false,port:null,ecuId:'',available:false,presence:'NO_USB',presenceAt:0};
  reader.onUpdate=(...args)=>{
   oldNotify(...args);
   const st=reader.status();
@@ -811,12 +811,15 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
   updateSharedState();
   const currentLink={
    connected:st.connected,port:st.connected?reader.port:null,ecuId:st.ecuId||'',
-   available:st.connected&&!st.connecting&&!st.autoBusy&&!reader.owner&&!reader.running
+   available:st.connected&&!st.connecting&&!st.autoBusy&&!reader.owner&&!reader.running,
+   presence:st.ecuPresenceState,presenceAt:st.ecuPresenceAt
   };
   if(currentLink.connected!==previousLink.connected||
      currentLink.port!==previousLink.port||
      currentLink.ecuId!==previousLink.ecuId||
-     currentLink.available!==previousLink.available){
+     currentLink.available!==previousLink.available||
+     currentLink.presenceAt!==previousLink.presenceAt||
+     currentLink.presence!==previousLink.presence){
    previousLink=currentLink;
    // UI-state only: notifying observers does not open USB or issue ECU
    // commands. BIN remains selected even if the physical cable is removed.
