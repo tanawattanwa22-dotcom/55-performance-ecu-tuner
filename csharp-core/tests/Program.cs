@@ -99,4 +99,20 @@ Test(match is not null&&match.Family=="KEIHIN"&&match.PartCode=="38770-K2F-N01"&
      match.ChecksumOffset==0x3FFF8,"original Main catalog Part/Checksum lookup");
 Test(MainCatalogSource.Lookup("0103060F03")?.PartCode is null,
      "Shindengen ID without Part Code is preserved as unknown");
+
+var lockBin=new byte[49152];
+lockBin[100]=65;lockBin[101]=114;lockBin[102]=110;
+var lockResult=MainBinLocksSource.LockReadCopy(lockBin);
+Test(lockResult.Bytes[100]==66&&lockBin[100]==65&&lockResult.ChangedBytes==3,
+     "FormMain LockRead on an immutable 48KiB BIN");
+var modeBin=new byte[65536];
+byte[] sourceModePattern={163,3,16,32,16};
+Array.Copy(sourceModePattern,0,modeBin,100,sourceModePattern.Length);
+var modeResult=MainBinLocksSource.LockModeCopy(modeBin);
+Test(modeResult.Bytes[100]==131&&modeResult.ChangedBytes>0&&modeBin[100]==163,
+     "FormMain LockMode source 64KiB patterns on immutable copy");
+foreach(int group in new[]{1,4,7})
+ foreach(var command in MainDiagnosticSource.CaptureCommands(group))
+  Test(MainProtocol.ValidateChecksum(command,command.Length),
+       "FM_diag Group "+group+" source TX Honda checksum");
 Console.WriteLine("ALL Main.zip C# offline tests PASSED. No ECU/USB commands sent.");
