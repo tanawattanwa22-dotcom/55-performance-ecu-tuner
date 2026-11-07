@@ -722,6 +722,38 @@ function mount(host){
  stage.append(sourceCard);
  window.__55FlashStageRender=()=>{if(sourceCard.isConnected)renderSourceFlashStage()};
  window.__55FlashStageRender();
+ // Browser C# sidecar is integrated into the original Flash page but is
+ // audit-only. The original source HondaFlashEngine remains the ONLY writer.
+ const csharpCard=card('n24-csharp-core','⌘','C# Core · Main.zip (WebAssembly)');
+ const csharpStatus=make('p','n24-help',
+  'รัน C# ใน Chrome จริงสำหรับตรวจ Checksum, WRITE ACK และรูปแบบเฟรมของ Main.zip • ใช้สถานะสาย WebUSB ชุดเดิม ไม่ขอ USB ซ้ำ • ยังไม่ใช่ตัวสั่งอัดแฟลช');
+ const csharpOpen=btn('เปิด C# Core เพื่อตรวจเทียบ','n24-btn n24-csharp-open',async()=>{
+  if(INLINEFLASH.busy)return errorOut('กำลังแฟลช ECU อยู่ • ไม่เปิดหน้าต่างตรวจเพิ่มระหว่างอัด');
+  const home=new URL('main-csharp-runtime/',document.baseURI);
+  const framework=new URL('main-csharp-runtime/_framework/blazor.webassembly.js',document.baseURI);
+  csharpOpen.disabled=true;csharpStatus.textContent='กำลังตรวจว่า C# WebAssembly คอมไพล์ขึ้นเว็บแล้วหรือยัง…';
+  try{
+   const response=await fetch(framework.href,{cache:'no-store'});
+   if(!response.ok)throw Error('GitHub Actions ยังไม่เผยแพร่ C# Runtime (HTTP '+response.status+')');
+   const overlay=make('div','n24-csharp-dialog');
+   overlay.setAttribute('role','dialog');overlay.setAttribute('aria-modal','true');
+   overlay.setAttribute('aria-label','Main.zip C# Source Core');
+   const panel=make('div','n24-csharp-dialog-panel');
+   const top=make('div','n24-csharp-dialog-top');
+   top.append(make('b','','Main.zip · C# WebAssembly'));
+   const close=btn('✕ ปิด','n24-csharp-close',()=>overlay.remove());
+   top.append(close);
+   const frame=make('iframe','n24-csharp-frame');
+   frame.src=home.href;frame.title='Main C# Core · Source Parity';
+   frame.setAttribute('loading','eager');
+   panel.append(top,frame);overlay.append(panel);
+   document.body.append(overlay);
+   csharpStatus.textContent='C# Runtime พร้อมเปิดจากเว็บหลักแล้ว · ไม่เปลี่ยนคำสั่ง Flash เดิม';
+  }catch(e){csharpStatus.textContent='ยังเปิด C# Core ไม่ได้: '+(e?.message||e)}
+  finally{csharpOpen.disabled=false}
+ });
+ csharpCard.append(csharpStatus,csharpOpen);
+ stage.append(csharpCard);
  const analyzeCard=card('n24-analysis','▤','Analyze Result · ตรวจ BIN จาก Main.zip + ECM.dat');
  const analyzeStatus=make('p','n24-analysis-status','รอเลือกไฟล์ BIN');
  const analyzeTrack=make('div','n24-analysis-track'),analyzeBar=make('i','');
