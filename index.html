@@ -1570,6 +1570,8 @@ async function inlineFlashStart(){
  // Snapshot the single selected mode BEFORE USB identification/awaits.
  // One click = one mode for the entire Main.zip flash attempt.
  const fast=$('#mainFastWrite')?.checked??true;
+ // One click = exactly one protocol engine. No engine switching mid-ERASE.
+ const useMainCSharp=window.__55PreferMainCSharpFlash===true;
  INLINEFLASH.busy=true;INLINEFLASH.status='CONNECTING';INLINEFLASH.flashAttempted=false;
  INLINEFLASH.firstSha=null;INLINEFLASH.writeSha=null;INLINEFLASH.ecuId=null;INLINEFLASH.plan=null;
  INLINEFLASH.stage=null;inlineFlashStagePaint();
@@ -1713,13 +1715,33 @@ async function inlineFlashStart(){
   let wake=null;
   try{
    if(navigator.wakeLock?.request)wake=await navigator.wakeLock.request('screen').catch(()=>null);
-   const result=await INLINEFLASH.engine.flash(plan,{
-     operatorClickConfirmed:true,
-     recoveryFileConfirmed:benchConfirmed,
-     externalPowerConfirmed:benchConfirmed,
-     recoveryReady:benchConfirmed,
-     confirmation:plan.checks?.sourceUnlistedWithProof?'FLASH '+plan.ecuId:undefined
-   });
+   let result;
+   if(useMainCSharp){
+     // C# from FormMain.cs decides every source command/ACK/retry/final step.
+     // JavaScript retains ONLY the original shared FT232R WebUSB transport.
+     const {flashWithSourceCSharp}=await import('./ui/main-csharp-flash-bridge-v1.js?v=1');
+     inlineFlashLog('SOURCE_ENGINE MAIN_CSHARP_WASM_REAL_FLASH');
+     result=await flashWithSourceCSharp(plan,identity,ev=>{
+       inlineFlashLog('CSHARP_ENGINE '+JSON.stringify(ev));
+       inlineFlashStageEvent(ev);
+       if(['ERASE_BEGIN','SH_ERASE_BEGIN','WRITE_BLOCK_ACK','WRITE_PROGRESS'].includes(ev.phase)){
+         erasedOrSent=true;INLINEFLASH.flashAttempted=true;
+       }
+     });
+     // Keep the ORIGINAL post-restart ECU-ID check usable after C# finishes.
+     INLINEFLASH.engine.lastResult={...result,ok:true,phase:'SOURCE_FINAL_ACK',
+       recovery:false,ecuId:plan.ecuId};
+     INLINEFLASH.engine.state='finished';
+   }else{
+     inlineFlashLog('SOURCE_ENGINE MAIN_JAVASCRIPT_EXISTING_FLASH');
+     result=await INLINEFLASH.engine.flash(plan,{
+       operatorClickConfirmed:true,
+       recoveryFileConfirmed:benchConfirmed,
+       externalPowerConfirmed:benchConfirmed,
+       recoveryReady:benchConfirmed,
+       confirmation:plan.checks?.sourceUnlistedWithProof?'FLASH '+plan.ecuId:undefined
+     });
+   }
    INLINEFLASH.status='SOURCE_FINAL_ACK_NO_READBACK_VERIFIED';
    inlineFlashProgress(100);
    inlineFlashLog('SOURCE FINAL ACK '+JSON.stringify(result));
