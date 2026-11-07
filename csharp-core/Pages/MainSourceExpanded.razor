@@ -5,6 +5,16 @@
 @inject IJSRuntime JS
 
 <section class="panel">
+  <h2>ECU ID · ฐาน C# ต้นฉบับ 290 รายการ</h2>
+  <p class="muted">Keihin 232 + Shindengen 58 จาก FormMain.cs โดยตรง · ไม่มีข้อมูล Part Code จะไม่เดารหัส</p>
+  <label for="ecuIdInput">ECU ID ที่อ่านจากรถหรือพิมพ์เพื่อตรวจ</label>
+  <input id="ecuIdInput" @bind="ecuIdInput" placeholder="เช่น 0104080F01" />
+  <button @onclick="LookupMainEcu">ค้นฐาน Main C#</button>
+  <button @onclick="UseCurrentEcu">ดึง ECU ID จากสายหลักที่เชื่อมอยู่</button>
+  <p class="value">@ecuCatalogResult</p>
+</section>
+
+<section class="panel">
   <h2>BIN · ตรวจด้วย FormMain.cs ที่รัน C# จริง</h2>
   <p class="muted">เลือก BIN จากเครื่องเพื่อคำนวณโดย C# โดยตรง ไม่อัปโหลดไฟล์ และไม่ส่งคำสั่ง ECU</p>
   <InputFile OnChange="LoadBin" accept=".bin" />
@@ -68,6 +78,23 @@
   }
 </section>
 @code {
+
+  private string ecuIdInput="",ecuCatalogResult="ยังไม่ได้ค้น ECU ID";
+  private void LookupMainEcu(){
+    var r=MainCatalogSource.Lookup(ecuIdInput);
+    ecuCatalogResult=r is null?"ไม่พบในฐาน C# 290 รายการ · ไม่ยืนยัน Family/Part จากรายการเดา":
+      "ID "+r.EcuId+" · "+r.Family+" · Part "+
+      (r.PartCode??"ไม่มีใน Main.zip")+" · Start "+
+      (r.StartOffset?.ToString("X")??"—")+" · Checksum "+
+      (r.ChecksumOffset?.ToString("X")??"—")+
+      " · ข้อมูลฐานเท่านั้น ต้องตรวจ ECU จริงก่อนเขียน";
+  }
+  private async Task UseCurrentEcu(){
+    try{
+      ecuIdInput=await JS.InvokeAsync<string>("csharpHost.sharedEcuId");
+      LookupMainEcu();
+    }catch(Exception ex){ecuCatalogResult="อ่าน ECU ID snapshot ไม่ได้: "+ex.Message;}
+  }
   private byte[]? selectedBin;
   private readonly string[] profiles={
     "KEIHINOTHER","KEIHINH8C","KEIHINM32R",
