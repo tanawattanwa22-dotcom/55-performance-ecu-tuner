@@ -79,6 +79,11 @@ export async function flashWithSourceCSharp(plan,identity,onEvent){
    readbackVerified:false,needEcuRestart:true,
    engine:'MAIN_CSHARP_WASM_SOURCE'
   };
+ }catch(error){
+  // Match the established JS writer's stop rule: after a rejected/unknown
+  // programming command no later screen may reuse a stale ECU UART session.
+  try{if(shared.port?.ready)await shared.port.close()}catch(_){}
+  throw error;
  }finally{
   window.__55CSharpFlashActive=false;
   window.__55CSharpFlashReport=null;
