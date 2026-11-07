@@ -44,7 +44,7 @@
  const rightToggle=control('⚙ Tools','เปิดหรือปิดเครื่องมือปรับตัวเลข',()=>toggleRight());
  rightToggle.setAttribute('aria-label','เปิดหรือปิดเครื่องมือปรับค่า');
  const previewToggle=control('▦ Preview','แสดงหรือซ่อนตารางย่อย',()=>togglePreviews());
- const saveNow=control('💾 บันทึก BIN','บันทึกและดาวน์โหลด BIN ที่จูนแล้ว โดยใช้ Save เดิม',()=>{
+ const saveNow=control('💾 เก็บ BIN','ตั้งชื่อและเก็บ BIN ในคลังภายในแอป (ไม่ดาวน์โหลด)',()=>{
   document.getElementById('btnSave')?.click();queueMicrotask(schedule);
  },'tp-save-now');
  const flashNow=control('⚡ อัดไฟล์','เตรียมสายและไฟเลี้ยง 12V ก่อนเริ่มอัดจริง',()=>openFlashDialog(),'tp-flash-now');
@@ -318,7 +318,7 @@
  function updateStatus(state){
   statusModel.textContent=state.model||'ยังไม่เลือก ECU';
   statusFile.textContent='BIN: '+(state.file||'—')+' · '+(state.binSize||0).toLocaleString('en-US')+' B';
-  statusCells.textContent='แก้ '+(state.changedBytes||0)+' byte · '+(state.saved?'บันทึกแล้ว':'ยังไม่บันทึก');
+  statusCells.textContent='แก้ '+(state.changedBytes||0)+' byte · '+(state.saved?'เก็บในคลังแล้ว':'ยังไม่เก็บในคลัง');
   const snap=window.__55SharedEcu?.snapshot?.();
   if(snap?.connected){
    statusUsb.textContent='FT232R Connected · ECU '+(snap.ecuId||'ยังไม่ได้อ่าน ID');
@@ -348,7 +348,7 @@
   document.getElementById('btnToFlash')?.hidden===false;
  function syncActions(state){
   const saved=!!state.saved&&isSaved();
-  saveNow.textContent=saved?'✓ BIN บันทึกแล้ว':'💾 บันทึก BIN';
+  saveNow.textContent=saved?'✓ เก็บในคลังแล้ว':'💾 เก็บ BIN';
   flashNow.disabled=!saved;
   flashNow.classList.toggle('tp-flash-ready',saved);
   flashNow.setAttribute('aria-disabled',String(!saved));
@@ -366,7 +366,7 @@
    const heading=node('h2','', '⚡ เตรียมอัดไฟล์ ECU');
    heading.id='tp-flash-title';
    const description=node('p','',
-    'ตรวจความพร้อมก่อนอัดจริง ระบบจะใช้ BIN ที่บันทึกไว้และ Flash Engine เดิม ตรวจ ECU ID / Part / Offset / Checksum ซ้ำก่อน ERASE');
+    'เลือก BIN จากคลังภายในแอป ตรวจ 12V และสาย จากนั้น Flash Engine เดิมจะอ่าน ECU ID / Part / Offset / Checksum อีกครั้งก่อน ERASE');
    const list=node('div','tp-flash-checklist');
    const items=[
     'ตรวจแรงดันไฟเลี้ยง 12V ด้วยเครื่องมือจริงและเตรียมแหล่งจ่ายให้เสถียรแล้ว',
@@ -380,6 +380,10 @@
     const desc=node('span','',text);
     label.append(input,desc);list.append(label);return input;
    });
+   const pickerTitle=node('label','tp-flash-vault-title','📚 เลือก BIN ที่จูนไว้ในคลังของแอป');
+   const picker=node('select','tp-flash-vault-select');
+   picker.setAttribute('aria-label','เลือก BIN ที่เก็บไว้จากคลัง');
+   const pickerInfo=node('p','tp-flash-vault-info','รออ่านคลัง BIN…');
    const connection=node('p','tp-flash-connection');
    const note=node('p','tp-flash-note',
     'หมายเหตุ: โปรแกรมไม่สามารถวัดแรงดัน 12V ผ่านสาย FT232R ได้โดยตรง • ต้องตรวจด้วยเครื่องมือภายนอก การติ๊กยืนยันไม่ใช่ค่าที่วัดอัตโนมัติ');
@@ -389,37 +393,85 @@
    accept.classList.add('tp-flash-accept');
    accept.disabled=true;
    actions.append(cancel,accept);
-   wrap.append(heading,description,list,connection,note,actions);
+   wrap.append(heading,description,pickerTitle,picker,pickerInfo,list,connection,note,actions);
    flashDialog.append(wrap);document.body.append(flashDialog);
+   let vaultEntries=[];
+   const populateVault=async()=>{
+    const vault=window.__55TunedBinVault;
+    picker.replaceChildren();
+    picker.append(new Option('— เลือก BIN จากคลัง —',''));
+    if(!vault){pickerInfo.textContent='ระบบคลัง BIN ไม่พร้อม';refresh();return}
+    try{
+     vaultEntries=await vault.list();
+     const currentModel=api.state()?.model;
+     const currentId=window.__55QuickFlashBin?.vaultId||
+      document.getElementById('btnToFlash')?.hidden===false?
+      window.__55QuickFlashBin?.vaultId||null:null;
+     for(const entry of vaultEntries)
+      picker.add(new Option(entry.name+' · '+entry.model+' · '+(entry.size/1024).toFixed(0)+' KB',entry.id));
+     picker.value=vaultEntries.some(e=>e.id===currentId)?currentId:
+      vaultEntries.some(e=>e.id===window.__55QuickFlashBin?.vaultId)?
+       window.__55QuickFlashBin.vaultId:
+      vaultEntries.some(e=>e.model===currentModel)?vaultEntries.find(e=>e.model===currentModel).id:'';
+     refresh();
+    }catch(e){pickerInfo.textContent='เปิดคลัง BIN ไม่สำเร็จ: '+e.message;refresh()}
+   };
+   const selected=()=>vaultEntries.find(e=>e.id===picker.value)||null;
    const refresh=()=>{
+    const entry=selected();
     const snap=window.__55SharedEcu?.snapshot?.();
     const plugged=!!(snap?.connected&&window.__55SharedEcu?.port?.ready);
     connection.textContent=plugged?
      '✓ FT232R เชื่อมต่อ • ECU ID: '+(snap.ecuId||'รออ่าน ID จริง'):
      '⚠ ยังไม่พบ FT232R ที่เชื่อมต่อ • กรุณาเชื่อมสายจากหน้าแรกก่อน';
     connection.classList.toggle('tp-flash-cable-ok',plugged);
-    accept.disabled=!plugged||!checks.every(c=>c.checked)||!isSaved();
+    pickerInfo.textContent=entry
+     ?('ไฟล์: '+entry.name+' • รุ่น '+entry.model+
+       ' • '+(entry.size/1024).toFixed(0)+' KB'+
+       (entry.model===api.state()?.model?' • รุ่นตรงกับหน้า Tune':' • ⚠ รุ่นไม่ตรงกับหน้า Tune'))
+     :'ยังไม่ได้เลือก BIN จากคลัง • ต้องเลือกก่อนอัด';
+    const matching=!!entry&&entry.model===api.state()?.model;
+    accept.disabled=!plugged||!matching||!checks.every(c=>c.checked)||!isSaved();
    };
    checks.forEach(c=>c.addEventListener('change',refresh));
+   picker.addEventListener('change',refresh);
    flashDialog.addEventListener('close',()=>{
     for(const c of checks)c.checked=false;
     if(flashPoll!==null){clearInterval(flashPoll);flashPoll=null}
    });
    flashDialog.tpRefresh=refresh;
+   flashDialog.tpPopulate=populateVault;
+   flashDialog.tpSelected=selected;
   }
   flashDialog.tpRefresh();
+  void flashDialog.tpPopulate();
   if(!flashDialog.open)flashDialog.showModal();
   if(flashPoll!==null)clearInterval(flashPoll);
   flashPoll=setInterval(()=>{if(flashDialog?.open)flashDialog.tpRefresh()},800);
  }
- function beginConfirmedFlash(){
+ async function beginConfirmedFlash(){
   if(!flashDialog?.open||!isSaved())return;
   const checks=[...flashDialog.querySelectorAll('input[data-check]')];
   if(checks.length!==3||!checks.every(c=>c.checked))return;
   const shared=window.__55SharedEcu;
   if(!shared?.snapshot?.()?.connected||!shared.port?.ready)return;
+  const chosen=flashDialog.tpSelected?.();
+  if(!chosen||chosen.model!==api.state()?.model)return;
   const go=document.getElementById('btnToFlash');
   if(!go||go.hidden)return;
+  let entry;
+  try{entry=await window.__55TunedBinVault.load(chosen.id)}
+  catch(e){flashDialog.querySelector('.tp-flash-vault-info').textContent='ตรวจ BIN ในคลังไม่ผ่าน: '+e.message;return}
+  if(!flashDialog.open||!isSaved()||document.visibilityState!=='visible'||
+     !shared?.snapshot?.()?.connected||!shared.port?.ready||!entry)return;
+  // The Fast Flash engine receives only the selected, hash-verified vault
+  // bytes, never an unsaved Tune buffer and never a browser download.
+  window.__55QuickFlashBin={
+   bytes:entry.bytes,filename:entry.filename,sha256:entry.sha256,
+   vaultId:entry.id,vaultName:entry.name,model:entry.model,
+   source:'TUNED_LOCAL_VAULT',selectedAt:Date.now()
+  };
+  window.dispatchEvent(new Event('55:bin-selection-changed'));
   flashDialog.close();
   // Hand control to existing Tune->Flash navigation. The real Fast Flash
   // button performs its own preflight and does not skip the customer warning.
