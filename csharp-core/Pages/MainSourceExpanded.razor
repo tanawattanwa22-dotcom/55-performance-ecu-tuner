@@ -1,0 +1,166 @@
+@using System.IO
+@using System.Linq
+@using Microsoft.AspNetCore.Components.Forms
+@using CSharpCoreBrowser.Source
+@inject IJSRuntime JS
+
+<section class="panel">
+  <h2>BIN · ตรวจด้วย FormMain.cs ที่รัน C# จริง</h2>
+  <p class="muted">เลือก BIN จากเครื่องเพื่อคำนวณโดย C# โดยตรง ไม่อัปโหลดไฟล์ และไม่ส่งคำสั่ง ECU</p>
+  <InputFile OnChange="LoadBin" accept=".bin" />
+  <p class="value">@fileStatus</p>
+  @if(selectedBin is not null){
+    <p class="muted">Size: @selectedBin.Length.ToString("N0") bytes · SHA-256: @binSha</p>
+    <p><b>ECU BIN type:</b> @profileFromBin</p>
+    <p><b>BIN ID:</b> @binId</p>
+    <p><b>Start Offset:</b> @startInfo · <b>Checksum Offset:</b> @checksumInfo</p>
+    <div class="steps">
+      <span>Keihin checksum: @keihinInfo</span>
+      <span>Shindengen Seed/Key: ตรวจจาก BIN ได้</span>
+    </div>
+    <label for="profilePick">โปรไฟล์ตัวอย่างจาก Main C# (วิเคราะห์ Offline เท่านั้น)</label>
+    <select id="profilePick" @bind="offlineProfile">
+      @foreach(var type in profiles){<option value="@type">@type</option>}
+    </select>
+    <button @onclick="AuditWrite">ตรวจเฟรม WRITE ทั้งไฟล์ด้วย C# โดยไม่ส่ง USB</button>
+    <p class="value">@writeInfo</p>
+    @if(frameSamples.Count>0){<code>@string.Join(" | ",frameSamples)</code>}
+    <label for="seedHex">Seed Shindengen (2 ไบต์ HEX จากการทดสอบ)</label>
+    <input id="seedHex" @bind="seedHex" placeholder="12 34" />
+    <button @onclick="CheckSeed">คำนวณ Seed/Key แบบ Offline</button>
+    <p class="muted">@seedResult</p>
+  }
+</section>
+
+<section class="panel">
+  <h2>Live Data · FM_diag.cs C# Group 1 / 4 / 7</h2>
+  <p class="muted">อ่าน RAW ผ่าน WebUSB เส้นเดิม 1 รอบ โดย C# เป็นตัวถอดรหัส เซ็นเซอร์ ECT/EOT/IAT RAW FF จะขึ้นแจ้งเตือน ไม่แสดงเป็นอุณหภูมิจริง 215°C</p>
+  <label for="g">Source Live Group</label>
+  <select id="g" @bind="liveGroup">
+    <option value="7">Group 7</option>
+    <option value="4">Group 4</option>
+    <option value="1">Group 1</option>
+  </select>
+  <button disabled="@busy" @onclick="ReadLiveOnce">อ่าน Live 1 รอบจาก FT232R เดิม</button>
+  <label for="liveRaw">หรือวาง RAW HEX ที่บันทึกจากการทดสอบ</label>
+  <textarea id="liveRaw" @bind="liveHex" rows="3" placeholder="HEX capture รวม echo+reply จำนวน 4 เฟรม"></textarea>
+  <button @onclick="DecodeLive">ถอดรหัสด้วย C#</button>
+  <p class="value">@liveStatus</p>
+  @if(liveReadings.Count>0){
+    <div class="steps">
+      @foreach(var x in liveReadings){
+        <span>@x.Name: @(x.Value.HasValue ? x.Value.Value.ToString("0.##") + " " + x.Unit : "—")@(string.IsNullOrEmpty(x.Warning)?"":" · "+x.Warning)</span>
+      }
+    </div>
+  }
+</section>
+
+<section class="panel">
+  <h2>DTC · FM_dtc.cs C# RAW Reader</h2>
+  <p class="muted">อ่าน 6 คำสั่งต้นฉบับแบบสองชุด ชุดละ 3 คำสั่ง ผ่าน USB เดิม ไม่ส่งคำสั่ง Clear DTC</p>
+  <button disabled="@busy" @onclick="ReadDtcOnce">อ่าน DTC 1 รอบจาก FT232R เดิม</button>
+  <label for="dtcRaw">หรือวาง RAW DTC HEX เพื่อตรวจค่าจากต้นฉบับ</label>
+  <textarea id="dtcRaw" @bind="dtcHex" rows="2" placeholder="HEX capture ของ FM_dtc.method_110"></textarea>
+  <button @onclick="DecodeDtc">ถอดรหัส DTC ด้วย C#</button>
+  <p class="value">@dtcStatus</p>
+  @if(dtcs.Count>0){
+    <div class="steps">@foreach(var x in dtcs){<span>@(x.Historical?"History":"Current"): @x.Code · @x.Description</span>}</div>
+  }
+</section>
+@code {
+  private byte[]? selectedBin;
+  private readonly string[] profiles={
+    "KEIHINOTHER","KEIHINH8C","KEIHINM32R",
+    "SHINDENGENV850","SHINDENGENRH850","SHINDENGENRH850B"
+  };
+  private string offlineProfile="KEIHINOTHER",fileStatus="ยังไม่ได้เลือก BIN",binSha="—",
+    profileFromBin="—",binId="—",startInfo="—",checksumInfo="—",keihinInfo="—",
+    writeInfo="รอ BIN",seedHex="12 34",seedResult="ยังไม่ได้คำนวณ",
+    liveHex="",liveStatus="ยังไม่มี RAW",dtcHex="",dtcStatus="ยังไม่ได้อ่าน",
+    busyInfo="";
+  private int liveGroup=7;
+  private bool busy=false;
+  private List<MainReading> liveReadings=new();
+  private List<MainDtc> dtcs=new();
+  private List<string> frameSamples=new();
+
+  private async Task LoadBin(InputFileChangeEventArgs e){
+    try{
+      selectedBin=null;fileStatus="กำลังโหลด BIN ภายใน C# WebAssembly…";
+      await using var stream=e.File.OpenReadStream(maxAllowedSize:1_200_000);
+      using var memory=new MemoryStream();
+      await stream.CopyToAsync(memory);
+      selectedBin=memory.ToArray();
+      var id=MainBinIdSource.Find(selectedBin);
+      var p=MainBinSource.Examine(selectedBin);
+      binSha=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(selectedBin));
+      profileFromBin=p.Type;offlineProfile=p.Type;
+      binId=id.Found?id.IdHex+" @0x"+id.Offset?.ToString("X"):"ไม่พบ Source Pattern";
+      startInfo=p.StartText;checksumInfo=p.ChecksumText;
+      keihinInfo=p.ShindengenAuto?"ไม่ใช้ Keihin checksum กับ SH profile":
+        p.ChecksumOffset.HasValue && p.ChecksumOffset.Value>=0 && p.ChecksumOffset.Value<selectedBin.Length?
+        "คำนวณสำเนาได้ (ยังไม่แก้ BIN จริง)":
+        "ต้องยืนยัน Checksum Offset ตาม ECU ID";
+      fileStatus="✓ เปิด "+e.File.Name+" · C# BIN analysis";
+      writeInfo="รอเลือกตรวจเฟรม Offline";
+      frameSamples.Clear();
+    }catch(Exception ex){selectedBin=null;fileStatus="อ่าน BIN ไม่สำเร็จ: "+ex.Message;}
+  }
+  private void AuditWrite(){
+    if(selectedBin is null)return;
+    try{
+      // This is firmware-only data. Never treat it as an ECU-verified plan.
+      var p=MainBinSource.Examine(selectedBin);
+      int offset=offlineProfile.StartsWith("SHINDENGEN")?(p.StartOffset??0):0;
+      var plan=MainWritePlanSource.Audit(selectedBin,offlineProfile,offset);
+      writeInfo=plan.Profile+" · frames "+plan.FramesSent.ToString("N0")+
+        " · future FF skip "+plan.FutureFFBlocksSkipped.ToString("N0")+
+        " · "+plan.BlockBytes+" B/block · Offline only";
+      frameSamples=plan.Samples.Select(s=>
+        "#"+s.Block+" → "+s.NextBlock+": "+s.HeaderHex+"…"+s.TailHex+
+        (s.ChecksumValid?" ✓":" INVALID")).ToList();
+    }catch(Exception ex){writeInfo="แผนตัวอย่างไม่ผ่าน: "+ex.Message;frameSamples.Clear();}
+  }
+  private void CheckSeed(){
+    if(selectedBin is null)return;
+    try{
+      var key=MainBinSource.DeriveShindengenKey(selectedBin,MainProtocol.ParseHex(seedHex),false);
+      seedResult=key is null?"ไม่พบ Source WriteKey Signature ใน BIN":"Key (Offline): "+MainProtocol.Hex(key);
+    }catch(Exception ex){seedResult="ตรวจไม่ได้: "+ex.Message;}
+  }
+  private void DecodeLive(){
+    try{
+      liveReadings=MainDiagnosticSource.DecodeCapture(MainProtocol.ParseHex(liveHex),liveGroup);
+      liveStatus="ถอดรหัสผ่านด้วย C# · Group "+liveGroup+" · "+liveReadings.Count+" ค่า";
+    }catch(Exception e){liveReadings.Clear();liveStatus="RAW/Group ไม่ตรง: "+e.Message;}
+  }
+  private async Task ReadLiveOnce(){
+    if(busy)return;
+    busy=true;liveStatus="กำลังขอใช้ FT232R เดิมแบบ Exclusive เพื่ออ่านเซ็นเซอร์ 1 รอบ…";
+    try{
+      liveHex=await JS.InvokeAsync<string>("csharpHost.captureDiagnosticOnce",
+        liveGroup,MainDiagnosticSource.CaptureCommands(liveGroup));
+      DecodeLive();
+    }catch(Exception e){liveStatus="อ่านจากรถไม่สำเร็จ: "+e.Message;}
+    finally{busy=false;}
+  }
+  private void DecodeDtc(){
+    try{
+      dtcs=MainDtcSource.DecodeSourceCaptureHex(dtcHex,false);
+      dtcStatus="ถอดรหัส RAW C# เสร็จ · "+dtcs.Count+" รหัส";
+    }catch(Exception e){dtcs.Clear();dtcStatus="RAW DTC ไม่ครบ: "+e.Message;}
+  }
+  private async Task ReadDtcOnce(){
+    if(busy)return;
+    busy=true;dtcStatus="กำลังอ่าน DTC ผ่าน WebUSB เส้นหลัก (ไม่ลบ DTC)…";
+    try{
+      var captures=await JS.InvokeAsync<string[]>("csharpHost.captureDtcOnce",MainDtcSource.ReadFrames);
+      var current=MainDtcSource.DecodeSourceCaptureHex(captures[0],false);
+      var history=MainDtcSource.DecodeSourceCaptureHex(captures[1],true);
+      dtcs=current.Concat(history).ToList();
+      dtcHex=captures[0];
+      dtcStatus="อ่านจาก ECU และถอดรหัสด้วย C# แล้ว · "+dtcs.Count+" รายการ";
+    }catch(Exception e){dtcStatus="อ่าน DTC ไม่สำเร็จ: "+e.Message;}
+    finally{busy=false;}
+  }
+}
