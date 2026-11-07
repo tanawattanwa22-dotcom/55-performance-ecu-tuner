@@ -3199,6 +3199,64 @@ function v3Draw(){
   window.addEventListener("resize",()=>{if($("#o3d").style.display!=="none")v3Draw()});
 })();
 
+/* TUNE PRO: presentation adapter ONLY. Real calculations, axes, editing,
+   undo/redo, save and Flash remain owned by the original tuner. */
+window.__55TuneProAdapter=Object.freeze({
+ state(){
+  if(!M||!S.bin||S.mi<0)return {ready:false,active:-1,tables:[],model:"",file:""};
+  const tabs=M.tables.map(t=>({id:t.i,name:t.t||"ตาราง "+(t.i+1),
+   group:t.g||"อื่นๆ",unit:t.u||"",readOnly:!!t.ro,changed:modTable(t),
+   rows:t.r,cols:t.c}));
+  return {ready:true,active:S.ti,tables:tabs,
+   switches:(M.sw||[]).length,model:MODELS[S.mi]?.id||M.id,
+   file:S.fname||"",binSize:S.bin.length,changedBytes:changedBytes(),
+   saved:!!S.saved&&S.saved.rawAtSave?.length===S.bin.length&&
+    S.saved.rawAtSave.every((v,i)=>v===S.bin[i])};
+ },
+ select(i){
+  if(!M||!S.bin||!Number.isInteger(i))return false;
+  if(i!==-1&&!M.tables.some(t=>t.i===i))return false;
+  if(i===-1&&!(M.sw||[]).length)return false;
+  selectTable(i);return true;
+ },
+ preview(i){
+  if(!M||!S.bin||!Number.isInteger(i))return null;
+  const t=M.tables.find(x=>x.i===i);if(!t)return null;
+  const rows=Math.min(t.r,8),cols=Math.min(t.c,12),values=[];
+  let low=Infinity,high=-Infinity;
+  for(let row=0;row<t.r;row++)for(let col=0;col<t.c;col++){
+   const n=valCell(t,row,col);if(Number.isFinite(n)){low=Math.min(low,n);high=Math.max(high,n)}
+  }
+  for(let row=0;row<rows;row++){
+   const valuesRow=[];
+   for(let col=0;col<cols;col++){
+    const value=valCell(t,row,col);
+    valuesRow.push({text:fmt(t,value),value,edited:modCell(t,row,col)});
+   }
+   values.push(valuesRow);
+  }
+  return {id:t.i,name:t.t||"ตาราง "+(i+1),group:t.g||"อื่นๆ",
+   unit:t.u||"",readOnly:!!t.ro,rows:t.r,cols:t.c,
+   x:Array.from({length:cols},(_,col)=>t.x?axVal(t,"x",col):String(col+1)),
+   y:Array.from({length:rows},(_,row)=>t.y?axVal(t,"y",row):String(row+1)),
+   min:Number.isFinite(low)?low:null,max:Number.isFinite(high)?high:null,
+   values};
+ }
+});
+const __55TuneProAnnounce=()=>window.dispatchEvent(new Event("55:tune-pro-update"));
+const __55TuneProSelect=selectTable;
+selectTable=function(...args){
+ const result=__55TuneProSelect.apply(this,args);__55TuneProAnnounce();return result;
+};
+const __55TuneProEdited=afterEdit;
+afterEdit=function(...args){
+ const result=__55TuneProEdited.apply(this,args);__55TuneProAnnounce();return result;
+};
+const __55TuneProOpened=openTune;
+openTune=function(...args){
+ const result=__55TuneProOpened.apply(this,args);__55TuneProAnnounce();return result;
+};
+
 </script>
 <script src="flash_port/msx-k26-legacy-bridge.js?v=326"></script>
 <script data-inline-source="ui/v18-tune-flow.js">
