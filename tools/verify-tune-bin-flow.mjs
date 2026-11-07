@@ -43,8 +43,11 @@ assert(ui.includes('event.stopImmediatePropagation()'),'unsaved click blocked be
 assert(ui.includes('guardRun().st==="MISMATCH"'),'match guard hard stop');
 assert(!ui.includes('if(!S.saved.customerBin)'),'master BIN must NOT force customer file import');
 assert(!ui.includes('!S.saved.customerBin||guardRun()'),'master BIN must NOT be blocked at flash');
-assert(ui.includes('flash.disabled=!saved'),'flash button depends on snapshot and license, not BIN source');
-assert(ui.includes('BIN หลักในแอป'),'master BIN status must be visible');
+assert(ui.includes('flash.disabled=(!saved&&!quickReady)||'),'flash button permits matching saved BIN or selected vault BIN, plus license');
+assert(ui.includes('ไฟล์มาตรฐานในแอป'),'master BIN source remains identifiable');
+assert(ui.includes('await vault.save('),'named tuned BIN must persist through local vault');
+assert(ui.includes('const chosen=prompt('),'save must require a customer-visible BIN name');
+assert(!ui.includes('URL.createObjectURL'),'normal tune Save must never export customer firmware bytes');
 const embedBegin=index.indexOf('<script data-inline-source="ui/v18-tune-flow.js">');
 assert(embedBegin>=0,'inline BIN flow controller must be present');
 const embedEnd=index.indexOf('</script>',embedBegin);
@@ -56,5 +59,5 @@ assert(inlineScript.includes('return S.saved.bytes.slice()'),'inlined flash uses
 const engine=fs.readFileSync(new URL('flash_port/honda-write-engine.js',root),'utf8');
 assert(engine.includes('catalog.startOffset??suggested.startOffset'),'automatic offset uses C# ECU catalog then BIN inference');
 assert(engine.includes('checksumOffset:offset')===false,'no invented checksum auto authorization');
-console.log('PASS: 55 TUNED BIN saved/downloaded snapshot, source identity, change invalidation, checksum, hard-stop and C# offset source');
+console.log('PASS: 55 TUNED BIN saved to named local vault without download; source identity, change invalidation, checksum, hard-stop and C# offset source');
 console.log('No hardware write/erase performed.');
