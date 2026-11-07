@@ -509,3 +509,35 @@ body:has(#tune.tp-on.on) #retailGlobalBack{display:none!important}
  padding:8px 10px;background:#10364b;color:#f2ffff;font:700 13px system-ui
 }
 .tp-flash-vault-info{font-size:11px!important;color:#a9e9dd!important}
+
+/* TunePro operation palette V6: operate on the existing live BIN grid. */
+#tune.tp-on #fp .sec{
+  margin:10px 0 5px;padding:6px 0 2px;
+  border-top:1px solid #2b5967;
+  color:#9affdd!important;font-size:11px!important;letter-spacing:.1px
+}
+#tune.tp-on #fp .g2{
+  grid-template-columns:65px minmax(0,1fr) auto auto!important;
+  gap:5px!important;align-items:center;
+}
+#tune.tp-on #fp .g2 label{
+  color:#b9d6dd;font-size:10px;line-height:1.2;
+}
+#tune.tp-on #fp .g2 select{
+  box-sizing:border-box;width:100%;min-width:0;height:31px!important;
+  border:1px solid #376579;border-radius:7px;
+  background:#081a28;color:#e5ffff;font-size:11px;padding:2px 5px;
+  color-scheme:dark
+}
+#tune.tp-on #fp .g2 input{
+  width:100%;min-width:0!important;box-sizing:border-box;
+  padding:2px 5px;text-align:right;
+}
+#tune.tp-on #fp .g2 [data-op]{
+  padding:0 8px!important;white-space:nowrap;
+}
+#tune.tp-on #fp .tp-tool-hint{
+  font-size:10px;line-height:1.5;color:#a1cad2;
+  margin-top:4px;padding:5px 7px;
+  background:#092838;border-left:2px solid #3ad9af;border-radius:4px
+}
