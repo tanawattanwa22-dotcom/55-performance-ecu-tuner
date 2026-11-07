@@ -209,7 +209,7 @@ window.__55SharedEcu={
  get owner(){return reader.owner;},
  snapshot:()=>reader.status(),connect:options=>old.connect(options),disconnect:()=>reader.disconnect(),
  rescan:()=>reader.rescanWithProgramming(),restoreCable:()=>reader.restoreCable(),
- readDtc:()=>reader.readDtc(),
+ observeId:()=>reader.observeEcuIdReadOnly(),readDtc:()=>reader.readDtc(),
  stop:()=>reader.stop(),get port(){return reader.port?.ready?reader.port:null;}
 };
 window.__55MainProgrammingProbe=Object.freeze({
@@ -294,6 +294,15 @@ window.__55AutoEcu={
   }
   if(reader.owner||reader.connecting)return false;
   if(reader.running&&page==='live')return true;
+  if(page==='flash'){
+   // Preflight already owns a real programming-ID + BIN/offset read-only
+   // sequence. Do NOT run the dashboard's full FM_diag Live+DTC scan
+   // first; it used to compete for the same FT232R and add duplicate reads.
+   if(reader.autoBusy)return false;
+   const ready=await window.__55FlashPreflight?.autoPrepare?.();
+   autoFlashSummary();
+   return !!ready;
+  }
   // Avoid needlessly re-running the source programming probe on every menu
   // switch. New cable connect and explicit Rescan still force a new physical ID.
   // The phone can keep FT232R plugged in while the motorcycle is swapped.
@@ -768,6 +777,7 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
   disconnect.disabled=programmingProbeBusy||(!st.connected&&!st.connecting);
  }
  const oldNotify=reader.onUpdate;
+ let previousLink={connected:false,port:null,ecuId:'',available:false};
  reader.onUpdate=(...args)=>{
   oldNotify(...args);
   const st=reader.status();
@@ -799,6 +809,19 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
      '\nดูรายละเอียดเพิ่มเติมได้ที่ ดาวน์โหลด TX/RX Log';
   }
   updateSharedState();
+  const currentLink={
+   connected:st.connected,port:st.connected?reader.port:null,ecuId:st.ecuId||'',
+   available:st.connected&&!st.connecting&&!st.autoBusy&&!reader.owner&&!reader.running
+  };
+  if(currentLink.connected!==previousLink.connected||
+     currentLink.port!==previousLink.port||
+     currentLink.ecuId!==previousLink.ecuId||
+     currentLink.available!==previousLink.available){
+   previousLink=currentLink;
+   // UI-state only: notifying observers does not open USB or issue ECU
+   // commands. BIN remains selected even if the physical cable is removed.
+   window.dispatchEvent(new CustomEvent('55:shared-ecu-link',{detail:currentLink}));
+  }
   if(document.getElementById('home')?.dataset.neonPage==='flash')autoFlashSummary();
   window.__55SyncLegacyUsb?.(reader.status());
  };
@@ -806,6 +829,26 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
  window.addEventListener('55:bin-selection-changed',()=>{scanPreviewBin=null;cachedBinEvidence=null;updateSharedState();});
  window.__55SyncLegacyUsb?.(reader.status());
 }
+// USB connect/disconnect changes are event-driven. K-Line/ECU presence,
+// unlike USB, cannot emit a browser hardware event; check the physical ID
+// at a bounded interval ONLY while Fast Flash is visible and idle.
+// This is a read-only diagnostic observation, NOT the source programming
+// preflight, and it is forbidden during Live, DTC, Recovery or ERASE/WRITE.
+let lastFlashPresenceCheckAt=Date.now(),flashPresenceCheckBusy=false;
+window.setInterval(()=>{
+ if(flashPresenceCheckBusy||document.visibilityState!=='visible')return;
+ if(document.getElementById('home')?.dataset.neonPage!=='flash')return;
+ const st=reader.status();
+ if(!st.connected||st.connecting||st.autoBusy||reader.owner||reader.running||
+    autoScanTask||window.INLINEFLASH?.busy||
+    window.__55FlashPreflight?.busy?.())return;
+ if(Date.now()-lastFlashPresenceCheckAt<10000)return;
+ lastFlashPresenceCheckAt=Date.now();
+ flashPresenceCheckBusy=true;
+ void reader.observeEcuIdReadOnly().catch(error=>{
+  console.warn('55 PERFORMANCE read-only ECU presence:',error?.message||error);
+ }).finally(()=>{flashPresenceCheckBusy=false;});
+},2000);
 // Do not run ECU ID/Live/DTC probes in the background: this could close an
 // otherwise healthy WebUSB port while no motorcycle is attached.
 // The user can press Rescan or Start Live Data when the ECU is powered.
