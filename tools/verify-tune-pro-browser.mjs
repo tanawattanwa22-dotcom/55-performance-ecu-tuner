@@ -117,6 +117,7 @@ try{
    'post-save edit reaches same original BIN observed by preview');
   await page.evaluate(()=>document.querySelector('#tune .tp-side-item[data-table="2"]').click());
   await page.waitForFunction(()=>window.__55TuneProAdapter.state().active===2);
+  await page.waitForFunction(()=>document.querySelectorAll('#tune .tp-preview-card').length===2);
   assert.equal(await page.locator('#tune .tp-preview-card').count(),2,
    'two actual maps visible as simultaneous previews');
   await page.evaluate(()=>document.querySelector('#tune .tp-preview-card button').click());
