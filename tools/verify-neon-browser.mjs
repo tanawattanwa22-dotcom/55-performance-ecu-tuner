@@ -204,6 +204,13 @@ try{
   assert.equal(await page.locator('#n20Stage .n24-flash-trace button').count(),2,'TX/RX Flash panel offers download and copy actions');
   assert.equal(await page.locator('#n20Stage .n24-info-line').count(),15,'read-only BIN/ECU/Offset fields');
   assert.equal(await page.locator('#n20Stage .n24-check-row').count(),6,'six preflight checks');
+  assert.match(await page.locator('#n20Stage .n24-read').innerText(),
+    /อ่าน ECU ID.*ตรวจอัตโนมัติ/,
+    'one physical read button must continue into BIN/offset software checks');
+  assert.equal(await page.locator('#n20Stage .n24-check-row').last().evaluate(
+    el=>el.classList.contains('passed')),false,
+    'physical cable/12V checklist must NOT be auto-approved by software');
+
   const unsetEcu=await page.locator('#n20Stage [data-n24="ecu"]').innerText();
   assert(['—','ยังไม่ได้อ่านจาก ECU'].includes(unsetEcu),
    'ECU ID must be unset until physical FT232R read, not invented: '+unsetEcu);
