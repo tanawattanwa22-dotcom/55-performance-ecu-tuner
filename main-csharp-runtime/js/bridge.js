@@ -42,6 +42,49 @@ window.csharpHost={
       shared.release(owner);
     }
   },
+  // Destructive source commands are available ONLY while the existing
+  // inline Flash page holds the FT232R exclusive INLINE_FLASH lock and
+  // explicitly starts a C# run. JS does not select ECU commands here.
+  async flashExchange(label,frameHex,timeoutMs,afterWriteMs){
+    const main=window.parent,shared=main.__55SharedEcu;
+    if(main===window||main.__55CSharpFlashActive!==true||
+       main.__55RetailFlashState?.().busy!==true)
+      throw Error('No active Main C# flash session on original page');
+    const port=shared?.port;
+    if(!port?.ready)throw Error('Shared FT232R is disconnected; no C# flash commands');
+    if(!/^[A-Z0-9_]+$/i.test(label)||typeof frameHex!=='string'||
+       !/^(?:[0-9a-f]{2})+$/i.test(frameHex)||frameHex.length>512)
+      throw Error('C# source frame invalid');
+    if(!Number.isInteger(timeoutMs)||timeoutMs<80||timeoutMs>15000)
+      throw Error('Invalid source response timeout');
+    if(!Number.isInteger(afterWriteMs)||afterWriteMs<0||afterWriteMs>3000)
+      throw Error('Invalid source write delay');
+    const out=Uint8Array.from(frameHex.match(/../g),x=>parseInt(x,16));
+    const response=await port.exchangeRaw(out,{
+      mainSourceMode:true,timeoutMs,afterWriteMs,
+      observe:event=>{
+        // Original parent diagnostics keep an exact record of USB status.
+        try{main.__55CSharpFlashRawTrace?.({label,...event})}catch{}
+      }
+    });
+    if(!(response?.reply instanceof Uint8Array))
+      throw Error('No complete source ECU ACK from existing WebUSB');
+    return Array.from(response.reply,x=>x.toString(16).padStart(2,'0')).join('').toUpperCase();
+  },
+  async flashBaud(baud){
+    const main=window.parent,port=main.__55SharedEcu?.port;
+    if(main===window||!main.__55CSharpFlashActive||
+       main.__55RetailFlashState?.().busy!==true||!port?.ready)
+      throw Error('No active FT232R for C# baud change');
+    if(![10400,921600].includes(baud))throw Error('Unexpected FormMain source baud');
+    return port.setBaud(baud);
+  },
+  flashSignal(phase,details){
+    const main=window.parent;
+    if(main!==window&&main.__55CSharpFlashActive===true){
+      try{main.__55CSharpFlashReport?.({phase,...(details||{})})}catch{}
+    }
+  },
   sharedEcuId(){
     try{
       if(window.parent===window)return '';
