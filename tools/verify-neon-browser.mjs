@@ -69,6 +69,28 @@ try{
    const gate=document.getElementById('licenseGate');if(gate)gate.style.visibility='hidden';
    const splash=document.getElementById('spl');if(splash)splash.style.visibility='hidden';});
   await page.waitForTimeout(350);
+  if(width===393){
+   // Use a synthetic USB chooser, NEVER real USB/ECU. Click the actual
+   // Android Home control to catch regressions that silently skip the picker
+   // when Chrome cached one previously permitted FT232R.
+   await page.waitForSelector('#sharedEcuPanel button',{state:'attached',timeout:10000});
+   await page.evaluate(()=>{
+    window.__55UsbChooserCalls=[];
+    Object.defineProperty(navigator,'usb',{configurable:true,value:{
+     getDevices:async()=>[],
+     addEventListener:()=>{},
+     requestDevice:({filters})=>{
+      window.__55UsbChooserCalls.push(filters);
+      return Promise.reject(Object.assign(new Error('Synthetic user cancellation'),{name:'NotFoundError'}));
+     }
+    }});
+   });
+   await page.locator('#sharedEcuPanel button').filter({hasText:'เชื่อมต่อสาย USB'}).click();
+   await page.waitForFunction(()=>window.__55UsbChooserCalls?.length===1);
+   const chooser=await page.evaluate(()=>window.__55UsbChooserCalls[0]);
+   assert.deepEqual(chooser,[{vendorId:0x0403,productId:0x6001}],
+    'manual Home connection invokes Android FT232R WebUSB chooser directly');
+  }
   assert.equal(await page.locator('#v20Nav button').count(),8,'8 quick-nav categories; Recovery is kept in the menu drawer');
   assert.equal(await page.locator('#n20Stage .n20-tile').count(),8,'8 dashboard tiles; Recovery remains a separate drawer route');
   assert.equal(await page.locator('#n20MenuDialog .n20-menu-items button').count(),9,'hamburger drawer contains all 9 categories including Recovery');
