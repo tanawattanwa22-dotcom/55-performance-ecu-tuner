@@ -92,4 +92,11 @@ var shCorrected=MainBinSource.ShindengenChecksumCopy(shBin);
 Test(shCorrected is not null&&shCorrected.ChecksumOffset==116 &&
     shBin[116]!=shCorrected.Bytes[116],
     "Shindengen original checksum correction on a cloned BIN");
+
+Test(MainCatalogSource.Count==290,"FormMain ECU catalog 232 Keihin + 58 Shindengen");
+var match=MainCatalogSource.Lookup("0104080F01");
+Test(match is not null&&match.Family=="KEIHIN"&&match.PartCode=="38770-K2F-N01"&&
+     match.ChecksumOffset==0x3FFF8,"original Main catalog Part/Checksum lookup");
+Test(MainCatalogSource.Lookup("0103060F03")?.PartCode is null,
+     "Shindengen ID without Part Code is preserved as unknown");
 Console.WriteLine("ALL Main.zip C# offline tests PASSED. No ECU/USB commands sent.");
