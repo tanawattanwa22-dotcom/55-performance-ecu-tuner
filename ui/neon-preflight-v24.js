@@ -1041,7 +1041,7 @@ async function autoPrepare(){
  // Previously the 1.5s renderer re-probed the ECU every 15s while its
  // Family ACK was absent, clearing green checks and competing with taps.
  // A manual button press still allows the operator to try again.
- const key=(snap.ecuId||'UNREAD')+'|'+(c.saved?.sha256||c.saved?.filename||'no-bin');
+ const key=c.saved?.sha256||c.saved?.filename||'no-bin';
  if(lastAutoProbe?.port===port&&lastAutoProbe?.key===key)return false;
  lastAutoProbe={key,port,at:Date.now()};
  preparingAuto=true;
