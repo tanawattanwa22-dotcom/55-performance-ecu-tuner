@@ -32,7 +32,7 @@ session.running=true;setTimeout(()=>{session.running=false},30);await session.ac
 // Reproduce today's real Android failure: the previous transferIn closed
 // the USB interface, but the shared reader still exposes ready=true.
 // Preflight must restore its one authorized FT232R before any ECU commands.
-const {Ft232rWebUsb}=await import('../flash_port/ftdi-webusb.js?v=410');
+const {Ft232rWebUsb}=await import('../flash_port/ftdi-webusb.js?v=419');
 const stale=new Ft232rWebUsb(),device={vendorId:0x0403,productId:0x6001};
 stale.ready=true;stale.dev={opened:false};stale.itf=0;stale.inEp=1;stale.outEp=2;stale.lastDevice=device;
 const originalOpenSelected=Ft232rWebUsb.prototype.openSelected;
