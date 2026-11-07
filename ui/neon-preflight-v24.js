@@ -404,6 +404,25 @@ async function readECU(){
   // Shared port belongs to the home dashboard. Never close it here.
   working=false;render();
  }
+ return !!last?.identity?.ecuId;
+}
+// A single button press completes every available READ-ONLY preflight
+// calculation after a single physical ECU identification. No extra
+// wake/HELLO/ID command, new FT232R handle or write operation is needed.
+async function readAndCheck(){
+ const readSucceeded=await readECU();
+ if(!readSucceeded)return false;
+ const identity=last?.identity;
+ const familyProven=identity?.programmingSessionVerified===true&&
+  identity?.physicalFamilyEvidence==='MAIN_SOURCE_READ_ONLY_FLASH_COUNT_ACK';
+ if(current().valid&&(identity?.sourceMatched||familyProven)){
+  await runCheck({requestConfirmation:false});
+ }else if(current().valid&&identity?.ecuId&&!identity.ecuId.endsWith('0000')){
+  message='ECU ID '+identity.ecuId+' อ่านได้ แต่ยังไม่มี Family/Flash Count ACK จากกล่องจริง • '+
+   'ยังไม่ยืนยัน Profile/Offset สำหรับเขียน ไม่อ่านวนซ้ำเอง';
+  render();
+ }
+ return verified();
 }
 const approvedPartialBins=new Set(); // Session-only: exact ECU ID + saved BIN SHA-256
 async function runCheck({requestConfirmation=false}={}){
@@ -928,7 +947,7 @@ function mount(host){
  const title=make('strong','','รอการตรวจ Preflight');dom.title=title;
  const note=make('p','','');dom.note=note;state.append(title,note);stage.append(state);
  const actions=make('div','n24-actions n24-main-check-actions');
- const read=btn('▣ อ่าน ECU ID','n24-btn n24-read',readECU);dom.read=read;
+ const read=btn('▣ อ่าน ECU ID + ตรวจอัตโนมัติ','n24-btn n24-read',()=>void readAndCheck());dom.read=read;
  const check=btn('▱ ตรวจ Preflight','n24-btn n24-verify',()=>runCheck({requestConfirmation:true}));dom.check=check;
  actions.append(read,check);
  stage.append(actions);
@@ -1001,25 +1020,33 @@ async function autoPrepare(){
  if(preparingAuto||working||INLINEFLASH.busy)return false;
  const shared=window.__55SharedEcu;
  const snap=shared?.snapshot?.();
- if(!stage?.isConnected||!snap?.connected)return false;
- const c=current();
- if(recency()&&last?.identity?.ecuId===snap.ecuId&&last.saved===c.saved)return verified();
- const key=(snap.ecuId||'UNREAD')+'|'+(c.saved?.sha256||c.saved?.filename||'no-bin');
- if(lastAutoProbe?.key===key&&Date.now()-lastAutoProbe.at<15000)return false;
- lastAutoProbe={key,at:Date.now()};
- preparingAuto=true;
- try{
-  // Read ID/Boot session even without a BIN; only make a plan when a valid BIN exists.
-  await readECU();
-  // FormMain.SetEcmParamsFromDb permits ECU IDs absent from its
-  // embedded catalog; the caller still needs physical source-family ACK
-  // and BIN signature/ID proof. Do not skip read-only plan checking just
-  // because the source Part Code table has no row for this ECU.
+ const port=shared?.port;
+ if(!stage?.isConnected||!snap?.connected||!port?.ready)return false;
+ const c=current(),samePort=last?.engine?.usb===port;
+ const sameIdentity=!snap.ecuId||last?.identity?.ecuId===snap.ecuId;
+ if(samePort&&sameIdentity&&recency()&&last?.saved===c.saved){
+  if(verified())return true;
+  // A successful physical read without a plan needs only the pure
+  // makePlan() check; don't re-wake or re-read the same ECU repeatedly.
   const proof=last?.identity?.programmingSessionVerified===true&&
    last?.identity?.physicalFamilyEvidence==='MAIN_SOURCE_READ_ONLY_FLASH_COUNT_ACK';
-  if(current().valid&&(last?.identity?.sourceMatched||proof))await runCheck({requestConfirmation:false});
-  return verified();
- }finally{preparingAuto=false;render()}
+  if(c.valid&&(last?.identity?.sourceMatched||proof)){
+   preparingAuto=true;
+   try{await runCheck({requestConfirmation:false});return verified()}
+   finally{preparingAuto=false;render()}
+  }
+  return false; // ID-only: require fresh physical evidence, not more polling.
+ }
+ // One automatic probe per selected physical port + file snapshot.
+ // Previously the 1.5s renderer re-probed the ECU every 15s while its
+ // Family ACK was absent, clearing green checks and competing with taps.
+ // A manual button press still allows the operator to try again.
+ const key=(snap.ecuId||'UNREAD')+'|'+(c.saved?.sha256||c.saved?.filename||'no-bin');
+ if(lastAutoProbe?.port===port&&lastAutoProbe?.key===key)return false;
+ lastAutoProbe={key,port,at:Date.now()};
+ preparingAuto=true;
+ try{return await readAndCheck()}
+ finally{preparingAuto=false;render()}
 }
 // Dashboard may read already calculated BIN-only metadata. Do not expose
 // an unverified snapshot as a flash plan or physical ECU memory map.
