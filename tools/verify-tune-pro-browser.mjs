@@ -129,22 +129,50 @@ try{
   await page.evaluate(()=>document.querySelector('#o3x').click());
 
   // Verify visually that landscape tools overlay on phone (not shrink main grid).
-  const layout=await page.evaluate(()=>({
-   shell:document.querySelector('#tune .tp-shell').getBoundingClientRect().width,
-   grid:document.querySelector('#tune .tp-main').getBoundingClientRect().width,
-   left:window.__55TuneProUI.getLayout().leftOpen,
-   right:window.__55TuneProUI.getLayout().rightOpen,
-   toolExists:!!document.querySelector('#tune .tp-tool-host #fp')
-  }));
+  const layout=await page.evaluate(()=>{
+   const grid=document.querySelector('#tune #gw'),box=grid.getBoundingClientRect();
+   const row=grid.querySelector('table.g tbody tr');
+   const rowHeight=row?.getBoundingClientRect().height||25;
+   return {
+    shell:document.querySelector('#tune .tp-shell').getBoundingClientRect().width,
+    grid:document.querySelector('#tune .tp-main').getBoundingClientRect().width,
+    gridHeight:box.height,
+    visibleRows:Math.floor(box.height/rowHeight),
+    gridBottomPadding:getComputedStyle(grid).paddingBottom,
+    stepsVisible:getComputedStyle(document.getElementById('tuneFlow')).display!=='none',
+    previewVisible:getComputedStyle(document.querySelector('#tune .tp-preview-zone')).display!=='none',
+    statusVisible:getComputedStyle(document.querySelector('#tune .tp-status')).display!=='none',
+    left:window.__55TuneProUI.getLayout().leftOpen,
+    right:window.__55TuneProUI.getLayout().rightOpen,
+    toolExists:!!document.querySelector('#tune .tp-tool-host #fp')
+   };
+  });
   assert.equal(layout.toolExists,true);
   if(width===844){
    assert(layout.grid>=width*0.83,'phone landscape main grid remains wide: '+JSON.stringify(layout));
+   assert(layout.gridHeight>=165&&layout.visibleRows>=6,
+    'LANDSCAPE GRID MUST SHOW AT LEAST 6 ROWS, not only 2: '+JSON.stringify(layout));
+   assert.equal(layout.gridBottomPadding,'0px','legacy 75–148px Flash toolbar space is fully reclaimed');
+   assert.equal(layout.stepsVisible,false,'steps are visually hidden on short landscape');
+   assert.equal(layout.statusVisible,false,'status footer does not consume landscape grid height');
+   assert.equal(layout.previewVisible,false,'multi-map stays collapsed until user deliberately opens it');
+   const gridHeightBefore=layout.gridHeight;
+   await page.evaluate(()=>document.querySelector('#tune .tp-mainbar .tp-cmd[title="แสดงหรือซ่อนตารางย่อย"]').click());
+   await page.waitForFunction(()=>getComputedStyle(document.querySelector('#tune .tp-preview-zone')).display!=='none');
+   const gridHeightDuring=await page.evaluate(()=>document.querySelector('#tune #gw').getBoundingClientRect().height);
+   assert(Math.abs(gridHeightDuring-gridHeightBefore)<=2,
+    'opening floating Preview must NOT shrink real edit grid');
+   await page.evaluate(()=>document.querySelector('#tune .tp-mainbar .tp-cmd[title="แสดงหรือซ่อนตารางย่อย"]').click());
+   await page.waitForFunction(()=>getComputedStyle(document.querySelector('#tune .tp-preview-zone')).display==='none');
    await page.evaluate(()=>document.querySelector('#tune .tp-mainbar button[aria-label="เปิดหรือปิดรายการตารางจูน"]').click());
    assert.equal(await page.evaluate(()=>window.__55TuneProUI.getLayout().leftOpen),true);
    await page.evaluate(()=>document.querySelector('#tune .tp-side-close').click());
    await page.evaluate(()=>document.querySelector('#tune .tp-mainbar button[aria-label="เปิดหรือปิดเครื่องมือปรับค่า"]').click());
    assert.equal(await page.evaluate(()=>window.__55TuneProUI.getLayout().rightOpen),true);
    assert((await page.locator('#tune .tp-tool-host #fp').isVisible()),'real tools slide in');
+   // Screenshot must show the full unblocked editing table, not a tool overlay.
+   await page.evaluate(()=>document.querySelector('#tune .tp-mainbar button[aria-label="เปิดหรือปิดเครื่องมือปรับค่า"]').click());
+   assert.equal(await page.evaluate(()=>window.__55TuneProUI.getLayout().rightOpen),false);
   }
   await page.screenshot({path:path.join(root,'test-reports','tune-pro-landscape-'+width+'.png')});
   assert.deepEqual(errors,[],'TUNE PRO browser JS errors: '+errors.join(' | '));
