@@ -223,7 +223,7 @@ function render(){
  setItem('model',quick?'อ่านรุ่นจาก ECU จริงอัตโนมัติ':c.model||'ยังไม่เลือกรุ่น');
  setItem('dbcount',catalog290.rows?'ฐาน Main 290 + ECM.dat ต้นฉบับ 122':catalog290.error?'ฐาน Main 290 โหลดผิดพลาด (ECM.dat อ้างอิงยังใช้ได้)':'กำลังโหลดฐาน Main 290');
  setItem('filename',quick?quick.filename:c.valid?c.saved.filename:'ยังไม่ได้เลือก BIN');
- setItem('source',quick?'BIN ที่เลือกจากโทรศัพท์':c.valid?(c.saved.customerBin?'BIN ที่นำเข้าจากเครื่อง':'Master BIN (จากแอป)'):'—');
+ setItem('source',quick?(quick.vaultId?'BIN ในคลังของแอป':'BIN ที่เลือกจากโทรศัพท์'):c.valid?(c.saved.vaultId?'BIN ในคลังของแอป':c.saved.customerBin?'BIN ที่นำเข้าจากเครื่อง':'Master BIN (จากแอป)'):'—');
  setItem('size',quick?mainFileSize(quick.bytes.length):c.valid?mainFileSize(c.bytes.length):'—');
  setItem('sha',quick?(quick.sha256?.slice(0,20)+'…'||'กำลังตรวจ…'):hash&&hash.saved===c.saved&&c.valid?hash.hex.slice(0,20)+'…':'ยังไม่ได้คำนวณ');
  setItem('ecu',identity?.ecuId||'ยังไม่ได้อ่านจาก ECU');
@@ -620,10 +620,103 @@ function mount(host){
  choose.append(make('span','','รุ่นที่เลือก'));const model=make('strong','','—');dom.model=model;choose.append(model);
  choose.append(btn('เปลี่ยนรุ่น ›','n24-model-change',()=>window.__55NeonNavigate?.('library')));stage.append(choose);
  const easy=card('n24-easy','⚡','อัดไฟล์ ECU');
- const uploadLabel=make('label','n24-upload-label','1. เลือก BIN ที่จูนเสร็จแล้ว');
+
+ // Tuned BIN vault: IndexedDB in this app, not an exported .bin file.
+ const vaultBox=make('section','n24-vault');
+ const vaultHeading=make('b','n24-vault-heading','📚 คลัง BIN ที่จูนแล้วในแอป');
+ const vaultIntro=make('p','n24-help',
+  'เลือกไฟล์ที่ตั้งชื่อไว้หลังจูน • โปรแกรมตรวจ SHA-256 ของไฟล์ในคลัง และตรวจ ECU ID / Part / Offset จริงอีกครั้งก่อนอัด');
+ const vaultSelect=make('select','n24-vault-select');vaultSelect.id='n24VaultSelect';
+ vaultSelect.setAttribute('aria-label','เลือก BIN จากคลังภายในแอป');
+ const vaultRow=make('div','n24-vault-row');
+ const vaultLoad=btn('✓ เลือก BIN นี้','n24-btn n24-vault-load',()=>void loadVault());
+ const vaultDelete=btn('ลบ','n24-btn n24-vault-delete',()=>void deleteVault());
+ vaultRow.append(vaultLoad,vaultDelete);
+ const vaultMessage=make('p','n24-vault-message','กำลังเปิดคลัง BIN…');
+ const vaultWarning=make('p','n24-help',
+  'คลังนี้อยู่ใน Chrome เครื่องปัจจุบัน หากล้างข้อมูลเว็บไซต์หรือเปลี่ยนเครื่อง ไฟล์อาจหาย • ไม่ใช่ DRM ที่ป้องกันการดึงไฟล์ได้สมบูรณ์');
+ vaultBox.append(vaultHeading,vaultIntro,vaultSelect,vaultRow,vaultMessage,vaultWarning);
+ easy.append(vaultBox);
+ let vaultList=[];
+ async function refreshVault(preferId){
+  const vault=window.__55TunedBinVault;
+  if(!vault){
+   vaultSelect.replaceChildren(new Option('ระบบคลัง BIN ยังไม่พร้อม',''));
+   vaultLoad.disabled=true;vaultDelete.disabled=true;
+   vaultMessage.textContent='ระบบคลัง BIN ไม่พร้อม • รีโหลดหน้าเว็บ';return;
+  }
+  try{
+   const previous=preferId||vaultSelect.value||quickBin()?.vaultId||S.saved?.vaultId||'';
+   vaultList=await vault.list();
+   if(!vaultSelect.isConnected)return;
+   vaultSelect.replaceChildren(new Option('— เลือกไฟล์ BIN จากคลัง —',''));
+   for(const record of vaultList){
+    const label=record.name+' · '+record.model+' · '+mainFileSize(record.size);
+    vaultSelect.add(new Option(label,record.id));
+   }
+   vaultSelect.value=vaultList.some(row=>row.id===previous)?previous:'';
+   vaultLoad.disabled=!vaultSelect.value||!!INLINEFLASH.busy;
+   vaultDelete.disabled=vaultLoad.disabled;
+   vaultMessage.textContent=vaultList.length
+    ?'มี '+vaultList.length+' ไฟล์ในคลัง • เลือกไฟล์แล้วกด “เลือก BIN นี้” เพื่อตรวจ ECU'
+    :'คลัง BIN ยังว่าง • ไปหน้าจูน กดบันทึกและตั้งชื่อไฟล์ก่อน';
+  }catch(e){
+   vaultLoad.disabled=true;vaultDelete.disabled=true;
+   vaultMessage.textContent='เปิดคลัง BIN ไม่สำเร็จ: '+(e?.message||e);
+  }
+ }
+ async function loadVault(){
+  if(INLINEFLASH.busy)return;
+  const id=vaultSelect.value;
+  if(!id)return errorOut('กรุณาเลือกไฟล์ในคลัง BIN ก่อน');
+  const vault=window.__55TunedBinVault;
+  vaultLoad.disabled=true;vaultMessage.textContent='กำลังตรวจ SHA-256 ของ BIN ในคลัง…';
+  try{
+   const entry=await vault.load(id);
+   if(!entry)throw Error('ไม่พบไฟล์นี้ในคลัง BIN');
+   if(INLINEFLASH.busy)throw Error('ECU กำลังทำงาน ไม่เปลี่ยน BIN ระหว่างอัด');
+   const currentId=window.__55SharedEcu?.snapshot?.().ecuId;
+   // Never claim that the human-supplied title or model label proves ECU compatibility.
+   window.__55QuickFlashBin={
+    bytes:entry.bytes,filename:entry.filename,sha256:entry.sha256,
+    vaultId:entry.id,vaultName:entry.name,model:entry.model,
+    selectedAt:Date.now(),source:'TUNED_LOCAL_VAULT'
+   };
+   error='';last=null;hash=null;binOffsetHint=null;
+   window.dispatchEvent(new Event('55:bin-selection-changed'));
+   vaultMessage.textContent='✓ ใช้ไฟล์ “'+entry.name+'” รุ่น '+entry.model+
+    ' • SHA-256 ตรง • '+mainFileSize(entry.size)+' • ECU '+(currentId||'ยังไม่ได้อ่าน');
+   if(dom.quickStatus)dom.quickStatus.textContent='✓ BIN จากคลัง: '+entry.name+' ('+mainFileSize(entry.size)+')';
+   message='เลือก BIN จากคลังแล้ว • ให้ระบบอ่าน ECU ID จริงและตรวจความเข้ากันได้ก่อนอัด';
+   void previewBinOffset();void analyzeSelectedBin();window.__55refreshFlashButton?.();
+   render();if(window.__55SharedEcu?.snapshot?.().connected)void autoPrepare();
+  }catch(e){errorOut('เลือก BIN ในคลังไม่สำเร็จ: '+(e?.message||e))}
+  finally{vaultLoad.disabled=false;render()}
+ }
+ async function deleteVault(){
+  if(INLINEFLASH.busy)return;
+  const id=vaultSelect.value,entry=vaultList.find(x=>x.id===id);
+  if(!entry||!confirm('ลบ BIN “'+entry.name+'” ออกจากคลังใน Chrome เครื่องนี้ถาวร?'))return;
+  try{
+   await window.__55TunedBinVault.remove(id);
+   if(window.__55QuickFlashBin?.vaultId===id)window.__55QuickFlashBin=null;
+   if(S.saved?.vaultId===id)S.saved=null;
+   binOffsetHint=null;last=null;hash=null;
+   await refreshVault();
+   window.dispatchEvent(new Event('55:bin-selection-changed'));
+   window.__55refreshFlashButton?.();render();
+  }catch(e){errorOut('ลบ BIN ไม่สำเร็จ: '+(e?.message||e))}
+ }
+ vaultSelect.addEventListener('change',()=>{
+  vaultLoad.disabled=!vaultSelect.value||!!INLINEFLASH.busy;
+  vaultDelete.disabled=vaultLoad.disabled;
+ });
+ dom.vaultRefresh=refreshVault;
+ void refreshVault();
+ const uploadLabel=make('label','n24-upload-label','หรือเปิด BIN ภายนอกจากเครื่อง (ไฟล์ที่ลูกค้ามีอยู่แล้ว)');
  uploadLabel.htmlFor='n24QuickBin';
  const upload=make('input','n24-file-input');upload.type='file';upload.id='n24QuickBin';upload.accept='.bin'; // FormMain.OpenFileDialog.Filter: Bin file (*.bin)|*.bin
- const uploadNote=make('p','n24-help','เลือกไฟล์จากโทรศัพท์ได้เลย ไม่ต้องเลือกรุ่นรถเอง · ระบบจะอ่านรหัสกล่องจริงก่อนอัด');
+ const uploadNote=make('p','n24-help','ตัวเลือกสำรองสำหรับ BIN ภายนอก • BIN ที่ร้านจูนและบันทึกไว้ใช้จากคลังภายในแอป โดยไม่ต้องดาวน์โหลดไฟล์');
  // One source of truth: the old hidden FormMain checkbox is the actual value
  // consumed by inlineFlashStart(). The visible Fast Flash checkbox mirrors it.
  const sourceFast=$('mainFastWrite');
@@ -662,7 +755,7 @@ function mount(host){
  const uploadStatus=make('p','n24-upload-status',previous?'✓ '+previous.filename+' ('+mainFileSize(previous.bytes.length)+')':'ยังไม่ได้เลือกไฟล์');dom.quickStatus=uploadStatus;
  upload.onchange=async()=>{
   if(INLINEFLASH.busy){upload.value='';return}
-  window.__55QuickFlashBin=null;error='';
+  window.__55QuickFlashBin=null;vaultSelect.value='';error='';
   try{
    const f=upload.files?.[0];
    if(!f){uploadStatus.textContent='ยังไม่ได้เลือกไฟล์';return}
@@ -893,6 +986,9 @@ window.__55FlashPreflight={mount,render,readECU,runCheck,autoPrepare,
  hasBin:()=>current().valid,ready:verified,sourceBinPreview};
 ['btnSave','sel','btnAutoOffset','btnRead','goTune'].forEach(id=>$(id)?.addEventListener('click',()=>queueMicrotask(render)));
 window.addEventListener('55:bin-selection-changed',()=>{if(stage?.isConnected)void analyzeSelectedBin()});
+window.addEventListener('55:tuned-bin-vault-updated',event=>{
+ if(stage?.isConnected)void dom.vaultRefresh?.(event.detail?.id);
+});
 $('btnSave')?.addEventListener('click',()=>{if(stage?.isConnected)queueMicrotask(()=>void analyzeSelectedBin())});
 window.addEventListener('55:bin-changed',render);
  const stepBox=$('stepTxt');
