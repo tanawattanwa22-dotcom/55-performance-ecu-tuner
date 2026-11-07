@@ -546,6 +546,57 @@ export class MainLiveSession {
    this.notify();return false;
   }
  }
+ // Read-only ECU presence sample for the Fast Flash screen.
+ // Keeps the FT232R USB cable state separate from a real ECU ID reply.
+ // The sampling cadence belongs to the UI; this method changes NO
+ // transport timeout, ACK/retry, programming, flash or recovery behavior.
+ async observeEcuIdReadOnly(){
+  if(!this.port?.ready||this.owner||this.running||this.connecting||
+     this.autoBusy||this.disconnectRequested)return {state:'BUSY'};
+  const port=this.port, generation=this._usbConnectGeneration;
+  this.autoBusy=true;
+  this.phase='ECU_ID_MONITOR';
+  this.autoStatus='FT232R ต่ออยู่ • กำลังตรวจ ECU ID ปัจจุบัน (อ่านอย่างเดียว)';
+  this.notify();
+  try{
+   await port.sourceDiagnosticWake();
+   if(this.disconnectRequested||port!==this.port||generation!==this._usbConnectGeneration)
+    return {state:'DISCONNECTED'};
+   // Use the same already-validated FM_diag ID command and reply layout
+   // as _checkIdentity(). No extra programming command is introduced.
+   const {reply,echoOK}=await port.command('ID',{timeoutMs:2200,afterWriteMs:50});
+   if(!echoOK||reply?.length<11)throw Error('ECU ID reply incomplete or echo mismatch');
+   const id=Array.from(reply.slice(5,10),x=>x.toString(16).padStart(2,'0')).join('').toUpperCase();
+   if(!/^[0-9A-F]{10}$/.test(id)||/^0+$/.test(id)||/^F+$/.test(id))
+    throw Error('ECU ID malformed or uninitialized');
+   if(this.disconnectRequested||port!==this.port||generation!==this._usbConnectGeneration)
+    return {state:'DISCONNECTED'};
+   const previous=this.ecuId;
+   if(previous!==id){
+    // A different bike, or an ECU that has just started answering:
+    // never carry Family/Part/Count/DTC/Live evidence from the last bike.
+    this._clearDetectedEcu();this.ecuId=id;
+    try{const db=await loadCSharpCatalog();this.catalog=db.get(id)||null}
+    catch{this.catalog=null}
+   }
+   this.idError='';
+   this.autoStatus='✓ ECU ID ตอบจริง: '+id+' • '+(previous&&previous!==id?'พบ ECU เปลี่ยนคัน':'ตรวจปัจจุบัน');
+   return {state:'CONFIRMED',ecuId:id,changed:previous!==id};
+  }catch(e){
+   if(!this.disconnectRequested&&port===this.port&&generation===this._usbConnectGeneration){
+    const reason=String(e?.message||e);
+    this._clearDetectedEcu();
+    this.idError=reason;
+    this.autoStatus='FT232R อาจยังต่ออยู่ แต่ ECU ไม่ตอบ ID • ไม่ใช้ข้อมูลรถคันก่อน';
+   }
+   return {state:'NO_ECU_REPLY'};
+  }finally{
+   this.autoBusy=false;
+   if(port===this.port&&this.port?.ready&&this.phase==='ECU_ID_MONITOR')
+    this.phase=this.ecuId?'ECU_ID_CONFIRMED':'USB_READY_NO_ECU';
+   this.notify();
+  }
+ }
  async rescan(){
   if(!this.port?.ready||this.owner||this.running||this.connecting||this.autoBusy)return false;
   return this._autoDetect();
