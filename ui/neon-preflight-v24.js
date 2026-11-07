@@ -203,9 +203,11 @@ function render(){
  }:null;
  const inlineIdentity=(INLINEFLASH.busy||INLINEFLASH.postCheck)?INLINEFLASH.engine?.identity:null;
  const staleId=!!last?.identity?.ecuId&&!!connectedId?.ecuId&&last.identity.ecuId!==connectedId.ecuId;
- const identity=inlineIdentity||(recency()&&!staleId?last?.identity:null)||connectedId;
+ const identity=shared?.connected&&shared.ecuPresenceState!=='NO_REPLY'?
+  (inlineIdentity||(recency()&&!staleId?last?.identity:null)||connectedId):null;
  const recoveryCandidate=!!identity?.ecuId?.endsWith('0000');
- const plan=(inlineIdentity?.sourceMatched||INLINEFLASH.plan?.checks?.sourceUnlistedWithProof)?INLINEFLASH.plan:verified()?last?.plan:null;
+ const plan=shared?.connected&&shared.ecuPresenceState!=='NO_REPLY'?
+  ((inlineIdentity?.sourceMatched||INLINEFLASH.plan?.checks?.sourceUnlistedWithProof)?INLINEFLASH.plan:verified()?last?.plan:null):null;
  const source=catalogRecord(identity);
  const sourceCount=window.__55MainProgrammingProbe?.snapshot?.();
  const physicalFamilyAck=identity?.programmingSessionVerified===true&&
@@ -294,6 +296,13 @@ function render(){
   obj.ico.textContent=ok?'✓':key==='hardware'?'!':'○';
   obj.row.classList.toggle('passed',ok);
  }
+ if(dom.autoReadStatus)dom.autoReadStatus.textContent=
+  !shared?.connected?'ถอด FT232R แล้ว • ไม่แสดง ECU ของรถคันก่อน':
+  shared?.ecuPresenceState==='NO_REPLY'?'FT232R ยังต่ออยู่ แต่ ECU ไม่ตอบ ID ปัจจุบัน • รอตรวจใหม่':
+  working||shared?.autoBusy?'กำลังตรวจ ECU จริงโดยอัตโนมัติ (อ่านอย่างเดียว)…':
+  verified()?'✓ ECU ID / Family / BIN / Offset ผ่านการตรวจล่าสุด':
+  identity?.ecuId?'พบ ECU '+identity.ecuId+' • รายการที่ยังไม่ผ่านต้องมีหลักฐานจริง':
+  'FT232R ต่ออยู่ • รอ ECU ตอบกลับ / ตรวจอัตโนมัติ';
  dom.read.disabled=working||!!INLINEFLASH.busy||!!document.getElementById('licenseGate');
  dom.check.disabled=working||!c.valid||!identity||!recency()||last?.saved!==c.saved;
  dom.flash.disabled=working||!!INLINEFLASH.busy||(recoveryCandidate&&!INLINEFLASH.postCheck)||
@@ -947,12 +956,14 @@ function mount(host){
  const title=make('strong','','รอการตรวจ Preflight');dom.title=title;
  const note=make('p','','');dom.note=note;state.append(title,note);stage.append(state);
  const actions=make('div','n24-actions n24-main-check-actions');
- const read=btn('▣ อ่าน ECU ID + ตรวจอัตโนมัติ','n24-btn n24-read',()=>void readAndCheck());dom.read=read;
- const check=btn('▱ ตรวจ Preflight','n24-btn n24-verify',()=>runCheck({requestConfirmation:true}));dom.check=check;
- actions.append(read,check);
+ const autoReadStatus=make('p','n24-help','ตรวจ ECU ID / Family / BIN / Offset ให้อัตโนมัติหลังต่อสาย • ไม่ส่ง ERASE/WRITE');
+ autoReadStatus.id='n24AutoReadStatus';autoReadStatus.setAttribute('role','status');dom.autoReadStatus=autoReadStatus;
+ const read=btn('↻ สแกน ECU ID ใหม่ (สำรอง)','n24-btn n24-read',()=>void readAndCheck());dom.read=read;
+ const check=btn('▱ ตรวจ Preflight อีกครั้ง (สำรอง)','n24-btn n24-verify',()=>runCheck({requestConfirmation:true}));dom.check=check;
+ actions.append(autoReadStatus);
  stage.append(actions);
  const advanced=make('details','n24-advanced');
- advanced.append(make('summary','','ตัวเลือกขั้นสูง / ตรวจละเอียด'));
+ advanced.append(make('summary','','ตัวเลือกขั้นสูง / ตรวจละเอียด'),read,check);
  stage.append(advanced);
  const gate=make('p','n24-help','');gate.setAttribute('role','status');dom.gateReason=gate;stage.append(gate);
  // The user's Main.zip FormMain.cs SHA-256 matches the source already ported
@@ -1015,38 +1026,73 @@ function mount(host){
  // Start read-only automatic Preflight when Fast Flash is entered with cable/BIN.
  queueMicrotask(()=>{if(stage===host)void autoPrepare().catch(e=>{error=e.message;render()})});
 }
-let preparingAuto=false,lastAutoProbe=null;
+let preparingAuto=false,lastAutoProbe=null,lastPlanCheck=null;
+let observedLink={connected:false,port:null,ecuId:'',presence:'NO_USB',presenceAt:0};
+function onSharedLink(event){
+ const s=event?.detail;
+ if(!s)return;
+ const disconnected=!s.connected||!s.port||s.presence==='NO_REPLY';
+ const swapped=observedLink.connected&&s.connected&&(
+  observedLink.port!==s.port||
+  (!!observedLink.ecuId&&!!s.ecuId&&observedLink.ecuId!==s.ecuId));
+ if(disconnected||swapped){
+  last=null;hash=null;confirmAt=null;lastAutoProbe=null;lastPlanCheck=null;
+  error='';
+  message=disconnected?
+   (s.connected?'FT232R ต่ออยู่ แต่ ECU ไม่ตอบการตรวจครั้งล่าสุด • รอ ECU ตอบใหม่':
+    'ถอด FT232R แล้ว • ล้างผลตรวจ ECU/Offset ของรถคันก่อน'):
+   'ตรวจพบ ECU หรือพอร์ตเปลี่ยน • กำลังตรวจข้อมูลของคันใหม่';
+ }
+ observedLink=s;
+ if(stage?.isConnected){
+  render();
+  if(!disconnected&&s.available&&!INLINEFLASH.busy&&!working&&!preparingAuto)
+   queueMicrotask(()=>void autoPrepare().catch(e=>{error=e.message;render()}));
+ }
+}
+window.addEventListener('55:shared-ecu-link',onSharedLink);
 async function autoPrepare(){
- if(preparingAuto||working||INLINEFLASH.busy)return false;
+ if(preparingAuto||working||INLINEFLASH.busy||document.visibilityState!=='visible')return false;
  const shared=window.__55SharedEcu;
  const snap=shared?.snapshot?.();
  const port=shared?.port;
- if(!stage?.isConnected||!snap?.connected||!port?.ready)return false;
+ if(!stage?.isConnected||!snap?.connected||!port?.ready||snap.connecting||
+    snap.autoBusy||snap.ecuPresenceState==='NO_REPLY'||shared?.owner)return false;
  const c=current(),samePort=last?.engine?.usb===port;
  const sameIdentity=!snap.ecuId||last?.identity?.ecuId===snap.ecuId;
- if(samePort&&sameIdentity&&recency()&&last?.saved===c.saved){
-  if(verified())return true;
-  // A successful physical read without a plan needs only the pure
-  // makePlan() check; don't re-wake or re-read the same ECU repeatedly.
+ if(samePort&&sameIdentity&&recency()){
+  // A new BIN does NOT require another ECU wake. Recompute the pure C#
+  // write plan against the fresh saved BIN using the already proven ECU.
+  if(last.saved!==c.saved){
+   last.saved=c.valid?c.saved:null;last.model=c.model;last.plan=null;hash=null;
+   lastPlanCheck=null;
+  }
+  if(verified()||!c.valid)return verified();
   const proof=last?.identity?.programmingSessionVerified===true&&
    last?.identity?.physicalFamilyEvidence==='MAIN_SOURCE_READ_ONLY_FLASH_COUNT_ACK';
   if(c.valid&&(last?.identity?.sourceMatched||proof)){
+   if(lastPlanCheck?.engine===last.engine&&lastPlanCheck?.saved===c.saved)
+    return false;
+   lastPlanCheck={engine:last.engine,saved:c.saved};
    preparingAuto=true;
    try{await runCheck({requestConfirmation:false});return verified()}
    finally{preparingAuto=false;render()}
   }
-  return false; // ID-only: require fresh physical evidence, not more polling.
+  return false;
  }
- // One automatic probe per selected physical port + file snapshot.
- // Previously the 1.5s renderer re-probed the ECU every 15s while its
- // Family ACK was absent, clearing green checks and competing with taps.
- // A manual button press still allows the operator to try again.
- const key=c.saved?.sha256||c.saved?.filename||'no-bin';
+ // Bounded single full programming-ID read per FT232R handle / BIN /
+ // freshness window. A failed ID is NOT retried every 1.5 seconds.
+ // The lightweight ID-only monitor checks the real ECU independently.
+ const key=(c.saved?.sha256||c.saved?.filename||'no-bin')+
+   '|'+Math.floor(Date.now()/TTL);
  if(lastAutoProbe?.port===port&&lastAutoProbe?.key===key)return false;
  lastAutoProbe={key,port,at:Date.now()};
  preparingAuto=true;
- try{return await readAndCheck()}
- finally{preparingAuto=false;render()}
+ try{
+  const result=await readAndCheck();
+  if(last?.engine&&c.valid)lastPlanCheck={engine:last.engine,saved:c.saved};
+  return result;
+ }finally{preparingAuto=false;render()}
 }
 // Dashboard may read already calculated BIN-only metadata. Do not expose
 // an unverified snapshot as a flash plan or physical ECU memory map.
@@ -1058,6 +1104,7 @@ const sourceBinPreview=()=>{
   blockBytes:p.binBlockBytes||null,verified:false,origin:'BIN_ONLY'}:null;
 };
 window.__55FlashPreflight={mount,render,readECU,runCheck,autoPrepare,
+ busy:()=>working||preparingAuto,
  hasBin:()=>current().valid,ready:verified,sourceBinPreview};
 ['btnSave','sel','btnAutoOffset','btnRead','goTune'].forEach(id=>$(id)?.addEventListener('click',()=>queueMicrotask(render)));
 window.addEventListener('55:bin-selection-changed',()=>{if(stage?.isConnected)void analyzeSelectedBin()});
@@ -1071,7 +1118,7 @@ window.addEventListener('55:bin-changed',render);
  const pct=$('pct');
  if(pct)new MutationObserver(()=>render()).observe(pct,{childList:true,characterData:true,subtree:true});
 setInterval(()=>{if(stage?.isConnected){render();window.__55FlashLogRefresh?.();
- if(current().valid&&!verified()&&!preparingAuto&&!working&&!INLINEFLASH.busy)
+ if(!verified()&&!preparingAuto&&!working&&!INLINEFLASH.busy)
   void autoPrepare().catch(e=>{error=e.message;render()});
 }},1500);
 })();
