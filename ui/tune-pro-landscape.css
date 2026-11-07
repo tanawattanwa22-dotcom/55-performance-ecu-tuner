@@ -501,3 +501,11 @@ body:has(#tune.tp-on.on) #retailGlobalBack{display:none!important}
 }
 .tp-flash-dialog-actions .tp-flash-accept{background:#13695f;border-color:#3be0bb;color:#fff}
 .tp-flash-dialog-actions button:disabled{opacity:.42;cursor:not-allowed}
+
+/* V5 named BIN vault picker in real Tune→Flash confirmation */
+.tp-flash-vault-title{font-size:13px;font-weight:850;color:#8ffff0}
+.tp-flash-vault-select{
+ width:100%;min-height:43px;border:1px solid #3abbaa;border-radius:9px;
+ padding:8px 10px;background:#10364b;color:#f2ffff;font:700 13px system-ui
+}
+.tp-flash-vault-info{font-size:11px!important;color:#a9e9dd!important}
