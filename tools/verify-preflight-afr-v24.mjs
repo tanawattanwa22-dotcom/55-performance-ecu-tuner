@@ -88,7 +88,8 @@ assert(engine.includes("stage:'TX',tx:toHex(frame)")&&
  'Flash engine must emit original transmitted and validated received bytes');
 assert(p.includes('last.engine.makePlan(c.bytes.slice()'),'strict C# plan from saved BIN snapshot');
 assert(p.includes("lastAutoProbe?.port===port&&lastAutoProbe?.key===key")&&
- p.includes("if(samePort&&sameIdentity&&recency()&&last?.saved===c.saved)")&&
+ p.includes("if(samePort&&sameIdentity&&recency())")&&
+ p.includes("if(last.saved!==c.saved)")&&
  !p.includes("Date.now()-lastAutoProbe.at<15000"),
  'Auto Preflight must not repeatedly wake the same ECU just because optional checks remain incomplete');
 assert(p.includes("hardware:false")&&p.includes("if(!last.identity.sourceMatched&&!sourceFamilyAck)"),
