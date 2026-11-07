@@ -149,7 +149,7 @@ try{
 var sourceShBin=Enumerable.Repeat((byte)255,262144).ToArray();
 byte[] shSig={17,18,19,20,21,21,23};
 Array.Copy(shSig,0,sourceShBin,100,shSig.Length);
-sourceShBin[117]=0xEE;sourceShBin[118]=0xFF;
+sourceShBin[148]=0xEE;sourceShBin[149]=0xFF;
 sourceShBin[120]=0xD0;sourceShBin[121]=0x07;
 var shFix=MainBinSource.ShindengenChecksumCopy(sourceShBin)
     ??throw new Exception("No Shindengen source checksum signature");
