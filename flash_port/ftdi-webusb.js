@@ -666,13 +666,23 @@ export class Ft232rWebUsb {
     this._log('FT232R USB KEEPALIVE: ECU ID did not answer within diagnostic deadline');
     throw Error('Honda ECU did not reply (USB FT232R remains connected)');
   }
-  async close(){
-    const d=this.dev;this.ready=false;this.diagnosticReady=false;this.uartConfigured=false;this.uartBusy=null;this.dev=null;
+  async close({detached=false}={}){
+    const d=this.dev;
+    this.ready=false;this.diagnosticReady=false;this.uartConfigured=false;this.uartBusy=null;this.dev=null;
+    // Android has already removed the physical USB device. Its old handle
+    // is invalid, so waiting for controlTransferOut/releaseInterface/close
+    // can hang forever and block the NEXT user-selected USB connection.
+    // No FTDI commands, nor ECU traffic, are sent in this branch.
+    if(detached){
+      this.itf=null;this.inEp=null;this.outEp=null;
+      this._log('USB physically detached; obsolete handle discarded (no USB I/O)');
+      return;
+    }
     if(d){
       try{if(d.opened)await d.controlTransferOut({requestType:'vendor',recipient:'device',request:0x0b,value:0,index:0})}catch{}
       try{if(this.itf!==null&&d.opened)await d.releaseInterface(this.itf)}catch{}
       try{if(d.opened)await d.close()}catch{}
     }
-    this.itf=null;this._log('USB disconnected');
+    this.itf=null;this.inEp=null;this.outEp=null;this._log('USB disconnected');
   }
 }
