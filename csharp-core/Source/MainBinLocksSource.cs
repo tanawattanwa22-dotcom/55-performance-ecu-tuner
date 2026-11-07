@@ -40,7 +40,7 @@ public static class MainBinLocksSource
         int pos=MainBinSource.FindPatternInBin(clone,old);
         if(pos<0)return new(clone,0,"Not found");
         Array.Copy(next,0,clone,pos,3);
-        return new(clone,3,"LockRead first source match @0x"+pos.ToString("X"));
+        return new(clone,1,"LockRead first source match @0x"+pos.ToString("X"));
     }
     public static MainLockResult LockModeCopy(byte[] bin){
         RequireSourceSize(bin);
