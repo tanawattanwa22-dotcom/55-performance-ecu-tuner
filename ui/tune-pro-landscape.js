@@ -507,6 +507,13 @@
   query=search.value;schedule();
  });
  window.addEventListener('55:tune-pro-update',schedule);
+ // Vault save completes asynchronously. The saved-BIN controller flips
+ // #btnToFlash.hidden AFTER IndexedDB succeeds; listen for that actual
+ // transition instead of relying on the original click's microtask.
+ const savedHandoff=document.getElementById('btnToFlash');
+ if(savedHandoff)new MutationObserver(schedule).observe(savedHandoff,{
+  attributes:true,attributeFilter:['hidden']
+ });
  const onTuneState=new MutationObserver(schedule);
  onTuneState.observe(tune,{attributes:true,attributeFilter:['class']});
  // Update connection status without repeatedly rebuilding all tuning tables.
