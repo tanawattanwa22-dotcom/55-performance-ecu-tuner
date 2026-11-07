@@ -58,6 +58,7 @@ export class MainLiveSession {
   this._selectedUsbDevice=null;this._usbPhysicallyDetached=false;
   this._usbMonitorMisses=0;this._usbMonitorBusy=false;
   this._pendingUsbRelease=null; // last physical USB close; used on fast Android OTG replug
+  this._usbConnectGeneration=0; // invalidate unfinished Android chooser/open attempts
   // Chrome Android's WebUSB disconnect event represents the *actual OTG cable*.
   // It previously updated the chooser cache but not the live ECU snapshot.
   if(typeof navigator!=='undefined'&&navigator.usb?.addEventListener){
@@ -111,6 +112,7 @@ export class MainLiveSession {
   // Remove the public port reference FIRST, before any asynchronous close.
   // No stale ID, part, model, gauge, DTC or flash readiness survives unplug.
   this._usbPhysicallyDetached=true;
+  this._usbConnectGeneration++; // old Android chooser/open cannot revive a removed FT232R
   this.disconnectRequested=true;this.stopRequested=true;
   this.port=null;this._selectedUsbDevice=null;this.usbDevice=null;this.owner=null;
   this._usbMonitorMisses=0;this._clearDetectedEcu();
@@ -205,6 +207,7 @@ export class MainLiveSession {
   // Never reopen on top of an unfinished scan or a flash/DTC port lease.
   // The old asynchronous scan must finish after a physical detach first.
   if(this.connecting||this.autoBusy||this.running||this.owner||this.port?.ready)return false;
+  const attempt=++this._usbConnectGeneration;
   this.usbAttempts++;this.usbLastPhase='USB_CHOOSER';this.usbLastError='';this.usbTrace=[];
   this.connecting=true;this.error='';this.phase='USB_CHOOSER';
   this.disconnectRequested=false;this.stopRequested=false;
@@ -217,6 +220,7 @@ export class MainLiveSession {
    // Never perform a network/License check in a WebUSB user gesture.
    // Must run directly inside the user click: no awaited work before picker.
    const device=await Ft232rWebUsb.choose({forcePicker});
+   if(attempt!==this._usbConnectGeneration)return false;
    // A stale transport left by an earlier tab/OTG cycle must not race
    // device.open() of this fresh chooser selection.
    if(this.port&&!this.port.ready&&!this.owner){
@@ -228,7 +232,7 @@ export class MainLiveSession {
     await TIME_LIMIT(this._pendingUsbRelease,2500,
      'FT232R พอร์ตเก่าปล่อยไม่สำเร็จ • ลองถอด OTG แล้วเลือกสายอีกครั้ง');
    }
-   if(this.disconnectRequested||this._usbPhysicallyDetached)return false;
+   if(attempt!==this._usbConnectGeneration||this.disconnectRequested||this._usbPhysicallyDetached)return false;
    this._selectedUsbDevice=device;
    this.usbDevice=Number(device?.vendorId||0).toString(16).padStart(4,'0')+':'+Number(device?.productId||0).toString(16).padStart(4,'0');
    if(this.disconnectRequested)return false;
@@ -240,7 +244,11 @@ export class MainLiveSession {
    try{
     await TIME_LIMIT(opening,45000,'FT232R เปิดพอร์ตเกิน 45 วินาที · ตรวจ OTG / Android USB permission');
    }catch(e){expired=true;throw e}
-   if(this.disconnectRequested||this._usbPhysicallyDetached){await port.close();this.port=null;return false}
+   if(attempt!==this._usbConnectGeneration||this.disconnectRequested||this._usbPhysicallyDetached){
+    await this._queueUsbRelease(port,{detached:this._usbPhysicallyDetached});
+    if(this.port===port)this.port=null;
+    return false;
+   }
    // A connected FT232R is a valid cable connection even without a bike.
    // No background ECU probe, wake, DTC bank scan or bulk RX here.
    this.ecuId='';this.catalog=null;this.detectedGroup=null;
@@ -250,6 +258,10 @@ export class MainLiveSession {
    this.autoStatus='✓ FT232R เปิดพอร์ตแล้ว • ใช้ Live Data หรือกดสแกน ECU ได้ • ยังไม่ส่งคำสั่งอ่าน ECU';
    this.notify();return true;
   }catch(e){
+   if(attempt!==this._usbConnectGeneration){
+    if(port)void this._queueUsbRelease(port,{detached:this._usbPhysicallyDetached});
+    return false;
+   }
    this.usbLastPhase=this.phase;this.usbLastError=String(e?.message||e);
    this.usbTrace=port?.trace?.slice(-16)||this.usbTrace;
    const denied=e?.name==='SecurityError'||/Access denied|SecurityError/.test(String(e?.message||''));
@@ -261,7 +273,9 @@ export class MainLiveSession {
    if(this.port===port)this.port=null;
    this._selectedUsbDevice=null;this._clearDetectedEcu();
    this.notify();return false;
-  }finally{this.connecting=false;this.notify()}
+  }finally{
+   if(attempt===this._usbConnectGeneration){this.connecting=false;this.notify()}
+  }
  }
  async _reopenDiagnostic(){
   const dev=this.port?.lastDevice;
@@ -875,6 +889,8 @@ export class MainLiveSession {
  stop(){this.stopRequested=true;this.recording=false;this.notify()}
  async disconnect(){
   if(this.owner){this.error="หยุดงาน "+this.owner+" ก่อนตัดสาย";this.notify();return false;}
+  this._usbConnectGeneration++;
+  this.connecting=false;
   this.disconnectRequested=true;this.stopRequested=true;this.recording=false;
   this.sourceProbe=null;this.sourceProbeError='';this.autoSourceProbes=0;
   this._clearDetectedEcu();this.autoStatus='ตัดการเชื่อมต่อแล้ว';
