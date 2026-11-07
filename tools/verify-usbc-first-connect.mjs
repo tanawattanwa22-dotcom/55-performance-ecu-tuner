@@ -1,0 +1,124 @@
+import assert from 'node:assert/strict';
+
+const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+const mockUsb={
+  getDevices:async()=>[],
+  addEventListener:()=>{},
+  requestDevice:async()=>{throw Error('USB picker must not be required in offline tests')}
+};
+Object.defineProperty(globalThis,'navigator',{
+  configurable:true,writable:true,value:{usb:mockUsb}
+});
+
+const {Ft232rWebUsb,READ_ONLY_COMMANDS,stripFtdiStatus}=
+  await import('../flash_port/ftdi-webusb.js?usb-first-connect-regression=1');
+const {MainLiveSession}=
+  await import('../flash_port/main-live-session.js?usb-first-connect-regression=1');
+
+assert.equal(stripFtdiStatus([0x01,0x60]).data.length,0,
+  'FTDI two status bytes are USB data, not an ECU reply');
+
+const physical={
+  vendorId:0x0403,productId:0x6001,
+  serialNumber:'TEST-FT232R-ORIGINAL',opened:true,
+  transferIn:async()=>{await wait(8);return {
+    status:'ok',data:new DataView(Uint8Array.from([0x01,0x60]).buffer)
+  }},
+  controlTransferOut:async()=>({status:'ok'}),
+  releaseInterface:async()=>{},
+  close:async()=>{}
+};
+
+function makePort(device=physical){
+ const port=new Ft232rWebUsb();
+ let closes=0,writes=0,purges=0;
+ port.dev=device;port.lastDevice=device;port.itf=0;
+ port.inEp=1;port.outEp=2;port.maxPacketSize=64;
+ port.ready=true;port.uartConfigured=true;
+ port._write=async()=>{writes++};
+ port.purge=async()=>{purges++};
+ const realClose=port.close.bind(port);
+ port.close=async()=>{closes++;await realClose()};
+ return {port,stats:()=>({closes,writes,purges})};
+}
+
+{
+ const {port,stats}=makePort();
+ await assert.rejects(
+  ()=>port.command('ID',{timeoutMs:90}),
+  /ECU did not reply.*FT232R remains connected/,
+  'ECU silence should be distinct from actual USB disconnect'
+ );
+ assert.equal(port.ready,true,'FT232R remains claimed after no ECU ID');
+ assert.equal(stats().closes,0,'No close on ECU-only timeout');
+ assert.equal(port.lastDiagnosticObservation?.answered,false);
+ assert.equal(port.lastDiagnosticObservation?.label,'ID');
+ assert.equal(port.lastDiagnosticObservation?.uartBytes,0);
+ assert.equal(port.lastDiagnosticObservation?.statusPackets>0,true);
+ assert.equal(stats().writes,1,'One ID frame only');
+ await port.close();
+}
+
+{
+ const {port,stats}=makePort();
+ const group=[
+  [0x72,0x05,0x74,0x01,0x14],
+  [0x72,0x05,0x74,0x02,0x13],
+  [0x72,0x05,0x74,0x03,0x12]
+ ];
+ await assert.rejects(
+  ()=>port.exchangeMainDiagnosticBurst(group,{timeoutMs:120}),
+  /diagnostic burst incomplete.*USB remains connected/i,
+  'Silent ECU memory should not tear down an otherwise healthy FT232R'
+ );
+ assert.equal(port.ready,true,'Bulk diagnostics ECU silence keeps cable opened');
+ assert.equal(stats().closes,0,'No extra USB chooser or reopen');
+ await port.close();
+}
+
+{
+ const {port,stats}=makePort();
+ await assert.rejects(
+  ()=>port._readOnce(Date.now()-1),
+  /ECU response window expired/,
+  'Expired protocol window without an active USB request is safe'
+ );
+ assert.equal(stats().closes,0);
+ await port.close();
+}
+
+{
+ const {port,stats}=makePort({
+  ...physical,
+  transferIn:()=>new Promise(()=>{})
+ });
+ await assert.rejects(
+  ()=>port._readOnce(Date.now()+55),
+  /FTDI USB bulk IN stalled/,
+  'A truly stalled un-cancellable WebUSB IN must close the interface'
+ );
+ assert.equal(port.ready,false,'Stalled physical USB transfer is not reused');
+ assert.equal(stats().closes,1,'Close a genuinely orphaned transfer once');
+}
+
+{
+ const {port,stats}=makePort();
+ const session=new MainLiveSession();
+ session.port=port;
+ session._selectedUsbDevice=physical;
+ session.ecuId='0104080F01';
+ // Chromium Android may return empty/temporary getDevices() after a
+ // permission change. Do not invent physical unplug from an empty snapshot.
+ for(let i=0;i<4;i++)await session.checkUsbPresence();
+ assert.equal(session.status().connected,true,
+  'Uncertain getDevices enumeration must not invent physical USB unplug');
+ assert.equal(session.ecuId,'0104080F01','No false ECU data reset');
+ assert.equal(stats().closes,0);
+ // The actual hardware event is still definitive: release and clear state.
+ assert.equal(session.handleUsbDetached(physical),true);
+ assert.equal(session.status().connected,false);
+ assert.equal(session.ecuId,'','Real USB detach clears stale ECU identity');
+ await wait(0);
+}
+
+console.log('PASS FT232R USB-C first-connect no false unplug, ECU-silent keepalive, hard-stall stop and real unplug');
