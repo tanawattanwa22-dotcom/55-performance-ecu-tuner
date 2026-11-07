@@ -77,6 +77,33 @@ try{
   assert.equal(await page.evaluate(()=>S.bin[100]),120,'original Undo restores BIN bytes');
   await page.evaluate(()=>document.querySelector('#tune .bb [data-op="redo"]').click());
   assert.equal(await page.evaluate(()=>S.bin[100]),123,'original Redo replays edit');
+  // Toolbar Copy/Paste must call the ORIGINAL runOp() and commit to BIN.
+  await page.evaluate(()=>document.querySelector('#tune .tp-toolbar-extra button:nth-child(4)').click());
+  await page.evaluate(()=>document.querySelector('#tune #gw td[data-r="0"][data-c="1"]').click());
+  await page.evaluate(()=>document.querySelector('#tune .tp-toolbar-extra button:nth-child(5)').click());
+  assert.equal(await page.evaluate(()=>S.bin[101]),123,'real toolbar Copy/Paste writes BIN through original commit()');
+  await page.evaluate(()=>document.querySelector('#tune .bb [data-op="undo"]').click());
+  assert.equal(await page.evaluate(()=>S.bin[101]),120,'Undo reverts toolbar Paste without touching other cells');
+  // Saved/downloaded BIN must be made by the existing V18 source flow, not UI copy.
+  page.on('dialog',dialog=>dialog.accept());
+  const downloaded=page.waitForEvent('download',{timeout:15000});
+  await page.evaluate(()=>document.querySelector('#tune #btnSave').click());
+  const download=await downloaded;
+  assert(download.suggestedFilename().endsWith('.bin'),'Save invokes real BIN download');
+  assert.equal(await page.evaluate(()=>S.saved?.rawAtSave?.[100]),123,
+   'real saved snapshot holds the current edited BIN');
+  assert.equal(await page.evaluate(()=>document.querySelector('#tune #btnToFlash').hidden),false,
+   'old Go to Flash becomes available only when BIN was saved');
+  // Later editing must invalidate the old snapshot before Flash.
+  await page.evaluate(()=>{
+   document.querySelector('#tune #gw td[data-r="0"][data-c="0"]').click();
+   document.querySelector('#vStep').value='2';
+   document.querySelector('#tune #fp [data-op="stepp"]').click();
+  });
+  assert.equal(await page.evaluate(()=>S.saved===null),true,
+   'post-save edit invalidates snapshot; old flash cannot use stale bytes');
+  assert.equal(await page.evaluate(()=>document.querySelector('#tune #btnToFlash').hidden),true,
+   'Go to Flash re-hides after unsaved edits');
   await page.evaluate(()=>document.querySelector('#tune .tp-side-item[data-table="1"]').click());
   await page.waitForFunction(()=>window.__55TuneProAdapter.state().active===1);
   await page.waitForFunction(()=>document.querySelector('#tune .tp-preview-card'));
