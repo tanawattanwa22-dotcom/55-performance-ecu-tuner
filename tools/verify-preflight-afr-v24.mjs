@@ -40,9 +40,10 @@ assert.match(p,/binEstimate\?\.binProfile\?binEstimate\.binProfile\+' • BIN �
 assert(p.includes('sourceBinPreview')&&p.includes("verified:false,origin:'BIN_ONLY'"),
  'Dashboard BIN offset preview never carries physical verification');
 assert(p.includes("const actions=make('div','n24-actions n24-main-check-actions')")&&
- p.includes('stage.append(actions);')&&
- !p.includes('fastLabel,actions);'),
- 'ECU read and Preflight controls are visible in the main Fast Flash page, not trapped inside advanced details');
+ p.includes("autoReadStatus.id='n24AutoReadStatus'")&&
+ p.includes("advanced.append(make('summary','','ตัวเลือกขั้นสูง / ตรวจละเอียด'),read,check)")&&
+ p.includes("stage.append(actions);"),
+ 'Fast Flash shows automatic ECU state while optional manual rescans live under Advanced');
 assert(p.includes("()=>runCheck({requestConfirmation:true})"),
  'Manual Preflight action must request explicit technician confirmation for source 3-byte BIN IDs');
 assert(p.includes('if(!requestConfirmation&&!previouslyApproved)')&&p.includes('confirmedPart:\'CONFIRM \'+id'),
@@ -92,6 +93,19 @@ assert(p.includes("lastAutoProbe?.port===port&&lastAutoProbe?.key===key")&&
  'Auto Preflight must not repeatedly wake the same ECU just because optional checks remain incomplete');
 assert(p.includes("hardware:false")&&p.includes("if(!last.identity.sourceMatched&&!sourceFamilyAck)"),
  'Missing physical Family/Power evidence must remain unapproved after the one-tap calculation');
+assert(p.includes("window.addEventListener('55:shared-ecu-link',onSharedLink)")&&
+ p.includes("last=null;hash=null;confirmAt=null;lastAutoProbe=null;lastPlanCheck=null")&&
+ p.includes("snap.ecuPresenceState==='NO_REPLY'"),
+ 'Unplug or lost ECU reply must instantly revoke old identity/plan without deleting saved BIN');
+assert(p.includes("if(!verified()&&!preparingAuto&&!working&&!INLINEFLASH.busy)")&&
+ p.includes("document.visibilityState!=='visible'"),
+ 'Auto identification works without pressing Read while respecting browser visibility');
+const shared=get('ui/neon-main-live-v25.js');
+assert(shared.includes("window.dispatchEvent(new CustomEvent('55:shared-ecu-link'")&&
+ shared.includes('reader.observeEcuIdReadOnly()')&&
+ shared.includes("page==='flash'")&&
+ shared.includes("window.__55FlashPreflight?.autoPrepare?.()"),
+ 'The single shared FT232R owner publishes link changes and samples ECU while Flash is idle');
 assert(p.includes('queueMicrotask(()=>{if(stage===host)void autoPrepare()')&&p.includes('stage.insertBefore(trace,file)'),
  'Fast Flash auto-triggers read-only Preflight and places TX/RX adjacent to actual Flash controls');
 assert(p.includes('sourceMatched'),'catalog and family source matching enforced');
