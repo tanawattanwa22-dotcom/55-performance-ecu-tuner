@@ -425,15 +425,22 @@
   // button performs its own preflight and does not skip the customer warning.
   go.click();
   const began=Date.now();
+  let enteredFlash=false;
   const runner=setInterval(()=>{
    if(Date.now()-began>30000){
     clearInterval(runner);
-    console.warn('TUNE PRO: Flash Preflight not ready; manual review required');
+    console.warn('TUNE PRO: Flash Preflight not ready; inspect Fast Flash page');
     return;
    }
-   if(!isSaved()){clearInterval(runner);return}
+   // Never arm a delayed hardware action if the user backgrounded the app,
+   // changed BIN, or navigated away from Fast Flash after arriving.
+   if(document.visibilityState!=='visible'||!isSaved()){
+    clearInterval(runner);return;
+   }
    const home=document.getElementById('home');
-   if(!home?.classList.contains('on')||home.dataset.neonPage!=='flash')return;
+   if(home?.classList.contains('on')&&home.dataset.neonPage==='flash')
+    enteredFlash=true;
+   else {if(enteredFlash)clearInterval(runner);return}
    const action=home.querySelector('.n24-easy-flash');
    if(!action||action.disabled)return;
    clearInterval(runner);
