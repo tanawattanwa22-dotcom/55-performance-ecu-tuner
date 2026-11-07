@@ -52,7 +52,7 @@ export function hondaChecksum(data){
 /** Original FormMain.cs SendCommand(): stopwatch limit 50 + 2*commandSize ms.
  * Starts AFTER FT_Write, FT_SetLatencyTimer(8) and any sleepMs.
  * WebUSB cannot cancel an in-flight bulk transfer; _readOnce safely closes
- * the port at this deadline rather than allowing stale USB read overlap.
+ * the port only if the USB transfer itself stalls; ECU protocol silence is independent.
  */
 export function formMainSendCommandTimeoutMs(commandSize){
  if(!Number.isInteger(commandSize)||commandSize<1||commandSize>256)
@@ -137,7 +137,16 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 let permittedFt232r=[];
 const ft232rOnly=device=>device?.vendorId===FT232R_VID&&device?.productId===FT232R_PID;
 if(typeof navigator!=='undefined'&&navigator.usb?.getDevices){
-  navigator.usb.getDevices().then(devices=>{permittedFt232r=devices.filter(ft232rOnly)}).catch(()=>{});
+  navigator.usb.getDevices().then(devices=>{
+    // getDevices may resolve AFTER requestDevice() grants permission. Never
+    // overwrite a newly selected cable with an older permission snapshot.
+    for(const device of devices.filter(ft232rOnly)){
+      if(!permittedFt232r.some(c=>c===device||
+         (c.serialNumber&&c.serialNumber===device.serialNumber&&
+          c.vendorId===device.vendorId&&c.productId===device.productId)))
+        permittedFt232r.push(device);
+    }
+  }).catch(()=>{});
   navigator.usb.addEventListener?.('connect',event=>{
     if(ft232rOnly(event.device)&&!permittedFt232r.includes(event.device))permittedFt232r.push(event.device);
   });
@@ -309,11 +318,17 @@ export class Ft232rWebUsb {
     this._log('InitFtdiIso sequence complete (hardware reply not yet established)');
   }
   async _readOnce(deadline){
-    if(Date.now()>=deadline)throw Error('FTDI response timed out');
+    // A protocol/ECU response timeout is NOT the same as a blocked USB IN
+    // transfer. Android may schedule a status-only FTDI packet a few ms AFTER
+    // the command deadline: do not falsely disconnect the whole USB device.
+    // WebUSB has no way to cancel the pending transfer. A separate watchdog
+    // closes the port only when a transfer itself stays pending abnormally.
+    if(Date.now()>=deadline)throw Error('ECU response window expired (USB transfer not pending)');
     const remain=Math.max(1,deadline-Date.now());
+    const usbWatchdogMs=Math.max(350,remain+250);
     let timer;
     try{
-      const wait=new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('FTDI USB read timeout; interface closed to avoid overlapping transfers')),remain)});
+      const wait=new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('FTDI USB bulk IN stalled; closing interface to avoid overlapping transfers')),usbWatchdogMs)});
       const result=await Promise.race([this.dev.transferIn(this.inEp,this.maxPacketSize),wait]);
       if(result.status!=='ok')throw Error('FTDI read status '+result.status);
       if(!result.data)throw Error('FTDI read returned no bytes');
@@ -450,10 +465,17 @@ export class Ft232rWebUsb {
           return result;
         }
       }
-      throw Error('Main diagnostic burst incomplete');
+      const quiet=Error('ECU diagnostic burst incomplete; FT232R USB remains connected');
+      quiet.code='ECU_DIAGNOSTIC_NO_REPLY';
+      throw quiet;
     }catch(error){
       this._log('MAIN DIAG BURST FAILED '+String(error?.message||error));
-      await this.close();
+      if(error?.code==='ECU_DIAGNOSTIC_NO_REPLY'&&this.ready&&this.dev?.opened){
+        // No transferIn is pending: all status packets completed. Only ECU
+        // silence was observed, so re-prime the existing USB session.
+        try{await this.purge();this._log('FT232R USB KEEPALIVE: ECU diagnostic timeout (no USB detach)')}
+        catch(purgeError){await this.close();throw purgeError;}
+      }else await this.close(); // hard USB, malformed or physical errors
       throw error;
     }finally{this.exchangeBusy=false}
   }
@@ -633,8 +655,11 @@ export class Ft232rWebUsb {
       await this.purge();
       return {reply:Uint8Array.from(reply),echoOK,raw:Uint8Array.from(stream)};
     }
-    await this.close();
-    throw Error('Honda ECU response timed out');
+    // No blocked WebUSB request exists here: the status-only FTDI packets
+    // completed normally. An ECU that is OFF/absent must not tear down USB-C.
+    await this.purge();
+    this._log('FT232R USB KEEPALIVE: ECU ID did not answer within diagnostic deadline');
+    throw Error('Honda ECU did not reply (USB FT232R remains connected)');
   }
   async close(){
     const d=this.dev;this.ready=false;this.diagnosticReady=false;this.uartConfigured=false;this.uartBusy=null;this.dev=null;
