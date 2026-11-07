@@ -74,7 +74,11 @@
  const flow=tune.querySelector('#tuneFlow');
  if(!oldToolbar||!oldTabs||!oldSub||!grid||!toolPanel||!flow)return;
  const defaultSmall=window.innerWidth<=1050||window.innerHeight<=570;
- let leftOpen=!defaultSmall,rightOpen=!defaultSmall,previewOpen=true;
+ // Small landscape devices prioritize the editable grid, not preview cards.
+ // Preview remains available on demand as a floating panel.
+ const compactLandscape=()=>window.matchMedia('(orientation: landscape) and (max-height: 660px)').matches;
+ let compactLast=compactLandscape();
+ let leftOpen=!defaultSmall,rightOpen=!defaultSmall,previewOpen=!compactLast;
  let opened=[],pinned=[],modelKey='',query='',lastActive=-999,lastRenderedModel='';
  let scheduled=false;
 
@@ -342,6 +346,13 @@
   }
  },2500);
  window.addEventListener('resize',()=>{
+  const compactNow=compactLandscape();
+  if(compactNow!==compactLast){
+   compactLast=compactNow;
+   previewOpen=!compactNow;
+   if(compactNow){leftOpen=false;rightOpen=false}
+   setClass();
+  }
   if(tune.classList.contains('on'))schedule();
  });
  schedule();
