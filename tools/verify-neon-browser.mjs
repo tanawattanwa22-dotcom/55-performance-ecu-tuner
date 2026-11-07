@@ -216,6 +216,46 @@ try{
   }));
   for(const b of flashButtons)assert(b.left>=-2&&b.right<=width+2,
    'V24 Flash button overflows '+width+'px: '+JSON.stringify(b));
+  if(width===393){
+   // Regression: Android displays the first BIN title, but old V24 kept its
+   // Select button disabled until a later native change event.
+   // Synthetic vault is local-only; never USB and never triggers Flash.
+   await page.evaluate(()=>{
+    window.__55OriginalTestVault=window.__55TunedBinVault;
+    window.__55TunedBinVault={
+     list:async()=>[
+      {id:'MOBILE-VAULT-1',name:'MSX TEST TUNED',model:'MSX-GEN1-K26-901',size:49152,
+       filename:'MSX_TEST.bin',sha256:'test',createdAt:1},
+      {id:'MOBILE-VAULT-2',name:'MSX SECOND',model:'MSX-GEN1-K26-901',size:49152,
+       filename:'MSX_2.bin',sha256:'test',createdAt:0}
+     ],
+     load:async id=>({id,name:id==='MOBILE-VAULT-1'?'MSX TEST TUNED':'MSX SECOND',
+      model:'MSX-GEN1-K26-901',filename:'MSX_TEST.bin',sha256:'test',
+      size:49152,bytes:new Uint8Array(49152)}),
+     remove:async()=>{throw Error('test must not remove customer BIN')}
+    };
+    window.__55NeonNavigate('library');
+    window.__55NeonNavigate('flash');
+   });
+   await page.waitForFunction(()=>document.querySelector('#n24VaultSelect')?.options?.length===3);
+   assert.equal(await page.locator('#n24VaultSelect').inputValue(),'MOBILE-VAULT-1',
+    'newest BIN must be explicitly selected, not only appear visually on Android');
+   assert.equal(await page.locator('#n20Stage .n24-vault-load').isDisabled(),false,
+    'Select BIN must be actionable immediately when a vault entry is visible');
+   await page.locator('#n20Stage .n24-vault-load').click();
+   await page.waitForFunction(()=>window.__55QuickFlashBin?.vaultId==='MOBILE-VAULT-1');
+   assert((await page.locator('#n20Stage .n24-vault-message').innerText()).includes('SHA-256 ตรง'),
+    'flash vault selection must report success instead of silently ignoring the tap');
+   assert.equal(await page.locator('#n20Stage .n24-flash').isDisabled(),true,
+    'selected BIN alone must NOT permit writing when no real FT232R exists');
+   await page.evaluate(()=>{
+    window.__55QuickFlashBin=null;
+    window.__55TunedBinVault=window.__55OriginalTestVault;
+    delete window.__55OriginalTestVault;
+    window.__55NeonNavigate('library');
+    window.__55NeonNavigate('flash');
+   });
+  }
   // Live Data opens the exact original Neon UI, with Main FM_diag backend.
   await page.waitForFunction(()=>window.__55MainLive?.ready===true,{timeout:15000});
   await page.evaluate(()=>document.querySelector('#v20Nav [data-cat="live"]').click());
