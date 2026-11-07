@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest?v=55mobile-20261105">
 <link rel="icon" href="icons/favicon-64.png?v=55mobile-20261105">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=55mobile-20261105">
-<link rel="stylesheet" href="ui/tune-pro-landscape.css?v=4">
+<link rel="stylesheet" href="ui/tune-pro-landscape.css?v=5">
 <style>
 :root{--bg:#0b0b0d;--p1:#141418;--p2:#1c1c22;--ln:#2b2b34;--tx:#f3f3f5;--mu:#9d9da9;--ac:#ff5a1f;--ac2:#ff2d2d;--ok:#2ecc71;--wn:#ffb020;--bd:#ff4545;--cw:50px}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -262,7 +262,7 @@ button:not(:disabled):active,.btn:not(:disabled):active,.chip:active,.ib:active,
 <link rel="stylesheet" href="ui/neon-library-v22.css?v=223">
 <link rel="stylesheet" href="ui/neon-live-v21.css?v=250">
 <link rel="stylesheet" href="ui/neon-dtc-v23.css?v=231">
-<link rel="stylesheet" href="ui/neon-preflight-v24.css?v=318">
+<link rel="stylesheet" href="ui/neon-preflight-v24.css?v=319">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,400;0,500;0,600;0,700;1,600;1,700&display=swap" rel="stylesheet">
@@ -3379,6 +3379,7 @@ openTune=function(...args){
        model,sourceName:sourceFilename,filename,
        customerBin:S.custom,checksumMode:snap.checksumMode});
      snap.vaultId=stored.id;snap.vaultName=stored.name;snap.sha256=stored.sha256;
+     window.__55LastTunedVaultId=stored.id;
      if(S.bin===sourceBin&&S.mi===sourceModel&&S.fname===sourceFilename&&sameSnapshot(snap)){
        S.saved=snap;S.flash=true;
        // A previous external/quick selection must never silently override a new tune.
@@ -3438,9 +3439,9 @@ openTune=function(...args){
  refresh();
 })();
 </script>
-<script src="ui/tune-pro-landscape.js?v=4"></script>
+<script src="ui/tune-pro-landscape.js?v=5"></script>
 
-<script src="ui/neon-preflight-v24.js?v=432"></script>
+<script src="ui/neon-preflight-v24.js?v=433"></script>
 <script src="ui/neon-recovery-v35.js?v=389"></script>
 <script src="ui/advanced-admin-gate-v1.js?v=1"></script>
 <script src="ui/neon-v20.js?v=407"></script>
