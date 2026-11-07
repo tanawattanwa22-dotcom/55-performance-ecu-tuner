@@ -97,6 +97,30 @@ public static class MainBinSource
         if(check.HasValue)checkText=check.Value.ToString("X");
         return new(type,offset,check,startText,checkText,false);
     }
+
+    // FormMain.ShindengenAutoChecksum: original signature and D0 07
+    // checksum locator, 32-bit LE two's-complement on a copied BIN.
+    public static ShindengenChecksumResult? ShindengenChecksumCopy(byte[] source)
+    {
+        if(source is null)throw new ArgumentNullException(nameof(source));
+        var data=(byte[])source.Clone();
+        for(int i=0;i<data.Length-ShWriteSignature.Length;i++){
+            if(!CompareMemory(data,i,ShWriteSignature))continue;
+            for(int j=i+ShWriteSignature.Length;j<data.Length-6;j++){
+                if(data[j]!=0xD0||data[j+1]!=0x07)continue;
+                int pos=(j&3)==2?j-6:j;
+                int offset=pos-4;
+                if(offset<0||offset+4>data.Length)continue;
+                uint sum=unchecked(Sum32Bit(data,pos-4)+
+                    Sum32Bit(data,data.Length-pos,pos));
+                uint value=unchecked(0u-sum);
+                BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(offset,4),value);
+                return new(data,offset,value);
+            }
+        }
+        return null;
+    }
+
     // FormMain.GetShindengenWriteKey/GetShindengenRecoveryKey;
     // exact source 16-bit overflow and signature probing. Pure calculation.
     public static byte[]? DeriveShindengenKey(byte[] bin,byte[] seed,bool recovery)
@@ -130,3 +154,5 @@ public static class MainBinSource
 }
 public sealed record BinProfile(string Type,int? StartOffset,int? ChecksumOffset,
     string StartText,string ChecksumText,bool ShindengenAuto);
+
+public sealed record ShindengenChecksumResult(byte[] Bytes,int ChecksumOffset,uint CalculatedValue);
