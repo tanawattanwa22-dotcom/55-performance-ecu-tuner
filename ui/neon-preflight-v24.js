@@ -695,7 +695,31 @@ function mount(host){
  });dom.recovery=recovery;recovery.hidden=true;
  const miniProgress=make('p','n24-mini-progress','พร้อมเริ่มตรวจ');dom.miniProgress=miniProgress;
  const miniBar=make('div','n24-mini-bar');const miniFill=make('i','');dom.miniBar=miniFill;miniBar.append(miniFill);
- easy.append(uploadLabel,upload,uploadNote,uploadStatus,fastLabel,fastStatus,flash,recovery,miniBar,miniProgress);
+ // Keep the Main.zip C# writer opt-in inside the existing Flash controls.
+ // No separate experimental C# test window or extra card in Fast Flash.
+ const csharpModeRow=make('label','n24-csharp-mode-row');
+ const csharpMode=document.createElement('input');
+ csharpMode.type='checkbox';
+ csharpMode.id='n24UseMainCSharpFlash';
+ csharpMode.checked=window.__55PreferMainCSharpFlash===true;
+ const csharpModeText=make('span','',
+  csharpMode.checked?'✓ เครื่องยนต์แฟลช: C# Main.zip (ทดลอง)':
+   'เครื่องยนต์แฟลช: JavaScript เดิม · ติ๊กเพื่อใช้ C# Main.zip (ทดลอง)');
+ csharpModeRow.append(csharpMode,csharpModeText);
+ const csharpModeHint=make('p','n24-help',
+  'ขั้นตอนหน้าอัดและ USB เดิมเหมือนเดิม · C# ควบคุม Pre-Write → ERASE → WRITE → Final ACK เมื่อเลือกโหมดนี้ · KeihinOther ต้องปิด Fast Write');
+ csharpMode.addEventListener('change',()=>{
+  if(INLINEFLASH.busy){
+   csharpMode.checked=window.__55PreferMainCSharpFlash===true;
+   return;
+  }
+  window.__55PreferMainCSharpFlash=csharpMode.checked;
+  csharpModeText.textContent=csharpMode.checked?
+   '✓ เครื่องยนต์แฟลช: C# Main.zip (ทดลอง)':
+   'เครื่องยนต์แฟลช: JavaScript เดิม · ติ๊กเพื่อใช้ C# Main.zip (ทดลอง)';
+ });
+
+ easy.append(uploadLabel,upload,uploadNote,uploadStatus,fastLabel,fastStatus,csharpModeRow,csharpModeHint,flash,recovery,miniBar,miniProgress);
  stage.append(easy);
  const sourceCard=card('n24-source-progress','◴','Flash Progress · Main.zip');
  const sourceSteps=make('div','n24-source-steps');
@@ -722,54 +746,6 @@ function mount(host){
  stage.append(sourceCard);
  window.__55FlashStageRender=()=>{if(sourceCard.isConnected)renderSourceFlashStage()};
  window.__55FlashStageRender();
- // Source C# Core shares the existing USB session with the original writer.
- // The C# Flash path is opt-in, not activated by loading this screen.
- const csharpCard=card('n24-csharp-core','⌘','C# Core · Main.zip (WebAssembly)');
- const csharpStatus=make('p','n24-help',
-  'C# Main.zip รันบน Chrome และใช้ WebUSB เส้นเดิม · สามารถเลือกทดสอบเส้นทาง ERASE / WRITE / Final ACK ด้วย C# โดยตรงในโหมดทดลองได้');
- const csharpOpen=btn('เปิด C# Core เพื่อตรวจเทียบ','n24-btn n24-csharp-open',async()=>{
-  if(INLINEFLASH.busy)return errorOut('กำลังแฟลช ECU อยู่ • ไม่เปิดหน้าต่างตรวจเพิ่มระหว่างอัด');
-  const home=new URL('main-csharp-runtime/',document.baseURI);
-  const framework=new URL('main-csharp-runtime/_framework/blazor.webassembly.js',document.baseURI);
-  csharpOpen.disabled=true;csharpStatus.textContent='กำลังตรวจว่า C# WebAssembly คอมไพล์ขึ้นเว็บแล้วหรือยัง…';
-  try{
-   const response=await fetch(framework.href,{cache:'no-store'});
-   if(!response.ok)throw Error('GitHub Actions ยังไม่เผยแพร่ C# Runtime (HTTP '+response.status+')');
-   const overlay=make('div','n24-csharp-dialog');
-   overlay.setAttribute('role','dialog');overlay.setAttribute('aria-modal','true');
-   overlay.setAttribute('aria-label','Main.zip C# Source Core');
-   const panel=make('div','n24-csharp-dialog-panel');
-   const top=make('div','n24-csharp-dialog-top');
-   top.append(make('b','','Main.zip · C# WebAssembly'));
-   const close=btn('✕ ปิด','n24-csharp-close',()=>overlay.remove());
-   top.append(close);
-   const frame=make('iframe','n24-csharp-frame');
-   frame.src=home.href;frame.title='Main C# Core · Source Parity';
-   frame.setAttribute('loading','eager');
-   panel.append(top,frame);overlay.append(panel);
-   document.body.append(overlay);
-   csharpStatus.textContent='C# Runtime พร้อมเปิดจากเว็บหลักแล้ว · ไม่เปลี่ยนคำสั่ง Flash เดิม';
-  }catch(e){csharpStatus.textContent='ยังเปิด C# Core ไม่ได้: '+(e?.message||e)}
-  finally{csharpOpen.disabled=false}
- });
- const csharpModeRow=make('label','n24-csharp-mode-row');
- const csharpMode=document.createElement('input');
- csharpMode.type='checkbox';
- csharpMode.id='n24UseMainCSharpFlash';
- csharpMode.checked=window.__55PreferMainCSharpFlash===true;
- csharpMode.addEventListener('change',()=>{
-  if(INLINEFLASH.busy){csharpMode.checked=window.__55PreferMainCSharpFlash===true;return}
-  window.__55PreferMainCSharpFlash=csharpMode.checked;
-  csharpStatus.textContent=csharpMode.checked?
-   '✓ เปิดทดลอง C# สำหรับ ERASE / WRITE / Final ACK • ใช้ Preflight และ FT232R เดิม • ห้ามสลับแอปหรือถอดสายระหว่างอัด':
-   'ใช้เส้นทาง JavaScript เดิมสำหรับการแฟลช · C# Core ยังใช้ตรวจ BIN/เซ็นเซอร์ได้';
- });
- csharpModeRow.append(csharpMode,make('span','','ใช้ Main.zip C# WebAssembly เป็นเครื่องยนต์อัด ECU (ทดลอง)'));
- const csharpModeHint=make('p','n24-help',
-  'เลือกก่อนกดอัดไฟล์: ตรวจ BIN / ECU ID / Offset ด้วยระบบเดิม แล้วให้ C# ควบคุมถึง Final ACK · ถ้าเป็น KeihinOther ให้เอาเครื่องหมาย Fast Write ออกก่อน เพื่อใช้ความเร็วปกติของ Main.zip');
- csharpCard.append(csharpModeRow,csharpModeHint);
- csharpCard.append(csharpStatus,csharpOpen);
- stage.append(csharpCard);
  const analyzeCard=card('n24-analysis','▤','Analyze Result · ตรวจ BIN จาก Main.zip + ECM.dat');
  const analyzeStatus=make('p','n24-analysis-status','รอเลือกไฟล์ BIN');
  const analyzeTrack=make('div','n24-analysis-track'),analyzeBar=make('i','');
