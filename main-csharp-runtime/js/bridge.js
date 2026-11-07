@@ -71,6 +71,24 @@ window.csharpHost={
       throw Error('No complete source ECU ACK from existing WebUSB');
     return Array.from(response.reply,x=>x.toString(16).padStart(2,'0')).join('').toUpperCase();
   },
+  async flashReopenBeforeErase(){
+    const main=window.parent,shared=main.__55SharedEcu;
+    if(main===window||!main.__55CSharpFlashActive||
+       main.__55RetailFlashState?.().busy!==true)
+      throw Error('No active Main C# Flash session');
+    const port=shared?.port;
+    if(!port||typeof port.openSelected!=='function'||
+       typeof port.initializeIso!=='function')
+      throw Error('Original FT232R WebUSB transport unavailable');
+    const sameDevice=port.lastDevice||port.dev;
+    if(!sameDevice||sameDevice.vendorId!==0x0403||sameDevice.productId!==0x6001)
+      throw Error('Cannot verify original FT232R device');
+    if(port.ready)await port.close();
+    await port.openSelected(sameDevice);
+    await port.initializeIso();
+    await port.sendWake();
+    // C# rechecks physical ECU ID and Flash Count before the source retry.
+  },
   async flashBaud(baud){
     const main=window.parent,port=main.__55SharedEcu?.port;
     if(main===window||!main.__55CSharpFlashActive||
