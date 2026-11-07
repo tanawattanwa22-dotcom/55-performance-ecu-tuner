@@ -121,4 +121,28 @@ function makePort(device=physical){
  await wait(0);
 }
 
+
+{
+ const session=new MainLiveSession();
+ let workerAttempts=0;
+ const port={
+  ready:true,
+  lastDiagnosticObservation:{label:'ID',uartBytes:0,statusPackets:6,answered:false},
+  sourceDiagnosticWake:async()=>{},
+  command:async()=>{throw Error('ECU did not reply; FT232R still healthy')},
+  initializeIso:async()=>{workerAttempts++},
+  sendWake:async()=>{workerAttempts++},
+  close:async()=>{workerAttempts++}
+ };
+ session.port=port;
+ const detected=await session.rescanWithProgramming();
+ assert.equal(detected,false,'No physical ECU attached is not a programming-ready session');
+ assert.equal(session.status().connected,true,
+  'First automatic diagnostic scan keeps FT232R connected without a motorcycle');
+ assert.equal(session.status().ecuId,'');
+ assert.equal(workerAttempts,0,
+  'Do not cycle source programming handshake/open/close after status-only ECU silence');
+ assert.equal(session.phase,'USB_READY_NO_ECU');
+}
+
 console.log('PASS FT232R USB-C first-connect no false unplug, ECU-silent keepalive, hard-stall stop and real unplug');
