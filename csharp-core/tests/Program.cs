@@ -81,4 +81,15 @@ var dtc=MainDtcSource.DecodeSourceCaptureHex(Convert.ToHexString(dtcBytes),false
 Test(dtc.Count==1&&dtc[0].Code=="7-1","FM_dtc original raw capture DTC pair");
 Test(MainDtcSource.ReadFrames.Length==6&&MainDtcSource.ClearFrames.Length==2,
      "FM_dtc method_110 / method_107 source commands");
+
+var idBin=new byte[262144]; // FormMain SearchPattern256KB: marker at 2044, three bytes at 2048
+idBin[2048]=0x01;idBin[2049]=0x23;idBin[2050]=0x45;
+var sourceBinId=MainBinIdSource.Find(idBin);
+Test(sourceBinId.Found&&sourceBinId.IdHex=="012345"&&sourceBinId.Offset==2048,
+     "FormMain 256 KiB source BIN ID 3-byte locator");
+shBin[120]=0xD0;shBin[121]=0x07;
+var shCorrected=MainBinSource.ShindengenChecksumCopy(shBin);
+Test(shCorrected is not null&&shCorrected.ChecksumOffset==116 &&
+    shBin[116]!=shCorrected.Bytes[116],
+    "Shindengen original checksum correction on a cloned BIN");
 Console.WriteLine("ALL Main.zip C# offline tests PASSED. No ECU/USB commands sent.");
