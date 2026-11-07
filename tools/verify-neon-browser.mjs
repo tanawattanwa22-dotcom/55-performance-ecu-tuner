@@ -72,8 +72,8 @@ try{
   if(width===393){
    // Use a synthetic USB chooser, NEVER real USB/ECU. Click the actual
    // Android Home control to catch regressions that silently skip the picker
-   // when Chrome cached one previously permitted FT232R.
-   await page.waitForSelector('#sharedEcuPanel button',{state:'attached',timeout:10000});
+   // when Chrome cached one previously permitted FT232R; test the VISIBLE Neon dashboard route.
+   await page.waitForSelector('#n20Stage .retail-status-actions button',{state:'visible',timeout:10000});
    await page.evaluate(()=>{
     window.__55UsbChooserCalls=[];
     Object.defineProperty(navigator,'usb',{configurable:true,value:{
@@ -85,7 +85,7 @@ try{
      }
     }});
    });
-   await page.locator('#sharedEcuPanel button').filter({hasText:'เชื่อมต่อสาย USB'}).click();
+   await page.locator('#n20Stage .retail-status-actions button').filter({hasText:'เชื่อมต่อรถ'}).click();
    await page.waitForFunction(()=>window.__55UsbChooserCalls?.length===1);
    const chooser=await page.evaluate(()=>window.__55UsbChooserCalls[0]);
    assert.deepEqual(chooser,[{vendorId:0x0403,productId:0x6001}],
