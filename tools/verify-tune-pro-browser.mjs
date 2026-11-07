@@ -109,8 +109,12 @@ try{
   await page.waitForFunction(()=>document.querySelector('#tune .tp-preview-card'));
   assert.equal(await page.locator('#tune .tp-preview-card').count(),1,
    'switching tabs pins a LIVE preview of previous original BIN map');
-  assert((await page.locator('#tune .tp-preview-grid').innerText()).includes('123'),
-   'preview reads current BIN bytes, not generated demo numbers');
+  await page.waitForFunction(()=>{
+   const actual=String(S.bin[100]);
+   return (document.querySelector('#tune .tp-preview-grid')?.textContent||'').includes(actual);
+  });
+  assert.equal(await page.evaluate(()=>S.bin[100]),125,
+   'post-save edit reaches same original BIN observed by preview');
   await page.evaluate(()=>document.querySelector('#tune .tp-side-item[data-table="2"]').click());
   await page.waitForFunction(()=>window.__55TuneProAdapter.state().active===2);
   assert.equal(await page.locator('#tune .tp-preview-card').count(),2,
