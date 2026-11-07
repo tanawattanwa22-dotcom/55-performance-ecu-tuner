@@ -8,7 +8,7 @@
  * We wait and reopen the SAME user-granted FT232R, reinitialize the original
  * C# source wake and re-establish a source HELLO before the next count frame.
  */
-import {READ_ONLY_COMMANDS,checkedHondaReply,toHex} from './ftdi-webusb.js';
+import {READ_ONLY_COMMANDS,checkedHondaReply,toHex} from './ftdi-webusb.js?v=410';
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const SOURCE=Object.freeze({
  HELLO:Uint8Array.from(READ_ONLY_COMMANDS.HELLO),
