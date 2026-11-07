@@ -238,16 +238,19 @@ try{
     window.__55NeonNavigate('flash');
    });
    await page.waitForFunction(()=>document.querySelector('#n24VaultSelect')?.options?.length===3);
-   assert.equal(await page.locator('#n24VaultSelect').inputValue(),'MOBILE-VAULT-1',
-    'newest BIN must be explicitly selected, not only appear visually on Android');
-   assert.equal(await page.locator('#n20Stage .n24-vault-load').isDisabled(),false,
-    'Select BIN must be actionable immediately when a vault entry is visible');
-   await page.locator('#n20Stage .n24-vault-load').click();
    await page.waitForFunction(()=>window.__55QuickFlashBin?.vaultId==='MOBILE-VAULT-1');
+   assert.equal(await page.locator('#n24VaultSelect').inputValue(),'MOBILE-VAULT-1',
+    'newest BIN is automatically selected on Android');
+   assert.equal(await page.locator('#n20Stage .n24-vault-load').isDisabled(),false,
+    'manual Select BIN action remains available after automatic loading');
+   await page.waitForFunction(()=>document.querySelector('.n24-analysis')?.textContent?.includes('ANALYZE COMPLETE'),
+    null,{timeout:15000});
    assert((await page.locator('#n20Stage .n24-vault-message').innerText()).includes('SHA-256 ตรง'),
-    'flash vault selection must report success instead of silently ignoring the tap');
+    'vault selection automatically verifies and reports SHA-256');
+   await page.locator('#n24VaultSelect').selectOption('MOBILE-VAULT-2');
+   await page.waitForFunction(()=>window.__55QuickFlashBin?.vaultId==='MOBILE-VAULT-2');
    assert.equal(await page.locator('#n20Stage .n24-flash').isDisabled(),true,
-    'selected BIN alone must NOT permit writing when no real FT232R exists');
+    'auto Analyze on selecting another BIN must NOT permit flashing without USB');
    await page.evaluate(()=>{
     window.__55QuickFlashBin=null;
     window.__55TunedBinVault=window.__55OriginalTestVault;
