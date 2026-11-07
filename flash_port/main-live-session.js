@@ -57,6 +57,7 @@ export class MainLiveSession {
   this.usbAttempts=0;this.usbLastPhase='IDLE';this.usbLastError='';this.usbDevice=null;this.usbTrace=[];
   this._selectedUsbDevice=null;this._usbPhysicallyDetached=false;
   this._usbMonitorMisses=0;this._usbMonitorBusy=false;
+  this._pendingUsbRelease=null; // last physical USB close; used on fast Android OTG replug
   // Chrome Android's WebUSB disconnect event represents the *actual OTG cable*.
   // It previously updated the chooser cache but not the live ECU snapshot.
   if(typeof navigator!=='undefined'&&navigator.usb?.addEventListener){
@@ -66,6 +67,24 @@ export class MainLiveSession {
   }
  }
  notify(){this.onUpdate(this);}
+ // USBDevice.close()/releaseInterface are asynchronous on Android.
+ // If the user removes/reinserts the same FT232R quickly, the old close
+ // must finish BEFORE opening the newly selected handle. Request the Android
+ // chooser FIRST (in the click gesture), then wait here; do not change any
+ // ECU/transport timeouts, retries or ACK handling.
+ _queueUsbRelease(port){
+  if(!port)return this._pendingUsbRelease||Promise.resolve();
+  const prev=this._pendingUsbRelease;
+  const release=(async()=>{
+   if(prev)await prev.catch(()=>{});
+   await port.close();
+  })().catch(()=>{});
+  this._pendingUsbRelease=release;
+  void release.finally(()=>{
+   if(this._pendingUsbRelease===release)this._pendingUsbRelease=null;
+  });
+  return release;
+ }
  _sameUsbDevice(a,b){
   if(!a||!b)return false;
   if(a===b)return true;
@@ -95,7 +114,7 @@ export class MainLiveSession {
   this.error='';this.usbLastError='';this.connecting=false;
   this.notify();
   // Closing only the now-detached WebUSB handle sends no ECU commands.
-  if(dead)void dead.close().catch(()=>{});
+  if(dead)void this._queueUsbRelease(dead);
   return true;
  }
  async checkUsbPresence(){
@@ -193,6 +212,14 @@ export class MainLiveSession {
    // Never perform a network/License check in a WebUSB user gesture.
    // Must run directly inside the user click: no awaited work before picker.
    const device=await Ft232rWebUsb.choose({forcePicker});
+   // A stale transport left by an earlier tab/OTG cycle must not race
+   // device.open() of this fresh chooser selection.
+   if(this.port&&!this.port.ready&&!this.owner){
+    const oldPort=this.port;this.port=null;
+    void this._queueUsbRelease(oldPort);
+   }
+   if(this._pendingUsbRelease)await this._pendingUsbRelease;
+   if(this.disconnectRequested||this._usbPhysicallyDetached)return false;
    this._selectedUsbDevice=device;
    this.usbDevice=Number(device?.vendorId||0).toString(16).padStart(4,'0')+':'+Number(device?.productId||0).toString(16).padStart(4,'0');
    if(this.disconnectRequested)return false;
@@ -221,8 +248,9 @@ export class MainLiveSession {
     'Android ไม่อนุญาตเปิด FT232R • ปิดแอปอื่นที่ใช้สาย USB แล้วเลือกพอร์ตใหม่':
     'เชื่อมต่อ FT232R ไม่สำเร็จ ['+this.phase+']: '+String(e?.message||e);
    this.phase=denied?'USB_ACCESS_DENIED':'USB_OPEN_FAILED';
-   if(port)try{await TIME_LIMIT(Promise.resolve(port.close()),2500,'USB close timeout')}catch{}
-   this.port=null;this._selectedUsbDevice=null;this._clearDetectedEcu();
+   if(port)try{await TIME_LIMIT(this._queueUsbRelease(port),2500,'USB close timeout')}catch{}
+   if(this.port===port)this.port=null;
+   this._selectedUsbDevice=null;this._clearDetectedEcu();
    this.notify();return false;
   }finally{this.connecting=false;this.notify()}
  }
@@ -847,7 +875,7 @@ export class MainLiveSession {
   }
   if(!this.running&&!this.connecting){
    const port=this.port;this.port=null;this.ecuId='';
-   if(port)try{await port.close()}catch{}
+   if(port)await this._queueUsbRelease(port);
    this.values=EMPTY();this.hz=null;this.disconnectRequested=false;
    this._selectedUsbDevice=null;this.usbDevice=null;
   }
