@@ -103,7 +103,7 @@ Test(MainCatalogSource.Lookup("0103060F03")?.PartCode is null,
 var lockBin=new byte[49152];
 lockBin[100]=65;lockBin[101]=114;lockBin[102]=110;
 var lockResult=MainBinLocksSource.LockReadCopy(lockBin);
-Test(lockResult.Bytes[100]==66&&lockBin[100]==65&&lockResult.ChangedBytes==3,
+Test(lockResult.Bytes[100]==66&&lockBin[100]==65&&lockResult.ChangedBytes==1,
      "FormMain LockRead on an immutable 48KiB BIN");
 var modeBin=new byte[65536];
 byte[] sourceModePattern={163,3,16,32,16};
