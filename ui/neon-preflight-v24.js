@@ -722,11 +722,11 @@ function mount(host){
  stage.append(sourceCard);
  window.__55FlashStageRender=()=>{if(sourceCard.isConnected)renderSourceFlashStage()};
  window.__55FlashStageRender();
- // Browser C# sidecar is integrated into the original Flash page but is
- // audit-only. The original source HondaFlashEngine remains the ONLY writer.
+ // Source C# Core shares the existing USB session with the original writer.
+ // The C# Flash path is opt-in, not activated by loading this screen.
  const csharpCard=card('n24-csharp-core','⌘','C# Core · Main.zip (WebAssembly)');
  const csharpStatus=make('p','n24-help',
-  'รัน C# ใน Chrome จริงสำหรับตรวจ Checksum, WRITE ACK และรูปแบบเฟรมของ Main.zip • ใช้สถานะสาย WebUSB ชุดเดิม ไม่ขอ USB ซ้ำ • ยังไม่ใช่ตัวสั่งอัดแฟลช');
+  'C# Main.zip รันบน Chrome และใช้ WebUSB เส้นเดิม · สามารถเลือกทดสอบเส้นทาง ERASE / WRITE / Final ACK ด้วย C# โดยตรงในโหมดทดลองได้');
  const csharpOpen=btn('เปิด C# Core เพื่อตรวจเทียบ','n24-btn n24-csharp-open',async()=>{
   if(INLINEFLASH.busy)return errorOut('กำลังแฟลช ECU อยู่ • ไม่เปิดหน้าต่างตรวจเพิ่มระหว่างอัด');
   const home=new URL('main-csharp-runtime/',document.baseURI);
@@ -752,6 +752,22 @@ function mount(host){
   }catch(e){csharpStatus.textContent='ยังเปิด C# Core ไม่ได้: '+(e?.message||e)}
   finally{csharpOpen.disabled=false}
  });
+ const csharpModeRow=make('label','n24-csharp-mode-row');
+ const csharpMode=document.createElement('input');
+ csharpMode.type='checkbox';
+ csharpMode.id='n24UseMainCSharpFlash';
+ csharpMode.checked=window.__55PreferMainCSharpFlash===true;
+ csharpMode.addEventListener('change',()=>{
+  if(INLINEFLASH.busy){csharpMode.checked=window.__55PreferMainCSharpFlash===true;return}
+  window.__55PreferMainCSharpFlash=csharpMode.checked;
+  csharpStatus.textContent=csharpMode.checked?
+   '✓ เปิดทดลอง C# สำหรับ ERASE / WRITE / Final ACK • ใช้ Preflight และ FT232R เดิม • ห้ามสลับแอปหรือถอดสายระหว่างอัด':
+   'ใช้เส้นทาง JavaScript เดิมสำหรับการแฟลช · C# Core ยังใช้ตรวจ BIN/เซ็นเซอร์ได้';
+ });
+ csharpModeRow.append(csharpMode,make('span','','ใช้ Main.zip C# WebAssembly เป็นเครื่องยนต์อัด ECU (ทดลอง)'));
+ const csharpModeHint=make('p','n24-help',
+  'เลือกก่อนกดอัดไฟล์: โปรแกรมจะตรวจ BIN / ECU ID / Offset กับระบบเดิม และเรียก C# ให้ควบคุมคำสั่งถึง Final ACK · โหมดทดลองยังไม่ได้ยืนยันกับ ECU จริงครบทุกตระกูล');
+ csharpCard.append(csharpModeRow,csharpModeHint);
  csharpCard.append(csharpStatus,csharpOpen);
  stage.append(csharpCard);
  const analyzeCard=card('n24-analysis','▤','Analyze Result · ตรวจ BIN จาก Main.zip + ECM.dat');
