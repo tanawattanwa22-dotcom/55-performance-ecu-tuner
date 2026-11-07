@@ -1719,7 +1719,7 @@ async function inlineFlashStart(){
    if(useMainCSharp){
      // C# from FormMain.cs decides every source command/ACK/retry/final step.
      // JavaScript retains ONLY the original shared FT232R WebUSB transport.
-     const {flashWithSourceCSharp}=await import('./ui/main-csharp-flash-bridge-v1.js?v=1');
+     const {flashWithSourceCSharp}=await import('./ui/main-csharp-flash-bridge-v1.js?v=2');
      inlineFlashLog('SOURCE_ENGINE MAIN_CSHARP_WASM_REAL_FLASH');
      result=await flashWithSourceCSharp(plan,identity,ev=>{
        inlineFlashLog('CSHARP_ENGINE '+JSON.stringify(ev));
