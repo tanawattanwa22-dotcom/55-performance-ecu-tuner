@@ -541,3 +541,57 @@ body:has(#tune.tp-on.on) #retailGlobalBack{display:none!important}
   margin-top:4px;padding:5px 7px;
   background:#092838;border-left:2px solid #3ad9af;border-radius:4px
 }
+
+/* V7: Fix clipped right TunePro drawer on short Android landscape screens.
+ * v19-modern.css applies #fp max-height:calc(100dvh - 205px), which outlives
+ * its original floating placement and truncates our full-height right dock.
+ * Only override when the genuine TunePro page is active.
+ */
+#tune.tp-on .tp-tool-host{
+  min-height:0!important;
+  max-height:none!important;
+  box-sizing:border-box!important;
+  display:flex!important;
+  flex-direction:column!important;
+  overflow:hidden!important;
+}
+#tune.tp-on #fp{
+  flex:1 1 0!important;
+  width:100%!important;
+  height:100%!important;
+  min-height:0!important;
+  max-height:none!important;
+  box-sizing:border-box!important;
+  overflow:hidden!important;
+  display:flex!important;
+  flex-direction:column!important;
+}
+#tune.tp-on #fp .hd{
+  flex:0 0 auto!important;
+  min-height:43px;
+}
+#tune.tp-on #fp .bd2{
+  flex:1 1 0!important;
+  height:auto!important;
+  min-height:0!important;
+  max-height:none!important;
+  overflow-x:hidden!important;
+  overflow-y:auto!important;
+  overscroll-behavior-y:contain;
+  -webkit-overflow-scrolling:touch;
+  touch-action:pan-y;
+  scrollbar-width:thin;
+  scrollbar-color:#42a3ad #0a2534;
+  padding-bottom:max(18px,env(safe-area-inset-bottom))!important;
+}
+#tune.tp-on #fp .bd2:focus-visible{
+  outline:2px solid #37d7cf;
+  outline-offset:-3px;
+}
+@media (orientation:landscape) and (max-height:660px){
+  #tune.tp-on .tp-tool-host{
+    top:4px!important;
+    bottom:4px!important;
+  }
+  #tune.tp-on #fp .hd{min-height:38px}
+}
