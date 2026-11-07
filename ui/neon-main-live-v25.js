@@ -408,19 +408,38 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
  // Keep one visible cable owner: hide duplicate legacy connection buttons on the home page only.
  const legacyConnectSelectors=['#homeConnect','#connectUsbHome','#homeUsbConnect'];
  for(const selector of legacyConnectSelectors){const node=document.querySelector(selector);if(node&&node!==connect)node.hidden=true;}
- connect.onclick=()=>{
-  connect.disabled=true;
-  state.textContent='กำลังเลือกและเปิดพอร์ต FT232R…';
-  void old.connect().then(updateSharedState).catch(e=>{
+ // A manual tap must invoke the native chooser, even when a stale
+ // one-device grant was cached during the prior ECU flash session.
+ // This function has NO awaits before old.connect -> requestDevice.
+ const chooseFromHome=source=>{
+  const st=reader.status();
+  if(st.connected){
+   state.textContent='FT232R เชื่อมต่อแล้ว • กดตัดการเชื่อมต่อก่อนเลือกสายใหม่';
+   return;
+  }
+  if(st.connecting||st.autoBusy||st.running||reader.owner){
+   state.textContent='USB กำลังใช้งานหรือมีขั้นตอนเดิมค้างอยู่ • หยุดการอ่าน/รอให้ขั้นตอนจบก่อน';
+   return;
+  }
+  connect.disabled=true;selectAgain.disabled=true;
+  physicalConnectError='';lastConnectError='';
+  state.textContent='กำลังขอสิทธิ์เปิดรายการ FT232R ของ Android…';
+  // Keep requestDevice in this actual tap's transient user activation.
+  // Do not use getDevices(), timers, license fetch, or disconnect() first.
+  void old.connect({forcePicker:true}).then(ok=>{
+   if(!ok&&!reader.status().error&&!reader.status().connected){
+    physicalConnectError='ยังไม่ได้เลือก FT232R • ตรวจว่าหน้าต่าง USB ของ Android เปิดขึ้นหรือไม่';
+   }
+   updateSharedState();
+  }).catch(e=>{
    physicalConnectError='เปิด USB ไม่สำเร็จ: '+String(e?.message||e);
    updateSharedState();
-  }).finally(()=>{connect.disabled=false;updateSharedState();});
+  }).finally(()=>{
+   connect.disabled=false;selectAgain.disabled=false;updateSharedState();
+  });
  };
- selectAgain.onclick=()=>{
-  selectAgain.disabled=true;state.textContent='เปิดหน้าต่างเลือก FT232R ของ Android';
-  void old.connect({forcePicker:true}).then(updateSharedState).catch(e=>{state.textContent=String(e?.message||e)})
-   .finally(()=>{selectAgain.disabled=false;updateSharedState()});
- };
+ connect.onclick=()=>chooseFromHome('connect');
+ selectAgain.onclick=()=>chooseFromHome('select-again');
  rescan.onclick=()=>{void reader.rescanWithProgramming().then(updateSharedState).catch(e=>{state.textContent=e.message})};
  const safeDownload=(json,filename)=>{
   const content=JSON.stringify(json,null,2);
