@@ -4,7 +4,7 @@
  * This cannot prove hardware accuracy without verified bench ECU traces.
  */
 import {MAIN_CAPTURE_COMMANDS,decodeMainDiagnosticTrace,validateMainSourceLiveBurst} from './main-source-diagnostic.js?v=4';
-import {Ft232rWebUsb} from './ftdi-webusb.js?v=409';
+import {Ft232rWebUsb,READ_ONLY_COMMANDS} from './ftdi-webusb.js?v=410';
 import {HondaFlashEngine} from './honda-write-engine.js?v=417';
 import {loadCSharpCatalog} from './csharp-ecu-catalog.js?v=302';
 import {findOriginalEcmDat,describeOriginalEcm} from './main-original-ecm-catalog.js';
@@ -400,7 +400,14 @@ export class MainLiveSession {
    // FormMain.cs WorkerThread fallback: diagnostic ID may not answer, while
    // source Keihin poll / flash-count path still identifies the controller.
    // No ERASE or WRITE action is called in this branch.
-   if(!this.ecuId&&this.port?.ready){
+   // A status-only FT232R response or own TX echo is NOT evidence that an
+   // ECU exists. Do not cycle Windows programming handshakes and reopen USB
+   // merely because a fresh USB-C cable has no motorcycle attached yet.
+   // An explicit Programming Scan still runs the full source probe later.
+   const diagnosticEvidence=this.port?.lastDiagnosticObservation;
+   const ecuPossible=diagnosticEvidence?.label!=='ID'||
+     Number(diagnosticEvidence?.uartBytes)>READ_ONLY_COMMANDS.ID.length;
+   if(!this.ecuId&&this.port?.ready&&ecuPossible){
     this.phase='SOURCE_WORKER_ID_FALLBACK';
     this.autoStatus='กำลังลอง WorkerThread / Keihin-Shindengen จาก Main.zip';
     this.notify();
