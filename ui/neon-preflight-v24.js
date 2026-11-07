@@ -719,7 +719,7 @@ function mount(host){
    'เครื่องยนต์แฟลช: JavaScript เดิม · ติ๊กเพื่อใช้ C# Main.zip (ทดลอง)';
  });
 
- easy.append(uploadLabel,upload,uploadNote,uploadStatus,fastLabel,fastStatus,csharpModeRow,csharpModeHint,flash,recovery,miniBar,miniProgress);
+ easy.append(uploadLabel,upload,uploadNote,uploadStatus,csharpModeRow,csharpModeHint,fastLabel,fastStatus,flash,recovery,miniBar,miniProgress);
  stage.append(easy);
  const sourceCard=card('n24-source-progress','◴','Flash Progress · Main.zip');
  const sourceSteps=make('div','n24-source-steps');
