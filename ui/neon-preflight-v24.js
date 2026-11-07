@@ -679,8 +679,12 @@ function mount(host){
    vaultLoad.disabled=!choice||!!INLINEFLASH.busy||dom.vaultWorking;
    vaultDelete.disabled=vaultLoad.disabled;
    vaultMessage.textContent=vaultList.length
-    ?'มี '+vaultList.length+' ไฟล์ในคลัง • เลือก “'+(vaultList.find(row=>row.id===choice)?.name||'BIN')+'” แล้ว • กด “เลือก BIN นี้” เพื่อโหลดและตรวจ SHA-256 (ยังไม่อัด)'
+    ?'มี '+vaultList.length+' ไฟล์ในคลัง • เลือก “'+(vaultList.find(row=>row.id===choice)?.name||'BIN')+'” แล้ว • กำลังเตรียมอ่าน BIN/วิเคราะห์อัตโนมัติ'
     :'คลัง BIN ยังว่าง • ไปหน้าจูน กดบันทึกและตั้งชื่อไฟล์ก่อน';
+   // Selecting a stored BIN starts *read-only BIN work* immediately.
+   // No cable, ECU wake, erase or flash is required to inspect its metadata.
+   if(choice&&!INLINEFLASH.busy&&!dom.vaultWorking&&quickBin()?.vaultId!==choice)
+    void loadVault();
   }catch(e){
    vaultLoad.disabled=true;vaultDelete.disabled=true;
    vaultMessage.textContent='เปิดคลัง BIN ไม่สำเร็จ: '+(e?.message||e);
@@ -692,6 +696,12 @@ function mount(host){
   if(!id||!vaultList.some(row=>row.id===id))return errorOut('กรุณาเลือกไฟล์ในคลัง BIN ก่อน');
   const vault=window.__55TunedBinVault;
   dom.vaultWorking=true;vaultLoad.disabled=true;vaultSelect.disabled=true;
+  // A new choice must never leave the previously selected BIN armed if the
+  // freshly selected vault record fails hash verification.
+  if(quickBin()?.vaultId!==id){
+   window.__55QuickFlashBin=null;
+   window.dispatchEvent(new Event('55:bin-selection-changed'));
+  }
   vaultMessage.textContent='กำลังตรวจ SHA-256 ของ BIN ในคลัง…';
   try{
    const entry=await vault.load(id);
@@ -712,7 +722,10 @@ function mount(host){
    message='เลือก BIN จากคลังแล้ว • ให้ระบบอ่าน ECU ID จริงและตรวจความเข้ากันได้ก่อนอัด';
    void previewBinOffset();void analyzeSelectedBin();window.__55refreshFlashButton?.();
    render();if(window.__55SharedEcu?.snapshot?.().connected)void autoPrepare();
-  }catch(e){errorOut('เลือก BIN ในคลังไม่สำเร็จ: '+(e?.message||e))}
+  }catch(e){
+   const reason='เลือก BIN ในคลังไม่สำเร็จ: '+(e?.message||e);
+   vaultMessage.textContent='⚠ '+reason;errorOut(reason);
+  }
   finally{
    dom.vaultWorking=false;vaultSelect.disabled=false;
    vaultLoad.disabled=!vaultSelect.value||!!INLINEFLASH.busy;
@@ -737,10 +750,13 @@ function mount(host){
   const selected=vaultList.find(row=>row.id===vaultSelect.value);
   vaultLoad.disabled=!selected||!!INLINEFLASH.busy||dom.vaultWorking;
   vaultDelete.disabled=vaultLoad.disabled;
-  if(selected&&!dom.vaultWorking)
-   vaultMessage.textContent='เลือก “'+selected.name+'” • กด “เลือก BIN นี้” เพื่อตรวจไฟล์ก่อนอัด';
+  if(selected&&!dom.vaultWorking){
+   vaultMessage.textContent='เลือก “'+selected.name+'” • กำลังตรวจ SHA-256 และวิเคราะห์ BIN';
+   if(quickBin()?.vaultId!==selected.id)void loadVault();
+  }
  };
- // Android native dropdown may commit on input, change or focusout.
+ // Android native select fires input/change in different orders.
+ // Never run destructive commands here; only load/verify/analyze the file.
  for(const ev of ['input','change','blur'])vaultSelect.addEventListener(ev,syncVaultChoice);
 
  dom.vaultRefresh=refreshVault;
