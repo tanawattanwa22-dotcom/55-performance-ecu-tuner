@@ -62,7 +62,7 @@ export class MainLiveSession {
   if(typeof navigator!=='undefined'&&navigator.usb?.addEventListener){
    navigator.usb.addEventListener('disconnect',event=>this.handleUsbDetached(event.device));
    if(typeof window!=='undefined'&&navigator.usb.getDevices)
-    window.setInterval(()=>{void this.checkUsbPresence()},1200);
+    window.setInterval(()=>{void this.checkUsbPresence()},5000);
   }
  }
  notify(){this.onUpdate(this);}
@@ -106,10 +106,19 @@ export class MainLiveSession {
   try{
    const devices=await navigator.usb.getDevices();
    if(port!==this.port||this._usbPhysicallyDetached)return;
-   if(devices.some(device=>this._sameUsbDevice(device,selected))){
+   const exact=devices.some(device=>this._sameUsbDevice(device,selected));
+   const vidPid=devices.filter(device=>device?.vendorId===0x0403&&device?.productId===0x6001);
+   // Chrome on some Android builds does not give a conclusive physical
+   // presence list after USB permission changes/reconnect (Chromium 464761439).
+   // If exactly one approved FT232R is still enumerated but wrapper object or
+   // serial differs, this is not proof of the cable having been unplugged.
+   // Even an EMPTY getDevices() result is NOT a physical disconnect event.
+   if(exact||vidPid.length===1){
     this._usbMonitorMisses=0;
-   }else if(++this._usbMonitorMisses>=2){
-    this.handleUsbDetached(selected);
+   }else{
+    this._usbMonitorMisses++;
+    // Do NOT call handleUsbDetached() here. Only the actual WebUSB
+    // 'disconnect' event or real USB I/O failure may invalidate the port.
    }
   }catch{
    // A transient WebUSB permission/API failure is NOT evidence of unplug.
@@ -193,7 +202,7 @@ export class MainLiveSession {
    const opening=port.openSelected(device);
    opening.then(()=>{if(expired)void port.close()},()=>{});
    try{
-    await TIME_LIMIT(opening,12000,'FT232R เปิดพอร์ตเกิน 12 วินาที · ตรวจ OTG / การอนุญาต USB');
+    await TIME_LIMIT(opening,45000,'FT232R เปิดพอร์ตเกิน 45 วินาที · ตรวจ OTG / Android USB permission');
    }catch(e){expired=true;throw e}
    if(this.disconnectRequested||this._usbPhysicallyDetached){await port.close();this.port=null;return false}
    // A connected FT232R is a valid cable connection even without a bike.
