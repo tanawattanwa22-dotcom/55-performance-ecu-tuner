@@ -151,7 +151,7 @@ function makePort(device=physical){
  * to release. Never fake an ECU response or issue a write command. */
 {
  const {Ft232rWebUsb: SessionFt232rWebUsb}=
-  await import('../flash_port/ftdi-webusb.js?v=410');
+  await import('../flash_port/ftdi-webusb.js?v=419');
  const oldChoose=SessionFt232rWebUsb.choose;
  const oldOpen=SessionFt232rWebUsb.prototype.openSelected;
  let finishOldClose,opened=0,chosen=0;
@@ -185,4 +185,54 @@ function makePort(device=physical){
   SessionFt232rWebUsb.prototype.openSelected=oldOpen;
  }
 }
-console.log('PASS FT232R USB-C first-connect no false unplug, ECU-silent keepalive, hard-stall stop , real unplug and serialized replug');
+
+/* The real USB disconnect event must never attempt I/O on a physically
+ * detached FT232R: control, release and close may hang in Android Chromium. */
+{
+ let io=0;
+ const disconnected={
+  opened:true,
+  controlTransferOut:async()=>{io++},
+  releaseInterface:async()=>{io++},
+  close:async()=>{io++}
+ };
+ const port=new Ft232rWebUsb();
+ port.dev=disconnected;port.itf=0;port.ready=true;
+ await port.close({detached:true});
+ assert.equal(io,0,'do not make WebUSB calls on detached Android USB handle');
+ assert.equal(port.ready,false);
+ assert.equal(port.dev,null);
+}
+/* An old pending Android chooser must not restore a stale device after the
+ * user disconnects and successfully starts a newer chooser. */
+{
+ const {Ft232rWebUsb: Cable}=
+  await import('../flash_port/ftdi-webusb.js?v=419');
+ const prevChoose=Cable.choose,prevOpen=Cable.prototype.openSelected;
+ let resolveOld=null,attempts=0,opened=0;
+ const device={vendorId:0x0403,productId:0x6001,serialNumber:'FRESH-USB'};
+ const reader=new MainLiveSession();
+ try{
+  Cable.choose=()=>{
+   attempts++;
+   return attempts===1?new Promise(resolve=>{resolveOld=resolve}):Promise.resolve(device);
+  };
+  Cable.prototype.openSelected=async function(dev){
+   opened++;this.dev={...dev,opened:false};this.ready=true;
+  };
+  const first=reader.connect({forcePicker:true});
+  await wait(0);
+  assert.equal(reader.status().connecting,true);
+  await reader.disconnect();
+  const second=reader.connect({forcePicker:true});
+  resolveOld(device);
+  assert.equal(await first,false,'outdated picker must not overtake new connection');
+  assert.equal(await second,true,'new Android selection retains physical FT232R');
+  assert.equal(opened,1,'old device must not be opened after disconnect');
+  assert.equal(reader.status().connected,true);
+  await reader.disconnect();
+ }finally{
+  Cable.choose=prevChoose;Cable.prototype.openSelected=prevOpen;
+ }
+}
+console.log('PASS FT232R USB-C: no stale chooser, no detached I/O, serialized replug and unchanged ECU timeouts');
