@@ -29,7 +29,7 @@ must(engine,'if(!operatorClickConfirmed||plan.recovery||sourceUnlistedPlan)',
 must(engine,'(sourceUnlistedPlan&&!unlistedValid)',
  'Unlisted physical ECU requires verified Main C# programming session and BIN matching');
 must(preflight,"const flash=btn('⇧ อัดไฟล์ ECU'","Simple UI offers one Flash button");
-must(preflight,'easy.append(uploadLabel,upload,uploadNote,uploadStatus,fastLabel,fastStatus,flash,recovery,miniBar,miniProgress)', 'Fast Write is an optional checkbox beside the single Flash button');
+must(preflight,'easy.append(uploadLabel,upload,uploadNote,uploadStatus,csharpModeRow,csharpModeHint,fastLabel,fastStatus,flash,recovery,miniBar,miniProgress)', 'Fast Write is an optional checkbox beside the single Flash button');
 must(preflight,"fast.checked=sourceFast?.checked??true;", 'Visible Fast Write inherits Main.zip actual write mode');
 must(preflight,"sourceFast.checked=fast.checked;", 'Fast Write checkbox updates source write mode');
 must(index,"const fast=$('#mainFastWrite')?.checked??true;", 'Flash snapshots chosen source Fast/normal mode before ECU I/O');
