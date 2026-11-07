@@ -265,3 +265,173 @@
  #tune.tp-on .tp-main #gw{min-height:70px}
  #tune.tp-on #tuneFlow{min-height:20px}
 }
+
+
+/* ================================================================
+   TUNE PRO FULL GRID · Android landscape short screens (V3)
+   Prior neon/v19 styles reserve 75–148px inside #gw for an old
+   bottom action bar. TUNE PRO already moved that bar to the top.
+   Restore the height to the editable grid; keep real tool controls.
+   ================================================================ */
+@media (orientation:landscape) and (max-height:660px){
+  #tune.tp-on.on{
+    height:100dvh!important;
+    max-height:100dvh!important;
+    overflow:hidden!important;
+  }
+  /* Global help overlay from the home page must not cover the grid header. */
+  body:has(#tune.tp-on.on) #retailHelp{display:none!important}
+
+  #tune.tp-on .top{
+    flex:0 0 36px!important;
+    height:36px!important;
+    min-height:36px!important;
+    max-height:36px!important;
+    padding:2px max(6px,env(safe-area-inset-right)) 2px max(6px,env(safe-area-inset-left))!important;
+    gap:6px!important;overflow:hidden!important
+  }
+  #tune.tp-on .top .lg{width:26px!important;height:26px!important;flex:none}
+  #tune.tp-on .top .ib{
+    width:30px!important;height:30px!important;min-height:30px!important;
+    flex:0 0 30px!important;padding:0!important;font-size:20px!important;
+    border-radius:8px!important
+  }
+  #tune.tp-on .top > div:nth-of-type(2){
+    flex:1;min-width:0;overflow:hidden
+  }
+  #tune.tp-on .top #tModel{
+    display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    font-size:12px!important;line-height:1.15
+  }
+  #tune.tp-on .top #tFile{display:none!important}
+  #tune.tp-on .top .sp{flex:0 0 0!important;min-width:0!important}
+
+  #tune.tp-on .tp-toolbar{
+    flex:0 0 35px!important;
+    min-height:35px!important;height:35px!important;max-height:35px!important;
+    padding:2px 5px!important;gap:4px!important;
+    overflow-x:auto!important;overflow-y:hidden!important
+  }
+  #tune.tp-on .tp-toolbar .tp-cmd,
+  #tune.tp-on .tp-toolbar .bb .btn,
+  #tune.tp-on .tp-toolbar .bb #btnSave,
+  #tune.tp-on .tp-toolbar .bb #btnToFlash{
+    min-height:29px!important;height:29px!important;
+    padding:0 7px!important;font-size:10px!important;
+    line-height:1.1!important;white-space:nowrap!important
+  }
+  #tune.tp-on .tp-toolbar .bb .btn.sq{
+    min-width:29px!important;width:29px!important;font-size:15px!important
+  }
+  #tune.tp-on .tp-toolbar .bb{
+    flex:0 0 auto!important;display:flex!important;
+    width:max-content!important;max-width:none!important;
+    grid-template-columns:none!important;
+    padding:0!important;border:0!important
+  }
+  #tune.tp-on .tp-toolbar .tp-toolbar-extra{flex:none!important}
+
+  /* The original steps/status still update in JS, only their display is
+     suppressed on the small landscape screen; Save/Flash remain working. */
+  #tune.tp-on #tuneFlow{display:none!important}
+  #tune.tp-on .tp-status{display:none!important}
+
+  /* In the page's column flex layout this is the remainder of the viewport.
+     Never use a fixed calc height: browser toolbars and display cutouts vary. */
+  #tune.tp-on .tp-shell{
+    flex:1 1 0px!important;height:0!important;min-height:0!important;
+    max-height:none!important;padding:3px 4px!important;
+    gap:0!important;overflow:hidden!important;
+    grid-template-columns:minmax(0,1fr)!important
+  }
+  #tune.tp-on .tp-main{
+    grid-column:1!important;flex:1 1 0px!important;min-height:0!important;
+    height:100%!important;max-height:100%!important;overflow:hidden!important;
+    border-radius:7px
+  }
+  #tune.tp-on .tp-mainbar{
+    flex:0 0 27px!important;height:27px!important;min-height:27px!important;
+    padding:1px 4px!important;gap:4px!important
+  }
+  #tune.tp-on .tp-mainbar b{font-size:10px!important;white-space:nowrap}
+  #tune.tp-on .tp-mainbar .tp-cmd{
+    min-height:24px!important;height:24px!important;
+    padding:0 6px!important;font-size:10px!important
+  }
+  #tune.tp-on .tp-open-tabs{
+    flex:0 0 27px!important;height:27px!important;min-height:27px!important;
+    padding:1px 4px!important;gap:4px!important
+  }
+  #tune.tp-on .tp-open-tab{min-height:23px!important;height:23px!important}
+  #tune.tp-on .tp-open-tab button{height:21px!important;font-size:10px!important;padding:0 5px!important}
+
+  #tune.tp-on .tp-main .sub{
+    flex:0 0 29px!important;height:29px!important;min-height:29px!important;
+    padding:1px 5px!important;gap:4px!important;
+    flex-wrap:nowrap!important;overflow:hidden!important
+  }
+  #tune.tp-on .tp-main .sub>div:first-child{
+    flex:1 1 80px!important;min-width:0!important;overflow:hidden!important
+  }
+  #tune.tp-on .tp-main .sub b{
+    display:block;max-width:100%;white-space:nowrap!important;
+    overflow:hidden!important;text-overflow:ellipsis;font-size:11px!important
+  }
+  #tune.tp-on .tp-main .sub .mini{
+    flex:none!important;min-height:24px!important;height:24px!important;
+    min-width:25px!important;padding:0 5px!important;font-size:10px!important
+  }
+  #tune.tp-on .tp-main #gw{
+    flex:1 1 0px!important;height:0!important;min-height:0!important;
+    min-width:0!important;max-width:none!important;
+    padding:0!important;padding-bottom:0!important;
+    overflow-x:auto!important;overflow-y:auto!important;
+    overscroll-behavior:contain
+  }
+  #tune.tp-on .tp-main #gw table.g th,
+  #tune.tp-on .tp-main #gw table.g td{
+    height:25px!important;min-width:47px!important;
+    padding:0 3px!important;font-size:10px!important;line-height:1.1!important;
+    font-variant-numeric:tabular-nums
+  }
+
+  /* Multi-map stays functional, but never uses grid height by default:
+     tapping Preview opens an overlay; tapping again collapses it. */
+  #tune.tp-on .tp-preview-zone{display:none!important}
+  #tune.tp-on .tp-preview-zone:not(.tp-preview-closed){
+    display:flex!important;position:absolute!important;
+    z-index:12!important;left:5px!important;right:5px!important;
+    bottom:5px!important;width:auto!important;
+    max-height:min(45%,190px)!important;
+    border:1px solid #36a9a0!important;border-radius:10px!important;
+    background:#081c29!important;box-shadow:0 8px 28px #000e!important;
+    overflow:hidden!important
+  }
+  #tune.tp-on .tp-preview-list{
+    max-height:min(110px,28dvh)!important;min-height:0!important;
+    overflow:auto!important
+  }
+  #tune.tp-on .tp-preview-scroll{max-height:75px!important}
+
+  /* Sidebar and actual tuning tools slide above the grid, not beside it. */
+  #tune.tp-on .tp-sidebar{
+    position:absolute!important;grid-column:auto!important;
+    top:4px!important;bottom:4px!important;left:4px!important;
+    width:min(230px,78vw)!important;max-width:none!important;
+    z-index:19!important;box-shadow:8px 5px 24px #000c
+  }
+  #tune.tp-on.tp-left-closed .tp-sidebar{
+    display:flex!important;transform:translateX(calc(-100% - 12px))!important;
+    opacity:0!important;pointer-events:none!important
+  }
+  #tune.tp-on .tp-tool-host{
+    position:absolute!important;grid-column:auto!important;
+    top:4px!important;bottom:4px!important;right:4px!important;
+    width:min(245px,77vw)!important;z-index:20!important;
+    box-shadow:-8px 4px 24px #000c!important
+  }
+  #tune.tp-on.tp-right-closed .tp-tool-host{
+    display:block!important;transform:translateX(calc(100% + 12px))!important;
+    opacity:0!important;pointer-events:none!important
+  }
+}
