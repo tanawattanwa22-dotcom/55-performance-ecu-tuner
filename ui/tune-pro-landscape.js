@@ -165,7 +165,9 @@
   if(pinned.includes(idx))return;
   pinned.push(idx);
   if(pinned.length>3)pinned.shift();
-  previewOpen=true;
+  // Keep the real grid visible after every table switch on a landscape phone.
+  // The Preview control opens the already-prepared maps on demand.
+  if(!compactLandscape())previewOpen=true;
  };
  function openTable(idx){
   const current=api.state();
