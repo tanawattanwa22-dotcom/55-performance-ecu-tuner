@@ -137,6 +137,13 @@ Test(simulatedKeihin.RetryCount==2&&
      "Source seven-byte Retry budget is global TWO, not per-block");
 Test(simulatedKeihin.Events.Contains("SOURCE_WRITE_ACK_NONZERO_UNINTERPRETED"),
      "Main five-byte nonzero-status ACK accepted and retained");
+var recoveredHandshake=new FakeMainFlashTransport("0104080F01",3,"KEIHIN"){FailFirstKhHello=true};
+var recoveryHandshakeResult=await new MainFlashSourceEngine(recoveredHandshake)
+    .FlashAsync(khSourcePlan);
+Test(recoveryHandshakeResult.Ok&&recoveredHandshake.Steps.Contains("USB_REOPEN_SAME_DEVICE")&&
+     recoveredHandshake.Steps.Contains("KH_HANDSHAKE_A_RETRY")&&
+     recoveredHandshake.Steps.Count(x=>x=="RECHECK_ECU_ID")==2,
+     "Keihin first HELLO timeout: same FT232R restore, same ECU ID and ONE retry");
 var blockedUsb=new FakeMainFlashTransport("0104080F01",3,"KEIHIN"){FailFirstWrite=true};
 try{
  await new MainFlashSourceEngine(blockedUsb).FlashAsync(khSourcePlan);
@@ -168,7 +175,7 @@ sealed class FakeMainFlashTransport : IMainFlashTransport
  public readonly List<string> Steps=new();
  public readonly List<string> Events=new();
  public int RetryCount=0,WriteAttempts=0;
- public bool FailFirstWrite=false;
+ public bool FailFirstWrite=false,FailFirstKhHello=false;
  private readonly string id,family;private readonly int count;
  public FakeMainFlashTransport(string id,int count,string family){
   this.id=id;this.count=count;this.family=family;
@@ -181,6 +188,10 @@ sealed class FakeMainFlashTransport : IMainFlashTransport
  public Task<byte[]?> ExchangeAsync(string label,byte[] command,int timeoutMs,int afterWriteMs=0)
  {
   Steps.Add(label);
+  if(label=="KH_HANDSHAKE_A"&&FailFirstKhHello){
+    FailFirstKhHello=false;
+    throw new TimeoutException("emulated first Keihin 7D handshake timeout");
+  }
   if(label=="RECHECK_ECU_ID"){
     byte[] r={0x72,11,0x72,0,0,0,0,0,0,0,0};
     var bytes=Convert.FromHexString(id);
