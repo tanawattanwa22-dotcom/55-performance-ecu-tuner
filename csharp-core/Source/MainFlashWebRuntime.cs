@@ -64,6 +64,8 @@ public sealed class MainFlashWebUsb : IMainFlashTransport {
             label,MainProtocol.Hex(frame),timeoutMs,afterWriteMs);
         return string.IsNullOrWhiteSpace(value)?null:MainProtocol.ParseHex(value);
     }
+    public Task ReopenSameUsbBeforeEraseAsync() =>
+        _js.InvokeVoidAsync("csharpHost.flashReopenBeforeErase").AsTask();
     public Task SetBaudAsync(int baud) =>
         _js.InvokeVoidAsync("csharpHost.flashBaud",baud).AsTask();
     public Task SignalAsync(string phase,object? details=null) =>
