@@ -2125,7 +2125,9 @@ async function connectCable(){
    }
    // Call connect synchronously in the button's real user gesture. Android's
    // requestDevice picker cannot safely be preceded by unrelated awaits.
-   const pending=shared.connect();
+   // The visible Neon Dashboard's 'เชื่อมต่อรถ' forwards here.
+   // Explicit manual tap must reach Android's native chooser immediately.
+   const pending=shared.connect({forcePicker:true});
    const ok=await pending;
    window.__55SyncLegacyUsb?.(shared.snapshot());
    return ok;
