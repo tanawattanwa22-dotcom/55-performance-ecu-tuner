@@ -59,6 +59,7 @@ export class MainLiveSession {
   this._usbMonitorMisses=0;this._usbMonitorBusy=false;
   this._pendingUsbRelease=null; // last physical USB close; used on fast Android OTG replug
   this._usbConnectGeneration=0; // invalidate unfinished Android chooser/open attempts
+  this.ecuPresenceState='UNTESTED';this.ecuPresenceAt=0;
   // Chrome Android's WebUSB disconnect event represents the *actual OTG cable*.
   // It previously updated the chooser cache but not the live ECU snapshot.
   if(typeof navigator!=='undefined'&&navigator.usb?.addEventListener){
@@ -104,6 +105,7 @@ export class MainLiveSession {
   this.dtcSnapshot=null;this.dtcError='';this.idError='';this.liveGroupError='';
   this.values=EMPTY();this.sourceReadings=[];this.sampleAt=0;this.sampleSeq=0;this.hz=null;
   this.autoComplete=false;this.liveAutoRetries=0;this.recording=false;
+  this.ecuPresenceState='UNTESTED';this.ecuPresenceAt=0;
  }
  handleUsbDetached(device){
   const selected=this._selectedUsbDevice||this.port?.lastDevice||this.port?.dev;
@@ -157,6 +159,8 @@ export class MainLiveSession {
   const ecmDisplay=describeOriginalEcm(currentId);
   return {
    connected:!!this.port?.ready&&!this._usbPhysicallyDetached,
+   ecuPresenceState:this.port?.ready?this.ecuPresenceState:'NO_USB',
+   ecuPresenceAt:this.port?.ready?this.ecuPresenceAt:0,
    usbAttempts:this.usbAttempts,usbLastPhase:this.usbLastPhase,
    usbLastError:this.usbLastError,usbDevice:this.usbDevice,
    usbTrace:(this.port?.trace?.length?this.port.trace:this.usbTrace).slice(-16),
@@ -580,12 +584,14 @@ export class MainLiveSession {
     catch{this.catalog=null}
    }
    this.idError='';
+   this.ecuPresenceState='CONFIRMED';this.ecuPresenceAt=Date.now();
    this.autoStatus='✓ ECU ID ตอบจริง: '+id+' • '+(previous&&previous!==id?'พบ ECU เปลี่ยนคัน':'ตรวจปัจจุบัน');
    return {state:'CONFIRMED',ecuId:id,changed:previous!==id};
   }catch(e){
    if(!this.disconnectRequested&&port===this.port&&generation===this._usbConnectGeneration){
     const reason=String(e?.message||e);
     this._clearDetectedEcu();
+    this.ecuPresenceState='NO_REPLY';this.ecuPresenceAt=Date.now();
     this.idError=reason;
     this.autoStatus='FT232R อาจยังต่ออยู่ แต่ ECU ไม่ตอบ ID • ไม่ใช้ข้อมูลรถคันก่อน';
    }
