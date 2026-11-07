@@ -616,6 +616,7 @@ export class Ft232rWebUsb {
     requireAllowed(frame);
     if(timeoutMs<80||timeoutMs>5000)throw Error('Invalid response window');
     await this.purge();
+    this.lastDiagnosticObservation=null;
     const deadline=Date.now()+timeoutMs;
     await this._write(frame);
     this._log('TX '+label+': '+toHex(frame));
@@ -651,12 +652,16 @@ export class Ft232rWebUsb {
       if(!echoOK)this._log('Warning: serial echo differs from outgoing command (inspect wiring)');
       const reply=stream.slice(frame.length,frame.length+declared);
       checkedHondaReply(reply);
+      this.lastDiagnosticObservation={label,uartBytes:stream.length,
+        statusPackets:usbStatusPackets,answered:true,at:Date.now()};
       this._log('RX '+label+': '+toHex(reply)+(echoOK?'':' [echo mismatch]'));
       await this.purge();
       return {reply:Uint8Array.from(reply),echoOK,raw:Uint8Array.from(stream)};
     }
     // No blocked WebUSB request exists here: the status-only FTDI packets
     // completed normally. An ECU that is OFF/absent must not tear down USB-C.
+    this.lastDiagnosticObservation={label,uartBytes:stream.length,
+      statusPackets:usbStatusPackets,answered:false,at:Date.now()};
     await this.purge();
     this._log('FT232R USB KEEPALIVE: ECU ID did not answer within diagnostic deadline');
     throw Error('Honda ECU did not reply (USB FT232R remains connected)');
