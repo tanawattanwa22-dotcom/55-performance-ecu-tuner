@@ -95,8 +95,14 @@ function status(){
   if(INLINEFLASH.busy)return ['ECU กำลังดำเนินการ',false];
   const physical=window.__55SharedEcu?.snapshot?.();
   if(physical?.connected)return [physical.ecuId?'FT232R + ECU '+physical.ecuId:'✓ FT232R / USB เชื่อมต่อแล้ว',true];
-  if(physical?.connecting)return ['กำลังเปิด USB FT232R…',false];
-  if(physical?.error)return ['FT232R เปิดไม่สำเร็จ · ดูรายละเอียด USB',false];
+  if(physical?.connecting){
+   const phase=physical.phase||physical.usbLastPhase||'';
+   return [phase==='USB_CHOOSER'?'รอเลือก FT232R จาก Android':
+    phase==='USB_WAIT_PREVIOUS_RELEASE'?'กำลังปล่อยพอร์ต USB เก่า ก่อนเปิดใหม่':
+    phase==='USB_OPEN'?'กำลังเปิด FT232R ที่เลือก • ตรวจสิทธิ์ Android':
+    'กำลังเปิด USB FT232R • '+phase,false];
+  }
+  if(physical?.error)return ['FT232R ไม่พร้อม: '+physical.error,false];
  }catch{}
  return ['ยังไม่ได้เปิด FT232R',false];
 }
@@ -118,7 +124,7 @@ function refreshStatus(){
  if(binJob){
   const quick=window.__55QuickFlashBin;
   binJob.textContent=quick?.bytes instanceof Uint8Array?
-    (quick.filename||'เลือก BIN ในหน้า Flash แล้ว'):
+    ('✓ '+(quick.vaultName||quick.filename||'เลือก BIN ในหน้า Flash แล้ว')):
     (typeof S!=='undefined'&&S.bin?S.fname:'ยังไม่ได้เปิด BIN');
  }
 }
@@ -141,17 +147,22 @@ function retailReadout(){
  // must never be described as confirmed ECU memory addresses.
  const binPreview=typeof window.__55FlashPreflight?.sourceBinPreview==='function'?
   window.__55FlashPreflight.sourceBinPreview():null;
- const showBinStart=!!physicalId&&!Number.isInteger(activePlan?.startOffset)&&
+ // Display *clearly labeled BIN-only estimates* immediately after vault
+ // selection, even before Android USB / actual ECU ID is available.
+ // Never use this preview as evidence that real ECU offsets are verified.
+ const showBinStart=!Number.isInteger(activePlan?.startOffset)&&
   !Number.isInteger(status.startOffset)&&Number.isInteger(binPreview?.startOffset);
- const showBinChecksum=!!physicalId&&!Number.isInteger(activePlan?.checksumOffset)&&
+ const showBinChecksum=!Number.isInteger(activePlan?.checksumOffset)&&
   !Number.isInteger(status.checksumOffset)&&Number.isInteger(binPreview?.checksumOffset);
  const start=activePlan?.startOffset??status.startOffset??(showBinStart?binPreview.startOffset:null);
  const ck=activePlan?.checksumOffset??status.checksumOffset??(showBinChecksum?binPreview.checksumOffset:null);
  const hasFile=!!window.__55QuickFlashBin?.bytes?.length||
   !!window.__ecu?.S?.saved;
  const verifiedPlan=!!activePlan&&!!physicalId&&proof?.family===activePlan.profile.replace(/(?:RH850B|RH850|V850|OTHER|M32R|H8C)$/,'');
- const readyText=!portReady?'รอเชื่อมต่อรถ':!physicalId?'กำลังตรวจ ECU ID':
-  !hasFile?'รอเลือกไฟล์':'ตรวจข้อมูลกล่องและไฟล์ก่อนแฟลช';
+ const readyText=!hasFile?'รอเลือก BIN จากคลัง':
+  !portReady?'BIN เลือกแล้ว • วิเคราะห์ไฟล์ได้ แต่รอเชื่อมต่อ FT232R':
+  !physicalId?'USB เชื่อมแล้ว • รออ่าน ECU ID จริง':
+  'ตรวจข้อมูล ECU และ BIN ก่อนแฟลช';
  const dtcResult=status.dtcSnapshot?.ecuId===physicalId?status.dtcSnapshot:null;
  const dtcText=dtcResult?.success?
   (Number.isInteger(dtcResult.missing)&&dtcResult.missing>0?'ได้ผลอ่านบางส่วน':'ตรวจรหัสได้แล้ว'):
