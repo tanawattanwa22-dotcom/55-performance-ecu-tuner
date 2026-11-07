@@ -154,7 +154,7 @@
     if(busy)return;
     busy=true;dtcStatus="กำลังอ่าน DTC ผ่าน WebUSB เส้นหลัก (ไม่ลบ DTC)…";
     try{
-      var captures=await JS.InvokeAsync<string[]>("csharpHost.captureDtcOnce",MainDtcSource.ReadFrames);
+      var captures=await JS.InvokeAsync<string[]>("csharpHost.captureDtcOnce",(object)MainDtcSource.ReadFrames);
       var current=MainDtcSource.DecodeSourceCaptureHex(captures[0],false);
       var history=MainDtcSource.DecodeSourceCaptureHex(captures[1],true);
       dtcs=current.Concat(history).ToList();
