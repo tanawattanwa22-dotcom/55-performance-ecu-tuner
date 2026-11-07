@@ -766,7 +766,7 @@ function mount(host){
  });
  csharpModeRow.append(csharpMode,make('span','','ใช้ Main.zip C# WebAssembly เป็นเครื่องยนต์อัด ECU (ทดลอง)'));
  const csharpModeHint=make('p','n24-help',
-  'เลือกก่อนกดอัดไฟล์: โปรแกรมจะตรวจ BIN / ECU ID / Offset กับระบบเดิม และเรียก C# ให้ควบคุมคำสั่งถึง Final ACK · โหมดทดลองยังไม่ได้ยืนยันกับ ECU จริงครบทุกตระกูล');
+  'เลือกก่อนกดอัดไฟล์: ตรวจ BIN / ECU ID / Offset ด้วยระบบเดิม แล้วให้ C# ควบคุมถึง Final ACK · ถ้าเป็น KeihinOther ให้เอาเครื่องหมาย Fast Write ออกก่อน เพื่อใช้ความเร็วปกติของ Main.zip');
  csharpCard.append(csharpModeRow,csharpModeHint);
  csharpCard.append(csharpStatus,csharpOpen);
  stage.append(csharpCard);
