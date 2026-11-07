@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest?v=55mobile-20261105">
 <link rel="icon" href="icons/favicon-64.png?v=55mobile-20261105">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=55mobile-20261105">
-<link rel="stylesheet" href="ui/tune-pro-landscape.css?v=5">
+<link rel="stylesheet" href="ui/tune-pro-landscape.css?v=6">
 <style>
 :root{--bg:#0b0b0d;--p1:#141418;--p2:#1c1c22;--ln:#2b2b34;--tx:#f3f3f5;--mu:#9d9da9;--ac:#ff5a1f;--ac2:#ff2d2d;--ok:#2ecc71;--wn:#ffb020;--bd:#ff4545;--cw:50px}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -504,15 +504,19 @@ button:not(:disabled):active,.btn:not(:disabled):active,.chip:active,.ib:active,
    <div class="g2"><label>Step</label><input id="vStep" inputmode="decimal"><button class="mini" data-op="stepm">−</button><button class="mini" data-op="stepp">+</button></div>
    <div class="sec">Offset (บวก / ลบ)</div>
    <div class="g2"><label>Offset</label><input id="vOff" inputmode="decimal"><button class="mini" data-op="offm">−</button><button class="mini" data-op="offp">+</button></div>
-   <div class="sec">เปอร์เซ็นต์ / คูณ</div>
-   <div class="g2"><label>%</label><input id="vPct" inputmode="decimal" value="1"><button class="mini" data-op="pctm">−%</button><button class="mini" data-op="pctp">+%</button></div>
-   <div class="g2"><label>คูณ</label><input id="vMul" inputmode="decimal" value="1.05"><button class="mini" data-op="mul">×</button><span></span></div>
-   <div class="sec">ตั้งค่า / เติม</div>
-   <div class="g2"><label>ค่า</label><input id="vSet" inputmode="decimal"><button class="mini" data-op="set">ตั้งค่า</button><span></span></div>
-   <div class="sec">Interpolate (ไล่ค่าระหว่างขอบที่เลือก)</div>
+   <div class="sec">Multiply / Divide · คูณ / หาร</div>
+   <div class="g2"><label for="vMul">คูณ ×</label><input id="vMul" inputmode="decimal" value="1.05" aria-label="ตัวคูณ Multiply"><button class="mini" data-op="mul" title="คูณค่าช่องที่เลือกด้วยแฟกเตอร์">คูณ ×</button><span></span></div>
+   <div class="g2"><label for="vDiv">หาร ÷</label><input id="vDiv" inputmode="decimal" value="1.05" aria-label="ตัวหาร Divide"><button class="mini" data-op="div" title="หารค่าช่องที่เลือกด้วยตัวหารที่มากกว่าศูนย์">หาร ÷</button><span></span></div>
+   <div class="sec">Scale by % · เพิ่ม / ลดเปอร์เซ็นต์</div>
+   <div class="g2"><label for="vPct">%</label><input id="vPct" inputmode="decimal" value="5" aria-label="เปอร์เซ็นต์ที่ต้องการปรับ"><button class="mini" data-op="pctm">−%</button><button class="mini" data-op="pctp">+%</button></div>
+   <div class="sec">Fill w/ value · เติมค่าเดียว</div>
+   <div class="g2"><label for="vSet">ค่า</label><input id="vSet" inputmode="decimal" aria-label="ค่าที่ต้องการเติมทุกช่องที่เลือก"><button class="mini" data-op="set">เติมค่า</button><span></span></div>
+   <div class="sec">Smooth · เกลี่ยค่าตาราง</div>
+   <div class="g2"><label for="vSmDir">ทิศทาง</label><select id="vSmDir" aria-label="ทิศทาง Smooth"><option value="h">แนวนอน ↔</option><option value="v">แนวตั้ง ↕</option><option value="both" selected>ทั้งสอง ↔↕</option></select><span></span><span></span></div>
+   <div class="g2"><label for="vSm">จำนวนรอบ</label><input id="vSm" inputmode="numeric" type="number" min="1" max="10" step="1" value="1"><button class="mini" data-op="smooth">เกลี่ย Smooth</button><span></span></div>
+   <div class="tp-tool-hint">Smooth จะคำนวณเฉพาะเซลล์ที่เลือก (1–10 รอบ) · Undo ได้ในครั้งเดียว</div>
+   <div class="sec">Interpolate · ไล่ค่าระหว่างขอบที่เลือก</div>
    <div class="rw"><button class="mini" data-op="ih">แนวนอน</button><button class="mini" data-op="iv">แนวตั้ง</button><button class="mini" data-op="ib">ทั้งสอง</button></div>
-   <div class="sec">Smooth (ปรับให้เรียบ)</div>
-   <div class="g2"><label>รอบ</label><input id="vSm" inputmode="numeric" value="1"><button class="mini" data-op="smooth">Smooth</button><span></span></div>
    <div class="sec">คัดลอก / วาง · ย้อนกลับ</div>
    <div class="rw"><button class="mini" data-op="copy">คัดลอก</button><button class="mini" data-op="paste">วาง</button><button class="mini" data-op="undo">↶ Undo</button><button class="mini" data-op="redo">↷ Redo</button></div>
    <div class="rw"><button class="mini" data-op="revert">คืนค่าเดิมตารางนี้</button><button class="mini" id="clampT">จำกัดตามช่วง</button></div>
@@ -778,6 +782,11 @@ function runOp(op){
     case"pctp":if(need(pct,"%"))applyOp("+"+pct+"%",v=>v*(1+pct/100),true);break;
     case"pctm":if(need(pct,"%"))applyOp("-"+pct+"%",v=>v*(1-pct/100),true);break;
     case"mul":if(need(mul,"คูณ"))applyOp("คูณ "+mul,v=>v*mul,true);break;
+    case"div":{
+      const input=$("#vDiv")?.value?.trim().replace(",",".")||"";
+      const divisor=/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(input)?Number(input):NaN;
+      if(!Number.isFinite(divisor)||divisor<=0){toast("ตัวหารต้องเป็นตัวเลขมากกว่า 0");return}
+      applyOp("หาร "+divisor,v=>v/divisor,true);break}
     case"set":if(need(set,"ค่า"))applyOp("ตั้งค่า "+set,()=>set);break;
     case"ih":case"iv":case"ib":{
       if(!S.sel){toast("แตะเลือกช่องก่อน");return}
@@ -791,20 +800,38 @@ function runOp(op){
         return lerp(lerp(V[r0][c0],V[r0][c1],u),lerp(V[r1][c0],V[r1][c1],u),w);
       });break}
     case"smooth":{
-      let n=Math.max(1,Math.min(10,Math.round(num("#vSm")||1)));
-      if(!S.sel){toast("แตะเลือกช่องก่อน");return}
-      const{r0,r1,c0,c1}=norm(S.sel);
-      // ทำทีละรอบบนสำเนาแล้วค่อยเขียนครั้งเดียว
-      let V=snap(t);
-      for(let k=0;k<n;k++){
-        const W=V.map(r=>r.slice());
-        for(let r=r0;r<=r1;r++)for(let c=c0;c<=c1;c++){
-          let s=0,m=0;
-          for(let i=-1;i<=1;i++)for(let j=-1;j<=1;j++){const rr=r+i,cc=c+j;if(rr>=0&&rr<t.r&&cc>=0&&cc<t.c){s+=V[rr][cc];m++}}
-          W[r][c]=s/m;
-        }V=W;
+      const rounds=Number($("#vSm")?.value);
+      if(!Number.isInteger(rounds)||rounds<1||rounds>10){
+        toast("Smooth ต้องระบุจำนวนรอบ 1–10");return
       }
-      applyOp("Smooth",(v,r,c)=>V[r][c],false);break}
+      if(!S.sel){toast("แตะเลือกช่องก่อน");return}
+      const {r0,r1,c0,c1}=norm(S.sel);
+      const direction=$("#vSmDir")?.value||"both";
+      if(!["h","v","both"].includes(direction))return;
+      if(direction==="h"&&c0===c1||direction==="v"&&r0===r1||
+         direction==="both"&&r0===r1&&c0===c1){
+        toast("เลือกช่วงที่มีหลายช่องตามทิศทางที่จะเกลี่ย");return
+      }
+      // Each pass reads a fresh immutable grid; never pull neighbors
+      // from outside the selection, and commit ALL selected cells once.
+      let V=snap(t);
+      for(let k=0;k<rounds;k++){
+        const W=V.map(row=>row.slice());
+        for(let r=r0;r<=r1;r++)for(let c=c0;c<=c1;c++){
+          let sum=0,count=0;
+          for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){
+            if(direction==="h"&&dr!==0||direction==="v"&&dc!==0)continue;
+            const rr=r+dr,cc=c+dc;
+            if(rr>=r0&&rr<=r1&&cc>=c0&&cc<=c1){
+              sum+=V[rr][cc];count++;
+            }
+          }
+          if(count>0)W[r][c]=sum/count;
+        }
+        V=W;
+      }
+      const label=direction==="h"?"แนวนอน":direction==="v"?"แนวตั้ง":"ทั้งสอง";
+      applyOp("Smooth "+label+" "+rounds+" รอบ",(v,r,c)=>V[r][c],false);break}
   }
 }
 
