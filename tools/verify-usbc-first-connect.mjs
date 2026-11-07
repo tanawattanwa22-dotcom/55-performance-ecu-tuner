@@ -145,4 +145,44 @@ function makePort(device=physical){
  assert.equal(session.phase,'USB_READY_NO_ECU');
 }
 
-console.log('PASS FT232R USB-C first-connect no false unplug, ECU-silent keepalive, hard-stall stop and real unplug');
+
+/* Android quick unplug/replug regression: the native chooser must be called
+ * during the click, but the next USBDevice.open must wait for the old handle
+ * to release. Never fake an ECU response or issue a write command. */
+{
+ const {Ft232rWebUsb: SessionFt232rWebUsb}=
+  await import('../flash_port/ftdi-webusb.js?v=410');
+ const oldChoose=SessionFt232rWebUsb.choose;
+ const oldOpen=SessionFt232rWebUsb.prototype.openSelected;
+ let finishOldClose,opened=0,chosen=0;
+ const alreadyOpen={
+  ready:true,trace:[],
+  close:()=>new Promise(resolve=>{finishOldClose=resolve})
+ };
+ const reader=new MainLiveSession();
+ reader.port=alreadyOpen;reader._selectedUsbDevice=physical;
+ try{
+  SessionFt232rWebUsb.choose=async()=>{
+   chosen++;
+   return {vendorId:0x0403,productId:0x6001,serialNumber:physical.serialNumber};
+  };
+  SessionFt232rWebUsb.prototype.openSelected=async function(device){
+   opened++;this.dev={...device,opened:false};
+   this.ready=true;this.trace=[];
+  };
+  assert(reader.handleUsbDetached(physical),'unplug triggers asynchronous release');
+  const next=reader.connect({forcePicker:true});
+  await wait(0);
+  assert.equal(chosen,1,'replug invokes new chooser immediately, without awaiting stale release');
+  assert.equal(opened,0,'never invoke USBDevice.open while previous close is unfinished');
+  finishOldClose();
+  assert.equal(await next,true,'next selected FT232R opens once release completes');
+  assert.equal(opened,1,'one new USB open, not multiple automatic retries');
+  assert.equal(reader.status().connected,true);
+  await reader.disconnect();
+ }finally{
+  SessionFt232rWebUsb.choose=oldChoose;
+  SessionFt232rWebUsb.prototype.openSelected=oldOpen;
+ }
+}
+console.log('PASS FT232R USB-C first-connect no false unplug, ECU-silent keepalive, hard-stall stop , real unplug and serialized replug');
