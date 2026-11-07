@@ -94,15 +94,6 @@ public sealed partial class MainFlashSourceEngine {
             Fail("FAMILY_NOT_VERIFIED","No physical ECU Family/Flash Count proof");
         if(plan.Family!=(MainWritePlanSource.IsShindengen(plan.Profile)?"SHINDENGEN":"KEIHIN"))
             Fail("PROFILE_FAMILY_MISMATCH","Flash source profile mismatched ECU Family");
-        // Main.zip may fall back to normal baud if the special fast command
-        // lacks ACK, because native D2XX keeps its RX queue alive.
-        // Android WebUSB closes an orphan transferIn on timeout. After ERASE
-        // an unsupported fast-switch command could strand the write session.
-        // Until that exact ECU has a validated switch response on Android,
-        // require normal speed BEFORE sending any destructive command.
-        if(plan.Fast && plan.Profile=="KEIHINOTHER")
-            Fail("FAST_SWITCH_NOT_PROVEN",
-                "C# KeihinOther: ปิด Fast Write ก่อนทดสอบ เพราะ WebUSB อาจปิดพอร์ตเมื่อคำสั่งสลับ 921600 ไม่ตอบ หลัง ERASE");
         var row=MainCatalogSource.Lookup(plan.EcuId);
         if(row is not null && row.Family!=plan.Family)
             Fail("CATALOG_FAMILY_MISMATCH","Original Main 290 catalog Family differs");
