@@ -12,6 +12,7 @@ on:
       - "msx-k26-xdf.html"
       - "tools/verify-xdf-axis-only.mjs"
       - "tools/verify-neon-browser.mjs"
+      - "tools/verify-tune-pro-browser.mjs"
       - "tools/verify-main-shindengen-bin-auto.mjs"
       - "tools/verify-ktr-main-reference.mjs"
       - "tools/verify-main-full-flash-browser.mjs"
@@ -22,6 +23,7 @@ on:
       - "flash_port/**"
       - "tools/verify-main-full-flash-browser.mjs"
       - "tools/verify-neon-browser.mjs"
+      - "tools/verify-tune-pro-browser.mjs"
       - "tools/verify-main-shindengen-bin-auto.mjs"
       - "tools/verify-xdf-axis-only.mjs"
       - "xdfc.js"
@@ -55,6 +57,8 @@ jobs:
         run: node tools/verify-ktr-main-reference.mjs
       - name: Run 320–720px responsive UI tests (no ECU connection)
         run: node tools/verify-neon-browser.mjs
+      - name: Verify TUNE PRO landscape uses existing real BIN editing commands (NO ECU)
+        run: node tools/verify-tune-pro-browser.mjs
       - name: Exercise full CSharp flash software emulator in mobile Chrome
         run: node tools/verify-main-full-flash-browser.mjs
       - name: V28 Offline Flash install SW then reload without network
