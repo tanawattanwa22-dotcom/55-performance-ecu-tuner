@@ -19,7 +19,7 @@ async function ensureRuntime(){
  if(!runtimeFrame){
   runtimeFrame=document.createElement('iframe');
   runtimeFrame.id='mainCSharpFlashRuntime';
-  runtimeFrame.src=new URL('./main-csharp-runtime/',document.baseURI).href;
+  runtimeFrame.src=new URL('./main-csharp-runtime/?source-flash-v=2',document.baseURI).href;
   runtimeFrame.title='Main.zip compiled C# WebAssembly flash runtime';
   runtimeFrame.setAttribute('aria-hidden','true');
   runtimeFrame.style.cssText='position:fixed;left:-3px;top:-3px;width:1px;height:1px;opacity:0;pointer-events:none;border:0;z-index:-1';
