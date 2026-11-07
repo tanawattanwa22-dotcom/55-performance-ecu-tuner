@@ -99,6 +99,82 @@ try{
   assert.equal(await page.evaluate(()=>S.bin[101]),123,'real toolbar Copy/Paste writes BIN through original commit()');
   await page.evaluate(()=>document.querySelector('#tune .bb [data-op="undo"]').click());
   assert.equal(await page.evaluate(()=>S.bin[101]),120,'Undo reverts toolbar Paste without touching other cells');
+  // TunePro V6 value operations use the ORIGINAL BIN mutation and Undo stack.
+  const adjustments=[
+   {field:'vOff',value:'50',op:'offp',expected:173,label:'Offset +50'},
+   {field:'vOff',value:'10',op:'offm',expected:113,label:'Offset -10'},
+   {field:'vMul',value:'1.05',op:'mul',expected:129,label:'Multiply ×1.05'},
+   {field:'vDiv',value:'1.05',op:'div',expected:117,label:'Divide ÷1.05'},
+   {field:'vPct',value:'5',op:'pctp',expected:129,label:'Scale +5%'},
+   {field:'vPct',value:'5',op:'pctm',expected:117,label:'Scale -5%'},
+   {field:'vSet',value:'77',op:'set',expected:77,label:'Fill 77'}
+  ];
+  for(const op of adjustments){
+   await page.evaluate(({field,value,op})=>{
+    S.sel={r0:0,r1:0,c0:0,c1:0};paintSel();
+    document.getElementById(field).value=value;
+    document.querySelector('#tune #fp [data-op="'+op+'"]').click();
+   },op);
+   assert.equal(await page.evaluate(()=>S.bin[100]),op.expected,op.label+' changes real BIN');
+   await page.evaluate(()=>document.querySelector('#tune .bb [data-op="undo"]').click());
+   assert.equal(await page.evaluate(()=>S.bin[100]),123,op.label+' is individually undoable');
+  }
+  await page.evaluate(()=>{
+   S.sel={r0:0,r1:0,c0:0,c1:0};paintSel();
+   document.getElementById('vDiv').value='0';
+   document.querySelector('#tune #fp [data-op="div"]').click();
+  });
+  assert.equal(await page.evaluate(()=>S.bin[100]),123,'Divide by zero cannot mutate BIN');
+  // All-table selection must affect more than one cell, in one undo operation.
+  await page.evaluate(()=>{
+   document.querySelector('#tune #selAll').click();
+   document.getElementById('vSet').value='111';
+   document.querySelector('#tune #fp [data-op="set"]').click();
+  });
+  assert.equal(await page.evaluate(()=>S.bin[100]),111,'Fill applies to first selected cell');
+  assert.equal(await page.evaluate(()=>S.bin[139]),111,'Fill applies to last selected cell');
+  await page.evaluate(()=>document.querySelector('#tune .bb [data-op="undo"]').click());
+  assert.equal(await page.evaluate(()=>S.bin[100]),123,'all-table Fill rolls back');
+  assert.equal(await page.evaluate(()=>S.bin[139]),120,'all-table Undo restores last cell');
+  // Smooth horizontal: [100,200,100] => [150,133,150], preserve outside.
+  await page.evaluate(()=>{
+   S.bin[100]=100;S.bin[101]=200;S.bin[102]=100;
+   S.bin[108]=240;
+   S.sel={r0:0,r1:0,c0:0,c1:2};paintSel();
+   document.getElementById('vSm').value='1';
+   document.getElementById('vSmDir').value='h';
+   document.querySelector('#tune #fp [data-op="smooth"]').click();
+  });
+  assert.deepEqual(await page.evaluate(()=>[S.bin[100],S.bin[101],S.bin[102],S.bin[108]]),
+   [150,133,150,240],'horizontal Smooth only edits selected cells and neighbors');
+  await page.evaluate(()=>document.querySelector('#tune .bb [data-op="undo"]').click());
+  assert.deepEqual(await page.evaluate(()=>[S.bin[100],S.bin[101],S.bin[102]]),
+   [100,200,100],'horizontal Smooth is one Undo entry');
+  // Smooth vertical: [100,200,100] on three rows, preserves other columns.
+  await page.evaluate(()=>{
+   S.bin[100]=100;S.bin[108]=200;S.bin[116]=100;
+   S.sel={r0:0,r1:2,c0:0,c1:0};paintSel();
+   document.getElementById('vSmDir').value='v';
+   document.querySelector('#tune #fp [data-op="smooth"]').click();
+  });
+  assert.deepEqual(await page.evaluate(()=>[S.bin[100],S.bin[108],S.bin[116],S.bin[101]]),
+   [150,133,150,200],'vertical Smooth only edits rows in selection');
+  await page.evaluate(()=>document.querySelector('#tune .bb [data-op="undo"]').click());
+  // Smooth both directions: 3×3 with center 190, others 100 => center 110.
+  await page.evaluate(()=>{
+   for(let r=0;r<3;r++)for(let c=0;c<3;c++)S.bin[100+r*8+c]=100;
+   S.bin[109]=190;
+   S.sel={r0:0,r1:2,c0:0,c1:2};paintSel();
+   document.getElementById('vSmDir').value='both';
+   document.querySelector('#tune #fp [data-op="smooth"]').click();
+  });
+  assert.equal(await page.evaluate(()=>S.bin[109]),110,'bidirectional Smooth averages selected neighbors');
+  await page.evaluate(()=>document.querySelector('#tune .bb [data-op="undo"]').click());
+  await page.evaluate(()=>{
+   // Restore synthetic fixture for the existing vault/save regression checks.
+   S.bin.fill(120,100,140);S.bin[100]=123;S.undo=[];S.redo=[];
+   S.sel={r0:0,r1:0,c0:0,c1:0};afterEdit();paintSel();
+  });
   // Saving stores a named BIN inside IndexedDB — never starts a .bin download.
   const downloadEvents=[];
   page.on('download',entry=>downloadEvents.push(entry));
