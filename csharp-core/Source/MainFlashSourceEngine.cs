@@ -232,6 +232,12 @@ public sealed partial class MainFlashSourceEngine {
             await Emit("FLASH_SOURCE_COMPLETE",result);
             return result;
         }catch(Exception ex){
+            // Restore local UART mode if the FT232R USB interface is still
+            // operational; do not transmit ANY additional ECU write command.
+            if(_fastBaud){
+                try{await _usb.SetBaudAsync(10400);}catch{}
+                _fastBaud=false;
+            }
             await Emit("FLASH_STOP",new{error=ex.Message,eraseMayHaveStarted=_eraseMayHaveStarted,
                 recoveryRequired=_eraseMayHaveStarted});
             throw;
