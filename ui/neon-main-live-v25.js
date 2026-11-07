@@ -2,7 +2,7 @@
  * Main FM_diag.cs reader is the sole source of real-time sensor values.
  * The legacy ADX/DEMO live engine is never called by this bridge.
  */
-import {MainLiveSession} from '../flash_port/main-live-session.js?v=416';
+import {MainLiveSession} from '../flash_port/main-live-session.js?v=418';
 import {resolveMainAutoMetadata} from '../flash_port/main-auto-metadata.js?v=376';
 import {describeOriginalEcm} from '../flash_port/main-original-ecm-catalog.js';
 import {previewMainShindengenBin} from '../flash_port/main-shindengen-auto-preview.js?v=1';
