@@ -72,7 +72,7 @@ assert(p.includes("if(!requestConfirmation&&!previouslyApproved){")&&
 assert(p.includes("async function readAndCheck(){")&&
  p.includes("const readSucceeded=await readECU()")&&
  p.includes("const familyProven=identity?.programmingSessionVerified===true&&")&&
- p.includes("try{return await readAndCheck()}"),
+ p.includes("const result=await readAndCheck()"),
  'Manual and automatic ECU identification share one read-once-then-plan sequence');
 assert(p.includes("TX / RX LOG • Fast Flash")&&
  p.includes("window.__55FlashLogRefresh=()=>")&&
