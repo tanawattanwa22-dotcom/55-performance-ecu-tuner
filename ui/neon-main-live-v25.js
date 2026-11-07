@@ -810,4 +810,13 @@ if(homeScroll&&!document.getElementById('sharedEcuPanel')){
 // otherwise healthy WebUSB port while no motorcycle is attached.
 // The user can press Rescan or Start Live Data when the ECU is powered.
 window.addEventListener('pagehide',()=>{void reader.disconnect()});
+// Android PWA/app switch often backgrounds the document WITHOUT pagehide.
+// Release an IDLE FT232R as soon as Chrome hides this app so a subsequent
+// app instance will not collide with its old WebUSB handle. Never interrupt
+// Live/DTC/Flash, worker probes, a pending chooser, or an ECU port lease.
+document.addEventListener('visibilitychange',()=>{
+ if(document.visibilityState!=='hidden')return;
+ if(reader.owner||reader.running||reader.autoBusy||reader.connecting)return;
+ if(reader.port?.ready)void reader.disconnect();
+});
 notify();
