@@ -17,6 +17,8 @@ assert.match(bridge,/void old\.connect\(\{forcePicker:true\}\)/,
  'manual Home USB button must always show the native chooser instead of a cached USB grant');
 assert.match(bridge,/connect\.onclick=\(\)=>chooseFromHome\('connect'\)/,
  'Home connect button must be bound to the native USB chooser handler');
+assert.match(index,/const pending=shared\.connect\(\{forcePicker:true\}\)/,
+ 'visible Neon Dashboard connect routes through the same native FT232R chooser');
 assert.match(bridge,/selectAgain\.onclick=\(\)=>chooseFromHome\('select-again'\)/,
  'explicit select-again must share the same native chooser path');
 assert.doesNotMatch(bridge,/connect\.onclick=\(\)=>\{[^}]*void old\.connect\(\)/,
