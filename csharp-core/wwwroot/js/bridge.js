@@ -42,6 +42,13 @@ window.csharpHost={
       shared.release(owner);
     }
   },
+  sharedEcuId(){
+    try{
+      if(window.parent===window)return '';
+      const snapshot=window.parent.__55SharedEcu?.snapshot?.();
+      return snapshot?.ecuId||'';
+    }catch{return '';}
+  },
   sharedUsbStatus(){
     try{
       if(window.parent===window)return "Standalone C# Core — ไม่มีพอร์ตจากโปรแกรมหลัก";
