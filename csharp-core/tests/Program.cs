@@ -212,6 +212,7 @@ sealed class FakeMainFlashTransport : IMainFlashTransport
   return Task.FromResult<byte[]?>(Reply(
     label is "KH_POLL_F4" or "KH_FINAL_5" or "SH_FINAL5"? (byte)15:(byte)0));
  }
+ public Task ReopenSameUsbBeforeEraseAsync(){Steps.Add("USB_REOPEN_SAME_DEVICE");return Task.CompletedTask;}
  public Task SetBaudAsync(int baud){Steps.Add("BAUD_"+baud);return Task.CompletedTask;}
  public Task SignalAsync(string phase,object? detail=null){Events.Add(phase);return Task.CompletedTask;}
  public Task DelayAsync(int millis)=>Task.CompletedTask;
