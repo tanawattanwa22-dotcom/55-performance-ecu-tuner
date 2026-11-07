@@ -1,0 +1,63 @@
+@inject IJSRuntime JS
+<PageTitle>55 Performance · Main C# Core</PageTitle>
+<div class="shell">
+  <header>
+    <span class="logo">55</span>
+    <div><small>55 PERFORMANCE / SOURCE PARITY</small><h1>Main.zip <em>C# Core</em></h1></div>
+    <span class="tag">.NET WASM</span>
+  </header>
+  <section class="notice"><b>กำลังทดสอบ C# ที่รันบน Chrome จริง</b>
+    <p>โปรแกรมหลักยังใช้ WebUSB FT232R ชุดเดิม • หน้านี้ตรวจตรรกะจาก FormMain.cs แบบ Offline เท่านั้น ไม่มีปุ่ม ERASE หรือ WRITE ไปยัง ECU</p>
+  </section>
+  <section class="panel"><h2>สาย USB ของโปรแกรมหลัก</h2>
+    <div class="value">@usbState</div>
+    <button @onclick="RefreshUsb">ดูสถานะจากพอร์ตหลัก</button>
+    <p class="muted">อ่านสถานะ WebUSB จากหน้าหลักที่เปิดหน้าต่างนี้ ไม่เปิด USB ซ้ำ และไม่ส่งคำสั่งเพิ่ม</p>
+  </section>
+  <section class="panel"><h2>ตรวจ WRITE ACK ด้วย C# ต้นฉบับ</h2>
+    <label for="raw">RAW RX (HEX)</label>
+    <input id="raw" @bind="hex" placeholder="7E 05 01 01 7B"/>
+    <button class="primary" @onclick="Analyze">ตรวจข้อมูลด้วย C#</button>
+    <p class="value">@analysis</p>
+    @if(detail is not null){<p class="muted">@detail</p>}
+    <p class="muted">FormMain.WriteFlash: ความยาว 5 ไบต์ที่ Checksum ถูกต้องถือว่า ACK สำเร็จ โดยไม่ตีตกจาก reply[3] เพียงอย่างเดียว; Reply 7 ไบต์มีเงื่อนไข Retry ต่างหาก</p>
+  </section>
+  <section class="panel"><h2>ทดสอบการสร้างเฟรม BIN โดย C#</h2>
+    <label for="packet">ข้อมูล 16 ไบต์แรกของเฟรมทดลอง</label>
+    <code id="packet">@packetPreview</code>
+    <button @onclick="Preview">สร้างตัวอย่าง Offline</button>
+    <p class="muted">ใช้ข้อมูลจำลองเท่านั้น ไม่อ่านรถ ไม่แก้ BIN ไม่ส่ง USB</p>
+  </section>
+  <section class="panel"><h2>ลำดับอัดแฟลชที่ตรวจเทียบกับ Main.zip</h2>
+    <div class="steps"><span>1 ECU ID / BIN</span><span>2 Pre-Write / Security</span><span>3 ERASE</span><span>4 WRITE ACK</span><span>5 Final ACK / OFF-ON</span></div>
+    <p>อ้างอิง FormMain.cs: WorkerThread → ShindengenPreWriteFlash หรือ KeihinPreWriteFlash → WriteFlash → Final ACK → Restart ECU</p>
+    <p class="muted">ภาพโปรแกรมจูนอีกตัวช่วยเทียบภาพรวม แต่เปอร์เซ็นต์ที่เห็นในภาพไม่ยืนยันลำดับคำสั่งหรือพฤติกรรม Timeout ของ Main.zip</p>
+  </section>
+  <footer>กรอบ C# นี้ไม่เปิดการอัดจริงจนกว่า C# transport/state machine จะทดสอบเทียบ TX/RX กับ Main.zip และผ่านการทดสอบบนกล่องสำรอง</footer>
+</div>
+@code {
+  private string usbState = "กดดูสถานะสายจากหน้าหลัก";
+  private string hex = "7E 05 01 01 7B";
+  private string analysis = "ยังไม่ได้ตรวจ", packetPreview="—";
+  private string? detail;
+  private void Analyze(){
+    try{
+      var reply=MainProtocol.ParseHex(hex);
+      var result=MainProtocol.InspectWriteAck(reply);
+      analysis=result.Decision+" · "+(result.Accept?"CHECKSUM VALID":"ยังไม่ใช่ ACK สำเร็จ");
+      detail=result.Explanation+" · RAW BYTE 3: "+
+        (result.RawByte3 is int v?"0x"+v.ToString("X2"):"—");
+    }catch(Exception e){analysis="ตรวจไม่ได้";detail=e.Message;}
+  }
+  private void Preview(){
+    try{
+      var frame=MainProtocol.BuildOfflineWriteFrame(Enumerable.Range(0,128).Select(i=>(byte)i).ToArray(),false,0,8);
+      packetPreview=MainProtocol.Hex(frame[..Math.Min(16,frame.Length)])+
+        " … "+frame.Length+" bytes · Checksum "+frame[^1].ToString("X2");
+    }catch(Exception e){packetPreview=e.Message;}
+  }
+  private async Task RefreshUsb(){
+    try{usbState=await JS.InvokeAsync<string>("csharpHost.sharedUsbStatus");}
+    catch(Exception e){usbState="ไม่สามารถอ่านสถานะพอร์ตหลัก: "+e.Message;}
+  }
+}
