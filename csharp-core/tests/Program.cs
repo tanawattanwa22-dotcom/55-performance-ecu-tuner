@@ -115,4 +115,104 @@ foreach(int group in new[]{1,4,7})
  foreach(var command in MainDiagnosticSource.CaptureCommands(group))
   Test(MainProtocol.ValidateChecksum(command,command.Length),
        "FM_diag Group "+group+" source TX Honda checksum");
+
+foreach(var (label,source) in MainFlashCommands.AllHondaFrames())
+ Test(MainProtocol.ValidateChecksum(source,source.Length),
+      "FormMain flash command "+label+" Honda checksum");
+var khSourceBin=Enumerable.Repeat((byte)255,49152).ToArray();
+khSourceBin=MainBinSource.KeihinChecksumCopy(khSourceBin,0x7600);
+var simulatedKeihin=new FakeMainFlashTransport("0104080F01",3,"KEIHIN");
+var khSourcePlan=new MainFlashPlan("0104080F01","KEIHINOTHER","KEIHIN",
+    "38770-K2F-N01",khSourceBin,0x4000,0x7600,false,true,3);
+var khWriter=new MainFlashSourceEngine(simulatedKeihin);
+var khResult=await khWriter.FlashAsync(khSourcePlan);
+Test(khResult.Ok&&khResult.Phase=="SOURCE_FINAL_ACK",
+     "Keihin C# full pre-write, erase, WRITE and Final ACK emulator");
+Test(simulatedKeihin.Steps.Contains("KH_ERASE_GO")&&
+     simulatedKeihin.Steps.Contains("KH_FINAL_5")&&
+     simulatedKeihin.Steps.Any(x=>x.StartsWith("WRITE_BLOCK_")),
+     "Source Keihin complete TX sequence");
+Test(simulatedKeihin.RetryCount==2&&
+     simulatedKeihin.WriteAttempts>=3,
+     "Source seven-byte Retry budget is global TWO, not per-block");
+Test(simulatedKeihin.Events.Contains("SOURCE_WRITE_ACK_NONZERO_UNINTERPRETED"),
+     "Main five-byte nonzero-status ACK accepted and retained");
+var blockedUsb=new FakeMainFlashTransport("0104080F01",3,"KEIHIN"){FailFirstWrite=true};
+try{
+ await new MainFlashSourceEngine(blockedUsb).FlashAsync(khSourcePlan);
+ throw new Exception("Source failed to abort on ambiguous WRITE timeout");
+}catch(MainFlashException err){
+ Test(err.Code=="USB_OR_ECU_TIMEOUT"&&err.EraseMayHaveStarted&&
+      blockedUsb.WriteAttempts==1,
+      "No duplicate WRITE after ambiguous WebUSB timeout");
+}
+var sourceShBin=Enumerable.Repeat((byte)255,262144).ToArray();
+byte[] shSig={17,18,19,20,21,21,23};
+Array.Copy(shSig,0,sourceShBin,100,shSig.Length);
+sourceShBin[117]=0xEE;sourceShBin[118]=0xFF;
+sourceShBin[120]=0xD0;sourceShBin[121]=0x07;
+var shFix=MainBinSource.ShindengenChecksumCopy(sourceShBin)
+    ??throw new Exception("No Shindengen source checksum signature");
+sourceShBin=shFix.Bytes;
+var simulatedSh=new FakeMainFlashTransport("01046B0F01",1,"SHINDENGEN");
+var shSourcePlan=new MainFlashPlan("01046B0F01","SHINDENGENV850","SHINDENGEN",
+    "30400-K2SA-N02",sourceShBin,0x10000,shFix.ChecksumOffset,false,true,1);
+var shResult=await new MainFlashSourceEngine(simulatedSh).FlashAsync(shSourcePlan);
+Test(shResult.Ok&&simulatedSh.Steps.Contains("SH_SEED")&&
+     simulatedSh.Steps.Contains("SH_KEY")&&
+     simulatedSh.Steps.Contains("SH_FINAL5"),
+     "Shindengen C# seed/key, erase, WRITE, Final ACK emulator");
 Console.WriteLine("ALL Main.zip C# offline tests PASSED. No ECU/USB commands sent.");
+sealed class FakeMainFlashTransport : IMainFlashTransport
+{
+ public readonly List<string> Steps=new();
+ public readonly List<string> Events=new();
+ public int RetryCount=0,WriteAttempts=0;
+ public bool FailFirstWrite=false;
+ private readonly string id,family;private readonly int count;
+ public FakeMainFlashTransport(string id,int count,string family){
+  this.id=id;this.count=count;this.family=family;
+ }
+ private static byte[] Reply(byte status){
+  byte[] r={0x7E,5,1,status,0};
+  r[^1]=MainProtocol.Checksum8BitHonda(r,4);
+  return r;
+ }
+ public Task<byte[]?> ExchangeAsync(string label,byte[] command,int timeoutMs,int afterWriteMs=0)
+ {
+  Steps.Add(label);
+  if(label=="RECHECK_ECU_ID"){
+    byte[] r={0x72,11,0x72,0,0,0,0,0,0,0,0};
+    var bytes=Convert.FromHexString(id);
+    Array.Copy(bytes,0,r,5,5);
+    r[^1]=MainProtocol.Checksum8BitHonda(r,10);
+    return Task.FromResult<byte[]?>(r);
+  }
+  if(label=="RECHECK_FAMILY_FLASH_COUNT"){
+    byte[] r={0x7D,8,1,0,0,0,(byte)count,0};
+    r[^1]=MainProtocol.Checksum8BitHonda(r,7);
+    return Task.FromResult<byte[]?>(r);
+  }
+  if(label=="SH_SEED"){
+    byte[] r={0x7B,7,2,0,0x12,0x34,0};
+    r[^1]=MainProtocol.Checksum8BitHonda(r,6);
+    return Task.FromResult<byte[]?>(r);
+  }
+  if(label.StartsWith("WRITE_BLOCK_")){
+    WriteAttempts++;
+    if(FailFirstWrite)throw new TimeoutException("simulated ambiguous WebUSB ACK timeout");
+    if(family=="KEIHIN"&&RetryCount<2){
+      RetryCount++;
+      byte[] retry={0x7E,7,1,0,0,0,0};
+      retry[^1]=MainProtocol.Checksum8BitHonda(retry,6);
+      return Task.FromResult<byte[]?>(retry);
+    }
+    return Task.FromResult<byte[]?>(Reply(1)); // source accepts byte3 nonzero
+  }
+  return Task.FromResult<byte[]?>(Reply(
+    label is "KH_POLL_F4" or "KH_FINAL_5" or "SH_FINAL5"? (byte)15:(byte)0));
+ }
+ public Task SetBaudAsync(int baud){Steps.Add("BAUD_"+baud);return Task.CompletedTask;}
+ public Task SignalAsync(string phase,object? detail=null){Events.Add(phase);return Task.CompletedTask;}
+ public Task DelayAsync(int millis)=>Task.CompletedTask;
+}
