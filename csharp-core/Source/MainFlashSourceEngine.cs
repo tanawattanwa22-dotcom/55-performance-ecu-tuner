@@ -15,6 +15,7 @@ namespace CSharpCoreBrowser.Source;
 public interface IMainFlashTransport {
     Task<byte[]?> ExchangeAsync(string label,byte[] frame,int timeoutMs,int afterWriteMs=0);
     Task SetBaudAsync(int baud);
+    Task ReopenSameUsbBeforeEraseAsync();
     Task SignalAsync(string phase,object? values=null);
     Task DelayAsync(int milliseconds);
 }
@@ -152,8 +153,26 @@ public sealed partial class MainFlashSourceEngine {
         // FormMain retries the FIRST 7D hello once after 500ms.
         // Do not retransmit if the WebUSB transfer state is unknown; the
         // bridge closes the port on a timed-out transfer. Abort in that case.
-        await SourceUnchecked("KH_HANDSHAKE_A",MainFlashCommands.KhHello1,2500);
-        await SourceUnchecked("KH_HANDSHAKE_B",MainFlashCommands.KhHello2,2500);
+        bool khFirstAccepted=false;
+        try{
+            await SourceUnchecked("KH_HANDSHAKE_A",MainFlashCommands.KhHello1,2500);
+            khFirstAccepted=true;
+        }catch(MainFlashException firstError){
+            if(_eraseMayHaveStarted)throw;
+            await Emit("KH_HANDSHAKE_SOURCE_RETRY",new{
+                attempt=2,maxAttempts=2,firstError=firstError.Message,
+                eraseStarted=false});
+            await _usb.DelayAsync(500);
+            // Browser transferIn cannot be cancelled: reopen only the SAME
+            // approved FT232R, reproduce InitFtdiIso and SOURCE wake, and
+            // re-read the SAME physical ECU ID/Flash Count before retrying.
+            await _usb.ReopenSameUsbBeforeEraseAsync();
+            await RecheckPhysicalIdentity();
+            await SourceUnchecked("KH_HANDSHAKE_A_RETRY",MainFlashCommands.KhHello1,2500);
+            khFirstAccepted=true;
+        }
+        if(khFirstAccepted)
+            await SourceUnchecked("KH_HANDSHAKE_B",MainFlashCommands.KhHello2,2500);
         await _usb.DelayAsync(200);
         await SourceUnchecked("KH_READY",MainFlashCommands.KhPoll,2500);
         await Countdown("KEIHIN");
