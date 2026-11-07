@@ -235,4 +235,43 @@ function makePort(device=physical){
   Cable.choose=prevChoose;Cable.prototype.openSelected=prevOpen;
  }
 }
+/* Flash auto status observes a LIVE ECU ID, not a remembered BIN model.
+ * Pure read-only commands must stop for any active port owner and clear
+ * stale vehicle information after a failed ECU answer. No real USB used. */
+{
+ const reader=new MainLiveSession();
+ let commands=0,wakes=0;
+ let answer=true;
+ reader.port={
+  ready:true,sourceDiagnosticWake:async()=>{wakes++},
+  command:async(name,opts)=>{
+   assert.equal(name,'ID');
+   assert.equal(opts.timeoutMs,2200,'preserve original ID timeout');
+   commands++;
+   if(!answer)throw Error('ECU removed from K-Line');
+   return {echoOK:true,reply:Uint8Array.from([0,0,0,0,0,1,2,3,4,5,0])};
+  }
+ };
+ let result=await reader.observeEcuIdReadOnly();
+ assert.equal(result.state,'CONFIRMED');
+ assert.equal(reader.status().ecuId,'0102030405');
+ assert.equal(reader.status().ecuPresenceState,'CONFIRMED');
+ assert.equal(commands,1);
+ reader.owner='FLASH';
+ result=await reader.observeEcuIdReadOnly();
+ assert.equal(result.state,'BUSY','no monitor read when Flash owns FT232R');
+ assert.equal(commands,1,'never issue extra ID during a write lease');
+ reader.owner=null;
+ reader.sourceProbe={expectedEcuId:'0102030405',sourceMatched:true};
+ reader.dtcSnapshot={ecuId:'0102030405',success:true};
+ answer=false;
+ result=await reader.observeEcuIdReadOnly();
+ assert.equal(result.state,'NO_ECU_REPLY');
+ assert.equal(reader.status().connected,true,'FT232R remains connected without ECU');
+ assert.equal(reader.status().ecuId,'','do not retain previous vehicle ID');
+ assert.equal(reader.status().ecuPresenceState,'NO_REPLY');
+ assert.equal(reader.status().sourceProbe,null,'invalidate prior source family evidence');
+ assert.equal(reader.status().dtcSnapshot,null,'invalidate prior vehicle DTC evidence');
+ assert.equal(wakes,2);
+}
 console.log('PASS FT232R USB-C: no stale chooser, no detached I/O, serialized replug and unchanged ECU timeouts');
