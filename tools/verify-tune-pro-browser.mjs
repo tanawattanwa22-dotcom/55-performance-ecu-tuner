@@ -99,23 +99,31 @@ try{
   assert.equal(await page.evaluate(()=>S.bin[101]),123,'real toolbar Copy/Paste writes BIN through original commit()');
   await page.evaluate(()=>document.querySelector('#tune .bb [data-op="undo"]').click());
   assert.equal(await page.evaluate(()=>S.bin[101]),120,'Undo reverts toolbar Paste without touching other cells');
-  // Saved/downloaded BIN must be made by the existing V18 source flow, not UI copy.
-  page.on('dialog',dialog=>dialog.accept());
-  const downloaded=page.waitForEvent('download',{timeout:15000});
+  // Saving stores a named BIN inside IndexedDB — never starts a .bin download.
+  const downloadEvents=[];
+  page.on('download',entry=>downloadEvents.push(entry));
+  page.on('dialog',dialog=>dialog.type()==='prompt'?
+   dialog.accept('Fixture Tune 01'):dialog.accept());
   await page.evaluate(()=>document.querySelector('#tune #btnSave').click());
-  const download=await downloaded;
-  assert(download.suggestedFilename().endsWith('.bin'),'Save invokes real BIN download');
+  await page.waitForFunction(()=>!!S.saved?.vaultId,{timeout:15000});
+  const library=await page.evaluate(()=>window.__55TunedBinVault.list());
+  assert(library.some(x=>x.name==='Fixture Tune 01'&&x.sha256&&x.size===1024),
+   'named tuned-BIN stored with integrity hash in browser vault');
+  assert.equal(downloadEvents.length,0,'Save must NOT download .bin to customer device');
   assert.equal(await page.evaluate(()=>S.saved?.rawAtSave?.[100]),123,
    'real saved snapshot holds the current edited BIN');
   assert.equal(await page.evaluate(()=>document.querySelector('#tune #btnToFlash').hidden),false,
-   'old Go to Flash becomes available only when BIN was saved');
+   'existing Tune-to-Flash action requires an exact saved snapshot');
   await page.waitForFunction(()=>!document.querySelector('#tune .tp-flash-now')?.disabled);
   await page.locator('#tune .tp-flash-now').click();
   assert.equal(await page.locator('.tp-flash-dialog').evaluate(el=>el.open),true,
    'ready action opens 12V/cable preparation dialog');
+  await page.waitForFunction(()=>document.querySelectorAll('.tp-flash-vault-select option').length>1);
+  assert.equal(await page.locator('.tp-flash-vault-select').inputValue(),
+   await page.evaluate(()=>S.saved.vaultId),'newly saved BIN preselected from own vault');
   assert.equal(await page.locator('.tp-flash-dialog input[data-check]').count(),3);
   assert.equal(await page.locator('.tp-flash-accept').isDisabled(),true,
-   'no USB: do not auto-start real ECU flash after only saving a BIN');
+   'no USB: real ECU flash must remain blocked after saving a BIN');
   await page.locator('.tp-flash-dialog-actions button').first().click();
 
   // Later editing must invalidate the old snapshot before Flash.
