@@ -3272,10 +3272,11 @@ openTune=function(...args){
 
 </script>
 <script src="flash_port/msx-k26-legacy-bridge.js?v=326"></script>
+<script src="ui/tuned-bin-vault-v1.js?v=1"></script>
 <script data-inline-source="ui/v18-tune-flow.js">
 /* 55 PERFORMANCE V18.2: presentation + saved-file handoff only.
  * Does NOT alter ECU commands, unlocks, offsets or preflight rules.
- * Installed after the original tuner script; main source variables are reused.
+ * Installed after the original tuner script; saves go to IndexedDB vault; no BIN download.
  */
 (()=>{"use strict";
  const el=id=>document.getElementById(id);
@@ -3297,22 +3298,23 @@ openTune=function(...args){
    const quickReady=window.__55QuickFlashBin?.bytes instanceof Uint8Array&&window.__55QuickFlashBin.bytes.length>0;
    const flash=el("btnFlash"),go=el("btnToFlash"),panel=el("flashSnapshot");
    go.hidden=!saved;
-   go.textContent=saved?"ไปหน้าอัด BIN ที่บันทึกแล้ว":"ไปหน้าอัดไฟล์";
+   go.textContent=saved?"ไปหน้าอัด · เลือกจากคลัง BIN":"ไปหน้าอัดไฟล์";
    el("tune").querySelector(".bb")?.classList.toggle("no-snapshot",!saved);
-   if(saved)el("btnSave").textContent="✓ บันทึก BIN แล้ว ("+changedBytes()+" ไบต์)";
+   el("btnSave").textContent=saved?"✓ อยู่ในคลัง BIN ("+changedBytes()+" ไบต์)":"💾 บันทึกเข้าคลัง BIN";
    el("flowTune")?.classList.toggle("done",saved);
    el("flowTune")?.classList.toggle("on",!saved);
    el("flowSaved")?.classList.toggle("on",saved);
    el("flowSaved")?.classList.toggle("done",saved);
    el("flowFlash")?.classList.toggle("on",false);
    el("tuneSaveStatus").textContent=saved
-     ?("✓ บันทึก BIN สำเร็จ · "+(fromCustomer?"BIN นำเข้าจากเครื่อง":"BIN หลักในแอป")+" · ไปตรวจ ECU ID / Part / Offset ก่อนอัด")
-     :"แก้ตารางจูนได้ตามต้องการ แล้วกด บันทึก BIN ก่อนจะแสดงปุ่มไปหน้าอัด";
+     ?("✓ เก็บในคลัง BIN ภายในแอป: "+(S.saved.vaultName||S.saved.filename)+" · ไม่ดาวน์โหลดลงโทรศัพท์")
+     :"จูนเสร็จแล้วกดบันทึกเข้าคลัง BIN ตั้งชื่อไฟล์ได้ และเลือกไฟล์จากคลังหน้า Fast Flash";
    panel.textContent=saved
-     ?"ไฟล์ที่จะใช้: "+S.saved.filename+"\nต้นฉบับ: "+S.saved.sourceName+
+     ?"ไฟล์ในคลัง: "+(S.saved.vaultName||S.saved.filename)+"\nต้นฉบับ: "+S.saved.sourceName+
        "\nขนาด: "+S.saved.size+" ไบต์ · "+(fromCustomer?"BIN ที่เปิดจากเครื่อง":"ไฟล์มาตรฐานในแอป")+
        "\nSHA-256: "+(S.saved.sha256||"กำลังคำนวณ...")+
-       "\nพร้อมตรวจ ECU ID / Part / Offset ของกล่องจริงก่อนอัด"+"\nไฟล์หลักของรุ่นไม่รับประกันว่าเข้ากับเฟิร์มแวร์ ECU ทุกคัน"
+       "\nเลือกไฟล์นี้หรือไฟล์อื่นในคลังได้ที่หน้า Fast Flash • ตรวจ ECU ID จริงก่อนอัด"+
+       "\nคลังอยู่ใน Chrome เครื่องนี้เท่านั้นและไม่ใช่ระบบป้องกันการคัดลอกสมบูรณ์"
      :"ยังไม่มี BIN ที่บันทึกแล้ว · บันทึกไฟล์ที่จูนก่อน จึงจะแสดงขั้นตอนอัด";
    el("btnReturnTune").disabled=S.mi<0||!S.bin;
    flash.hidden=!saved&&!quickReady&&!INLINEFLASH.postCheck;
@@ -3344,34 +3346,56 @@ openTune=function(...args){
    }
    return baseBuild();
  };
- saveBin=function(){
+ let saveBusy=false;
+ saveBin=async function(){
    if(!S.bin||S.mi<0)return toast("เลือก BIN และรุ่นรถก่อน");
-   if(INLINEFLASH.busy)return toast("มีขั้นตอน ECU กำลังทำงาน");
+   if(INLINEFLASH.busy||saveBusy)return toast("มีขั้นตอนบันทึกหรือ ECU กำลังทำงาน");
+   const vault=globalThis.__55TunedBinVault;
+   if(!vault)return toast("คลัง BIN ยังไม่พร้อม ไม่ได้ส่งไฟล์ลงเครื่อง กรุณารีโหลดหน้าเว็บ",5000);
    if(!guardConfirm("บันทึกไฟล์"))return;
-   const d=new Date(),p=n=>String(n).padStart(2,"0");
-   const name=(MODELS[S.mi].id||"ECU")+"_55_TUNED_"+
-     d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+"_"+p(d.getHours())+p(d.getMinutes())+".bin";
-   const snap=flow.prepare(S.bin,{
-     model:MODELS[S.mi].id,sourceName:S.fname,filename:name,
-     customerBin:S.custom,checksumMode:curCk()
-   });
-   const bytes=baseBuild();
-   if(bytes.length!==snap.bytes.length||bytes.some((x,i)=>x!==snap.bytes[i]))
-     return toast("ข้อมูล BIN ไม่ตรงระหว่างบันทึกกับไฟล์ที่จะอัด");
-   const url=URL.createObjectURL(new Blob([snap.bytes],{type:"application/octet-stream"}));
-   const a=document.createElement("a");a.href=url;a.download=name;
-   document.body.append(a);a.click();
-   setTimeout(()=>{URL.revokeObjectURL(url);a.remove()},8000);
-   S.saved=snap;S.flash=true;refresh();
-   el("tuneSaveStatus").textContent=snap.customerBin
-     ?"✓ บันทึก BIN ลูกค้าแล้ว · ดาวน์โหลดไฟล์ "+name+" · ปุ่มไปหน้าอัดแสดงแล้ว"
-     :"✓ บันทึก BIN หลักแล้ว · "+name+" · ไปหน้าอัดเพื่อตรวจ ECU จริง";
-   toast("สร้าง BIN และสั่งดาวน์โหลดแล้ว · "+name,3500);
-   crypto.subtle.digest("SHA-256",snap.bytes).then(buf=>{
-     const hex=Array.from(new Uint8Array(buf),x=>x.toString(16).padStart(2,"0")).join("");
-     if(S.saved===snap){snap.sha256=hex;refresh()}
-   }).catch(()=>{});
+   const model=MODELS[S.mi].id;
+   const suggested=model+" จูน "+new Date().toLocaleDateString("th-TH");
+   const chosen=prompt("ตั้งชื่อ BIN ที่จูนแล้ว เพื่อเก็บในคลังของแอป\n(ไม่ดาวน์โหลดไฟล์ลงโทรศัพท์)",suggested);
+   if(chosen===null)return;
+   const vaultName=vault.cleanName(chosen);
+   if(!vaultName)return toast("กรุณาตั้งชื่อ BIN ที่จะเก็บในคลัง",3500);
+   const filename=(model+"_"+vaultName).replace(/[^A-Za-z0-9_.\u0E00-\u0E7F-]+/g,"_").slice(0,100)+".bin";
+   let snap;
+   try{
+     const sourceBin=S.bin,sourceModel=S.mi,sourceFilename=S.fname;
+     snap=flow.prepare(sourceBin,{
+       model,sourceName:sourceFilename,filename,
+       customerBin:S.custom,checksumMode:curCk()
+     });
+     const bytes=baseBuild();
+     if(bytes.length!==snap.bytes.length||bytes.some((x,i)=>x!==snap.bytes[i]))
+       throw Error("ข้อมูล BIN ไม่ตรงระหว่างบันทึกกับไฟล์ที่จะอัด");
+     if(MODELS[S.mi]?.xdf){
+       const check=window.__55MSX?.validateCustomer(bytes);
+       if(!check?.ok)throw Error("BIN/XDF ไม่ผ่าน: "+(check?.error||"ข้อมูลยังไม่ครบ"));
+     }
+     saveBusy=true;el("btnSave").disabled=true;
+     const stored=await vault.save({name:vaultName,bytes:snap.bytes,
+       model,sourceName:sourceFilename,filename,
+       customerBin:S.custom,checksumMode:snap.checksumMode});
+     snap.vaultId=stored.id;snap.vaultName=stored.name;snap.sha256=stored.sha256;
+     if(S.bin===sourceBin&&S.mi===sourceModel&&S.fname===sourceFilename&&sameSnapshot(snap)){
+       S.saved=snap;S.flash=true;
+       // A previous external/quick selection must never silently override a new tune.
+       window.__55QuickFlashBin=null;
+       refresh();
+       toast("✓ บันทึกลงคลัง BIN: "+stored.name+" · ไม่ได้ดาวน์โหลดไฟล์",4200);
+     }else{
+       toast("เก็บ BIN ในคลังแล้ว แต่มีการแก้จูนระหว่างบันทึก • ต้องบันทึกใหม่ก่อนอัด",5000);
+     }
+     window.dispatchEvent(new CustomEvent("55:tuned-bin-vault-updated",{detail:{id:stored.id}}));
+   }catch(error){
+     toast("บันทึกคลัง BIN ไม่สำเร็จ: "+(error?.message||error),6000);
+   }finally{saveBusy=false;el("btnSave").disabled=false;refresh();}
  };
+ const sameSnapshot=snap=>!!S.bin&&flow.matches(snap,S.bin,{
+   model:MODELS[S.mi]?.id,sourceName:S.fname,customerBin:S.custom
+ });
  // A later UI handler or cached inline script must not silently bypass snapshot creation.
  el("btnSave").onclick=saveBin;
  el("btnSave").addEventListener("click",()=>{if(S.saved)refresh();});
