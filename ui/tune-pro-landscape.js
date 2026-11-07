@@ -404,9 +404,7 @@
     try{
      vaultEntries=await vault.list();
      const currentModel=api.state()?.model;
-     const currentId=window.__55QuickFlashBin?.vaultId||
-      document.getElementById('btnToFlash')?.hidden===false?
-      window.__55QuickFlashBin?.vaultId||null:null;
+     const currentId=window.__55QuickFlashBin?.vaultId||window.__55LastTunedVaultId||'';
      for(const entry of vaultEntries)
       picker.add(new Option(entry.name+' · '+entry.model+' · '+(entry.size/1024).toFixed(0)+' KB',entry.id));
      picker.value=vaultEntries.some(e=>e.id===currentId)?currentId:
