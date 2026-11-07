@@ -169,6 +169,20 @@ Test(shResult.Ok&&simulatedSh.Steps.Contains("SH_SEED")&&
      simulatedSh.Steps.Contains("SH_KEY")&&
      simulatedSh.Steps.Contains("SH_FINAL5"),
      "Shindengen C# seed/key, erase, WRITE, Final ACK emulator");
+
+var goldenBlock=Enumerable.Range(0,128).Select(i=>(byte)i).ToArray();
+var csharpKh=MainProtocol.BuildOfflineWriteFrame(goldenBlock,false,0x400,0x408);
+Test(Convert.ToHexString(csharpKh[..6])=="7E8B01060400"&&
+     Convert.ToHexString(csharpKh[^5..])=="0408E03010",
+     "C# 128B Keihin frame equals current JS golden TX bytes");
+var csharpSh=MainProtocol.BuildOfflineWriteFrame(goldenBlock,true,0x1000,0x1008);
+Test(Convert.ToHexString(csharpSh[..6])=="7C8B02061000"&&
+     Convert.ToHexString(csharpSh[^5..])=="1008E01811",
+     "C# 128B Shindengen frame equals JS golden TX bytes");
+var csharpH8=MainProtocol.BuildOfflineWriteFrame(goldenBlock[..64],false,0x800,0x804);
+Test(Convert.ToHexString(csharpH8[..6])=="7E4B01060800"&&
+     Convert.ToHexString(csharpH8[^5..])=="0804F80C38",
+     "C# 64B H8C frame equals JS golden TX bytes");
 Console.WriteLine("ALL Main.zip C# offline tests PASSED. No ECU/USB commands sent.");
 sealed class FakeMainFlashTransport : IMainFlashTransport
 {
