@@ -435,3 +435,69 @@
     opacity:0!important;pointer-events:none!important
   }
 }
+
+/* V4: user-requested toolbar handoff, dock collapse and unobscured navigation. */
+body:has(#tune.tp-on.on) #retailGlobalBack{display:none!important}
+#tune.tp-on .tp-mainbar .tp-save-now,
+#tune.tp-on .tp-mainbar .tp-flash-now{
+  flex:none!important;min-height:29px!important;height:29px!important;
+  font-size:11px!important;padding:0 11px!important;font-weight:850!important;
+  white-space:nowrap!important;
+}
+#tune.tp-on .tp-mainbar .tp-save-now{
+  border:1px solid #43dbd0!important;background:#105a62!important;color:#e6ffff!important;
+}
+#tune.tp-on .tp-mainbar .tp-flash-now{
+  border:1px solid #46566a!important;background:#23313c!important;color:#9ba9b7!important;
+  opacity:.72;box-shadow:none!important;
+}
+#tune.tp-on .tp-mainbar .tp-flash-now.tp-flash-ready{
+  border-color:#f6b95a!important;background:linear-gradient(105deg,#875019,#3e2b16)!important;
+  color:#fff1ca!important;opacity:1;box-shadow:0 0 11px #e59b343d!important;
+}
+#tune.tp-on .tp-mainbar .tp-flash-now:disabled{cursor:not-allowed!important}
+@media (orientation:landscape) and (max-height:660px){
+ #tune.tp-on .tp-mainbar .tp-save-now,
+ #tune.tp-on .tp-mainbar .tp-flash-now{
+   min-height:24px!important;height:24px!important;
+   padding:0 8px!important;font-size:10px!important
+ }
+}
+@media (max-width:600px){
+ #tune.tp-on .tp-mainbar b{display:none}
+ #tune.tp-on .tp-mainbar .tp-save-now,
+ #tune.tp-on .tp-mainbar .tp-flash-now{padding:0 6px!important}
+}
+.tp-flash-dialog{
+  width:min(96vw,520px);max-height:min(94dvh,650px);overflow-y:auto;
+  border:1px solid #40bacc;border-radius:16px;
+  background:#0a1c2c;color:#e9fcff;padding:0;
+  box-shadow:0 20px 70px #000c;z-index:2400;
+  font-family:system-ui,"Noto Sans Thai",sans-serif
+}
+.tp-flash-dialog::backdrop{background:rgba(0,5,15,.84);backdrop-filter:blur(4px)}
+.tp-flash-dialog-body{padding:18px;display:grid;gap:10px}
+.tp-flash-dialog h2{margin:0;font-size:20px;color:#8ffff0}
+.tp-flash-dialog p{margin:0;font-size:12px;line-height:1.55;color:#c4dfea}
+.tp-flash-checklist{display:grid;gap:8px}
+.tp-flash-check-item{
+  display:flex;gap:10px;align-items:flex-start;padding:10px;
+  background:#102e3e;border:1px solid #315e74;border-radius:9px;
+  color:#e1f5fb;font-size:13px;line-height:1.5
+}
+.tp-flash-check-item input{flex:none;width:18px;height:18px;margin:1px 0;accent-color:#2ad6ba}
+.tp-flash-dialog .tp-flash-connection{
+  color:#ffc37d;font-weight:750;padding:8px 10px;
+  background:#342716;border-radius:8px
+}
+.tp-flash-dialog .tp-flash-connection.tp-flash-cable-ok{
+  color:#7bf0ce;background:#123a33
+}
+.tp-flash-dialog .tp-flash-note{font-size:11px;color:#bdcbd9}
+.tp-flash-dialog-actions{display:flex;gap:8px;justify-content:flex-end}
+.tp-flash-dialog-actions button{
+  appearance:none;min-height:39px;border:1px solid #547888;border-radius:9px;
+  background:#234356;color:#ecffff;padding:8px 12px;font:700 13px system-ui;cursor:pointer
+}
+.tp-flash-dialog-actions .tp-flash-accept{background:#13695f;border-color:#3be0bb;color:#fff}
+.tp-flash-dialog-actions button:disabled{opacity:.42;cursor:not-allowed}
