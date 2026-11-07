@@ -816,7 +816,7 @@ window.addEventListener('pagehide',()=>{void reader.disconnect()});
 // Live/DTC/Flash, worker probes, a pending chooser, or an ECU port lease.
 document.addEventListener('visibilitychange',()=>{
  if(document.visibilityState!=='hidden')return;
- if(reader.owner||reader.running||reader.autoBusy||reader.connecting)return;
- if(reader.port?.ready)void reader.disconnect();
+ if(reader.owner||reader.connecting)return; // Flash/Recovery owns the cable exclusively
+ if(reader.port?.ready||reader.running||reader.autoBusy)void reader.disconnect();
 });
 notify();
