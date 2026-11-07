@@ -70,7 +70,7 @@ try{
   const initial=await page.evaluate(()=>S.bin[100]);
   assert.equal(initial,120);
   await page.locator('#tune .tp-main #gw td[data-r="0"][data-c="0"]').click();
-  await page.locator('#vStep').fill('3');
+  await page.evaluate(()=>{document.querySelector('#vStep').value='3'});
   await page.evaluate(()=>document.querySelector('#tune #fp [data-op="stepp"]').click());
   assert.equal(await page.evaluate(()=>S.bin[100]),123,'original editor modifies actual BIN');
   await page.evaluate(()=>document.querySelector('#tune .bb [data-op="undo"]').click());
