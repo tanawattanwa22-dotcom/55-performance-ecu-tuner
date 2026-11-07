@@ -22,7 +22,7 @@ public sealed record MainFlashPlan(
     string EcuId,string Profile,string Family,string? PartCode,
     byte[] Bin,int StartOffset,int ChecksumOffset,
     bool Fast,bool PhysicalFamilyConfirmed,int? InitialFlashCount,
-    bool Recovery=false);
+    bool Recovery=false,string Handshake="AUTO");
 public sealed record MainFlashResult(bool Ok,string Phase,string EcuId,
     int BlocksSent,bool ReadbackVerified,bool NeedRestart,bool EraseMayHaveStarted);
 public sealed class MainFlashException : Exception {
@@ -102,11 +102,24 @@ public sealed partial class MainFlashSourceEngine {
             Fail("CHECKSUM_OFFSET","Checksum Offset outside selected BIN");
         // C# source BIN packet traversal must succeed BEFORE destructive TX.
         MainWritePlanSource.Audit(plan.Bin,plan.Profile,plan.StartOffset,1);
+        // Reject different C# and JS firmware checksum calculations BEFORE ERASE.
+        // The owner originally confirmed the BIN in the existing preflight UI.
+        if(MainWritePlanSource.IsShindengen(plan.Profile)){
+            var corrected=MainBinSource.ShindengenChecksumCopy(plan.Bin);
+            if(corrected is null||!corrected.Bytes.AsSpan().SequenceEqual(plan.Bin))
+                Fail("SOURCE_CHECKSUM_MISMATCH","Shindengen source checksum does not match selected BIN");
+        }else{
+            var corrected=MainBinSource.KeihinChecksumCopy(plan.Bin,plan.ChecksumOffset);
+            if(!corrected.AsSpan().SequenceEqual(plan.Bin))
+                Fail("SOURCE_CHECKSUM_MISMATCH","Keihin source checksum does not match selected BIN");
+        }
     }
     private async Task RecheckPhysicalIdentity(){
         // C# source WorkerThread/SendCommand physical ECU read, not UI cached ID.
         try{
-            await SourceUnchecked("RECHECK_HELLO",MainFlashCommands.Hello,1600);
+            await SourceUnchecked("RECHECK_HELLO",
+                _plan.Handshake=="KEIHIN_POLL"?MainFlashCommands.KhPoll:MainFlashCommands.Hello,
+                1600);
             var id=await Command("RECHECK_ECU_ID",MainFlashCommands.EcuId,1600);
             if(id.Length<11)Fail("ECU_ID_INVALID","Physical ECU ID response shorter than 11 bytes");
             var physical=MainProtocol.Hex(id.AsSpan(5,5).ToArray());
