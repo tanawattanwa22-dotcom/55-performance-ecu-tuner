@@ -72,13 +72,18 @@ export class MainLiveSession {
  // must finish BEFORE opening the newly selected handle. Request the Android
  // chooser FIRST (in the click gesture), then wait here; do not change any
  // ECU/transport timeouts, retries or ACK handling.
- _queueUsbRelease(port){
+ _queueUsbRelease(port,{detached=false}={}){
   if(!port)return this._pendingUsbRelease||Promise.resolve();
   const prev=this._pendingUsbRelease;
   const release=(async()=>{
-   if(prev)await prev.catch(()=>{});
-   await port.close();
-  })().catch(()=>{});
+   // Reuse the existing USB cleanup deadline; a stalled OLD Android handle
+   // must not keep the entire connection UI busy indefinitely.
+   if(prev)await TIME_LIMIT(prev.catch(()=>{}),2500,
+    'Previous FT232R release did not finish');
+   await port.close(detached?{detached:true}:undefined);
+  })().catch(e=>{
+   this.usbTrace.push({at:new Date().toISOString(),message:'USB_RELEASE: '+String(e?.message||e)});
+  });
   this._pendingUsbRelease=release;
   void release.finally(()=>{
    if(this._pendingUsbRelease===release)this._pendingUsbRelease=null;
@@ -114,7 +119,7 @@ export class MainLiveSession {
   this.error='';this.usbLastError='';this.connecting=false;
   this.notify();
   // Closing only the now-detached WebUSB handle sends no ECU commands.
-  if(dead)void this._queueUsbRelease(dead);
+  if(dead)void this._queueUsbRelease(dead,{detached:true});
   return true;
  }
  async checkUsbPresence(){
@@ -218,7 +223,11 @@ export class MainLiveSession {
     const oldPort=this.port;this.port=null;
     void this._queueUsbRelease(oldPort);
    }
-   if(this._pendingUsbRelease)await this._pendingUsbRelease;
+   if(this._pendingUsbRelease){
+    this.phase='USB_WAIT_PREVIOUS_RELEASE';this.notify();
+    await TIME_LIMIT(this._pendingUsbRelease,2500,
+     'FT232R พอร์ตเก่าปล่อยไม่สำเร็จ • ลองถอด OTG แล้วเลือกสายอีกครั้ง');
+   }
    if(this.disconnectRequested||this._usbPhysicallyDetached)return false;
    this._selectedUsbDevice=device;
    this.usbDevice=Number(device?.vendorId||0).toString(16).padStart(4,'0')+':'+Number(device?.productId||0).toString(16).padStart(4,'0');
