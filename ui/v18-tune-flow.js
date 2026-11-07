@@ -103,6 +103,7 @@
        model,sourceName:sourceFilename,filename,
        customerBin:S.custom,checksumMode:snap.checksumMode});
      snap.vaultId=stored.id;snap.vaultName=stored.name;snap.sha256=stored.sha256;
+     window.__55LastTunedVaultId=stored.id;
      if(S.bin===sourceBin&&S.mi===sourceModel&&S.fname===sourceFilename&&sameSnapshot(snap)){
        S.saved=snap;S.flash=true;
        // A previous external/quick selection must never silently override a new tune.
