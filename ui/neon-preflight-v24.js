@@ -175,6 +175,14 @@ function addChecklist(box){
 }
 function render(){
  if(!stage?.isConnected)return;
+ // The countdown/USB UI refreshes every 1.5 s; ensure a visually selected
+ // native option always has an enabled, actionable button on Android.
+ if(dom.vaultSelect&&dom.vaultLoad){
+  const selected=!!dom.vaultSelect.value&&
+   Array.from(dom.vaultSelect.options).some(o=>o.value===dom.vaultSelect.value&&o.value);
+  dom.vaultLoad.disabled=!selected||!!INLINEFLASH.busy||dom.vaultWorking;
+  if(dom.vaultDelete)dom.vaultDelete.disabled=dom.vaultLoad.disabled;
+ }
  renderAnalyzeResult();
  const c=current(),quick=quickBin();
  if(dom.fast)dom.fast.disabled=!!INLINEFLASH.busy;
@@ -332,7 +340,10 @@ function render(){
   unlistedPhysical?(fileReady?'ECU นอกฐาน Main 290 • ตรวจ BIN / Family สดเมื่อกด Flash':'อ่าน ECU ID ได้แล้ว • รอเลือก BIN'):
   fileReady&&!sourceBinSizeSupported?'เปิด BIN แล้ว • ขนาดไฟล์ไม่มีตัวค้น BIN ID จาก Main':
   fileReady&&cableReady?'พร้อมตรวจ ECU / BIN ก่อนอัด':
-  working?'กำลังอ่าน ECU / ตรวจ Preflight':identity?.ecuId&&source?.part&&!identity.sourceMatched?'พบ ECU ID ในฐาน · รอยืนยัน Family':'รอเลือก BIN และเชื่อม FT232R';
+  working?'กำลังอ่าน ECU / ตรวจ Preflight':identity?.ecuId&&source?.part&&!identity.sourceMatched?'พบ ECU ID ในฐาน · รอยืนยัน Family':
+  !fileReady&&cableReady?'USB FT232R เชื่อมแล้ว • รอโหลด BIN จากคลัง':
+  fileReady&&!cableReady?'เลือก BIN แล้ว • รอเชื่อม FT232R จากหน้าแรก':
+  'รอเลือก BIN และเชื่อม FT232R';
  dom.title.classList.toggle('ready',ready);
 }
 async function saveHash(c){
@@ -633,6 +644,11 @@ function mount(host){
  const vaultDelete=btn('ลบ','n24-btn n24-vault-delete',()=>void deleteVault());
  vaultRow.append(vaultLoad,vaultDelete);
  const vaultMessage=make('p','n24-vault-message','กำลังเปิดคลัง BIN…');
+ // Keep the mobile native select, its action and the status in one UI state.
+ // Android can display a selected option before it dispatches change.
+ dom.vaultSelect=vaultSelect;dom.vaultLoad=vaultLoad;
+ dom.vaultDelete=vaultDelete;dom.vaultMessage=vaultMessage;
+ dom.vaultWorking=false;
  const vaultWarning=make('p','n24-help',
   'คลังนี้อยู่ใน Chrome เครื่องปัจจุบัน หากล้างข้อมูลเว็บไซต์หรือเปลี่ยนเครื่อง ไฟล์อาจหาย • ไม่ใช่ DRM ที่ป้องกันการดึงไฟล์ได้สมบูรณ์');
  vaultBox.append(vaultHeading,vaultIntro,vaultSelect,vaultRow,vaultMessage,vaultWarning);
@@ -648,17 +664,22 @@ function mount(host){
   try{
    const previous=preferId||vaultSelect.value||quickBin()?.vaultId||S.saved?.vaultId||'';
    vaultList=await vault.list();
-   if(!vaultSelect.isConnected)return;
+   // The first asynchronous IndexedDB result may arrive before the flash
+   // card is attached. Populate the detached select too; never silently
+   // leave the list/action disabled after it eventually becomes visible.
    vaultSelect.replaceChildren(new Option('— เลือกไฟล์ BIN จากคลัง —',''));
    for(const record of vaultList){
     const label=record.name+' · '+record.model+' · '+mainFileSize(record.size);
     vaultSelect.add(new Option(label,record.id));
    }
-   vaultSelect.value=vaultList.some(row=>row.id===previous)?previous:'';
-   vaultLoad.disabled=!vaultSelect.value||!!INLINEFLASH.busy;
+   // Explicitly select the newest saved BIN if no previous choice exists.
+   // Selection only arms "เลือก BIN นี้"; it never reads or writes ECU.
+   const choice=vaultList.some(row=>row.id===previous)?previous:(vaultList[0]?.id||'');
+   vaultSelect.value=choice;
+   vaultLoad.disabled=!choice||!!INLINEFLASH.busy||dom.vaultWorking;
    vaultDelete.disabled=vaultLoad.disabled;
    vaultMessage.textContent=vaultList.length
-    ?'มี '+vaultList.length+' ไฟล์ในคลัง • เลือกไฟล์แล้วกด “เลือก BIN นี้” เพื่อตรวจ ECU'
+    ?'มี '+vaultList.length+' ไฟล์ในคลัง • เลือก “'+(vaultList.find(row=>row.id===choice)?.name||'BIN')+'” แล้ว • กด “เลือก BIN นี้” เพื่อโหลดและตรวจ SHA-256 (ยังไม่อัด)'
     :'คลัง BIN ยังว่าง • ไปหน้าจูน กดบันทึกและตั้งชื่อไฟล์ก่อน';
   }catch(e){
    vaultLoad.disabled=true;vaultDelete.disabled=true;
@@ -668,9 +689,10 @@ function mount(host){
  async function loadVault(){
   if(INLINEFLASH.busy)return;
   const id=vaultSelect.value;
-  if(!id)return errorOut('กรุณาเลือกไฟล์ในคลัง BIN ก่อน');
+  if(!id||!vaultList.some(row=>row.id===id))return errorOut('กรุณาเลือกไฟล์ในคลัง BIN ก่อน');
   const vault=window.__55TunedBinVault;
-  vaultLoad.disabled=true;vaultMessage.textContent='กำลังตรวจ SHA-256 ของ BIN ในคลัง…';
+  dom.vaultWorking=true;vaultLoad.disabled=true;vaultSelect.disabled=true;
+  vaultMessage.textContent='กำลังตรวจ SHA-256 ของ BIN ในคลัง…';
   try{
    const entry=await vault.load(id);
    if(!entry)throw Error('ไม่พบไฟล์นี้ในคลัง BIN');
@@ -691,7 +713,11 @@ function mount(host){
    void previewBinOffset();void analyzeSelectedBin();window.__55refreshFlashButton?.();
    render();if(window.__55SharedEcu?.snapshot?.().connected)void autoPrepare();
   }catch(e){errorOut('เลือก BIN ในคลังไม่สำเร็จ: '+(e?.message||e))}
-  finally{vaultLoad.disabled=false;render()}
+  finally{
+   dom.vaultWorking=false;vaultSelect.disabled=false;
+   vaultLoad.disabled=!vaultSelect.value||!!INLINEFLASH.busy;
+   vaultDelete.disabled=vaultLoad.disabled;render();
+  }
  }
  async function deleteVault(){
   if(INLINEFLASH.busy)return;
@@ -707,10 +733,16 @@ function mount(host){
    window.__55refreshFlashButton?.();render();
   }catch(e){errorOut('ลบ BIN ไม่สำเร็จ: '+(e?.message||e))}
  }
- vaultSelect.addEventListener('change',()=>{
-  vaultLoad.disabled=!vaultSelect.value||!!INLINEFLASH.busy;
+ const syncVaultChoice=()=>{
+  const selected=vaultList.find(row=>row.id===vaultSelect.value);
+  vaultLoad.disabled=!selected||!!INLINEFLASH.busy||dom.vaultWorking;
   vaultDelete.disabled=vaultLoad.disabled;
- });
+  if(selected&&!dom.vaultWorking)
+   vaultMessage.textContent='เลือก “'+selected.name+'” • กด “เลือก BIN นี้” เพื่อตรวจไฟล์ก่อนอัด';
+ };
+ // Android native dropdown may commit on input, change or focusout.
+ for(const ev of ['input','change','blur'])vaultSelect.addEventListener(ev,syncVaultChoice);
+
  dom.vaultRefresh=refreshVault;
  void refreshVault();
  const uploadLabel=make('label','n24-upload-label','หรือเปิด BIN ภายนอกจากเครื่อง (ไฟล์ที่ลูกค้ามีอยู่แล้ว)');
