@@ -15,6 +15,7 @@ on:
       - "tools/verify-main-full-flash-sim.mjs"
       - "tools/verify-offline-flash.mjs"
       - "tools/verify-main-diagnostic.mjs"
+      - "tools/verify-usbc-first-connect.mjs"
       - "tools/verify-shared-operations.mjs"
       - "tools/verify-main-auto-group.mjs"
       - "tools/verify-main-bin-sizes.mjs"
@@ -34,6 +35,7 @@ on:
       - "tools/verify-honda-flash.mjs"
       - "tools/verify-main-programming-probe.mjs"
       - "tools/verify-main-diagnostic.mjs"
+      - "tools/verify-usbc-first-connect.mjs"
       - "tools/verify-shared-operations.mjs"
       - "tools/verify-original-ecm-reference.mjs"
       - "tools/verify-main-bin-analyze-result.mjs"
@@ -80,6 +82,8 @@ jobs:
         run: node tools/verify-main-source-manager.mjs
       - name: Verify three purchased C# diagnostic profiles and safe frames
         run: node tools/verify-main-diagnostic.mjs
+      - name: Verify Android USB-C FT232R first connection and no false ECU timeout detachment
+        run: node tools/verify-usbc-first-connect.mjs
       - name: Verify C# ACG/ECU password-protected format without publishing secrets
         run: node tools/verify-main-legacy-converter.mjs
       - name: Verify C# DTC six-memory read parsing
