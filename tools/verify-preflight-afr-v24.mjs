@@ -14,8 +14,10 @@ assert.match(p,/const restored=await shared\.restoreCable\?\.\(\)/,
  'Preflight recovers only the approved FT232R handle after a WebUSB transferIn loss');
 assert.match(p,/physicalFamilyEvidence==='MAIN_SOURCE_READ_ONLY_FLASH_COUNT_ACK'/,
  'Original FormMain unknown ID path may continue only after fresh physical family ACK');
-assert.match(p,/if\(current\(\)\.valid&&\(last\?\.identity\?\.sourceMatched\|\|proof\)\)await runCheck\(\{requestConfirmation:false\}\)/,
- 'Unlisted ECU with source ACK must reach read-only BIN / Memory Map check');
+assert.match(p,/if\(current\(\)\.valid&&\(identity\?\.sourceMatched\|\|familyProven\)\)/,
+ 'One-tap ID must continue into read-only BIN / Memory Map check with physical Family ACK');
+assert.match(p,/await runCheck\(\{requestConfirmation:false\}\)/,
+ 'BIN/Offset calculation must run immediately after a successful ECU identification');
 assert.doesNotMatch(p,/sourceMatched\)await runCheck\(\)/,
  'Do not skip Main source-backed unknown ECU solely because Part Code catalog has no row');
 
@@ -66,8 +68,11 @@ assert(p.includes("if(!requestConfirmation&&!previouslyApproved){")&&
  p.includes("confirmedPart:'CONFIRM '+last.identity.ecuId")&&
  p.includes("message='Auto Preflight:"),
  'Auto Preflight must calculate the C# source partial-ID BIN plan without manual button presses');
-assert(p.includes("if(current().valid&&(last?.identity?.sourceMatched||proof))await runCheck({requestConfirmation:false})"),
- 'Automatic ECU read must attempt read-only plan for source physical family ACK');
+assert(p.includes("async function readAndCheck(){")&&
+ p.includes("const readSucceeded=await readECU()")&&
+ p.includes("const familyProven=identity?.programmingSessionVerified===true&&")&&
+ p.includes("try{return await readAndCheck()}"),
+ 'Manual and automatic ECU identification share one read-once-then-plan sequence');
 assert(p.includes("TX / RX LOG • Fast Flash")&&
  p.includes("window.__55FlashLogRefresh=()=>")&&
  p.includes("window.__55ExportFlashLog?.()"),
@@ -81,6 +86,12 @@ assert(engine.includes("stage:'TX',tx:toHex(frame)")&&
  engine.includes("stage:'RX',rx:toHex(reply)"),
  'Flash engine must emit original transmitted and validated received bytes');
 assert(p.includes('last.engine.makePlan(c.bytes.slice()'),'strict C# plan from saved BIN snapshot');
+assert(p.includes("lastAutoProbe?.port===port&&lastAutoProbe?.key===key")&&
+ p.includes("if(samePort&&sameIdentity&&recency()&&last?.saved===c.saved)")&&
+ !p.includes("Date.now()-lastAutoProbe.at<15000"),
+ 'Auto Preflight must not repeatedly wake the same ECU just because optional checks remain incomplete');
+assert(p.includes("hardware:false")&&p.includes("if(!last.identity.sourceMatched&&!sourceFamilyAck)"),
+ 'Missing physical Family/Power evidence must remain unapproved after the one-tap calculation');
 assert(p.includes('queueMicrotask(()=>{if(stage===host)void autoPrepare()')&&p.includes('stage.insertBefore(trace,file)'),
  'Fast Flash auto-triggers read-only Preflight and places TX/RX adjacent to actual Flash controls');
 assert(p.includes('sourceMatched'),'catalog and family source matching enforced');
