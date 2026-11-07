@@ -278,6 +278,40 @@ try{
    await page.evaluate(()=>document.querySelector('#tune .tp-mainbar button[aria-label="เปิดหรือปิดเครื่องมือปรับค่า"]').click());
    assert.equal(await page.evaluate(()=>window.__55TuneProUI.getLayout().rightOpen),true);
    assert((await page.locator('#tune .tp-tool-host #fp').isVisible()),'real tools slide in');
+   // V7: previously v19 limited the dock to 100dvh - 205px,
+   // so its controls were cut off with a large blank area beneath them.
+   const toolGeometry=await page.evaluate(()=>{
+    const host=document.querySelector('#tune .tp-tool-host');
+    const panel=document.querySelector('#tune #fp');
+    const body=document.querySelector('#tune #fp .bd2');
+    const rect=el=>({top:el.getBoundingClientRect().top,
+      bottom:el.getBoundingClientRect().bottom,
+      height:el.getBoundingClientRect().height});
+    return {host:rect(host),panel:rect(panel),body:rect(body),
+      available:body.clientHeight,total:body.scrollHeight,
+      overflowY:getComputedStyle(body).overflowY,
+      maxHeight:getComputedStyle(panel).maxHeight};
+   });
+   assert(toolGeometry.panel.height>=toolGeometry.host.height-6,
+    'right editor panel must use full available drawer height: '+JSON.stringify(toolGeometry));
+   assert.equal(toolGeometry.maxHeight,'none',
+    'old v19 max-height must not truncate TunePro right drawer');
+   assert.equal(toolGeometry.overflowY,'auto',
+    'value tools must independently scroll vertically');
+   assert(toolGeometry.total>toolGeometry.available+40,
+    'long tuning tools must overflow only the scrollable interior');
+   const scrollResult=await page.evaluate(()=>{
+    const scroll=document.querySelector('#tune #fp .bd2');
+    const before=scroll.scrollTop;
+    scroll.scrollTop=scroll.scrollHeight;
+    const end=document.querySelector('#tune #clampT').getBoundingClientRect();
+    const body=scroll.getBoundingClientRect();
+    return {before,after:scroll.scrollTop,endBottom:end.bottom,bodyBottom:body.bottom};
+   });
+   assert(scrollResult.after>scrollResult.before,
+    'touch drawer scroll must reveal its lower controls: '+JSON.stringify(scrollResult));
+   assert(scrollResult.endBottom<=scrollResult.bodyBottom+6,
+    'bottom tuning controls should be reachable by vertical scrolling');
    // Screenshot must show the full unblocked editing table, not a tool overlay.
    await page.evaluate(()=>document.querySelector('#tune .tp-mainbar button[aria-label="เปิดหรือปิดเครื่องมือปรับค่า"]').click());
    assert.equal(await page.evaluate(()=>window.__55TuneProUI.getLayout().rightOpen),false);
