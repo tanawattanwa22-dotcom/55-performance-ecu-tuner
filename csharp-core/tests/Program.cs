@@ -137,6 +137,15 @@ Test(simulatedKeihin.RetryCount==2&&
      "Source seven-byte Retry budget is global TWO, not per-block");
 Test(simulatedKeihin.Events.Contains("SOURCE_WRITE_ACK_NONZERO_UNINTERPRETED"),
      "Main five-byte nonzero-status ACK accepted and retained");
+var blockedFast=new FakeMainFlashTransport("0104080F01",3,"KEIHIN");
+try{
+ await new MainFlashSourceEngine(blockedFast).FlashAsync(khSourcePlan with {Fast=true});
+ throw new Exception("C# fast switch should have stopped before ERASE");
+}catch(MainFlashException ex){
+ Test(ex.Code=="FAST_SWITCH_NOT_PROVEN"&&!ex.EraseMayHaveStarted&&
+      blockedFast.Steps.Count==0,
+      "Unproven KeihinOther 921600 fast switch rejected BEFORE any USB TX");
+}
 var recoveredHandshake=new FakeMainFlashTransport("0104080F01",3,"KEIHIN"){FailFirstKhHello=true};
 var recoveryHandshakeResult=await new MainFlashSourceEngine(recoveredHandshake)
     .FlashAsync(khSourcePlan);
