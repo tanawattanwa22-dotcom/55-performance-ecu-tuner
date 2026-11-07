@@ -78,6 +78,12 @@ public sealed partial class MainFlashSourceEngine {
     private void ValidatePlan(MainFlashPlan plan){
         if(plan is null || plan.Bin is null || plan.Bin.Length==0)
             Fail("BAD_PLAN","Source flash requires a validated BIN");
+        // Browser FT232R 921600 switch has not been proven to preserve the
+        // purchased D2XX timing. The primary UI already requests normal
+        // baud for this profile; enforce that here before ANY ECU command.
+        if(plan.Fast && plan.Profile=="KEIHINOTHER")
+            Fail("FAST_SWITCH_NOT_PROVEN",
+                "KeihinOther 921600 fast switch has no verified WebUSB source parity; choose normal speed before Flash");
         if(plan.Recovery)Fail("RECOVERY_PATH_NOT_MIGRATED",
             "Use the separate verified Recovery page; do not guess boot identity.");
         if(plan.EcuId is null||plan.EcuId.Length!=10||
