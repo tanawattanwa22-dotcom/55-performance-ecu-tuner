@@ -204,9 +204,12 @@ try{
   assert.equal(await page.locator('#n20Stage .n24-flash-trace button').count(),2,'TX/RX Flash panel offers download and copy actions');
   assert.equal(await page.locator('#n20Stage .n24-info-line').count(),15,'read-only BIN/ECU/Offset fields');
   assert.equal(await page.locator('#n20Stage .n24-check-row').count(),6,'six preflight checks');
-  assert.match(await page.locator('#n20Stage .n24-main-check-actions .n24-read').innerText(),
-    /อ่าน ECU ID.*ตรวจอัตโนมัติ/,
-    'one physical read button must continue into BIN/offset software checks');
+  assert.equal(await page.locator('#n24AutoReadStatus').isVisible(),true,
+    'Fast Flash must expose a live automatic ECU read status without a manual tap');
+  assert.equal(await page.locator('#n20Stage .n24-main-check-actions .n24-read').count(),0,
+    'no visible Read ECU button is required in the primary Flash workflow');
+  assert.equal(await page.locator('#n20Stage details.n24-advanced .n24-read').count(),1,
+    'manual rescanning remains available under Advanced for recovery from faults');
   assert.equal(await page.locator('#n20Stage .n24-check-row').last().evaluate(
     el=>el.classList.contains('passed')),false,
     'physical cable/12V checklist must NOT be auto-approved by software');
