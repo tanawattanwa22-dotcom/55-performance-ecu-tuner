@@ -39,7 +39,7 @@ var shText=System.Text.Encoding.ASCII.GetBytes("SV850");
 Array.Copy(shText,0,shBin,500,5);
 Test(MainBinSource.Examine(shBin).Type=="SHINDENGENV850","FormMain Shindengen V850 classification");
 var shWrite=new byte[]{17,18,19,20,21,21,23};
-Array.Copy(shWrite,shBin,100,shWrite.Length);
+Array.Copy(shWrite,0,shBin,100,shWrite.Length);
 shBin[117]=0xEE;shBin[118]=0xFF;
 Test(MainBinSource.DeriveShindengenKey(shBin,new byte[]{0x12,0x34},false)?.Length==2,
      "Shindengen source write Seed/Key extraction from BIN");
@@ -55,9 +55,9 @@ foreach(int group in new[]{1,4,7}){
  var commands=MainDiagnosticSource.CaptureCommands(group);
  var data=new System.Collections.Generic.List<byte>();
  for(int frameIndex=0;frameIndex<commands.Length;frameIndex++){
-  var tx=commands[frameIndex];
-  data.AddRange(tx);
-  var reply=new byte[tx[5]+6];
+  var liveFrame=commands[frameIndex];
+  data.AddRange(liveFrame);
+  var reply=new byte[liveFrame[5]+6];
   reply[0]=0x72;reply[1]=(byte)reply.Length;reply[2]=0x72;
   if(frameIndex==0){
    reply[12-7]=5;reply[13-7]=220; // source 1500 RPM
