@@ -23,6 +23,7 @@ on:
       - "tools/verify-main-bin-analyze-result.mjs"
       - "tools/verify-main-bin-lock-export.mjs"
       - "tools/verify-source-flash-progress.mjs"
+      - "tools/verify-tune-bin-flow.mjs"
       - "tests/**"
       - "package.json"
       - ".github/workflows/honda-flash-offline-tests.yml"
@@ -41,6 +42,7 @@ on:
       - "tools/verify-main-bin-analyze-result.mjs"
       - "tools/verify-main-bin-lock-export.mjs"
       - "tools/verify-source-flash-progress.mjs"
+      - "tools/verify-tune-bin-flow.mjs"
       - "tests/**"
       - "package.json"
   workflow_dispatch:
